@@ -24,7 +24,7 @@ npm run db:seed                 # catalogo + persone demo (--reset per ripartire
 npm run dev
 ```
 
-Con `DATABASE_URL` impostato l'app usa PostgreSQL. In questa modalità il pulsante dell'account demo non compare: accedi con le credenziali sopra.
+Con `DATABASE_URL` impostato l'app usa PostgreSQL. Anche `npm run build` applica le migrazioni, quindi un deploy (es. Vercel con Neon) crea da solo le tabelle: basta impostare `DATABASE_URL`. In questa modalità il pulsante dell'account demo non compare: accedi con le credenziali sopra.
 
 ## Catalogo TMDB (opzionale)
 
