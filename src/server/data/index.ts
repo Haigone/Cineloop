@@ -1,5 +1,6 @@
 import "server-only";
 import { MemoryRepository } from "./memory-repository";
+import { createDb, PostgresRepository } from "./postgres/postgres-repository";
 import type { Repository } from "./repository";
 
 export type { Repository } from "./repository";
@@ -19,5 +20,6 @@ export function getRepository(): Repository {
 }
 
 function createRepository(): Repository {
-  return new MemoryRepository();
+  const url = process.env.DATABASE_URL;
+  return url ? new PostgresRepository(createDb(url)) : new MemoryRepository();
 }

@@ -15,6 +15,7 @@ import type {
   WishlistItem,
 } from "@/domain/types";
 import { hashPasswordSync } from "@/server/auth/password";
+import { searchKey } from "@/lib/text";
 import type { Repository } from "./repository";
 import { SEED_TITLES } from "./seed/catalog";
 import { buildSeed, DEMO_PASSWORD } from "./seed/people";
@@ -68,10 +69,10 @@ export class MemoryRepository implements Repository {
   }
 
   async searchTitles(query: string, limit: number) {
-    const q = normalize(query);
+    const q = searchKey(query);
     if (!q) return [];
     return [...this.titles.values()]
-      .map((t) => ({ t, i: normalize(t.title).indexOf(q) }))
+      .map((t) => ({ t, i: searchKey(t.title).indexOf(q) }))
       .filter((x) => x.i >= 0)
       .sort((x, y) => x.i - y.i || x.t.title.localeCompare(y.t.title))
       .slice(0, limit)
@@ -122,10 +123,10 @@ export class MemoryRepository implements Repository {
   }
 
   async searchUsers(query: string, limit: number) {
-    const q = normalize(query);
+    const q = searchKey(query);
     if (!q) return [];
     return [...this.users.values()]
-      .filter((u) => normalize(u.displayName).includes(q) || u.username.includes(q))
+      .filter((u) => searchKey(u.displayName).includes(q) || u.username.includes(q))
       .slice(0, limit)
       .map(toPublic);
   }
@@ -347,12 +348,4 @@ export function defaultPreferences(userId: string): UserPreferences {
 
 function toPublic(u: User): PublicUser {
   return { id: u.id, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl, bio: u.bio };
-}
-
-function normalize(s: string) {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim();
 }
