@@ -5,17 +5,45 @@ import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
  * CineLoop background worker.
  *
  * While a Netflix /watch tab is open it sends a heartbeat to CineLoop once a
- * minute with that tab's URL and title. That is all it reads: no cookies, no
- * page content, no player, no other sites (the only host permission it can
- * hold is www.netflix.com, granted by the user from the popup).
+ * minute with that tab's URL and title, plus what is playing as the player
+ * names it (show, season, episode), read by player-title.js. That is all it
+ * reads: no cookies, no other page content, no other sites (the only host
+ * permission it can hold is www.netflix.com, granted by the user from the popup).
  */
 
 const HEARTBEAT = "heartbeat";
 /** A paused player is silent; after this long without sound we stop reporting. */
 const SILENT_LIMIT_MS = 10 * 60 * 1000;
 
-chrome.runtime.onInstalled.addListener(() => chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 }));
-chrome.runtime.onStartup.addListener(() => chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 }));
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
+  enablePlayerTitle();
+});
+chrome.runtime.onStartup.addListener(() => {
+  chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
+  enablePlayerTitle();
+});
+chrome.permissions.onAdded.addListener(() => enablePlayerTitle());
+
+const PLAYER_SCRIPT = "player-title";
+
+/**
+ * Once the user has granted netflix.com, have player-title.js run on its
+ * pages (and in tabs already open), so the show and episode are recognised
+ * without asking.
+ */
+async function enablePlayerTitle() {
+  if (!(await hasNetflixAccess())) return;
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [PLAYER_SCRIPT] });
+  if (registered.length === 0) {
+    await chrome.scripting.registerContentScripts([
+      { id: PLAYER_SCRIPT, matches: ["https://www.netflix.com/*"], js: ["player-title.js"], runAt: "document_idle", persistAcrossSessions: true },
+    ]);
+  }
+  for (const tab of await chrome.tabs.query({ url: "https://www.netflix.com/*" })) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["player-title.js"] }).catch(() => {});
+  }
+}
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
 
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
@@ -29,9 +57,13 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.paused || changes.token) tick();
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type === "tick") {
     tick().then(reply, () => reply(null));
+    return true;
+  }
+  if (message?.type === "player-title" && sender.tab?.id) {
+    playerTitle(sender.tab.id, message).then(() => reply(true), () => reply(false));
     return true;
   }
   if (message?.type === "current") {
@@ -46,11 +78,38 @@ async function remember(tab) {
   if (!tab?.id || !tab.url) return;
   const { tabs = {} } = await chrome.storage.session.get("tabs");
   const entry = tabs[tab.id] ?? {};
-  const show = browseId(tab.url);
-  if (show) entry.parentId = show;
+  // The show page the user came from; any other Netflix page means it no longer applies.
+  if (!watchId(tab.url)) entry.parentId = browseId(tab.url);
   if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
   tabs[tab.id] = entry;
   await chrome.storage.session.set({ tabs });
+}
+
+/** What the player says is on screen, kept per tab until the next episode. */
+async function playerTitle(tabId, m) {
+  if (typeof m.watchId !== "string" || typeof m.title !== "string") return;
+  const { tabs = {} } = await chrome.storage.session.get("tabs");
+  const entry = tabs[tabId] ?? {};
+  const changed = entry.player?.watchId !== m.watchId || entry.player?.title !== m.title || entry.player?.episode !== m.episode;
+  entry.player = {
+    watchId: m.watchId,
+    title: m.title.slice(0, 200),
+    season: Number.isInteger(m.season) ? m.season : null,
+    episode: Number.isInteger(m.episode) ? m.episode : null,
+  };
+  tabs[tabId] = entry;
+  await chrome.storage.session.set({ tabs });
+  if (changed) await tick();
+}
+
+/** Hints for the server from the player, when they belong to the episode in the URL. */
+function playerHints(player, url) {
+  if (!player || player.watchId !== watchId(url)) return {};
+  return {
+    title: player.title,
+    ...(player.season !== null ? { season: player.season } : {}),
+    ...(player.episode !== null ? { episode: player.episode } : {}),
+  };
 }
 
 /** Returned by current() when the playback tab has been silent too long (paused and left). */
@@ -69,7 +128,7 @@ async function current() {
   const tab = tabs.find((t) => t.active) ?? tabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
   const info = seen[tab.id] ?? {};
   if (!tab.audible && info.audibleAt && Date.now() - info.audibleAt > SILENT_LIMIT_MS) return SILENT;
-  return { tab, parentId: info.parentId ?? null };
+  return { tab, parentId: info.parentId ?? null, player: info.player ?? null };
 }
 
 let running = null;
@@ -101,13 +160,14 @@ async function tick() {
       }
 
       await remember(found.tab);
+      const hints = { ...playerHints(found.player, found.tab.url), ...(found.parentId ? { parentId: found.parentId } : {}) };
       const status = await api("/api/extension/observe", {
         method: "POST",
         body: {
           providerId: "netflix",
           url: found.tab.url,
           documentTitle: found.tab.title ?? "",
-          ...(found.parentId ? { hints: { parentId: found.parentId } } : {}),
+          ...(Object.keys(hints).length ? { hints } : {}),
           observedAt: new Date().toISOString(),
         },
       });

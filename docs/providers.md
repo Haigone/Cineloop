@@ -24,7 +24,7 @@ Nessun provider è segnato `available`, e un test (`tests/unit/providers.test.ts
 **Decisioni**
 
 - Il rilevamento è **attivo tramite l'estensione CineLoop** (`NetflixAdapter.capabilities.detectCurrentContent = true`), deciso dal proprietario del progetto l'8 ottobre 2026. Dettagli in [browser-extension.md](./browser-extension.md).
-- Perché è compatibile con i vincoli: l'estensione è installata e attivata dall'utente, legge solo indirizzo e titolo della scheda che l'utente sta già guardando (dati che il browser mostra nella sua interfaccia) e non fa richieste a Netflix. Non è un robot o uno scraper che accede al servizio al posto dell'utente, non legge pagine o player, non usa cookie né token, non aggira protezioni.
+- Perché è compatibile con i vincoli: l'estensione è installata e attivata dall'utente, legge solo indirizzo e titolo della scheda che l'utente sta già guardando e, dalla 0.2.0, il nome di ciò che è in riproduzione come lo mostra il player (serie, stagione, episodio), e non fa richieste a Netflix. Non è un robot o uno scraper che accede al servizio al posto dell'utente, non legge altro della pagina, non comanda il player, non usa cookie né token, non aggira protezioni.
 - Netflix non viene mai chiamato dal server. Il titolo si ricava da abbinamenti confermati dagli utenti o dal titolo della scheda; se non basta, chiede all'utente.
 - Guardare insieme: CineLoop porta gli amici sullo stesso titolo e condivide il link di una stanza creata con un'estensione watch party esistente. Non controlla il player di Netflix.
 - Lo stato del provider resta `planned`: non esiste un'integrazione ufficiale con Netflix e la sincronizzazione dipende da un'estensione che l'utente sceglie di installare.
@@ -35,6 +35,8 @@ Nessun provider è segnato `available`, e un test (`tests/unit/providers.test.ts
 - **Non fatto, di proposito**: far leggere all'estensione il catalogo o la Top 10 dalle pagine di Netflix (anche "una volta al giorno, dal primo utente"). Sarebbe scraping del servizio con l'account di un utente, vietato dai termini (1.8) e dai vincoli del progetto. L'estensione resta limitata a indirizzo e titolo della scheda in cui l'utente sta guardando.
 
 - **Catalogo completo di Netflix** (8 ottobre 2026): Esplora > "Su: Netflix" (`/explore?on=netflix`). I dati vengono da TMDB (`/discover` con `with_watch_providers=8`, `watch_region=IT`, solo abbonamento), che a sua volta li prende da JustWatch. Nessuna richiesta a Netflix. Vale anche per Prime Video, Disney+, Apple TV+, NOW e Crunchyroll. Richiede `TMDB_READ_TOKEN`; senza, il filtro lavora sul catalogo di prova.
+
+- **Non fatto, di proposito**: esportare "La mia lista" con l'estensione, anche con il consenso dell'utente. Richiederebbe di leggere pagine o chiamate interne di Netflix con la sessione dell'utente (accesso automatizzato, 1.8). L'alternativa legittima è l'export ufficiale dei dati personali di Netflix, da importare in CineLoop.
 
 **Prossimo passo consigliato**: import del CSV di Netflix per lo storico precedente all'installazione dell'estensione.
 

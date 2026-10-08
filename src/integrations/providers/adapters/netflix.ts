@@ -11,11 +11,12 @@ const GENERIC_TITLES = new Set(["", "netflix", "home", "watch"]);
  * Verified facts (see docs/providers.md):
  * - Netflix has no public API for viewing activity or playback state, so
  *   nothing here calls Netflix.
- * - The extension reports only the URL and the document title of the tab the
- *   user is watching in: no cookies, no network interception, no reading of
- *   the player. `parse` turns a `/watch/{id}` URL into content; the catalog
- *   match happens server-side (learned links, then title search, then the
- *   user confirming in the extension popup).
+ * - The extension reports the URL and document title of the tab the user is
+ *   watching in, plus what the player names as playing (show, season,
+ *   episode) as hints: no cookies, no network interception, nothing else
+ *   from the page. `parse` turns a `/watch/{id}` URL into content; the
+ *   catalog match happens server-side (learned links, the player's name,
+ *   then the user confirming in the extension popup).
  */
 export class NetflixAdapter extends ObservationAdapter {
   readonly id = "netflix" as const;

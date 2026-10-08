@@ -51,7 +51,8 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     url: content.url,
   };
   const now = new Date();
-  const step = nextPresence(userId, await repo.getPresence(userId), seen, now);
+  const before = await repo.getPresence(userId);
+  const step = nextPresence(userId, before, seen, now);
   if (step.ended) await storeMinutes(repo, step.ended, remainingMinutes(step.ended), now);
 
   const presence = step.presence;
@@ -62,6 +63,9 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       presence.titleId = titleId;
       await startWatching(repo, presence);
     }
+  } else if (!step.started && (presence.season !== before?.season || presence.episode !== before?.episode)) {
+    // The player named the episode after the session was matched: keep "Continua a guardare" exact.
+    await updateEpisode(repo, presence);
   }
   await repo.savePresence(presence);
   return getExtensionStatus(userId);
@@ -252,18 +256,30 @@ export async function joinFriend(viewer: PublicUser, hostId: string): Promise<Jo
 
 // Internals ------------------------------------------------------------------
 
-/** Learned links first (the show's id covers new episodes), then an exact title match. */
+/**
+ * This episode's learned link first, then the name the player shows, then the
+ * show's learned link (it covers episodes nobody has watched yet, but the
+ * show page the user came from can be out of date; the player is not).
+ */
 async function recognise(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
-  const linked = await repo.findProviderLink(presence.providerId, parentId ? [presence.externalId, parentId] : [presence.externalId]);
+  const linked = await repo.findProviderLink(presence.providerId, [presence.externalId]);
   if (linked) return linked;
+  const named = presence.label ? await matchLabel(repo, presence, parentId) : null;
+  if (named) return named;
+  return parentId ? repo.findProviderLink(presence.providerId, [parentId]) : null;
+}
+
+async function matchLabel(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
   if (!presence.label) return null;
 
   const key = searchKey(presence.label);
   const local = await repo.searchTitles(presence.label, 5);
-  let hit = local.find((t) => searchKey(t.title) === key);
+  // With a season and episode it is a series: never a film of the same name.
+  const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null || t.type !== "movie");
+  let hit = local.find(fits);
   if (!hit && getCatalog().complete) {
     const remote = await getCatalog().search(presence.label, 5).catch(() => []);
-    hit = remote.find((t) => searchKey(t.title) === key);
+    hit = remote.find(fits);
     if (hit) await cacheTitles(repo, [hit]);
   }
   if (!hit) return null;
@@ -301,6 +317,20 @@ async function startWatching(repo: Repository, presence: Presence): Promise<void
     season: presence.season,
     episode: presence.episode,
     rating: null,
+  });
+}
+
+async function updateEpisode(repo: Repository, presence: Presence): Promise<void> {
+  const entry = (await repo.listLibrary(presence.userId)).find((e) => e.titleId === presence.titleId);
+  if (!entry || entry.status === "completed") return;
+  await repo.saveProgress(presence.userId, {
+    titleId: presence.titleId!,
+    providerId: presence.providerId,
+    season: presence.season,
+    episode: presence.episode,
+    fraction: 0,
+    url: presence.url,
+    updatedAt: new Date().toISOString(),
   });
 }
 

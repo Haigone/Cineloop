@@ -14,14 +14,15 @@ Per la scheda Netflix in cui stai guardando, e solo quella:
 
 - l'indirizzo della pagina (es. `https://www.netflix.com/watch/80077368`);
 - il titolo della scheda (spesso è solo "Netflix");
-- se la scheda sta riproducendo audio (dopo 10 minuti di silenzio l'estensione smette di segnalarti).
+- se la scheda sta riproducendo audio (dopo 10 minuti di silenzio l'estensione smette di segnalarti);
+- **cosa è in riproduzione, come lo nomina il player** (dalla versione 0.2.0, 8 ottobre 2026, su richiesta del proprietario del progetto): il nome della serie o del film e la riga "S4:E5". `player-title.js` legge solo due cose sulle pagine `/watch`: i metadati multimediali che la pagina passa al browser (gli stessi dei controlli multimediali del browser) e la riga del titolo del player (`[data-uia="video-title"]`). Così serie, stagione ed episodio si riconoscono senza chiedere nulla.
 
-Dall'indirizzo delle pagine di catalogo (`?jbv=` o `/title/`) ricorda l'id della serie da cui sei partito, così riconosce le puntate successive.
+Dall'indirizzo delle pagine di catalogo (`?jbv=` o `/title/`) ricorda l'id della serie da cui sei partito, così riconosce le puntate successive anche senza il nome dal player.
 
 ## Cosa non legge, mai
 
 - Cookie, localStorage, token, header o richieste di rete.
-- Il contenuto della pagina, il player, il flusso video o i sottotitoli: non c'è nessuno script iniettato nelle pagine.
+- Il resto della pagina: elenchi, "La mia lista", cronologia, profilo, il flusso video o i sottotitoli. Lo script non modifica la pagina, non comanda il player e non fa richieste; gira solo su www.netflix.com dopo che l'utente ha concesso il permesso.
 - Qualsiasi altro sito. L'unico permesso host possibile è `https://www.netflix.com/*`, opzionale, richiesto dal pannello con un clic dell'utente.
 
 Non fa alcuna richiesta a Netflix: parla solo con il server CineLoop scelto dall'utente.
@@ -43,9 +44,10 @@ interface SyncObservation {
 ```
 
 4. Il server passa l'osservazione a `NetflixAdapter`, che estrae l'id dall'indirizzo. Il titolo del catalogo si trova così, in ordine:
-   1. un abbinamento già noto (`provider_title_links`), per l'id della puntata o della serie;
-   2. una corrispondenza esatta del titolo della scheda nel catalogo;
-   3. altrimenti il pannello chiede "Che cosa stai guardando?" e l'utente sceglie una volta. L'abbinamento vale poi per tutti, anche per le puntate successive. "Non è questo?" corregge un riconoscimento sbagliato.
+   1. un abbinamento già noto (`provider_title_links`) per l'id della puntata;
+   2. una corrispondenza esatta del nome mostrato dal player (o del titolo della scheda) nel catalogo; con stagione ed episodio, solo tra le serie;
+   3. un abbinamento già noto per l'id della serie da cui l'utente è partito;
+   4. altrimenti il pannello chiede "Che cosa stai guardando?" e l'utente sceglie una volta. L'abbinamento vale poi per tutti, anche per le puntate successive. "Non è questo?" corregge un riconoscimento sbagliato.
 5. La presenza (`presence`) resta viva finché arrivano i battiti; dopo 3 minuti di silenzio scade. Tornare al catalogo tra una puntata e l'altra non chiude la sessione: stanza e amici restano. Chiudere Netflix, mettere in pausa dal pannello o scollegare la chiude subito.
 
 ## API

@@ -25,11 +25,15 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
     headless: true,
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, "--headless=new"],
   });
-  await ctx.route("https://www.netflix.com/**", (route) => route.fulfill({ contentType: "text/html", body: "<title>Netflix</title>" }));
+  const id = () => String(10_000_000 + Math.floor(Math.random() * 89_000_000));
+  const [show, ep1, ep2, named] = [id(), id(), id(), id()];
+  // One episode page carries the player's title line, as Netflix shows it.
+  const player = `<div data-uia="video-title"><h4>Stranger Things</h4><span>S4:E5</span><span>Capitolo cinque</span></div>`;
+  await ctx.route("https://www.netflix.com/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: `<title>Netflix</title>${route.request().url().includes(named) ? player : ""}` }),
+  );
   const worker = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent("serviceworker"));
   const extId = new URL(worker.url()).host;
-  const id = () => String(10_000_000 + Math.floor(Math.random() * 89_000_000));
-  const [show, ep1, ep2] = [id(), id(), id()];
 
   // A one-time code from Impostazioni.
   const site = await ctx.newPage();
@@ -84,6 +88,17 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
 
   await popup.reload();
   await expect(popup.locator("#with")).toHaveText("Con te: Luca Ferri");
+
+  // When the player names the show and episode, nothing needs confirming.
+  await netflix.goto(`https://www.netflix.com/watch/${named}`);
+  await expect(async () => {
+    await popup.reload();
+    await expect(popup.locator("#watching-title")).toHaveText("Stranger Things", { timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(popup.locator("#watching-meta")).toContainText("S4 · E5");
+  await expect(popup.getByText("Che cosa stai guardando?")).toBeHidden();
+  await site.goto(`${baseURL}/home`);
+  await expect(site.getByText("Stagione 4 · Episodio 5").first()).toBeVisible();
 
   // Closing Netflix ends the session.
   await netflix.close();
