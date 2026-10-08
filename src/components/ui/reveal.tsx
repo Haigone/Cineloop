@@ -22,8 +22,8 @@ export function Reveal({ children, className }: { children: ReactNode; className
   );
 }
 
-export function RevealItem({ children, className, as = "div" }: { children: ReactNode; className?: string; as?: "div" | "section" | "aside" }) {
-  const Comp = as === "section" ? motion.section : as === "aside" ? motion.aside : motion.div;
+export function RevealItem({ children, className, as = "div" }: { children: ReactNode; className?: string; as?: "div" | "section" | "aside" | "header" }) {
+  const Comp = as === "section" ? motion.section : as === "aside" ? motion.aside : as === "header" ? motion.header : motion.div;
   return (
     <Comp variants={item} className={className}>
       {children}
