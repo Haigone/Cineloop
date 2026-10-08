@@ -101,14 +101,16 @@ function GeneratedArt({ id, palette, variant }: { id: string; palette: readonly 
       <rect width={w} height={h} fill={`url(#${key}-base)`} />
       <rect width={w} height={h} fill={`url(#${key}-glow)`} />
       <rect width={w} height={h} fill={`url(#${key}-light)`} />
-      <MotifShape motif={motif} w={w} h={h} gx={(gx / 100) * w} gy={(gy / 100) * h} light={light} base={base} rand={rand} />
+      <MotifShape seed={`${id}-${variant}`} motif={motif} w={w} h={h} gx={(gx / 100) * w} gy={(gy / 100) * h} light={light} base={base} />
       <rect width={w} height={h} fill={`url(#${key}-vignette)`} />
       <rect width={w} height={h} filter={`url(#${key}-grain)`} opacity="0.13" style={{ mixBlendMode: "overlay" }} />
     </svg>
   );
 }
 
+/** Pure: derives its own RNG from `seed`, so repeated renders produce identical markup. */
 function MotifShape({
+  seed,
   motif,
   w,
   h,
@@ -116,8 +118,8 @@ function MotifShape({
   gy,
   light,
   base,
-  rand,
 }: {
+  seed: string;
   motif: Motif;
   w: number;
   h: number;
@@ -125,8 +127,8 @@ function MotifShape({
   gy: number;
   light: string;
   base: string;
-  rand: () => number;
 }) {
+  const rand = seededRandom(seed);
   switch (motif) {
     case "sun": {
       const r = Math.min(w, h) * (0.16 + rand() * 0.1);

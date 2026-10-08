@@ -2,12 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { isActive, MOBILE_NAV } from "./nav-items";
 
 export function MobileNav() {
-  const pathname = usePathname();
+  return (
+    <Suspense fallback={<MobileNavView pathname="" />}>
+      <ActiveMobileNav />
+    </Suspense>
+  );
+}
+
+function ActiveMobileNav() {
+  return <MobileNavView pathname={usePathname()} />;
+}
+
+function MobileNavView({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="Principale"
