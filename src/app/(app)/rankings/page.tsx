@@ -14,6 +14,7 @@ import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { BarList } from "@/components/profile/bar-list";
 import { ColumnChart } from "@/components/profile/column-chart";
 import { RankedList } from "@/components/rankings/ranked-list";
+import { Podium } from "@/components/rankings/podium";
 
 export const metadata: Metadata = { title: "Classifiche" };
 
@@ -40,10 +41,10 @@ const names = (users: PublicUser[]) => users.map((u) => u.displayName.split(" ")
 const avg = (v: number) => (v / 2).toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 async function RankingsContent() {
-  const { personal: p, social: s, friendCount } = await getRankingsView();
+  const { podium, personal: p, social: s, friendCount } = await getRankingsView();
   const rated = p.distribution.reduce((a, b) => a + b, 0);
 
-  if (rated === 0 && friendCount === 0) {
+  if (rated === 0 && friendCount === 0 && podium.candidates.length === 0) {
     return (
       <EmptyState
         icon={<Trophy />}
@@ -62,6 +63,10 @@ async function RankingsContent() {
 
   return (
     <Reveal className="space-y-12">
+      <RevealItem>
+        <Podium picks={podium.picks} candidates={podium.candidates} />
+      </RevealItem>
+
       <RevealItem as="section">
         <SectionHeader id="personal-h" title="I tuoi voti" description={`${rated} titoli valutati`} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

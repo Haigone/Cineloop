@@ -222,6 +222,8 @@ export interface UserPreferences {
   shareActivity: boolean;
   /** While watching with the extension, friends see you live with "Guarda insieme". */
   liveVisible: boolean;
+  /** The viewer's own top 3, in order (first place first). Shown as a podium in Classifiche. */
+  podium: string[];
   notifyFriendActivity: boolean;
   notifyWatchParty: boolean;
   notifySuggestions: boolean;

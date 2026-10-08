@@ -94,3 +94,18 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
     if (rating) await record(user.id, "rated", parsedId.data, rating);
   }, "Non siamo riusciti a salvare il voto.");
 }
+
+const podiumSchema = z.array(titleId).max(3);
+
+/** The viewer's top 3 for Classifiche, first place first. Only titles they have watched. */
+export async function savePodium(ids: string[]): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsed = podiumSchema.safeParse(ids);
+  if (!parsed.success || new Set(parsed.data).size !== parsed.data.length) return { ok: false, error: "Podio non valido." };
+  const repo = getRepository();
+  const watched = new Set((await repo.listLibrary(user.id)).filter((e) => e.status === "completed" || e.status === "watching").map((e) => e.titleId));
+  if (!parsed.data.every((id) => watched.has(id))) return { ok: false, error: "Sul podio vanno solo titoli che hai visto." };
+  return run(async () => {
+    await repo.updatePreferences(user.id, { podium: parsed.data });
+  }, "Non siamo riusciti a salvare il podio.");
+}

@@ -2,7 +2,7 @@ import type { MediaType, Release, Title } from "@/domain/types";
 import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
-import type { CatalogService, DiscoverPage, DiscoverQuery } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, NamePreference } from "./types";
 
 /**
  * Example announcements so the demo can show "new season" rows. The dates are
@@ -61,6 +61,12 @@ export class SeedCatalog implements CatalogService {
   async upcoming(_type: MediaType | "all", _today: string, _limit: number): Promise<Release[]> {
     // Every bundled title is already out.
     return [];
+  }
+
+  async findByName(name: string, prefer: NamePreference): Promise<Title | null> {
+    const key = searchKey(name);
+    const hits = [...this.titles.values()].filter((t) => searchKey(t.title) === key && (!prefer.series || t.type !== "movie"));
+    return hits.find((t) => t.providers.includes(prefer.provider)) ?? hits[0] ?? null;
   }
 
   async match(title: Title): Promise<Title | null> {

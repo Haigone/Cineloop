@@ -12,6 +12,14 @@ export interface DiscoverQuery {
   page?: number;
 }
 
+/** What is known about a title read from a provider's player. */
+export interface NamePreference {
+  /** A season or episode was shown: it is a series. */
+  series: boolean;
+  /** The service it is playing on: among namesakes, the one available there wins. */
+  provider: ProviderId;
+}
+
 export interface DiscoverPage {
   titles: Title[];
   /** True when the source has another page after this one. */
@@ -45,6 +53,11 @@ export interface CatalogService {
    * (with its first air date, or a null date when it has none yet).
    * `today` is YYYY-MM-DD in Italy.
    */
+  /**
+   * The title a provider's player names, matched by its Italian or original
+   * name; among namesakes, prefers the one available on `prefer.provider`.
+   */
+  findByName(name: string, prefer: NamePreference): Promise<Title | null>;
   nextSeasons(series: readonly Title[], today: string): Promise<Release[]>;
   /** Films and new series coming out after `today`, soonest first. */
   upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]>;

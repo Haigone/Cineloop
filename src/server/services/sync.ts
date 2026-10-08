@@ -7,7 +7,7 @@ import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
 import { searchKey } from "@/lib/text";
 import { getRepository, type Repository } from "@/server/data";
-import { cacheTitles, ensureTitle } from "./explore";
+import { cacheTitles, canonical, ensureTitle } from "./explore";
 import { toPublicUser } from "./shared";
 
 /**
@@ -372,8 +372,11 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null || t.type !== "movie");
   let hit = local.find(fits);
   if (!hit && getCatalog().complete) {
-    const remote = await getCatalog().search(presence.label, 5).catch(() => []);
-    hit = remote.find(fits);
+    // The whole catalogue, preferring what is actually on the service it is playing on.
+    const remote = await getCatalog()
+      .findByName(presence.label, { series: presence.season !== null || presence.episode !== null, provider: presence.providerId })
+      .catch(() => null);
+    hit = remote ? (await canonical(repo, [remote]))[0] : undefined;
     if (hit) await cacheTitles(repo, [hit]);
   }
   if (!hit) return null;

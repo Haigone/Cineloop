@@ -2,7 +2,7 @@ import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/type
 import { addDays } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
 import { searchKey } from "@/lib/text";
-import type { CatalogService, DiscoverPage, DiscoverQuery } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, NamePreference } from "./types";
 
 /**
  * TMDB (themoviedb.org) catalog, via its official public API v3.
@@ -266,6 +266,42 @@ export class TmdbCatalog implements CatalogService {
     } catch {
       return null;
     }
+  }
+
+  async findByName(name: string, prefer: NamePreference): Promise<Title | null> {
+    const q = name.trim();
+    if (!q) return null;
+    const key = searchKey(q);
+    const items = (await this.list(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false`)).filter(
+      (i) => i.media_type === "tv" || (i.media_type === "movie" && !prefer.series),
+    );
+    const named = (i: TmdbItem) =>
+      [i.title, i.name, i.original_title, i.original_name].some((n) => n && searchKey(n) === key);
+    const exact = items.filter(named);
+    // Among namesakes (or, with no exact name, the first few results), the one on this service wins.
+    const pool = (exact.length ? exact : items).slice(0, exact.length ? 4 : 5);
+    const onService = await this.availableOn(pool, prefer.provider);
+    const pick = onService.length && (exact.length || onService.length === 1) ? onService[0] : exact[0];
+    if (!pick) return null;
+    const title = toTitle(pick.media_type as "movie" | "tv", pick);
+    return onService.includes(pick) ? { ...title, providers: [prefer.provider] } : title;
+  }
+
+  /** The items streaming on this service in Italy, in order. */
+  private async availableOn(items: TmdbItem[], provider: ProviderId): Promise<TmdbItem[]> {
+    const id = PROVIDER_IDS[provider];
+    if (!id || items.length === 0) return [];
+    const checks = await Promise.all(
+      items.map(async (i) => {
+        try {
+          const data = await this.get<{ results?: Record<string, { flatrate?: { provider_id: number }[] }> }>(`/${i.media_type}/${i.id}/watch/providers?`);
+          return (data.results?.[REGION]?.flatrate ?? []).some((p) => p.provider_id === id);
+        } catch {
+          return false;
+        }
+      }),
+    );
+    return items.filter((_, n) => checks[n]);
   }
 
   async match(title: Title): Promise<Title | null> {

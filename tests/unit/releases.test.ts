@@ -117,3 +117,32 @@ describe("upcoming releases", () => {
     ]);
   });
 });
+
+describe("recognising what the player names", () => {
+  it("prefers the namesake that streams on Netflix in Italy, and matches the original name", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      if (url.includes("/search/multi"))
+        return {
+          results: [
+            { id: 1, media_type: "tv", name: "Mercoledì", original_name: "Wednesday", first_air_date: "1990-01-01" },
+            { id: 119051, media_type: "tv", name: "Mercoledì", original_name: "Wednesday", first_air_date: "2022-11-23" },
+            { id: 9, media_type: "movie", title: "Wednesday", release_date: "2010-01-01" },
+          ],
+        };
+      if (url.includes("/tv/119051/watch/providers")) return { results: { IT: { flatrate: [{ provider_id: 8 }] } } };
+      return { results: {} };
+    });
+    const hit = await tmdb.findByName("Wednesday", { series: true, provider: "netflix" });
+    expect(hit).toMatchObject({ id: "tmdb-tv-119051", providers: ["netflix"] });
+  });
+
+  it("with no exact name, takes the only result on the service", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      if (url.includes("/search/multi"))
+        return { results: [{ id: 5, media_type: "tv", name: "La casa di carta: Corea" }, { id: 71446, media_type: "tv", name: "La casa di carta" }] };
+      if (url.includes("/tv/71446/watch/providers")) return { results: { IT: { flatrate: [{ provider_id: 8 }] } } };
+      return { results: {} };
+    });
+    expect((await tmdb.findByName("Money Heist", { series: true, provider: "netflix" }))?.id).toBe("tmdb-tv-71446");
+  });
+});

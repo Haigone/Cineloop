@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "podium" text[] DEFAULT '{}'::text[] NOT NULL;

@@ -486,6 +486,7 @@ export function defaultPreferences(userId: string): UserPreferences {
     profileVisibility: "friends",
     shareActivity: true,
     liveVisible: true,
+    podium: [],
     notifyFriendActivity: true,
     notifyWatchParty: true,
     notifySuggestions: true,
