@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CineLoop
 
-## Getting Started
+Il tuo hub personale e sociale per film, serie e anime. Tieni traccia di cosa guardi, scopri cosa vedere stasera, confronta i gusti con gli amici e lascia che la ruota scelga il film della serata.
 
-First, run the development server:
+CineLoop **non è una piattaforma di streaming**: non riproduce contenuti e non accede ai tuoi account. Ti riporta al servizio dove stai guardando.
+
+## Avvio rapido
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Apri http://localhost:3000 e premi **Entra con l'account demo** (oppure `marco@cineloop.dev` / `cineloop-demo`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Senza configurazione l'app usa dati demo in memoria: libreria, amici, attività e statistiche sono generati rispetto a oggi, quindi "questa settimana" ha sempre dati.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Con PostgreSQL
 
-## Learn More
+```bash
+cp .env.example .env.local      # imposta DATABASE_URL
+npm run db:migrate              # applica le migrazioni in ./drizzle
+npm run db:seed                 # catalogo + persone demo (--reset per ripartire da zero)
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Con `DATABASE_URL` impostato l'app usa PostgreSQL. In questa modalità il pulsante dell'account demo non compare: accedi con le credenziali sopra.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Catalogo TMDB (opzionale)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Imposta `TMDB_READ_TOKEN` (token di lettura API v3 di [TMDB](https://www.themoviedb.org/settings/api)). La ricerca integra i titoli di TMDB e li salva in cache. Quando è attivo, l'app mostra l'attribuzione richiesta da TMDB.
 
-## Deploy on Vercel
+## Script
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Comando | Cosa fa |
+|---|---|
+| `npm run dev` | Server di sviluppo |
+| `npm run build` / `npm start` | Build e avvio in produzione |
+| `npm run lint` / `npm run typecheck` | ESLint e TypeScript strict |
+| `npm test` | Test unitari e di componente (Vitest) |
+| `npm run test:e2e` | Test end-to-end e accessibilità (Playwright + axe) |
+| `npm run db:generate` | Genera una migrazione dallo schema Drizzle |
+| `npm run db:migrate` / `npm run db:seed` | Migrazioni e dati demo |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Per i test E2E con un Chromium già installato: `PLAYWRIGHT_CHROMIUM_PATH=/percorso/chrome npm run test:e2e`.
+
+## Sezioni
+
+- **Home**: ora in visione, continua a guardare, cosa fanno gli amici, la tua settimana, da vedere stasera.
+- **Libreria**: tutto quello che hai visto o stai seguendo, con filtri, voti a mezze stelle e stato.
+- **Wishlist**: la tua coda in ordine di priorità, riordinabile anche da tastiera.
+- **Classifiche**: i tuoi preferiti per tipo e cosa mette d'accordo gli amici.
+- **Amici**: attività, compatibilità dei gusti, titoli in comune.
+- **Serate insieme**: scegli chi c'è, CineLoop trova i titoli compatibili, la ruota decide.
+- **Profilo e Impostazioni**: statistiche, privacy, notifiche, servizi che usi, riduzione delle animazioni.
+
+## Stack
+
+Next.js 16 (App Router), React 19, TypeScript strict, Tailwind CSS 4, Motion, PostgreSQL con Drizzle, zod, Vitest, Playwright con axe. Nessuna libreria di componenti UI.
+
+## Documentazione
+
+- [Architettura](docs/architecture.md)
+- [Integrazioni con i provider](docs/providers.md): cosa è consentito per Netflix, gli altri servizi, Anime Unity e Streaming Community
+- [Estensione browser](docs/browser-extension.md): progetto, non ancora implementata
+
+## Limiti noti
+
+- Nessun provider sincronizza automaticamente: "Continua su…" apre il servizio, ma l'avanzamento nelle serie viene per ora dai dati demo.
+- Anime Unity e Streaming Community non sono supportati per scelta (vedi docs/providers.md).
+- Il tema è solo scuro.

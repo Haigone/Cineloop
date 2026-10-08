@@ -38,6 +38,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         />
         <main id="main" tabIndex={-1} className="mx-auto max-w-[1480px] px-4 pt-6 pb-28 outline-none md:px-6 md:pb-16 lg:px-8">
           {children}
+          {process.env.TMDB_READ_TOKEN && (
+            <p className="mt-16 text-xs text-fg-3">Questo prodotto usa l&apos;API di TMDB ma non è approvato né certificato da TMDB.</p>
+          )}
         </main>
       </div>
       <MobileNav />

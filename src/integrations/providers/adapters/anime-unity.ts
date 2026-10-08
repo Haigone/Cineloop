@@ -1,13 +1,14 @@
 import { DisabledAdapter } from "./base";
 
 /**
- * Anime Unity. STATUS: under review — no integration.
+ * Anime Unity. STATUS: not supported — stub only, by decision.
  *
- * Anime Unity is not a licensed distributor and has no official API or
- * terms that grant third-party access; its domain changes frequently.
- * Integrating with it could mean directing users to unlicensed streams, so
- * CineLoop keeps this adapter disabled. Users can still track anime manually,
- * and licensed alternatives (Crunchyroll, Netflix) are supported instead.
+ * Reviewed in docs/providers.md. Anime Unity is not an official distributor:
+ * there is no evidence of licences from rights holders, no public API and no
+ * terms that grant third-party access, and its domain changes often.
+ * Integrating would mean sending users to unlicensed streams, so this adapter
+ * intentionally does nothing. Anime stay fully trackable by hand, and licensed
+ * services (Crunchyroll, Netflix, Prime Video) are the supported paths.
  */
 export class AnimeUnityAdapter extends DisabledAdapter {
   constructor() {

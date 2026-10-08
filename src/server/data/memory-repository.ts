@@ -79,6 +79,10 @@ export class MemoryRepository implements Repository {
       .map((x) => x.t);
   }
 
+  async upsertTitles(titles: readonly Title[]) {
+    for (const t of titles) this.titles.set(t.id, t);
+  }
+
   // Users -------------------------------------------------------------------
 
   async getUserById(id: string) {

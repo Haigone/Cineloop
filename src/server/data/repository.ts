@@ -29,6 +29,8 @@ export interface Repository {
   listTitles(): Promise<Title[]>;
   getTitlesByIds(ids: readonly string[]): Promise<Title[]>;
   searchTitles(query: string, limit: number): Promise<Title[]>;
+  /** Insert or refresh titles fetched from a CatalogService. */
+  upsertTitles(titles: readonly Title[]): Promise<void>;
 
   // Users & credentials
   getUserById(id: string): Promise<User | null>;

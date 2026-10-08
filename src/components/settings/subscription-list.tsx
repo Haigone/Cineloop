@@ -45,7 +45,7 @@ export function SubscriptionList({ providers, initial }: { providers: Provider[]
                 </span>
               </p>
               <p id={`${labelId}-desc`} className="mt-0.5 text-[13px] text-fg-3">
-                {selectable ? STATUS_NOTE[p.integration] : "Stiamo verificando licenze e termini del servizio: nessuna integrazione attiva."}
+                {selectable ? STATUS_NOTE[p.integration] : "Servizio senza licenze verificate: CineLoop non si integra e non rimanda a questo sito. Puoi comunque tracciare i titoli a mano."}
               </p>
             </div>
             {selectable && (

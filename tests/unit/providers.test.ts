@@ -42,5 +42,6 @@ describe("unlicensed services", () => {
     expect(a.getContentUrl(content)).toBeNull();
     expect(resolveContinueUrl(content, null)).toBeNull();
     expect(PROVIDERS[id].homepage).toBeNull();
+    expect(PROVIDERS[id].integration).toBe("not-supported");
   });
 });

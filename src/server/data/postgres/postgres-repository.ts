@@ -62,6 +62,13 @@ export class PostgresRepository implements Repository {
     return rows.map(toTitle);
   }
 
+  async upsertTitles(list: readonly Title[]) {
+    for (const t of list) {
+      const row = titleToRow(t);
+      await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
+    }
+  }
+
   // Users -------------------------------------------------------------------
 
   async getUserById(id: string) {

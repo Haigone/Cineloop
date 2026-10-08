@@ -53,14 +53,14 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     name: "Anime Unity",
     tint: "#8c7cf0",
     homepage: null,
-    integration: "under-review",
+    integration: "not-supported",
   },
   streamingcommunity: {
     id: "streamingcommunity",
     name: "Streaming Community",
     tint: "#5b8cf5",
     homepage: null,
-    integration: "under-review",
+    integration: "not-supported",
   },
 };
 
