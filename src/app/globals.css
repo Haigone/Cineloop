@@ -1,26 +1,111 @@
 @import "tailwindcss";
 
+/*
+ * CineLoop design tokens.
+ * Dark cinematic: one near-black stage, two raised surfaces, a single
+ * red-pink accent for primary actions and progress, violet/blue only for
+ * small secondary signals (social, providers).
+ */
+@theme {
+  --color-bg: #08090d;
+  --color-surface: #111318;
+  --color-surface-2: #171922;
+  --color-surface-3: #1e212c;
+  --color-line: rgb(255 255 255 / 0.06);
+  --color-line-strong: rgb(255 255 255 / 0.11);
+
+  --color-fg: #f2f3f6;
+  --color-fg-2: #a2a8b6;
+  --color-fg-3: #6e7483;
+
+  --color-accent: #e8364f;
+  --color-accent-hover: #f04d64;
+  --color-accent-soft: rgb(232 54 79 / 0.14);
+  --color-violet: #8c7cf0;
+  --color-blue: #5b8cf5;
+  --color-success: #3fb68b;
+  --color-warning: #e5a34a;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+
+  --shadow-soft: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 24px 64px -16px rgb(0 0 0 / 0.75);
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --sidebar-width: 232px;
+  --topbar-height: 64px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgb(232 54 79 / 0.35);
+  color: #fff;
+}
+
+/* One focus treatment everywhere: a visible accent ring that clears the element. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Thin, quiet scrollbars for horizontal rails and panels. */
+.scroll-rail {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0;
+  overscroll-behavior-x: contain;
+}
+.scroll-rail > * {
+  scroll-snap-align: start;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
 }
