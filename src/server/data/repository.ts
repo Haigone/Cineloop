@@ -5,6 +5,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  PartyState,
   Presence,
   ProviderId,
   PublicUser,
@@ -97,6 +98,9 @@ export interface Repository {
   listPresence(userIds: readonly string[]): Promise<Presence[]>;
   savePresence(presence: Presence): Promise<void>;
   clearPresence(userId: string): Promise<void>;
+  /** The watch-together room hosted by this user, if any. */
+  getParty(hostId: string): Promise<PartyState | null>;
+  saveParty(hostId: string, party: PartyState | null): Promise<void>;
   /** Catalog title a provider id was matched to, trying ids in order. */
   findProviderLink(providerId: ProviderId, externalIds: readonly string[]): Promise<string | null>;
   saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }): Promise<void>;

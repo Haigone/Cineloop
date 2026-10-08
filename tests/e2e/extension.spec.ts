@@ -29,9 +29,17 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   const [show, ep1, ep2, named] = [id(), id(), id(), id()];
   // One episode page carries the player's title line, as Netflix shows it.
   const player = `<div data-uia="video-title"><h4>Stranger Things</h4><span>S4:E5</span><span>Capitolo cinque</span></div>`;
-  await ctx.route("https://www.netflix.com/**", (route) =>
-    route.fulfill({ contentType: "text/html", body: `<title>Netflix</title>${route.request().url().includes(named) ? player : ""}` }),
-  );
+  // A playing, muted video stands in for Netflix's player.
+  const video = `<video muted></video><script>
+    const c = document.createElement("canvas"); const g = c.getContext("2d");
+    setInterval(() => { g.fillStyle = "#" + Math.floor(Math.random() * 4095).toString(16); g.fillRect(0, 0, 10, 10); }, 100);
+    const v = document.querySelector("video"); v.srcObject = c.captureStream(10); v.play();
+  </script>`;
+  await ctx.route("https://www.netflix.com/**", (route) => {
+    const url = route.request().url();
+    const body = `<title>Netflix</title>${url.includes(named) ? player : ""}${url.includes("/watch/") ? video : ""}`;
+    return route.fulfill({ contentType: "text/html", body });
+  });
   const worker = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent("serviceworker"));
   const extId = new URL(worker.url()).host;
 
@@ -63,6 +71,8 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await popup.getByLabel("Cerca un titolo").fill("dark");
   await popup.locator("#results button", { hasText: "Dark" }).first().click();
   await expect(popup.locator("#watching-title")).toHaveText("Dark");
+  await popup.getByRole("tab", { name: "Guarda insieme" }).click();
+  await popup.getByText("Usi un’altra estensione watch party?").click();
   await popup.locator("#party-url").fill("https://www.teleparty.com/join/e2e");
   await popup.locator("#party-form button[type=submit]").click();
 
@@ -81,13 +91,37 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await luca.getByLabel("Password").fill(DEMO.password);
   await luca.getByRole("button", { name: "Accedi", exact: true }).click();
   await luca.waitForURL("**/home");
-  await luca.getByRole("button", { name: "Unisciti: Marco, Dark" }).click();
+  await luca.getByRole("button", { name: "Guarda insieme: Marco, Dark" }).click();
   const dialog = luca.getByRole("dialog");
   await expect(dialog.getByRole("link", { name: /Entra nella stanza di Marco/ })).toHaveAttribute("href", "https://www.teleparty.com/join/e2e");
   await expect(dialog.getByRole("link", { name: /Apri su Netflix/ })).toHaveAttribute("href", `https://www.netflix.com/watch/${ep2}`);
 
   await popup.reload();
-  await expect(popup.locator("#with")).toHaveText("Con te: Luca Ferri");
+  await expect(popup.getByRole("tab", { name: "Guarda insieme" })).toHaveAttribute("aria-selected", "true");
+  await expect(popup.locator("#room-members")).toHaveText("Con te: Luca Ferri");
+
+  // Luca pauses on his side (his own extension, here its API): Marco's video pauses too.
+  await luca.goto(`${baseURL}/settings#estensione`);
+  await luca.getByRole("button", { name: "Genera codice" }).click();
+  const lucaCode = (await luca.getByText(/^[2-9A-Z]{4}-[2-9A-Z]{4}$/).textContent())!;
+  const paired = await (await luca.request.post(`${baseURL}/api/extension/pair`, { data: { code: lucaCode } })).json();
+  expect(await netflix.evaluate(() => document.querySelector("video")!.paused)).toBe(false);
+  await expect(async () => {
+    const res = await luca.request.post(`${baseURL}/api/extension/party`, {
+      headers: { Authorization: `Bearer ${paired.token}` },
+      data: { externalId: ep2, position: 3, paused: true, action: "pause" },
+    });
+    expect((await res.json()).party).not.toBeNull();
+  }).toPass({ timeout: 10_000 });
+  await expect.poll(() => netflix.evaluate(() => document.querySelector("video")!.paused), { timeout: 30_000 }).toBe(true);
+  await popup.reload();
+  await expect(popup.locator("#room-state")).toContainText("pausa di Luca Ferri");
+
+  // Not visible: Luca no longer sees Marco live.
+  await popup.locator("#visible").uncheck();
+  await luca.goto(`${baseURL}/home`);
+  await expect(luca.getByRole("button", { name: /Guarda insieme: Marco/ })).toHaveCount(0);
+  await popup.locator("#visible").check();
 
   // When the player names the show and episode, nothing needs confirming.
   await netflix.goto(`https://www.netflix.com/watch/${named}`);
@@ -103,6 +137,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   // Closing Netflix ends the session.
   await netflix.close();
   await popup.reload();
+  await popup.getByRole("tab", { name: "Sto guardando" }).click();
   await expect(popup.getByText("Niente in riproduzione")).toBeVisible();
 
   await other.close();

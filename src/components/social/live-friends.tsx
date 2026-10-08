@@ -12,9 +12,9 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
 /**
- * Friends watching right now (reported by their CineLoop extension), each
- * with "Unisciti": open the same thing on the provider and, when the host
- * shared one, their watch-together room.
+ * Friends watching right now (reported by their CineLoop extension) who chose
+ * to be visible, each with "Guarda insieme": open the same thing on the
+ * provider; both extensions then keep play and pause in step.
  */
 export function LiveFriends({ items }: { items: LiveFriend[] }) {
   return (
@@ -70,8 +70,8 @@ function LiveRow({ item }: { item: LiveFriend }) {
           </span>
         )}
       </span>
-      <Button size="sm" variant={joined ? "secondary" : "primary"} loading={pending} onClick={join} aria-label={`${joined ? "Riapri" : "Unisciti"}: ${name}, ${what}`}>
-        {joined ? "Riapri" : "Unisciti"}
+      <Button size="sm" variant={joined ? "secondary" : "primary"} loading={pending} onClick={join} aria-label={`${joined ? "Riapri" : "Guarda insieme"}: ${name}, ${what}`}>
+        {joined ? "Riapri" : "Guarda insieme"}
       </Button>
 
       <Modal
@@ -93,7 +93,7 @@ function LiveRow({ item }: { item: LiveFriend }) {
           <p className="text-[13px] leading-relaxed text-fg-3">
             {item.partyUrl
               ? "La stanza tiene play, pausa e posizione allineati per tutti."
-              : `Per restare in sincrono, ${name} può creare una stanza con un'estensione watch party (per esempio Teleparty) e condividerne il link dal pannello di CineLoop: comparirà qui.`}
+              : `Con l'estensione CineLoop attiva, play e pausa restano allineati tra te e ${name}. Nel pannello dell'estensione, in “Guarda insieme”, vedi se siete sfasati.`}
           </p>
         </div>
       </Modal>

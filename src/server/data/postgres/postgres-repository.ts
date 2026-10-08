@@ -8,6 +8,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  PartyState,
   Presence,
   ProviderId,
   PublicUser,
@@ -214,6 +215,20 @@ export class PostgresRepository implements Repository {
       .orderBy(desc(viewers), desc(minutes))
       .limit(limit);
     return rows as ChartEntry[];
+  }
+
+  async getParty(hostId: string) {
+    const [row] = await this.db.select().from(schema.parties).where(eq(schema.parties.hostId, hostId));
+    return row ? row.state : null;
+  }
+
+  async saveParty(hostId: string, party: PartyState | null) {
+    if (!party) {
+      await this.db.delete(schema.parties).where(eq(schema.parties.hostId, hostId));
+      return;
+    }
+    const row = { hostId, state: party, updatedAt: new Date() };
+    await this.db.insert(schema.parties).values(row).onConflictDoUpdate({ target: schema.parties.hostId, set: row });
   }
 
   async getChart(id: string) {

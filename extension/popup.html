@@ -30,53 +30,87 @@
     <section id="grant" hidden>
       <h1>Attiva su Netflix</h1>
       <p class="muted">
-        CineLoop deve poter leggere l’indirizzo e il titolo delle schede di netflix.com. Nient’altro: niente password, cookie o player, e
-        nessun altro sito.
+        CineLoop legge l’indirizzo delle schede di netflix.com e, nel player, il titolo e l’episodio in riproduzione; quando guardi con
+        un amico mette in play o in pausa il tuo video insieme al suo. Nient’altro: niente password né cookie, e nessun altro sito.
       </p>
       <button id="grant-btn" class="primary">Consenti su netflix.com</button>
     </section>
 
     <!-- Paired and active -->
     <section id="main" hidden>
-      <div id="idle" class="card" hidden>
-        <p class="title">Niente in riproduzione</p>
-        <p class="muted">Avvia un film o un episodio su Netflix: CineLoop aggiorna la tua libreria e i tuoi amici vedono che stai guardando.</p>
+      <div class="tabs" role="tablist" aria-label="Sezioni">
+        <button id="tab-now" role="tab" aria-controls="panel-now" aria-selected="true">Sto guardando</button>
+        <button id="tab-together" role="tab" aria-controls="panel-together" aria-selected="false" tabindex="-1">
+          Guarda insieme <span id="together-dot" class="dot" aria-hidden="true" hidden></span>
+        </button>
       </div>
 
-      <div id="paused-card" class="card" hidden>
-        <p class="title">In pausa</p>
-        <p class="muted">CineLoop non sta registrando nulla e gli amici non ti vedono in visione.</p>
+      <div id="panel-now" role="tabpanel" aria-labelledby="tab-now">
+        <div id="idle" class="card" hidden>
+          <p class="title">Niente in riproduzione</p>
+          <p class="muted">Avvia un film o un episodio su Netflix: CineLoop aggiorna la tua libreria con stagione ed episodio.</p>
+        </div>
+
+        <div id="paused-card" class="card" hidden>
+          <p class="title">In pausa</p>
+          <p class="muted">CineLoop non sta registrando nulla e gli amici non ti vedono in visione.</p>
+        </div>
+
+        <div id="watching" class="card" hidden>
+          <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Stai guardando</p>
+          <p id="watching-title" class="title"></p>
+          <p id="watching-meta" class="muted"></p>
+          <button id="change-btn" type="button" class="quiet link" hidden>Non è questo?</button>
+        </div>
+
+        <div id="confirm" class="card" hidden>
+          <p class="title">Che cosa stai guardando?</p>
+          <p class="muted">Non sono riuscito a riconoscerlo. Sceglilo una volta: per le prossime puntate lo riconosco da solo.</p>
+          <ul id="suggestions" class="choices"></ul>
+          <label for="q" class="sr-only">Cerca un titolo</label>
+          <input id="q" type="search" placeholder="Cerca un titolo…" autocomplete="off" />
+          <ul id="results" class="choices" aria-live="polite"></ul>
+        </div>
+
+        <div id="my-list" class="card" hidden>
+          <p class="title">La tua lista</p>
+          <ul id="list-items" class="list"></ul>
+        </div>
       </div>
 
-      <div id="watching" class="card" hidden>
-        <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Stai guardando</p>
-        <p id="watching-title" class="title"></p>
-        <p id="watching-meta" class="muted"></p>
-        <p id="with" class="with" hidden></p>
-        <button id="change-btn" type="button" class="quiet link" hidden>Non è questo?</button>
-      </div>
+      <div id="panel-together" role="tabpanel" aria-labelledby="tab-together" hidden>
+        <div class="card">
+          <label class="switch">
+            <input id="visible" type="checkbox" role="switch" />
+            <span>
+              <span class="title">Visibile agli amici</span>
+              <span id="visible-help" class="muted block"></span>
+            </span>
+          </label>
+        </div>
 
-      <div id="confirm" class="card" hidden>
-        <p class="title">Che cosa stai guardando?</p>
-        <p class="muted">Netflix non lo dice nel titolo della scheda. Sceglilo una volta: per le prossime puntate lo riconosco da solo.</p>
-        <ul id="suggestions" class="choices"></ul>
-        <label for="q" class="sr-only">Cerca un titolo</label>
-        <input id="q" type="search" placeholder="Cerca un titolo…" autocomplete="off" />
-        <ul id="results" class="choices" aria-live="polite"></ul>
-      </div>
+        <div id="room" class="card" hidden>
+          <p class="eyebrow"><span class="dot" aria-hidden="true"></span> <span id="room-title"></span></p>
+          <p id="room-members" class="with"></p>
+          <p id="room-state" class="muted"></p>
+          <ul id="room-offsets" class="offsets"></ul>
+        </div>
 
-      <div id="party" class="card" hidden>
-        <p class="title">Guardare insieme</p>
-        <p class="muted">
-          Gli amici ti vedono nella loro dashboard e possono unirsi. Per restare in sincrono crea una stanza con un’estensione watch party (per
-          esempio Teleparty) e incolla qui il link: lo vedranno quando si uniscono.
-        </p>
-        <form id="party-form" class="row">
-          <label for="party-url" class="sr-only">Link della stanza</label>
-          <input id="party-url" type="url" placeholder="https://…" />
-          <button type="submit">Condividi</button>
-        </form>
-        <p id="party-error" class="error" role="alert" hidden></p>
+        <div id="no-room" class="card" hidden>
+          <p class="title">Nessuno con te, per ora</p>
+          <p class="muted">Quando un amico preme “Guarda insieme” su CineLoop e apre lo stesso episodio, play e pausa restano allineati tra voi.</p>
+        </div>
+
+        <details id="party" class="card">
+          <summary>Usi un’altra estensione watch party?</summary>
+          <p class="muted">Incolla il link della stanza (per esempio Teleparty): gli amici lo trovano quando si uniscono.</p>
+          <form id="party-form" class="row">
+            <label for="party-url" class="sr-only">Link della stanza</label>
+            <input id="party-url" type="url" placeholder="https://…" />
+            <button type="submit">Condividi</button>
+          </form>
+          <p id="party-error" class="error" role="alert" hidden></p>
+        </details>
       </div>
 
       <footer>

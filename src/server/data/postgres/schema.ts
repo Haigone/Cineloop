@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, NotificationKind, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -183,6 +183,7 @@ export const preferences = pgTable("preferences", {
     .references(() => users.id, { onDelete: "cascade" }),
   profileVisibility: text("profile_visibility").$type<"public" | "friends" | "private">().notNull().default("friends"),
   shareActivity: boolean("share_activity").notNull().default(true),
+  liveVisible: boolean("live_visible").notNull().default(true),
   notifyFriendActivity: boolean("notify_friend_activity").notNull().default(true),
   notifyWatchParty: boolean("notify_watch_party").notNull().default(true),
   notifySuggestions: boolean("notify_suggestions").notNull().default(true),
@@ -232,6 +233,15 @@ export const presence = pgTable("presence", {
   startedAt: ts("started_at").notNull(),
   updatedAt: ts("updated_at").notNull(),
   pendingMinutes: real("pending_minutes").notNull().default(0),
+});
+
+/** Watch-together rooms, one per host, while their session lasts. */
+export const parties = pgTable("parties", {
+  hostId: text("host_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  state: jsonb("state").$type<PartyState>().notNull(),
+  updatedAt: ts("updated_at").notNull(),
 });
 
 /** Provider ids (e.g. a Netflix /watch id) matched to catalog titles, learned from users' confirmations. */

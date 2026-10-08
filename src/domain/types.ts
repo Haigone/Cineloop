@@ -220,6 +220,8 @@ export interface UserPreferences {
   userId: string;
   profileVisibility: "public" | "friends" | "private";
   shareActivity: boolean;
+  /** While watching with the extension, friends see you live with "Guarda insieme". */
+  liveVisible: boolean;
   notifyFriendActivity: boolean;
   notifyWatchParty: boolean;
   notifySuggestions: boolean;
@@ -253,6 +255,25 @@ export interface Presence {
   updatedAt: string;
   /** Minutes watched that are not yet stored as a watch event. */
   pendingMinutes: number;
+}
+
+/**
+ * A watch-together room: the host's session plus the friends who joined it.
+ * Every member's extension reports its player; a play or pause by anyone is
+ * applied by the others' extensions.
+ */
+export interface PartyState {
+  /** The room's state after the last play or pause. */
+  paused: boolean;
+  /** Player position (seconds) when that happened. */
+  position: number;
+  at: string;
+  /** Who pressed it. */
+  by: string;
+  /** Increases with every play or pause, so each one is applied once. */
+  seq: number;
+  /** Each member's last report, to say who is ahead or behind. */
+  members: Record<string, { externalId: string; position: number; paused: boolean; at: string }>;
 }
 
 /** A browser extension paired with an account. Its token is stored hashed. */

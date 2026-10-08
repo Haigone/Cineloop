@@ -26,6 +26,7 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.permissions.onAdded.addListener(() => enablePlayerTitle());
 
 const PLAYER_SCRIPT = "player-title";
+const PAGE_SCRIPTS = ["player-title.js", "party-sync.js"];
 
 /**
  * Once the user has granted netflix.com, have player-title.js run on its
@@ -34,14 +35,14 @@ const PLAYER_SCRIPT = "player-title";
  */
 async function enablePlayerTitle() {
   if (!(await hasNetflixAccess())) return;
+  // Re-register every time, so an update that adds a script takes effect.
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [PLAYER_SCRIPT] });
-  if (registered.length === 0) {
-    await chrome.scripting.registerContentScripts([
-      { id: PLAYER_SCRIPT, matches: ["https://www.netflix.com/*"], js: ["player-title.js"], runAt: "document_idle", persistAcrossSessions: true },
-    ]);
-  }
+  if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [PLAYER_SCRIPT] });
+  await chrome.scripting.registerContentScripts([
+    { id: PLAYER_SCRIPT, matches: ["https://www.netflix.com/*"], js: PAGE_SCRIPTS, runAt: "document_idle", persistAcrossSessions: true },
+  ]);
   for (const tab of await chrome.tabs.query({ url: "https://www.netflix.com/*" })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["player-title.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: PAGE_SCRIPTS }).catch(() => {});
   }
 }
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
@@ -64,6 +65,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
   if (message?.type === "player-title" && sender.tab?.id) {
     playerTitle(sender.tab.id, message).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "party-report" && sender.tab?.id) {
+    partyReport(message).then(reply, () => reply(null));
     return true;
   }
   if (message?.type === "current") {
@@ -112,6 +117,26 @@ function playerHints(player, url) {
   };
 }
 
+/** Outside a room, ask the server at most this often whether one has started. */
+const SOLO_CHECK_MS = 10_000;
+let soloCheckedAt = 0;
+
+/**
+ * Forwards the player's report to the room (watch together) and returns the
+ * room's state for the page to apply. Only while CineLoop is active and not paused.
+ */
+async function partyReport(m) {
+  const { token, paused } = await getSettings();
+  if (!token || paused || typeof m.externalId !== "string" || typeof m.position !== "number" || typeof m.paused !== "boolean") return null;
+  const { party: known = null } = await chrome.storage.session.get("party");
+  if (!known && !m.action && Date.now() - soloCheckedAt < SOLO_CHECK_MS) return null;
+  soloCheckedAt = Date.now();
+  const body = { externalId: m.externalId, position: Math.max(0, m.position), paused: m.paused, ...(m.action === "play" || m.action === "pause" ? { action: m.action } : {}) };
+  const { party } = await api("/api/extension/party", { method: "POST", body }).catch(() => ({ party: null }));
+  await chrome.storage.session.set({ party: party ?? null });
+  return { party };
+}
+
 /** Returned by current() when the playback tab has been silent too long (paused and left). */
 const SILENT = { tab: { url: "" }, parentId: null };
 
@@ -155,6 +180,7 @@ async function tick() {
           return null;
         }
         if (live) await api("/api/extension/presence", { method: "DELETE" }).catch(() => {});
+        await chrome.storage.session.set({ party: null });
         await setLive(false);
         return null;
       }

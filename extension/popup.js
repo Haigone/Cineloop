@@ -25,19 +25,114 @@ async function render() {
   show("idle", !paused && !w);
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
-  show("party", Boolean(w));
+  const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
+  renderList(statusNow?.list ?? []);
+  await renderTogether(statusNow, w);
   if (!w) return;
 
   $("watching-title").textContent = w.title ? w.title.title : (w.label ?? "Titolo da confermare");
   const ep = w.season && w.episode ? `S${w.season} · E${w.episode}` : "";
   $("watching-meta").textContent = [w.title?.year, ep, "su Netflix"].filter(Boolean).join(" · ");
-  const company = [...w.with, ...w.guests];
-  show("with", company.length > 0);
-  $("with").textContent = company.length ? `Con te: ${company.join(", ")}` : "";
-  if (document.activeElement !== $("party-url")) $("party-url").value = w.partyUrl ?? "";
   show("change-btn", Boolean(w.title) && !changing);
   if (!w.title || changing) renderChoices($("suggestions"), status.suggestions);
 }
+
+/** In progress (with the episode) and wishlist; each opens a Netflix search for it. */
+function renderList(items) {
+  show("my-list", items.length > 0);
+  const rows = [];
+  let section = null;
+  for (const item of items) {
+    if (item.status !== section) {
+      section = item.status;
+      const h = document.createElement("li");
+      h.className = "heading";
+      h.textContent = section === "watching" ? "In corso" : "Wishlist";
+      rows.push(h);
+    }
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = `https://www.netflix.com/search?q=${encodeURIComponent(item.title)}`;
+    a.target = "_blank";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = item.title;
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = item.season && item.episode ? `S${item.season} · E${item.episode}` : String(item.year);
+    a.append(name, meta);
+    li.append(a);
+    rows.push(li);
+  }
+  $("list-items").replaceChildren(...rows);
+}
+
+/** "Guarda insieme": visibility, who is in the room, and whether you are in step. */
+async function renderTogether(status, w) {
+  const visible = status?.visible ?? true;
+  $("visible").checked = visible;
+  $("visible-help").textContent = visible
+    ? "Mentre guardi, gli amici ti vedono in diretta su CineLoop con il pulsante “Guarda insieme”."
+    : "Gli amici non ti vedono in diretta e non possono unirsi. La tua libreria si aggiorna lo stesso.";
+
+  const { party = null } = await chrome.storage.session.get("party");
+  const company = w ? [...w.with, ...w.guests] : [];
+  const members = party?.members ?? company;
+  const inRoom = Boolean(w) && (members.length > 0 || Boolean(party));
+  show("room", inRoom);
+  show("no-room", Boolean(w) && !inRoom && visible);
+  show("together-dot", inRoom);
+  if (document.activeElement !== $("party-url")) $("party-url").value = w?.partyUrl ?? "";
+  if (!inRoom) return;
+
+  $("room-title").textContent = party && !party.isHost ? `Guardi con ${party.hostName}` : "Guardate insieme";
+  $("room-members").textContent = `Con te: ${members.join(", ")}`;
+  $("room-state").textContent = !party
+    ? "Apri lo stesso episodio: play e pausa si allineano appena parte il video."
+    : !party.sameEpisode
+      ? `Sei su un altro episodio rispetto a ${party.hostName}: play e pausa non vengono sincronizzati.`
+      : party.seq > 0
+        ? `Play e pausa sincronizzati. Ultimo: ${party.paused ? "pausa" : "play"} di ${party.byYou ? "te" : party.byName}.`
+        : "Play e pausa sincronizzati.";
+  $("room-offsets").replaceChildren(
+    ...(party?.offsets ?? []).map((o) => {
+      const li = document.createElement("li");
+      const s = Math.abs(o.seconds);
+      const amount = s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
+      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: usa ← o → nel player di Netflix per allinearti.`;
+      return li;
+    }),
+  );
+}
+
+function selectTab(which) {
+  for (const [tab, panel] of [["tab-now", "panel-now"], ["tab-together", "panel-together"]]) {
+    const on = tab === which;
+    $(tab).setAttribute("aria-selected", String(on));
+    $(tab).tabIndex = on ? 0 : -1;
+    $(panel).hidden = !on;
+  }
+  chrome.storage.session.set({ popupTab: which }).catch(() => {});
+}
+
+for (const id of ["tab-now", "tab-together"]) $(id).addEventListener("click", () => selectTab(id));
+$("tab-now").parentElement.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  const next = document.activeElement?.id === "tab-now" ? "tab-together" : "tab-now";
+  selectTab(next);
+  $(next).focus();
+});
+chrome.storage.session.get("popupTab").then(({ popupTab }) => popupTab && selectTab(popupTab));
+
+$("visible").addEventListener("change", async () => {
+  const visible = $("visible").checked;
+  try {
+    await api("/api/extension/visibility", { method: "PATCH", body: { visible } });
+  } catch {
+    $("visible").checked = !visible;
+  }
+  await render();
+});
 
 function showOnly(id) {
   for (const s of ["pair", "grant", "main"]) show(s, s === id);

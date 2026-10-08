@@ -302,6 +302,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
     userId: u.id,
     profileVisibility: "friends",
     shareActivity: true,
+    liveVisible: true,
     notifyFriendActivity: true,
     notifyWatchParty: true,
     notifySuggestions: true,

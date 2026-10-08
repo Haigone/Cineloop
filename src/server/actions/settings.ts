@@ -78,6 +78,7 @@ const preferencesPatch = z
   .object({
     profileVisibility: z.enum(["public", "friends", "private"]),
     shareActivity: z.boolean(),
+    liveVisible: z.boolean(),
     notifyFriendActivity: z.boolean(),
     notifyWatchParty: z.boolean(),
     notifySuggestions: z.boolean(),

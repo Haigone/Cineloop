@@ -64,14 +64,15 @@ export type ExtensionAuth = { userId: string; deviceId: string };
 
 /**
  * Resolves the extension token, or returns the response to send instead
- * (401 when missing or revoked, 429 when over the limit).
+ * (401 when missing or revoked, 429 when over the limit). `bucket` keeps the
+ * frequent watch-together reports from eating the limit of everything else.
  */
-export async function authenticate(request: NextRequest, limit = 30): Promise<ExtensionAuth | NextResponse> {
+export async function authenticate(request: NextRequest, limit = 30, bucket = "api"): Promise<ExtensionAuth | NextResponse> {
   const header = request.headers.get("authorization") ?? "";
   const token = /^Bearer ([A-Za-z0-9_-]{20,200})$/.exec(header)?.[1];
   if (!token) return json(request, { error: "unauthorized" }, 401);
   const hash = hashSecret(token);
-  if (rateLimited(`token:${hash}`, limit)) return json(request, { error: "rate_limited" }, 429);
+  if (rateLimited(`${bucket}:token:${hash}`, limit)) return json(request, { error: "rate_limited" }, 429);
   const auth = await getRepository().useExtensionToken(hash);
   if (!auth) return json(request, { error: "unauthorized" }, 401);
   return auth;

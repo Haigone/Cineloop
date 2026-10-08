@@ -5,6 +5,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  PartyState,
   Presence,
   ProviderId,
   PublicUser,
@@ -46,6 +47,7 @@ export class MemoryRepository implements Repository {
   private pairingCodes = new Map<string, { userId: string; expiresAt: Date }>();
   private devices: (ExtensionDevice & { userId: string; tokenHash: string })[] = [];
   private presence = new Map<string, Presence>();
+  private rooms = new Map<string, PartyState>();
   private providerLinks = new Map<string, string>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
@@ -67,7 +69,7 @@ export class MemoryRepository implements Repository {
     this.activity = seed.activity;
     this.notifications = seed.notifications;
     for (const p of seed.preferences) this.preferences.set(p.userId, p);
-    // Demo: Luca is watching on Netflix right now, so "Unisciti" can be tried.
+    // Demo: Luca is watching on Netflix right now, so "Guarda insieme" can be tried.
     this.presence.set("u_luca", {
       userId: "u_luca",
       providerId: "netflix",
@@ -411,6 +413,16 @@ export class MemoryRepository implements Repository {
     this.presence.delete(userId);
   }
 
+  async getParty(hostId: string) {
+    const p = this.rooms.get(hostId);
+    return p ? structuredClone(p) : null;
+  }
+
+  async saveParty(hostId: string, party: PartyState | null) {
+    if (party) this.rooms.set(hostId, structuredClone(party));
+    else this.rooms.delete(hostId);
+  }
+
   async findProviderLink(providerId: ProviderId, externalIds: readonly string[]) {
     for (const id of externalIds) {
       const titleId = this.providerLinks.get(`${providerId}:${id}`);
@@ -473,6 +485,7 @@ export function defaultPreferences(userId: string): UserPreferences {
     userId,
     profileVisibility: "friends",
     shareActivity: true,
+    liveVisible: true,
     notifyFriendActivity: true,
     notifyWatchParty: true,
     notifySuggestions: true,

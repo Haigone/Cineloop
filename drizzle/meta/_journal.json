@@ -22,6 +22,13 @@
       "when": 1791486147946,
       "tag": "0002_charts",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791491490908,
+      "tag": "0003_party",
+      "breakpoints": true
     }
   ]
 }

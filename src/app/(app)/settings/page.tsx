@@ -102,6 +102,12 @@ async function SettingsContent() {
             label="Condividi la tua attività"
             description="Gli amici vedono cosa stai guardando e i voti che dai. Se lo disattivi sparisci dai loro feed."
           />
+          <PreferenceSwitch
+            name="liveVisible"
+            initial={p.liveVisible}
+            label="Visibile mentre guardi"
+            description="Con l’estensione, gli amici ti vedono in diretta e possono premere “Guarda insieme”. Puoi cambiarlo anche dall’estensione."
+          />
         </div>
       </Section>
 

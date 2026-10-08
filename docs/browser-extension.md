@@ -5,8 +5,8 @@ Stato: **disponibile per Netflix** (Chrome, Edge, Brave e altri browser Chromium
 ## Cosa fa
 
 - **Aggiorna CineLoop mentre guardi.** Il titolo passa a "In corso" con il link per riprendere su Netflix, sparisce dalla wishlist e il tempo di visione entra nelle statistiche.
-- **Ti mostra agli amici.** Nella loro dashboard compari in "I tuoi amici stanno guardando" con il pulsante **Unisciti**.
-- **Guardare insieme.** Chi si unisce apre lo stesso titolo dal proprio account Netflix. Per avere play, pausa e posizione allineati si usa un'estensione watch party già esistente (per esempio Teleparty): chi ospita crea la stanza e incolla il link nel pannello di CineLoop; gli amici lo trovano nel pulsante "Entra nella stanza". CineLoop non controlla il player, quindi non ne reimplementa la sincronizzazione.
+- **Ti mostra agli amici, se vuoi.** Il pannello ha due sezioni. In *Sto guardando* c'è cosa stai guardando (con stagione ed episodio) e la tua lista: in corso e wishlist. In *Guarda insieme* c'è l'interruttore **Visibile agli amici** (anche in Impostazioni > Privacy): se è attivo, nella loro dashboard compari in "I tuoi amici stanno guardando" con il pulsante **Guarda insieme**.
+- **Guardare insieme** (dalla 0.3.0). Chi preme "Guarda insieme" apre lo stesso episodio dal proprio account Netflix. Finché siete nella stanza, `party-sync.js` riporta ogni 2 secondi posizione e play/pausa del video di ciascuno a `POST /api/extension/party`; un play o una pausa premuti da uno vengono applicati al video degli altri. La posizione non viene spostata (Netflix non lo permette da fuori del suo player): il pannello dice chi è avanti o indietro e di quanti secondi, e ci si allinea con le frecce del player. Chi preferisce un'estensione watch party esterna può ancora condividerne il link.
 
 ## Cosa legge
 

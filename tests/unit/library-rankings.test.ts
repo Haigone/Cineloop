@@ -68,6 +68,7 @@ describe("filterNotifications", () => {
     userId: "me",
     profileVisibility: "friends",
     shareActivity: true,
+    liveVisible: true,
     notifyFriendActivity: false,
     notifyWatchParty: true,
     notifySuggestions: false,
