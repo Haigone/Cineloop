@@ -5,7 +5,7 @@ import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats"
 import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
-import { loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
+import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
 
 export interface FriendActivityItem {
   event: ActivityEvent;
@@ -39,10 +39,14 @@ export async function getHomeView(): Promise<HomeView> {
     repo.listWatchEvents(viewer.id, weekStart(now)),
     loadFriendBundles(repo, viewer.id),
   ]);
-  const activity = await repo.listActivity(
-    friends.map((f) => f.user.id),
-    30,
-  );
+  const [activity, prefs] = await Promise.all([
+    listSharedActivity(
+      repo,
+      friends.map((f) => f.user.id),
+      30,
+    ),
+    repo.getPreferences(viewer.id),
+  ]);
 
   const allTitles = await repo.listTitles();
   const titles = new Map(allTitles.map((t) => [t.id, t]));
@@ -85,7 +89,7 @@ export async function getHomeView(): Promise<HomeView> {
     continueWatching: continueWatching.slice(1),
     friendsActivity,
     week: computeWeeklyStats({ now, events, library, wishlist, titles }),
-    tonight: pickForTonight({ library, wishlist, friends, titles, limit: 10 }),
+    tonight: pickForTonight({ library, wishlist, friends, titles, subscriptions: prefs.subscriptions, limit: 10 }),
     party: {
       friends: partyFriends,
       compatibleCount: compatibleTitles({ members: partyMembers, titles: allTitles, filter: "all", genre: null }).length,

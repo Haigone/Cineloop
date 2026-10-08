@@ -206,6 +206,6 @@ export interface UserPreferences {
   notifyWatchParty: boolean;
   notifySuggestions: boolean;
   reduceMotion: boolean;
-  spoilerShield: boolean;
-  connectedProviders: ProviderId[];
+  /** Services the user pays for. Used to favour titles they can actually watch; nothing is synced. */
+  subscriptions: ProviderId[];
 }

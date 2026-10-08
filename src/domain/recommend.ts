@@ -1,4 +1,4 @@
-import type { LibraryEntry, PublicUser, Title, WishlistItem } from "./types";
+import type { LibraryEntry, ProviderId, PublicUser, Title, WishlistItem } from "./types";
 
 export type PickReason =
   | { kind: "wishlist" }
@@ -30,6 +30,8 @@ export function pickForTonight(input: {
   wishlist: WishlistItem[];
   friends: FriendData[];
   titles: Map<string, Title>;
+  /** Services the viewer pays for: titles available there rank a little higher. */
+  subscriptions?: readonly ProviderId[];
   limit: number;
 }): TonightPick[] {
   const seen = new Set(input.library.filter((e) => e.status !== "planned").map((e) => e.titleId));
@@ -69,7 +71,8 @@ export function pickForTonight(input: {
   for (const [id, c] of candidates) {
     const title = input.titles.get(id);
     if (!title) continue;
-    const score = c.score + (title.type === "movie" ? 0.5 : 0);
+    const onMyServices = title.providers.some((p) => input.subscriptions?.includes(p));
+    const score = c.score + (title.type === "movie" ? 0.5 : 0) + (onMyServices ? 0.75 : 0);
     const suggestedBy = c.wish?.suggestedBy ? input.friends.find((f) => f.user.id === c.wish!.suggestedBy)?.user : undefined;
     const reason: PickReason = suggestedBy
       ? { kind: "suggested", by: suggestedBy }

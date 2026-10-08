@@ -97,6 +97,14 @@ export class MemoryRepository implements Repository {
     return passwordHash ? { user, passwordHash } : null;
   }
 
+  async getPasswordHash(userId: string) {
+    return this.passwords.get(userId) ?? null;
+  }
+
+  async updatePassword(userId: string, passwordHash: string) {
+    this.passwords.set(userId, passwordHash);
+  }
+
   async createUser(input: { username: string; displayName: string; email: string; passwordHash: string }) {
     const user: User = {
       id: `u_${crypto.randomUUID()}`,
@@ -126,6 +134,10 @@ export class MemoryRepository implements Repository {
 
   async createSession(input: { tokenHash: string; userId: string; expiresAt: Date }) {
     this.sessions.set(input.tokenHash, { userId: input.userId, expiresAt: input.expiresAt });
+  }
+
+  async deleteUserSessions(userId: string, exceptTokenHash?: string) {
+    for (const [hash, s] of this.sessions) if (s.userId === userId && hash !== exceptTokenHash) this.sessions.delete(hash);
   }
 
   async getSession(tokenHash: string) {
@@ -329,8 +341,7 @@ export function defaultPreferences(userId: string): UserPreferences {
     notifyWatchParty: true,
     notifySuggestions: true,
     reduceMotion: false,
-    spoilerShield: true,
-    connectedProviders: [],
+    subscriptions: [],
   };
 }
 

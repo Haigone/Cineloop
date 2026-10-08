@@ -7,9 +7,9 @@ import {
   motion,
   useMotionValue,
   useMotionValueEvent,
-  useReducedMotion,
   useTransform,
 } from "motion/react";
+import { usePrefersLessMotion } from "@/components/providers";
 import { LogoMark } from "@/components/layout/logo";
 import { segmentAngle, segmentAtPointer, targetRotation } from "@/domain/wheel";
 import { cn } from "@/lib/cn";
@@ -44,7 +44,7 @@ const RIM = 14;
 export const SpinWheel = forwardRef<SpinWheelHandle, SpinWheelProps>(function SpinWheel({ items, winnerId, className }, ref) {
   const rotation = useMotionValue(0);
   const pointer = useMotionValue(0);
-  const reduce = useReducedMotion();
+  const reduce = usePrefersLessMotion();
   const lastSegment = useRef(0);
   const [burst, setBurst] = useState(0);
   const count = items.length;

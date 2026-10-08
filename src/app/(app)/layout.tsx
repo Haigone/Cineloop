@@ -6,8 +6,10 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
+import { ApplyMotionPreference } from "@/components/settings/apply-motion-preference";
 import { UserMenu } from "@/components/layout/user-menu";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { filterNotifications } from "@/domain/notifications";
 import { getRepository } from "@/server/data";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -61,9 +63,12 @@ async function SidebarUser() {
 
 async function TopBarActions() {
   const user = await getCurrentUser();
-  const notifications = await getRepository().listNotifications(user.id);
+  const repo = getRepository();
+  const [all, prefs] = await Promise.all([repo.listNotifications(user.id), repo.getPreferences(user.id)]);
+  const notifications = filterNotifications(all, prefs);
   return (
     <>
+      <ApplyMotionPreference reduce={prefs.reduceMotion} />
       <NotificationsMenu notifications={notifications} />
       <UserMenu user={{ id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, bio: user.bio }} />
     </>

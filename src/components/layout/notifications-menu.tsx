@@ -13,7 +13,10 @@ import { Popover } from "@/components/ui/popover";
 const KIND_ICON = { "watch-party": Popcorn, suggestion: Sparkles, "friend-activity": Users, system: Bell } as const;
 
 export function NotificationsMenu({ notifications }: { notifications: AppNotification[] }) {
-  const [items, setItems] = useState(notifications);
+  // Server props stay the source of truth (they change when preferences do);
+  // the local flag only covers the moment between closing and the server catching up.
+  const [markedRead, setMarkedRead] = useState<ReadonlySet<string>>(new Set());
+  const items = notifications.map((n) => (markedRead.has(n.id) ? { ...n, read: true } : n));
   const [, startTransition] = useTransition();
   const unread = items.filter((n) => !n.read).length;
 
@@ -23,7 +26,7 @@ export function NotificationsMenu({ notifications }: { notifications: AppNotific
       className="w-[min(360px,calc(100vw-24px))]"
       onOpenChange={(open) => {
         if (!open && unread > 0) {
-          setItems((xs) => xs.map((n) => ({ ...n, read: true })));
+          setMarkedRead(new Set(items.map((n) => n.id)));
           startTransition(() => markNotificationsRead());
         }
       }}

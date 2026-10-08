@@ -4,7 +4,7 @@ import type { ActivityEvent, Genre, LibraryEntry, PublicUser, Title, WishlistIte
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import type { FriendActivityItem } from "./dashboard";
-import { loadFriendBundles, toPublicUser } from "./shared";
+import { listSharedActivity, loadFriendBundles, toPublicUser } from "./shared";
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
@@ -42,7 +42,7 @@ export async function getFriendsView(): Promise<FriendsView> {
   ]);
   const titles = new Map(allTitles.map((t) => [t.id, t]));
   const users = new Map(friends.map((f) => [f.user.id, f.user]));
-  const activity = await repo.listActivity([...users.keys()], 40);
+  const activity = await listSharedActivity(repo, [...users.keys()], 40);
   const feed = activity.map((e) => toItem(e, users, titles, now)).filter((x): x is FriendActivityItem => x !== null);
 
   const summaries = friends.map((f) => {
@@ -90,7 +90,7 @@ export async function getFriendProfile(username: string): Promise<FriendProfileV
     repo.listWishlist(friendUser.id),
     repo.listFriends(viewer.id),
     repo.listTitles(),
-    repo.listActivity([friendUser.id], 8),
+    listSharedActivity(repo, [friendUser.id], 8),
     repo.getPreferences(friendUser.id),
   ]);
   const friendship = myFriends.find((f) => f.user.id === friendUser.id) ?? null;

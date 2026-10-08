@@ -34,6 +34,8 @@ export interface Repository {
   getUserById(id: string): Promise<User | null>;
   getUserByUsername(username: string): Promise<User | null>;
   getCredentialsByEmail(email: string): Promise<{ user: User; passwordHash: string } | null>;
+  getPasswordHash(userId: string): Promise<string | null>;
+  updatePassword(userId: string, passwordHash: string): Promise<void>;
   createUser(input: { username: string; displayName: string; email: string; passwordHash: string }): Promise<User>;
   searchUsers(query: string, limit: number): Promise<PublicUser[]>;
 
@@ -41,6 +43,8 @@ export interface Repository {
   createSession(input: { tokenHash: string; userId: string; expiresAt: Date }): Promise<void>;
   getSession(tokenHash: string): Promise<{ userId: string; expiresAt: Date } | null>;
   deleteSession(tokenHash: string): Promise<void>;
+  /** Signs the user out everywhere except, optionally, the session doing the change. */
+  deleteUserSessions(userId: string, exceptTokenHash?: string): Promise<void>;
 
   // Library & progress
   listLibrary(userId: string): Promise<LibraryEntry[]>;

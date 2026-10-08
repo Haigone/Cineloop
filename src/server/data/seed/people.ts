@@ -305,8 +305,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
     notifyWatchParty: true,
     notifySuggestions: true,
     reduceMotion: false,
-    spoilerShield: true,
-    connectedProviders: [],
+    subscriptions: u.id === "u_marco" ? ["netflix", "prime-video", "disney-plus", "crunchyroll"] : [],
   }));
 
   return { users, friendships, library, wishlist, watchEvents, activity, notifications, preferences };

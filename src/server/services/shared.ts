@@ -60,3 +60,10 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
     : null;
   return { title, progress: entry.progress, providerName: provider?.name ?? null, continueUrl };
 }
+
+/** Activity from the given users, leaving out anyone who chose not to share it. */
+export async function listSharedActivity(repo: Repository, userIds: readonly string[], limit: number) {
+  const prefs = await Promise.all(userIds.map((id) => repo.getPreferences(id)));
+  const sharing = prefs.filter((p) => p.shareActivity).map((p) => p.userId);
+  return sharing.length ? repo.listActivity(sharing, limit) : [];
+}

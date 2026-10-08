@@ -48,3 +48,9 @@ export async function destroySession() {
   if (token) await getRepository().deleteSession(hashToken(token));
   jar.delete(SESSION_COOKIE);
 }
+
+/** Hash of the current request's session token, used to keep it alive when others are revoked. */
+export async function currentSessionHash(): Promise<string | undefined> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? hashToken(token) : undefined;
+}
