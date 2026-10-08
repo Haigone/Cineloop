@@ -25,6 +25,11 @@ export interface CatalogService {
   trending(limit: number): Promise<Title[]>;
   /** Browse by type, genre and order. */
   discover(query: DiscoverQuery, limit: number): Promise<Title[]>;
-  /** Titles similar to ones the viewer already likes. `seedIds` are catalog ids. */
-  similarTo(seedIds: readonly string[], limit: number): Promise<Title[]>;
+  /** Titles similar to ones the viewer already likes. Seeds can come from any source. */
+  similarTo(seeds: readonly Title[], limit: number): Promise<Title[]>;
+  /**
+   * This source's version of a title from elsewhere (e.g. a bundled demo title
+   * on TMDB), matched by name, type and year. Used for artwork and similarity.
+   */
+  match(title: Title): Promise<Title | null>;
 }

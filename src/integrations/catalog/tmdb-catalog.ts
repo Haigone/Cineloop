@@ -1,5 +1,6 @@
 import type { Genre, MediaType, Title } from "@/domain/types";
 import { hashString } from "@/lib/hash";
+import { searchKey } from "@/lib/text";
 import type { CatalogService, DiscoverQuery } from "./types";
 
 /**
@@ -60,6 +61,8 @@ interface TmdbItem {
   media_type?: "movie" | "tv" | "person";
   title?: string;
   name?: string;
+  original_title?: string;
+  original_name?: string;
   release_date?: string;
   first_air_date?: string;
   overview?: string;
@@ -133,8 +136,20 @@ export class TmdbCatalog implements CatalogService {
     return mapItems(merged, limit);
   }
 
-  async similarTo(seedIds: readonly string[], limit: number): Promise<Title[]> {
-    const seeds = seedIds.map(parseId).filter((p): p is { kind: "movie" | "tv"; tmdbId: string } => p !== null);
+  async match(title: Title): Promise<Title | null> {
+    if (parseId(title.id)) return title;
+    const kind = title.type === "movie" ? "movie" : "tv";
+    const items = await this.list(`/search/${kind}?query=${encodeURIComponent(title.title)}&include_adult=false`);
+    // Same name (in Italian or the original) and a release year within one: remakes and namesakes differ on year.
+    const key = searchKey(title.title);
+    const near = items.map((i) => ({ i, t: toTitle(kind, i) })).filter(({ t }) => t.title && Math.abs(t.year - title.year) <= 1);
+    const exact = near.find(({ t, i }) => searchKey(t.title) === key || searchKey(i.original_title ?? i.original_name ?? "") === key);
+    return (exact ?? near[0])?.t ?? null;
+  }
+
+  async similarTo(seedTitles: readonly Title[], limit: number): Promise<Title[]> {
+    const resolved = await Promise.all(seedTitles.map(async (t) => parseId(t.id) ?? parseId((await this.match(t))?.id ?? "")));
+    const seeds = resolved.filter((p): p is { kind: "movie" | "tv"; tmdbId: string } => p !== null);
     if (seeds.length === 0) return [];
     const lists = await Promise.all(
       seeds.map(async (s) => {

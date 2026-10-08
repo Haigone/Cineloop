@@ -60,6 +60,39 @@ describe("TMDB mapping", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer secret");
   });
 
+  it("matches a bundled title on TMDB by name and year, ignoring namesakes", async () => {
+    const seed = (await new SeedCatalog().getTitle("dune-part-two"))!;
+    const fetcher = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          results: [
+            { id: 841, title: "Dune", original_title: "Dune", release_date: "1984-12-14", poster_path: "/old.jpg" },
+            { id: 693134, title: "Dune - Parte due", original_title: "Dune: Part Two", release_date: "2024-02-27", poster_path: "/new.jpg" },
+          ],
+        }),
+      ),
+    );
+    const tmdb = new TmdbCatalog("t", "it-IT", fetcher as unknown as typeof fetch);
+    const match = await tmdb.match(seed);
+    expect(match?.id).toBe("tmdb-movie-693134");
+    expect(match?.artwork.posterUrl).toContain("/new.jpg");
+    expect(String((fetcher.mock.calls[0] as unknown[])[0])).toContain("/search/movie");
+  });
+
+  it("builds recommendations from bundled titles by matching them first", async () => {
+    const seed = (await new SeedCatalog().getTitle("dark"))!;
+    const fetcher = vi.fn(async (url: string) => {
+      const body = url.includes("/search/tv")
+        ? { results: [{ id: 70523, name: "Dark", first_air_date: "2017-12-01" }] }
+        : { results: [{ id: 66732, media_type: "tv", name: "Stranger Things", first_air_date: "2016-07-15" }] };
+      return new Response(JSON.stringify(body));
+    });
+    const tmdb = new TmdbCatalog("t", "it-IT", fetcher as unknown as typeof fetch);
+    const recs = await tmdb.similarTo([seed], 5);
+    expect(recs.map((t) => t.title)).toEqual(["Stranger Things"]);
+    expect((fetcher.mock.calls as unknown[][]).some(([url]) => String(url).includes("/tv/70523/recommendations"))).toBe(true);
+  });
+
   it("returns null for foreign ids and failed lookups", async () => {
     const fetcher = vi.fn(async () => new Response("{}", { status: 404 }));
     const tmdb = new TmdbCatalog("t", "it-IT", fetcher as unknown as typeof fetch);

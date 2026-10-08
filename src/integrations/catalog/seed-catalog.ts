@@ -35,8 +35,11 @@ export class SeedCatalog implements CatalogService {
     return matching.slice((page - 1) * limit, page * limit);
   }
 
-  async similarTo(seedIds: readonly string[], limit: number): Promise<Title[]> {
-    const seeds = seedIds.map((id) => this.titles.get(id)).filter((t): t is Title => Boolean(t));
+  async match(title: Title): Promise<Title | null> {
+    return this.titles.get(title.id) ?? null;
+  }
+
+  async similarTo(seeds: readonly Title[], limit: number): Promise<Title[]> {
     if (seeds.length === 0) return [];
     const wanted = new Set(seeds.flatMap((t) => t.genres));
     const seedIdSet = new Set(seeds.map((t) => t.id));

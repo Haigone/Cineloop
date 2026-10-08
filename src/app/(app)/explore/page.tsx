@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { Compass, SearchX } from "lucide-react";
 import { GENRES } from "@/domain/genres";
 import type { Genre, MediaType } from "@/domain/types";
-import { getExploreView, getForYouView, type ExploreFilters as Filters } from "@/server/services/explore";
+import { getExploreView, getForYouView, TASTE_TARGET, type ExploreFilters as Filters } from "@/server/services/explore";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Reveal, RevealItem } from "@/components/ui/reveal";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -14,6 +14,10 @@ import { Rail } from "@/components/media/rail";
 import { TitleCard } from "@/components/media/title-card";
 import { ExploreFilters } from "@/components/explore/explore-filters";
 import { TitleGrid } from "@/components/explore/title-grid";
+import { TastePicker } from "@/components/explore/taste-picker";
+import { TopTen } from "@/components/explore/top-ten";
+
+const TYPE_PLURAL: Record<Filters["type"], string> = { all: "Tutto il catalogo", movie: "Tutti i film", series: "Tutte le serie", anime: "Tutti gli anime" };
 
 export const metadata: Metadata = { title: "Esplora" };
 
@@ -44,11 +48,22 @@ async function Filters({ searchParams }: { searchParams: PageProps<"/explore">["
 
 async function Results({ searchParams }: { searchParams: PageProps<"/explore">["searchParams"] }) {
   const filters = await parseFilters(searchParams);
-  const browsing = filters.q.length >= 2 || filters.genre !== null || filters.type !== "all" || filters.sort !== "popular" || filters.page > 1;
-  return browsing ? <BrowseResults filters={filters} /> : <ForYou />;
+  // Searching, or narrowing by genre/order/page, is browsing: just the results.
+  const browsing = filters.q.length >= 2 || filters.genre !== null || filters.sort !== "popular" || filters.page > 1;
+  if (browsing) return <BrowseResults filters={filters} />;
+  // Otherwise the recommendations come first (for the chosen type), then the catalog.
+  return (
+    <>
+      <ForYou type={filters.type} />
+      <section aria-labelledby="catalog-h" className="mt-12">
+        <SectionHeader as="h2" title={TYPE_PLURAL[filters.type]} id="catalog-h" description="Usa genere e ordine qui sopra per restringere." />
+        <BrowseResults filters={filters} bare />
+      </section>
+    </>
+  );
 }
 
-async function BrowseResults({ filters }: { filters: Filters }) {
+async function BrowseResults({ filters, bare = false }: { filters: Filters; bare?: boolean }) {
   const view = await getExploreView(filters);
   const wishlistIds = new Set(view.wishlistIds);
 
@@ -81,8 +96,8 @@ async function BrowseResults({ filters }: { filters: Filters }) {
   };
 
   return (
-    <section className="mt-8">
-      <h2 className="sr-only">Risultati</h2>
+    <section className={bare ? "" : "mt-8"}>
+      {!bare && <h2 className="sr-only">Risultati</h2>}
       <TitleGrid titles={view.titles} wishlistIds={wishlistIds} label="Risultati della ricerca" />
       {(view.hasMore || filters.page > 1) && (
         <nav aria-label="Pagine dei risultati" className="mt-10 flex items-center justify-center gap-4 text-sm">
@@ -103,29 +118,25 @@ async function BrowseResults({ filters }: { filters: Filters }) {
   );
 }
 
-async function ForYou() {
-  const view = await getForYouView();
+async function ForYou({ type }: { type: Filters["type"] }) {
+  const view = await getForYouView(type);
   const wishlistIds = new Set(view.wishlistIds);
-
-  if (view.shelves.length === 0) {
-    return (
-      <div className="mt-8">
-        <EmptyState
-          icon={<Compass />}
-          title="Il catalogo non è ancora disponibile."
-          description="Riprova tra un momento, oppure cerca un titolo dalla barra qui sopra."
-        />
-      </div>
-    );
-  }
+  const topLabel = view.topIsWeekly ? "Top 10 della settimana" : "Top 10 del catalogo";
 
   return (
     <Reveal className="mt-8 flex flex-col gap-10">
-      {view.cold && (
+      {view.top.length > 0 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title={topLabel}
+            description={view.topIsWeekly ? "I titoli più visti in questi sette giorni." : "I più votati del catalogo di prova. Con TMDB diventa la classifica della settimana."}
+          />
+          <TopTen titles={view.top} wishlistIds={wishlistIds} label={topLabel} />
+        </RevealItem>
+      )}
+      {view.picker.length > 0 && (
         <RevealItem>
-          <p className="rounded-xl border border-line bg-surface px-5 py-4 text-sm text-fg-2">
-            Aggiungi qualche titolo che hai già visto e dagli un voto: da lì in poi questa pagina si costruisce sui tuoi gusti.
-          </p>
+          <TastePicker titles={view.picker} liked={view.liked} target={TASTE_TARGET} />
         </RevealItem>
       )}
       {view.shelves.map((shelf) => (
@@ -138,6 +149,16 @@ async function ForYou() {
           </Rail>
         </RevealItem>
       ))}
+      {view.shelves.length === 0 && view.picker.length === 0 && (
+        <RevealItem>
+          <EmptyState
+            compact
+            icon={<Compass />}
+            title="Ancora niente “Per te” per questo tipo."
+            description="Vota qualche titolo che hai visto: i consigli arrivano da lì."
+          />
+        </RevealItem>
+      )}
     </Reveal>
   );
 }

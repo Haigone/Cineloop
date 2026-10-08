@@ -4,6 +4,8 @@ import type { CatalogSort } from "@/integrations/catalog/types";
 import type { Genre, MediaType, Title } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
+import { SEED_TITLES } from "@/server/data/seed/catalog";
+import { searchKey } from "@/lib/text";
 import { loadFriendBundles } from "./shared";
 
 export const PAGE_SIZE = 24;
@@ -42,7 +44,7 @@ export async function getExploreView(filters: ExploreFilters): Promise<ExploreVi
     : await catalog.discover({ type: filters.type, genre: filters.genre, sort: filters.sort, page: filters.page }, PAGE_SIZE);
 
   // Search has no server-side paging here: ask for everything up to this page and slice.
-  const titles = filters.q.trim().length >= 2 ? found.slice((filters.page - 1) * PAGE_SIZE) : found;
+  const titles = await canonical(repo, filters.q.trim().length >= 2 ? found.slice((filters.page - 1) * PAGE_SIZE) : found);
   await cacheTitles(repo, titles);
 
   const [wishlist, library] = await Promise.all([repo.listWishlist(viewer.id), repo.listLibrary(viewer.id)]);
@@ -64,20 +66,29 @@ export interface Shelf {
 }
 
 export interface ForYouView {
+  /** The week's most watched titles, in order. */
+  top: Title[];
+  /** True when `top` really is this week's chart (TMDB), not the demo catalog's best rated. */
+  topIsWeekly: boolean;
   shelves: Shelf[];
+  /** Popular titles to tap "Mi è piaciuto" on, while the viewer has rated too few to go on. */
+  picker: Title[];
+  /** How many titles the viewer has liked so far (the picker asks for a few). */
+  liked: number;
   wishlistIds: string[];
   libraryIds: string[];
   completeCatalog: boolean;
-  /** True when the viewer has rated or watched nothing yet. */
-  cold: boolean;
 }
 
+/** Below this many liked titles, Esplora asks the viewer to pick a few. */
+export const TASTE_TARGET = 3;
+
 /**
- * The opening of Esplora: what to watch next, built from the viewer's own
- * taste, then from friends, then from what is popular. A new account still
- * gets a full page — it just leans on the last of those.
+ * The opening of Esplora: this week's chart, then what to watch next built
+ * from the viewer's own taste, then from friends. A new account gets a quick
+ * "what did you like?" picker so "Per te" has something to start from.
  */
-export async function getForYouView(): Promise<ForYouView> {
+export async function getForYouView(type: MediaType | "all" = "all"): Promise<ForYouView> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
   const catalog = getCatalog();
@@ -87,62 +98,98 @@ export async function getForYouView(): Promise<ForYouView> {
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
   ]);
-  const known = new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)]);
+  const knownTitles = await repo.getTitlesByIds([...new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)])]);
+  const isKnown = knownMatcher(knownTitles);
+  const ofType = (t: Title) => type === "all" || t.type === type;
 
-  // Seeds: the titles the viewer liked most, newest first, capped so one
-  // request stays cheap.
-  const seeds = library
-    .filter((e) => (e.rating ?? 0) >= 7 || e.status === "completed")
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
-    .slice(0, 4);
-  const seedTitles = await repo.getTitlesByIds(seeds.map((e) => e.titleId));
+  // Seeds: the titles the viewer liked most; with none yet, what they want to see.
+  const liked = library
+    .filter((e) => (e.rating ?? 0) >= 7 || (e.status === "completed" && e.rating === null))
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""));
+  const fromWishlist = liked.length === 0;
+  const seedIds = (fromWishlist ? wishlist.map((w) => w.titleId) : liked.map((e) => e.titleId)).slice(0, 4);
+  const seedTitles = await repo.getTitlesByIds(seedIds);
 
-  const [forYou, trending, becauseOf] = await Promise.all([
-    seedTitles.length ? catalog.similarTo(seedTitles.map((t) => t.id), 40) : Promise.resolve([]),
-    catalog.trending(40),
-    seedTitles[0] ? catalog.similarTo([seedTitles[0].id], 20) : Promise.resolve([]),
+  const [forYou, trending, becauseOf, popular] = await Promise.all([
+    seedTitles.length ? catalog.similarTo(seedTitles, 60) : Promise.resolve([]),
+    catalog.trending(60),
+    !fromWishlist && seedTitles[0] ? catalog.similarTo([seedTitles[0]], 30) : Promise.resolve([]),
+    liked.length < TASTE_TARGET ? catalog.discover({ type, genre: null, sort: "popular" }, 40) : Promise.resolve([]),
   ]);
 
-  // What friends rated highly or put on their own wishlist, as catalog rows.
-  const friendIds = new Map<string, { loved: string[]; wanted: string[] }>();
+  // What friends rated highly or put on their own wishlist.
+  const friendScores = new Map<string, number>();
   for (const f of friends) {
-    for (const e of f.library) {
-      if ((e.rating ?? 0) >= 8 && !known.has(e.titleId)) {
-        const entry = friendIds.get(e.titleId) ?? { loved: [], wanted: [] };
-        entry.loved.push(f.user.displayName);
-        friendIds.set(e.titleId, entry);
-      }
-    }
-    for (const w of f.wishlist) {
-      if (known.has(w.titleId)) continue;
-      const entry = friendIds.get(w.titleId) ?? { loved: [], wanted: [] };
-      entry.wanted.push(f.user.displayName);
-      friendIds.set(w.titleId, entry);
-    }
+    for (const e of f.library) if ((e.rating ?? 0) >= 8) friendScores.set(e.titleId, (friendScores.get(e.titleId) ?? 0) + 2);
+    for (const w of f.wishlist) friendScores.set(w.titleId, (friendScores.get(w.titleId) ?? 0) + 1);
   }
-  const friendTitles = await repo.getTitlesByIds(
-    [...friendIds.entries()].sort((a, b) => b[1].loved.length - a[1].loved.length).slice(0, 20).map(([id]) => id),
-  );
+  const friendTitles = await repo.getTitlesByIds([...friendScores.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id));
 
-  const unseen = (list: Title[]) => list.filter((t) => !known.has(t.id));
-  const shelves: Shelf[] = [
-    { id: "for-you", title: "Per te", description: "Dai titoli che hai votato più alto.", titles: unseen(forYou).slice(0, 20) },
-    seedTitles[0]
-      ? { id: "because", title: `Perché ti è piaciuto ${seedTitles[0].title}`, titles: unseen(becauseOf).slice(0, 20) }
-      : { id: "because", title: "", titles: [] },
-    { id: "friends", title: "Piace ai tuoi amici", description: "Titoli che i tuoi amici hanno votato alto o vogliono vedere.", titles: friendTitles },
-    { id: "trending", title: "Di tendenza questa settimana", titles: unseen(trending).slice(0, 20) },
-  ].filter((s) => s.title && s.titles.length > 0);
+  const fresh = (list: Title[], n: number) => list.filter((t) => ofType(t) && !isKnown(t)).slice(0, n);
+  const [top, forYouRow, becauseRow, friendsRow, picker] = await Promise.all([
+    canonical(repo, trending.filter(ofType).slice(0, 10)),
+    canonical(repo, fresh(forYou, 20)),
+    canonical(repo, fresh(becauseOf, 20)),
+    Promise.resolve(fresh(friendTitles, 20)),
+    canonical(repo, fresh(popular, 12)),
+  ]);
 
-  await cacheTitles(repo, shelves.flatMap((s) => s.titles));
+  const shelves: Shelf[] = [];
+  if (forYouRow.length) {
+    shelves.push({
+      id: "for-you",
+      title: "Per te",
+      description: fromWishlist ? "Simili a quello che hai in wishlist." : "Simili ai titoli che ti sono piaciuti di più.",
+      titles: forYouRow,
+    });
+  }
+  if (becauseRow.length && seedTitles[0]) shelves.push({ id: "because", title: `Perché ti è piaciuto ${seedTitles[0].title}`, titles: becauseRow });
+  if (friendsRow.length) {
+    shelves.push({ id: "friends", title: "Piace ai tuoi amici", description: "Votati alto o in wishlist dai tuoi amici.", titles: friendsRow });
+  }
+
+  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker]);
 
   return {
+    top,
+    topIsWeekly: catalog.complete,
     shelves,
+    picker: liked.length < TASTE_TARGET ? picker : [],
+    liked: liked.length,
     wishlistIds: wishlist.map((w) => w.titleId),
     libraryIds: library.map((e) => e.titleId),
     completeCatalog: catalog.complete,
-    cold: library.length === 0 && wishlist.length === 0,
   };
+}
+
+const identity = (t: Pick<Title, "title" | "year">) => `${searchKey(t.title)}|${t.year}`;
+
+/** Recognises a title the viewer already has, even under another source's id. */
+function knownMatcher(known: readonly Title[]) {
+  const ids = new Set(known.map((t) => t.id));
+  const keys = new Set(known.map(identity));
+  return (t: Title) => ids.has(t.id) || keys.has(identity(t));
+}
+
+/**
+ * Swaps remote results for the local copy of the same title, when there is
+ * one (the bundled titles exist under their own ids), so lists, ratings and
+ * friends' activity all point at one record.
+ */
+export async function canonical(repo: Repository, titles: Title[]): Promise<Title[]> {
+  if (titles.length === 0) return titles;
+  const local = new Map(SEED_TITLES.map((t) => [identity(t), t.id]));
+  const swaps = titles.map((t) => (t.id.startsWith("tmdb-") ? local.get(identity(t)) : undefined));
+  if (!swaps.some(Boolean)) return titles;
+  const found = new Map((await repo.getTitlesByIds(swaps.filter((x): x is string => Boolean(x)))).map((t) => [t.id, t]));
+  const out: Title[] = [];
+  const seen = new Set<string>();
+  titles.forEach((t, i) => {
+    const pick = (swaps[i] && found.get(swaps[i]!)) || t;
+    if (!seen.has(pick.id)) out.push(pick);
+    seen.add(pick.id);
+  });
+  return out;
 }
 
 /**
