@@ -242,6 +242,18 @@ export class MemoryRepository implements Repository {
     return friends;
   }
 
+  async addFriend(userId: string, friendId: string) {
+    if (userId === friendId) return;
+    const exists = this.friendships.some((f) => (f.a === userId && f.b === friendId) || (f.a === friendId && f.b === userId));
+    if (!exists) this.friendships.push({ a: userId, b: friendId, since: new Date().toISOString() });
+  }
+
+  async removeFriend(userId: string, friendId: string) {
+    this.friendships = this.friendships.filter(
+      (f) => !((f.a === userId && f.b === friendId) || (f.a === friendId && f.b === userId)),
+    );
+  }
+
   async listActivity(userIds: readonly string[], limit: number) {
     const ids = new Set(userIds);
     return this.activity

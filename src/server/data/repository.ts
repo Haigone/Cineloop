@@ -57,6 +57,8 @@ export interface Repository {
 
   // Social
   listFriends(userId: string): Promise<Friend[]>;
+  addFriend(userId: string, friendId: string): Promise<void>;
+  removeFriend(userId: string, friendId: string): Promise<void>;
   listActivity(userIds: readonly string[], limit: number): Promise<ActivityEvent[]>;
 
   // Watch parties

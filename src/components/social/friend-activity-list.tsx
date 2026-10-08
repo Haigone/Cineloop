@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { FriendActivityItem } from "@/server/services/dashboard";
 import { episodeLabel, firstName, relativeTime } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
-import { ratingLabel } from "@/components/ui/rating";
+import { ratingLabel } from "@/components/ui/rating-stars";
 
 function describe(item: FriendActivityItem): string {
   const t = item.title.title;

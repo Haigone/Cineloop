@@ -8,7 +8,7 @@ import { episodeLabel, firstName, percent, titleMeta } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { RatingStars } from "@/components/ui/rating";
+import { RatingStars } from "@/components/ui/rating-stars";
 import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
 
