@@ -1,4 +1,14 @@
-import type { Title } from "@/domain/types";
+import type { Genre, MediaType, Title } from "@/domain/types";
+
+export type CatalogSort = "popular" | "top" | "recent";
+
+export interface DiscoverQuery {
+  type: MediaType | "all";
+  genre: Genre | null;
+  sort: CatalogSort;
+  /** 1-based. Sources that cannot paginate return an empty page after the first. */
+  page?: number;
+}
 
 /**
  * Where title metadata comes from. The app reads titles from the repository
@@ -7,7 +17,14 @@ import type { Title } from "@/domain/types";
  */
 export interface CatalogService {
   readonly name: string;
-  /** Search the remote catalog. Results are full titles ready to cache. */
+  /** True when the source holds a real catalog, not just the bundled demo titles. */
+  readonly complete: boolean;
   search(query: string, limit: number): Promise<Title[]>;
   getTitle(id: string): Promise<Title | null>;
+  /** What people are watching now: the opening row of Esplora. */
+  trending(limit: number): Promise<Title[]>;
+  /** Browse by type, genre and order. */
+  discover(query: DiscoverQuery, limit: number): Promise<Title[]>;
+  /** Titles similar to ones the viewer already likes. `seedIds` are catalog ids. */
+  similarTo(seedIds: readonly string[], limit: number): Promise<Title[]>;
 }

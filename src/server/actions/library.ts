@@ -2,9 +2,10 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import type { RatingValue } from "@/domain/types";
+import type { ActivityKind, RatingValue } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
+import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
 
 /**
  * Mutations for the viewer's own library and wishlist. Each action resolves
@@ -15,9 +16,14 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 
 const titleId = z.string().min(1).max(120);
 
+/** Catalog titles are cached on demand, so anything browsable can be saved. */
 async function ensureTitle(id: string) {
-  const [title] = await getRepository().getTitlesByIds([id]);
-  return Boolean(title);
+  return Boolean(await cacheRemoteTitle(id));
+}
+
+/** Adds a line to the viewer's activity, which is what friends see on their dashboard. */
+async function record(userId: string, kind: ActivityKind, id: string, rating: RatingValue | null = null) {
+  await getRepository().recordActivity({ userId, kind, titleId: id, at: new Date().toISOString(), season: null, episode: null, rating });
 }
 
 async function run(fn: () => Promise<void>, failure: string): Promise<ActionResult> {
@@ -35,13 +41,12 @@ export async function setWishlisted(id: string, wishlisted: boolean): Promise<Ac
   const user = await getCurrentUser();
   const parsed = titleId.safeParse(id);
   if (!parsed.success || !(await ensureTitle(parsed.data))) return { ok: false, error: "Titolo non trovato." };
-  return run(
-    () =>
-      wishlisted
-        ? getRepository().addToWishlist(user.id, parsed.data)
-        : getRepository().removeFromWishlist(user.id, parsed.data),
-    "Non siamo riusciti ad aggiornare la wishlist.",
-  );
+  return run(async () => {
+    if (wishlisted) {
+      await getRepository().addToWishlist(user.id, parsed.data);
+      await record(user.id, "wishlisted", parsed.data);
+    } else await getRepository().removeFromWishlist(user.id, parsed.data);
+  }, "Non siamo riusciti ad aggiornare la wishlist.");
 }
 
 export async function reorderWishlist(orderedIds: string[]): Promise<ActionResult> {
@@ -66,6 +71,7 @@ export async function setStatus(id: string, status: string): Promise<ActionResul
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
       await repo.removeFromWishlist(user.id, parsedId.data);
+      await record(user.id, parsedStatus.data, parsedId.data);
     }
   }, "Non siamo riusciti ad aggiornare la libreria.");
 }
@@ -79,8 +85,9 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
   if (!parsedId.success || !parsedValue.success || !(await ensureTitle(parsedId.data))) {
     return { ok: false, error: "Voto non valido." };
   }
-  return run(
-    () => getRepository().setRating(user.id, parsedId.data, parsedValue.data as RatingValue | null),
-    "Non siamo riusciti a salvare il voto.",
-  );
+  const rating = parsedValue.data as RatingValue | null;
+  return run(async () => {
+    await getRepository().setRating(user.id, parsedId.data, rating);
+    if (rating) await record(user.id, "rated", parsedId.data, rating);
+  }, "Non siamo riusciti a salvare il voto.");
 }

@@ -11,6 +11,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { ContinueWatchingCard } from "@/components/media/continue-watching-card";
 import { Rail } from "@/components/media/rail";
 import { FriendActivityList } from "@/components/social/friend-activity-list";
+import { LiveFriends } from "@/components/social/live-friends";
 import { Hero } from "@/components/home/hero";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
@@ -32,7 +33,7 @@ async function HomeContent() {
   const wishlistIds = new Set(view.wishlistIds);
 
   return (
-    <Reveal className="grid gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_320px]">
+    <Reveal className="grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       {/* Main column. `contents` below xl lets the side panels interleave by priority on small screens. */}
       <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-10">
         <RevealItem className="order-1">
@@ -89,8 +90,13 @@ async function HomeContent() {
       <div className="contents xl:flex xl:flex-col xl:gap-4">
         <RevealItem as="aside" className="order-3">
           <Panel title="I tuoi amici stanno guardando" titleId="friends-activity" action={<Link href="/friends" className="rounded-sm text-xs text-fg-2 hover:text-fg">Vedi tutti</Link>}>
-            {view.friendsActivity.length ? (
-              <FriendActivityList items={view.friendsActivity.slice(0, 5)} />
+            {view.liveFriends.length + view.friendsActivity.length > 0 ? (
+              <>
+                {view.liveFriends.length > 0 && <LiveFriends items={view.liveFriends} />}
+                {view.friendsActivity.length > 0 && (
+                  <FriendActivityList items={view.friendsActivity.slice(0, Math.max(2, 5 - view.liveFriends.length))} />
+                )}
+              </>
             ) : (
               <EmptyState
                 compact

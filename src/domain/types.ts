@@ -209,3 +209,38 @@ export interface UserPreferences {
   /** Services the user pays for. Used to favour titles they can actually watch; nothing is synced. */
   subscriptions: ProviderId[];
 }
+
+/**
+ * What a user is watching right now, as reported by their CineLoop browser
+ * extension. Kept alive by heartbeats; stale after a few minutes of silence.
+ */
+export interface Presence {
+  userId: string;
+  providerId: ProviderId;
+  /** The provider's id from the page URL (e.g. Netflix /watch/{id}). */
+  externalId: string;
+  /** Catalog title, once recognised or confirmed by the user. */
+  titleId: string | null;
+  /** Best guess at the title from the page, shown until it is recognised. */
+  label: string | null;
+  season: number | null;
+  episode: number | null;
+  /** Where a friend can open the same thing on the provider. */
+  url: string;
+  /** Optional watch-together room (Teleparty or similar) the host shared. */
+  partyUrl: string | null;
+  /** Friends who joined from CineLoop. */
+  guestIds: string[];
+  startedAt: string;
+  updatedAt: string;
+  /** Minutes watched that are not yet stored as a watch event. */
+  pendingMinutes: number;
+}
+
+/** A browser extension paired with an account. Its token is stored hashed. */
+export interface ExtensionDevice {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}

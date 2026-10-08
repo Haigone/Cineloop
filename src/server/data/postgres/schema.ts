@@ -188,3 +188,62 @@ export const preferences = pgTable("preferences", {
   reduceMotion: boolean("reduce_motion").notNull().default(false),
   subscriptions: text("subscriptions").array().$type<ProviderId[]>().notNull().default(sql`'{}'::text[]`),
 });
+
+/** One-time codes that pair the browser extension with an account. Stored hashed. */
+export const pairingCodes = pgTable("pairing_codes", {
+  codeHash: text("code_hash").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: ts("expires_at").notNull(),
+});
+
+/** Paired extensions. Only the SHA-256 of each device token is stored. */
+export const extensionDevices = pgTable(
+  "extension_devices",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    label: text("label").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    lastUsedAt: ts("last_used_at"),
+  },
+  (t) => [index("extension_devices_user_idx").on(t.userId)],
+);
+
+/** What each user is watching right now, kept alive by extension heartbeats. */
+export const presence = pgTable("presence", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  providerId: text("provider_id").$type<ProviderId>().notNull(),
+  externalId: text("external_id").notNull(),
+  titleId: text("title_id").references(() => titles.id, { onDelete: "set null" }),
+  label: text("label"),
+  season: integer("season"),
+  episode: integer("episode"),
+  url: text("url").notNull(),
+  partyUrl: text("party_url"),
+  guestIds: text("guest_ids").array().notNull().default(sql`'{}'::text[]`),
+  startedAt: ts("started_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+  pendingMinutes: real("pending_minutes").notNull().default(0),
+});
+
+/** Provider ids (e.g. a Netflix /watch id) matched to catalog titles, learned from users' confirmations. */
+export const providerTitleLinks = pgTable(
+  "provider_title_links",
+  {
+    providerId: text("provider_id").$type<ProviderId>().notNull(),
+    externalId: text("external_id").notNull(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => titles.id, { onDelete: "cascade" }),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.providerId, t.externalId] })],
+);

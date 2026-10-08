@@ -4,8 +4,11 @@ import postgres from "postgres";
 import type {
   ActivityEvent,
   AppNotification,
+  ExtensionDevice,
   Friend,
   LibraryEntry,
+  Presence,
+  ProviderId,
   PublicUser,
   RatingValue,
   Title,
@@ -184,6 +187,17 @@ export class PostgresRepository implements Repository {
       });
   }
 
+  async addWatchEvent(e: WatchEvent) {
+    await this.db.insert(schema.watchEvents).values({
+      userId: e.userId,
+      titleId: e.titleId,
+      watchedAt: new Date(e.watchedAt),
+      minutes: e.minutes,
+      season: e.season,
+      episode: e.episode,
+    });
+  }
+
   async listWatchEvents(userId: string, since: Date) {
     const rows = await this.db
       .select()
@@ -320,6 +334,103 @@ export class PostgresRepository implements Repository {
     return rows.map(toParty);
   }
 
+  async recordActivity(e: Omit<ActivityEvent, "id">) {
+    await this.db.insert(schema.activity).values({
+      id: `a_${crypto.randomUUID()}`,
+      userId: e.userId,
+      kind: e.kind,
+      titleId: e.titleId,
+      at: new Date(e.at),
+      season: e.season,
+      episode: e.episode,
+      rating: e.rating,
+    });
+  }
+
+  // Browser extension -------------------------------------------------------
+
+  async createPairingCode(input: { codeHash: string; userId: string; expiresAt: Date }) {
+    // Housekeeping: expired codes are useless, drop them as new ones are made.
+    await this.db.delete(schema.pairingCodes).where(sql`${schema.pairingCodes.expiresAt} < now()`);
+    await this.db.insert(schema.pairingCodes).values(input);
+  }
+
+  async consumePairingCode(codeHash: string) {
+    const [row] = await this.db.delete(schema.pairingCodes).where(eq(schema.pairingCodes.codeHash, codeHash)).returning();
+    return row && row.expiresAt.getTime() > Date.now() ? row.userId : null;
+  }
+
+  async createExtensionDevice(input: { id: string; userId: string; tokenHash: string; label: string }) {
+    await this.db.insert(schema.extensionDevices).values(input);
+  }
+
+  async useExtensionToken(tokenHash: string) {
+    const [row] = await this.db
+      .update(schema.extensionDevices)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(schema.extensionDevices.tokenHash, tokenHash))
+      .returning({ deviceId: schema.extensionDevices.id, userId: schema.extensionDevices.userId });
+    return row ?? null;
+  }
+
+  async listExtensionDevices(userId: string) {
+    const rows = await this.db
+      .select()
+      .from(schema.extensionDevices)
+      .where(eq(schema.extensionDevices.userId, userId))
+      .orderBy(desc(schema.extensionDevices.createdAt));
+    return rows.map((r): ExtensionDevice => ({ id: r.id, label: r.label, createdAt: iso(r.createdAt), lastUsedAt: isoOrNull(r.lastUsedAt) }));
+  }
+
+  async deleteExtensionDevice(userId: string, deviceId: string) {
+    await this.db
+      .delete(schema.extensionDevices)
+      .where(and(eq(schema.extensionDevices.userId, userId), eq(schema.extensionDevices.id, deviceId)));
+  }
+
+  async getPresence(userId: string) {
+    const [row] = await this.db.select().from(schema.presence).where(eq(schema.presence.userId, userId));
+    return row ? toPresence(row) : null;
+  }
+
+  async listPresence(userIds: readonly string[]) {
+    if (userIds.length === 0) return [];
+    const rows = await this.db.select().from(schema.presence).where(inArray(schema.presence.userId, [...userIds]));
+    return rows.map(toPresence);
+  }
+
+  async savePresence(p: Presence) {
+    const row = { ...p, startedAt: new Date(p.startedAt), updatedAt: new Date(p.updatedAt) };
+    await this.db.insert(schema.presence).values(row).onConflictDoUpdate({ target: schema.presence.userId, set: row });
+  }
+
+  async clearPresence(userId: string) {
+    await this.db.delete(schema.presence).where(eq(schema.presence.userId, userId));
+  }
+
+  async findProviderLink(providerId: ProviderId, externalIds: readonly string[]) {
+    if (externalIds.length === 0) return null;
+    const rows = await this.db
+      .select()
+      .from(schema.providerTitleLinks)
+      .where(and(eq(schema.providerTitleLinks.providerId, providerId), inArray(schema.providerTitleLinks.externalId, [...externalIds])));
+    for (const id of externalIds) {
+      const hit = rows.find((r) => r.externalId === id);
+      if (hit) return hit.titleId;
+    }
+    return null;
+  }
+
+  async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
+    await this.db
+      .insert(schema.providerTitleLinks)
+      .values({ providerId: input.providerId, externalId: input.externalId, titleId: input.titleId, createdBy: input.userId })
+      .onConflictDoUpdate({
+        target: [schema.providerTitleLinks.providerId, schema.providerTitleLinks.externalId],
+        set: { titleId: input.titleId, createdBy: input.userId, createdAt: new Date() },
+      });
+  }
+
   // Notifications & preferences --------------------------------------------
 
   async listNotifications(userId: string) {
@@ -330,6 +441,18 @@ export class PostgresRepository implements Repository {
       .orderBy(desc(schema.notifications.at))
       .limit(50);
     return rows.map((r): AppNotification => ({ id: r.id, kind: r.kind, message: r.message, href: r.href, at: iso(r.at), read: r.read }));
+  }
+
+  async createNotification(input: Omit<AppNotification, "id" | "read"> & { userId: string }) {
+    await this.db.insert(schema.notifications).values({
+      id: `n_${crypto.randomUUID()}`,
+      userId: input.userId,
+      kind: input.kind,
+      message: input.message,
+      href: input.href,
+      at: new Date(input.at),
+      read: false,
+    });
   }
 
   async markNotificationsRead(userId: string) {
@@ -426,4 +549,8 @@ function toParty(r: typeof schema.watchParties.$inferSelect): WatchParty {
     pickedTitleId: r.pickedTitleId,
     createdAt: iso(r.createdAt),
   };
+}
+
+function toPresence(r: typeof schema.presence.$inferSelect): Presence {
+  return { ...r, startedAt: iso(r.startedAt), updatedAt: iso(r.updatedAt) };
 }

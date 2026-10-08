@@ -1,8 +1,11 @@
 import type {
   ActivityEvent,
   AppNotification,
+  ExtensionDevice,
   Friend,
   LibraryEntry,
+  Presence,
+  ProviderId,
   PublicUser,
   RatingValue,
   Title,
@@ -54,6 +57,7 @@ export interface Repository {
   setRating(userId: string, titleId: string, value: RatingValue | null): Promise<void>;
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;
+  addWatchEvent(event: WatchEvent): Promise<void>;
 
   // Wishlist
   listWishlist(userId: string): Promise<WishlistItem[]>;
@@ -66,14 +70,34 @@ export interface Repository {
   addFriend(userId: string, friendId: string): Promise<void>;
   removeFriend(userId: string, friendId: string): Promise<void>;
   listActivity(userIds: readonly string[], limit: number): Promise<ActivityEvent[]>;
+  recordActivity(event: Omit<ActivityEvent, "id">): Promise<void>;
 
   // Watch parties
   createWatchParty(party: Omit<WatchParty, "id" | "createdAt">): Promise<WatchParty>;
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;
 
+  // Browser extension: pairing, devices, live presence
+  /** One-time pairing code, stored hashed, valid until `expiresAt`. */
+  createPairingCode(input: { codeHash: string; userId: string; expiresAt: Date }): Promise<void>;
+  /** Returns the owner and deletes the code, or null when unknown or expired. */
+  consumePairingCode(codeHash: string): Promise<string | null>;
+  createExtensionDevice(input: { id: string; userId: string; tokenHash: string; label: string }): Promise<void>;
+  /** Resolves a device token and records that it was used. */
+  useExtensionToken(tokenHash: string): Promise<{ deviceId: string; userId: string } | null>;
+  listExtensionDevices(userId: string): Promise<ExtensionDevice[]>;
+  deleteExtensionDevice(userId: string, deviceId: string): Promise<void>;
+  getPresence(userId: string): Promise<Presence | null>;
+  listPresence(userIds: readonly string[]): Promise<Presence[]>;
+  savePresence(presence: Presence): Promise<void>;
+  clearPresence(userId: string): Promise<void>;
+  /** Catalog title a provider id was matched to, trying ids in order. */
+  findProviderLink(providerId: ProviderId, externalIds: readonly string[]): Promise<string | null>;
+  saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }): Promise<void>;
+
   // Notifications & preferences
   listNotifications(userId: string): Promise<AppNotification[]>;
+  createNotification(notification: Omit<AppNotification, "id" | "read"> & { userId: string }): Promise<void>;
   markNotificationsRead(userId: string): Promise<void>;
   getPreferences(userId: string): Promise<UserPreferences>;
   updatePreferences(userId: string, patch: Partial<Omit<UserPreferences, "userId">>): Promise<UserPreferences>;

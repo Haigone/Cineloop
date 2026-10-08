@@ -5,9 +5,9 @@ import type { MediaType, ProviderId } from "@/domain/types";
  *
  * CineLoop never plays content and never talks to a provider on the user's
  * behalf with their credentials. Data reaches an adapter only through
- * channels the user explicitly enables (today: none; planned: the CineLoop
- * browser extension reading the page the user has open, or an official
- * provider API where one exists). See docs/providers.md.
+ * channels the user explicitly enables: today the CineLoop browser extension,
+ * which reports the URL and title of the provider tab the user has open.
+ * See docs/providers.md and docs/browser-extension.md.
  */
 
 /** A provider-side reference to something watchable. */
@@ -26,6 +26,8 @@ export interface Content {
 export interface CurrentContent extends Content {
   url: string | null;
   detectedAt: string;
+  /** Provider id of the show an episode belongs to, when known. */
+  parentId?: string | null;
 }
 
 export interface AdapterWatchProgress {
@@ -44,7 +46,13 @@ export interface SyncObservation {
   url: string;
   documentTitle: string;
   /** Structured hints the extension could read from public page metadata. */
-  hints?: { title?: string; season?: number; episode?: number };
+  hints?: {
+    title?: string;
+    season?: number;
+    episode?: number;
+    /** The provider's id for the show, when the tab came from its page (Netflix ?jbv= or /title/{id}). */
+    parentId?: string;
+  };
   observedAt: string;
 }
 

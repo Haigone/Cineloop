@@ -24,11 +24,15 @@ npm run db:seed                 # catalogo + persone demo (--reset per ripartire
 npm run dev
 ```
 
-Con `DATABASE_URL` impostato l'app usa PostgreSQL. Anche `npm run build` applica le migrazioni, quindi un deploy (es. Vercel con Neon) crea da solo le tabelle: basta impostare `DATABASE_URL`. In questa modalità il pulsante dell'account demo non compare: accedi con le credenziali sopra.
+Con `DATABASE_URL` impostato l'app usa PostgreSQL. Anche `npm run build` applica le migrazioni e carica il catalogo di base, quindi un deploy (es. Vercel con Neon) crea da solo tabelle e titoli: basta impostare `DATABASE_URL`. In questa modalità il pulsante dell'account demo non compare: accedi con le credenziali sopra.
 
 ## Catalogo TMDB (opzionale)
 
-Imposta `TMDB_READ_TOKEN` (token di lettura API v3 di [TMDB](https://www.themoviedb.org/settings/api)). La ricerca integra i titoli di TMDB e li salva in cache. Quando è attivo, l'app mostra l'attribuzione richiesta da TMDB.
+Imposta `TMDB_READ_TOKEN` (il "token di accesso in lettura" API di [TMDB](https://www.themoviedb.org/settings/api)). Senza, Esplora e la ricerca usano il piccolo catalogo demo; con TMDB hai tutto il catalogo: ricerca, filtri per genere e tipo, tendenze e consigli "Per te" basati sui titoli che hai votato. I titoli trovati vengono salvati in cache, così si possono aggiungere alle liste. Quando è attivo, l'app mostra l'attribuzione richiesta da TMDB.
+
+## Estensione Netflix
+
+`extension/` contiene l'estensione per Chrome e browser simili: aggiorna la libreria mentre guardi Netflix, mostra agli amici cosa stai guardando e permette loro di unirsi. `npm run build` la impacchetta in `public/cineloop-extension.zip`, scaricabile da Impostazioni. Dettagli e garanzie su cosa legge in [docs/browser-extension.md](docs/browser-extension.md).
 
 ## Script
 
@@ -62,7 +66,7 @@ Next.js 16 (App Router), React 19, TypeScript strict, Tailwind CSS 4, Motion, Po
 
 - [Architettura](docs/architecture.md)
 - [Integrazioni con i provider](docs/providers.md): cosa è consentito per Netflix, gli altri servizi, Anime Unity e Streaming Community
-- [Estensione browser](docs/browser-extension.md): progetto, non ancora implementata
+- [Estensione browser](docs/browser-extension.md): cosa legge, come si installa, API e watch together
 
 ## Limiti noti
 

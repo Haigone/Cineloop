@@ -41,16 +41,19 @@ describe("TMDB mapping", () => {
     expect(toTitle("tv", { ...details, original_language: "ja", genres: [{ id: 16 }] }).type).toBe("anime");
   });
 
-  it("sends the token, resolves search hits to full titles and skips people", async () => {
-    const fetcher = vi.fn(async (url: string) => {
-      const body = url.includes("/search/multi")
-        ? { results: [{ id: 1396, media_type: "tv" }, { id: 7, media_type: "person" }] }
-        : details;
-      return new Response(JSON.stringify(body), { status: 200 });
+  it("sends the token, maps search hits in one request and skips people and unnamed entries", async () => {
+    const fetcher = vi.fn(async () => {
+      const results = [
+        { id: 1396, media_type: "tv", name: "Breaking Bad", first_air_date: "2008-01-20", genre_ids: [18, 80] },
+        { id: 7, media_type: "person", name: "Bryan Cranston" },
+        { id: 8, media_type: "movie" },
+      ];
+      return new Response(JSON.stringify({ results }), { status: 200 });
     });
     const tmdb = new TmdbCatalog("secret", "it-IT", fetcher as unknown as typeof fetch);
     const res = await tmdb.search("breaking", 5);
     expect(res.map((t) => t.id)).toEqual(["tmdb-tv-1396"]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
     const [url, init] = fetcher.mock.calls[0]! as unknown as [string, RequestInit];
     expect(url).toContain("query=breaking");
     expect(url).toContain("language=it-IT");

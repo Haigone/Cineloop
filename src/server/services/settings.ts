@@ -5,6 +5,7 @@ import { getRepository } from "@/server/data";
 
 export async function getSettingsView() {
   const user = await getCurrentUser();
-  const preferences = await getRepository().getPreferences(user.id);
-  return { user, preferences, providers: Object.values(PROVIDERS) };
+  const repo = getRepository();
+  const [preferences, devices] = await Promise.all([repo.getPreferences(user.id), repo.listExtensionDevices(user.id)]);
+  return { user, preferences, devices, providers: Object.values(PROVIDERS) };
 }

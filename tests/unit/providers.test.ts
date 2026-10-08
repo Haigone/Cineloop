@@ -20,10 +20,24 @@ describe("provider registry", () => {
 describe("Netflix adapter", () => {
   const netflix = getAdapter("netflix");
 
-  it("ships with detection disabled", async () => {
-    expect(netflix.capabilities.detectCurrentContent).toBe(false);
-    expect(await netflix.getCurrentContent(ctx(netflixWatch))).toBeNull();
+  it("reads the playback id from a /watch URL, and nothing from other pages", async () => {
+    const current = await netflix.getCurrentContent(ctx(netflixWatch));
+    expect(current).toMatchObject({ externalId: "80057281", title: "Stranger Things", url: "https://www.netflix.com/watch/80057281" });
+    expect(await netflix.getCurrentContent(ctx({ ...netflixWatch, url: "https://www.netflix.com/browse" }))).toBeNull();
+    expect(await netflix.getCurrentContent(ctx({ ...netflixWatch, url: "https://evil.example/www.netflix.com/watch/1" }))).toBeNull();
     expect(await netflix.getContinueWatching(ctx(netflixWatch))).toEqual([]);
+  });
+
+  it("does not take Netflix's generic tab title for a title name", async () => {
+    const current = await netflix.getCurrentContent(ctx({ ...netflixWatch, documentTitle: "Netflix" }));
+    expect(current?.title).toBe("");
+  });
+
+  it("keeps a show id only when it looks like one", async () => {
+    const ok = await netflix.getCurrentContent(ctx({ ...netflixWatch, hints: { parentId: "80057281" } }));
+    const bad = await netflix.getCurrentContent(ctx({ ...netflixWatch, hints: { parentId: "../x" } }));
+    expect(ok?.parentId).toBe("80057281");
+    expect(bad?.parentId).toBeNull();
   });
 
   it("links back to the title on Netflix when an id is known", () => {

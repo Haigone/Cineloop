@@ -6,7 +6,7 @@ CineLoop non riproduce contenuti, non usa le credenziali dell'utente presso i pr
 
 | Servizio | Stato in CineLoop | Cosa fa oggi | Percorso legittimo |
 |---|---|---|---|
-| Netflix | In valutazione | Link "Continua su Netflix" (`/watch/{id}` o homepage) | Import del CSV "Attività di visione" esportato dall'utente; rilevamento via estensione da rivalutare |
+| Netflix | Rilevamento tramite estensione | "Ora in visione", libreria e tempo aggiornati dall'estensione dell'utente; link "Continua su Netflix" | Estensione CineLoop (URL e titolo della scheda); in futuro anche l'import del CSV "Attività di visione" |
 | Prime Video, Disney+, Apple TV+, NOW, Crunchyroll | In arrivo | Link alla homepage del servizio | Da studiare caso per caso (API ufficiali, export dei dati, partnership) |
 | Anime Unity | Non supportato | Nulla: adapter stub | Nessuno |
 | Streaming Community | Non supportato | Nulla: adapter stub | Nessuno |
@@ -23,11 +23,13 @@ Nessun provider è segnato `available`, e un test (`tests/unit/providers.test.ts
 
 **Decisioni**
 
-- Il rilevamento automatico è **disattivato** (`NetflixAdapter.capabilities.detectCurrentContent = false`).
-- È consentito solo il link di ritorno: un URL `https://www.netflix.com/watch/{id}` apre il titolo nell'account dell'utente, su Netflix. È un link, non un accesso automatico.
-- Il parser degli URL `/watch/{id}` esiste ed è testato, ma resta spento finché l'approccio dell'estensione (vedi [browser-extension.md](./browser-extension.md)) non viene valutato rispetto ai termini. Un'estensione che legge solo URL e titolo della scheda aperta dall'utente non è un robot che accede al servizio, ma la valutazione va fatta prima di attivarla, non dopo.
+- Il rilevamento è **attivo tramite l'estensione CineLoop** (`NetflixAdapter.capabilities.detectCurrentContent = true`), deciso dal proprietario del progetto l'8 ottobre 2026. Dettagli in [browser-extension.md](./browser-extension.md).
+- Perché è compatibile con i vincoli: l'estensione è installata e attivata dall'utente, legge solo indirizzo e titolo della scheda che l'utente sta già guardando (dati che il browser mostra nella sua interfaccia) e non fa richieste a Netflix. Non è un robot o uno scraper che accede al servizio al posto dell'utente, non legge pagine o player, non usa cookie né token, non aggira protezioni.
+- Netflix non viene mai chiamato dal server. Il titolo si ricava da abbinamenti confermati dagli utenti o dal titolo della scheda; se non basta, chiede all'utente.
+- Guardare insieme: CineLoop porta gli amici sullo stesso titolo e condivide il link di una stanza creata con un'estensione watch party esistente. Non controlla il player di Netflix.
+- Lo stato del provider resta `planned`: non esiste un'integrazione ufficiale con Netflix e la sincronizzazione dipende da un'estensione che l'utente sceglie di installare.
 
-**Prossimo passo consigliato**: import del CSV di Netflix. L'utente carica il proprio file, CineLoop abbina i titoli al catalogo e crea gli eventi di visione. È il percorso più sicuro: dati dell'utente, forniti dall'utente, nel formato offerto da Netflix.
+**Prossimo passo consigliato**: import del CSV di Netflix per lo storico precedente all'installazione dell'estensione.
 
 ## Prime Video, Disney+, Apple TV+, NOW, Crunchyroll
 

@@ -43,3 +43,6 @@ next-env.d.ts
 !.env.example
 /test-results/
 /playwright-report/
+
+# built from extension/ by scripts/pack-extension.ts
+/public/cineloop-extension.zip

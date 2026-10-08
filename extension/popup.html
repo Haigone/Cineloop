@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <title>CineLoop</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/32.png" alt="" width="20" height="20" />
+      <span class="brand">CineLoop</span>
+      <span id="who" class="muted"></span>
+    </header>
+
+    <!-- Not paired yet -->
+    <section id="pair" hidden>
+      <h1>Collega il tuo account</h1>
+      <p class="muted">Su CineLoop apri Impostazioni, Estensione Netflix, e genera un codice.</p>
+      <form id="pair-form">
+        <label for="server">Indirizzo del sito</label>
+        <input id="server" name="server" type="url" inputmode="url" placeholder="https://il-tuo-cineloop.it" required autocomplete="url" />
+        <label for="code">Codice</label>
+        <input id="code" name="code" placeholder="K7QM-3XPA" required autocomplete="one-time-code" spellcheck="false" />
+        <button type="submit" class="primary">Collega</button>
+        <p id="pair-error" class="error" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <!-- Paired, Netflix access not granted -->
+    <section id="grant" hidden>
+      <h1>Attiva su Netflix</h1>
+      <p class="muted">
+        CineLoop deve poter leggere l’indirizzo e il titolo delle schede di netflix.com. Nient’altro: niente password, cookie o player, e
+        nessun altro sito.
+      </p>
+      <button id="grant-btn" class="primary">Consenti su netflix.com</button>
+    </section>
+
+    <!-- Paired and active -->
+    <section id="main" hidden>
+      <div id="idle" class="card" hidden>
+        <p class="title">Niente in riproduzione</p>
+        <p class="muted">Avvia un film o un episodio su Netflix: CineLoop aggiorna la tua libreria e i tuoi amici vedono che stai guardando.</p>
+      </div>
+
+      <div id="paused-card" class="card" hidden>
+        <p class="title">In pausa</p>
+        <p class="muted">CineLoop non sta registrando nulla e gli amici non ti vedono in visione.</p>
+      </div>
+
+      <div id="watching" class="card" hidden>
+        <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Stai guardando</p>
+        <p id="watching-title" class="title"></p>
+        <p id="watching-meta" class="muted"></p>
+        <p id="with" class="with" hidden></p>
+        <button id="change-btn" type="button" class="quiet link" hidden>Non è questo?</button>
+      </div>
+
+      <div id="confirm" class="card" hidden>
+        <p class="title">Che cosa stai guardando?</p>
+        <p class="muted">Netflix non lo dice nel titolo della scheda. Sceglilo una volta: per le prossime puntate lo riconosco da solo.</p>
+        <ul id="suggestions" class="choices"></ul>
+        <label for="q" class="sr-only">Cerca un titolo</label>
+        <input id="q" type="search" placeholder="Cerca un titolo…" autocomplete="off" />
+        <ul id="results" class="choices" aria-live="polite"></ul>
+      </div>
+
+      <div id="party" class="card" hidden>
+        <p class="title">Guardare insieme</p>
+        <p class="muted">
+          Gli amici ti vedono nella loro dashboard e possono unirsi. Per restare in sincrono crea una stanza con un’estensione watch party (per
+          esempio Teleparty) e incolla qui il link: lo vedranno quando si uniscono.
+        </p>
+        <form id="party-form" class="row">
+          <label for="party-url" class="sr-only">Link della stanza</label>
+          <input id="party-url" type="url" placeholder="https://…" />
+          <button type="submit">Condividi</button>
+        </form>
+        <p id="party-error" class="error" role="alert" hidden></p>
+      </div>
+
+      <footer>
+        <button id="pause-btn"></button>
+        <button id="open-btn">Apri CineLoop</button>
+        <button id="unpair-btn" class="quiet">Scollega</button>
+      </footer>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

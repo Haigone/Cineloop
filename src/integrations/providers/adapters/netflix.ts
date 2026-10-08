@@ -1,33 +1,36 @@
 import type { ProviderCapabilities, CurrentContent, SyncObservation, Content } from "../types";
 import { ObservationAdapter } from "./base";
 
+/** Document titles Netflix uses on pages that say nothing about the title. */
+const GENERIC_TITLES = new Set(["", "netflix", "home", "watch"]);
+
 /**
- * Netflix. STATUS: under review — detection is disabled.
+ * Netflix. Detection runs on observations from the CineLoop browser
+ * extension, which the user installs and pairs themselves.
  *
  * Verified facts (see docs/providers.md):
- * - Netflix has no public API for viewing activity or playback state.
- * - Its Terms of Use forbid automated means to access the service.
- * - Users can download their own viewing history (Account > Download your
- *   personal information) — a legitimate future import path.
- *
- * Planned approach: the user's own browser extension reads the URL and the
- * visible page title of the tab the user has open (no network calls, no
- * cookies, no DOM scraping of the player) and pushes an observation.
- * `parse` below implements only that URL interpretation; it ships disabled
- * until the approach is reviewed against Netflix's terms.
+ * - Netflix has no public API for viewing activity or playback state, so
+ *   nothing here calls Netflix.
+ * - The extension reports only the URL and the document title of the tab the
+ *   user is watching in: no cookies, no network interception, no reading of
+ *   the player. `parse` turns a `/watch/{id}` URL into content; the catalog
+ *   match happens server-side (learned links, then title search, then the
+ *   user confirming in the extension popup).
  */
 export class NetflixAdapter extends ObservationAdapter {
   readonly id = "netflix" as const;
-  readonly capabilities: ProviderCapabilities = { detectCurrentContent: false, deepLinks: true, progress: false };
+  readonly capabilities: ProviderCapabilities = { detectCurrentContent: true, deepLinks: true, progress: false };
 
   protected parse(obs: SyncObservation): CurrentContent | null {
-    const match = /^https:\/\/www\.netflix\.com\/watch\/(\d+)/.exec(obs.url);
+    const match = /^https:\/\/www\.netflix\.com\/watch\/(\d{1,12})(?:[/?#]|$)/.exec(obs.url);
     if (!match) return null;
-    const title = obs.hints?.title ?? obs.documentTitle.replace(/\s*[-|]\s*Netflix\s*$/i, "").trim();
-    if (!title) return null;
+    const fromPage = obs.documentTitle.replace(/\s*[-|]\s*Netflix.*$/i, "").trim();
+    const title = obs.hints?.title?.trim() || (GENERIC_TITLES.has(fromPage.toLowerCase()) ? "" : fromPage);
+    const parent = obs.hints?.parentId && /^\d{1,12}$/.test(obs.hints.parentId) ? obs.hints.parentId : null;
     return {
       providerId: this.id,
       externalId: match[1]!,
+      parentId: parent,
       title,
       type: null,
       season: obs.hints?.season ?? null,

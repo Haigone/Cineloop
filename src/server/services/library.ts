@@ -5,6 +5,7 @@ import { getProvider } from "@/domain/providers";
 import { getAdapter } from "@/integrations/providers/registry";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
+import { ensureTitle } from "./explore";
 import { loadFriendBundles } from "./shared";
 
 export interface LibraryView {
@@ -29,13 +30,16 @@ export interface TitleView {
   wishlisted: boolean;
   providers: { id: string; name: string; tint: string; url: string | null }[];
   friends: { user: PublicUser; status: WatchStatus | "wishlist"; rating: RatingValue | null }[];
+  /** Every friend, for "Consiglia a un amico". */
+  allFriends: PublicUser[];
 }
 
 /** Returns null when the title does not exist (the page renders not-found). */
 export async function getTitleView(id: string): Promise<TitleView | null> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
-  const [title] = await repo.getTitlesByIds([id]);
+  // Catalog titles are fetched and cached on first view.
+  const title = await ensureTitle(id);
   if (!title) return null;
   const [library, wishlist, friends] = await Promise.all([
     repo.listLibrary(viewer.id),
@@ -64,5 +68,6 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
       };
     }),
     friends: friendRows,
+    allFriends: friends.map((f) => f.user),
   };
 }

@@ -6,6 +6,7 @@ import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
+import { listLiveFriends, type LiveFriend } from "./sync";
 
 export interface FriendActivityItem {
   event: ActivityEvent;
@@ -19,6 +20,8 @@ export interface HomeView {
   viewer: PublicUser;
   nowWatching: ContinueItem | null;
   continueWatching: ContinueItem[];
+  /** Friends watching right now through the extension; they can be joined. */
+  liveFriends: LiveFriend[];
   friendsActivity: FriendActivityItem[];
   week: WeeklyStats;
   tonight: TonightPick[];
@@ -39,14 +42,13 @@ export async function getHomeView(): Promise<HomeView> {
     repo.listWatchEvents(viewer.id, weekStart(now)),
     loadFriendBundles(repo, viewer.id),
   ]);
-  const [activity, prefs] = await Promise.all([
-    listSharedActivity(
-      repo,
-      friends.map((f) => f.user.id),
-      30,
-    ),
+  const friendIds = friends.map((f) => f.user.id);
+  const [activity, prefs, liveFriends] = await Promise.all([
+    listSharedActivity(repo, friendIds, 30),
     repo.getPreferences(viewer.id),
+    listLiveFriends(repo, viewer.id, friendIds),
   ]);
+  const liveIds = new Set(liveFriends.map((l) => l.user.id));
 
   const allTitles = await repo.listTitles();
   const titles = new Map(allTitles.map((t) => [t.id, t]));
@@ -74,10 +76,11 @@ export async function getHomeView(): Promise<HomeView> {
       title: titles.get(event.titleId)!,
       live: event.kind === "watching" && Date.parse(event.at) > now.getTime() - LIVE_WINDOW_MS,
     }))
-    .filter((x) => x.user && x.title);
+    // Friends shown as watching live are not repeated below.
+    .filter((x) => x.user && x.title && !liveIds.has(x.user.id));
 
   // Suggested party: the friends active most recently.
-  const partyFriends = friendsActivity.slice(0, 3).map((a) => a.user);
+  const partyFriends = [...liveFriends.map((l) => l.user), ...friendsActivity.map((a) => a.user)].slice(0, 3);
   const partyMembers = [
     toPartyMember(toPublicUser(viewer), library, wishlist),
     ...friends.filter((f) => partyFriends.some((p) => p.id === f.user.id)).map((f) => toPartyMember(f.user, f.library, f.wishlist)),
@@ -87,6 +90,7 @@ export async function getHomeView(): Promise<HomeView> {
     viewer: toPublicUser(viewer),
     nowWatching: continueWatching[0] ?? null,
     continueWatching: continueWatching.slice(1),
+    liveFriends,
     friendsActivity,
     week: computeWeeklyStats({ now, events, library, wishlist, titles }),
     tonight: pickForTonight({ library, wishlist, friends, titles, subscriptions: prefs.subscriptions, limit: 10 }),

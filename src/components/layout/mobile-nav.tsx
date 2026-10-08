@@ -25,7 +25,7 @@ function MobileNavView({ pathname }: { pathname: string }) {
       aria-label="Principale"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-6">
         {MOBILE_NAV.map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;

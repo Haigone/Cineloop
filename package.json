@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "tsx scripts/db-migrate.ts --if-configured && next build",
+    "build": "tsx scripts/pack-extension.ts && tsx scripts/db-prepare.ts --if-configured && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -13,7 +13,9 @@
     "db:seed": "tsx scripts/db-seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:prepare": "tsx scripts/db-prepare.ts",
+    "extension:pack": "tsx scripts/pack-extension.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

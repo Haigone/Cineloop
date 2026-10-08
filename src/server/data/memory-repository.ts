@@ -1,8 +1,11 @@
 import type {
   ActivityEvent,
   AppNotification,
+  ExtensionDevice,
   Friend,
   LibraryEntry,
+  Presence,
+  ProviderId,
   PublicUser,
   RatingValue,
   Title,
@@ -39,6 +42,12 @@ export class MemoryRepository implements Repository {
   private parties: WatchParty[] = [];
   private notifications = new Map<string, AppNotification[]>();
   private preferences = new Map<string, UserPreferences>();
+  private pairingCodes = new Map<string, { userId: string; expiresAt: Date }>();
+  private devices: (ExtensionDevice & { userId: string; tokenHash: string })[] = [];
+  private presence = new Map<string, Presence>();
+  private providerLinks = new Map<string, string>();
+  /** Seeded presences that stay live without an extension sending heartbeats. */
+  private demoLive = new Set<string>();
 
   constructor(now: Date = new Date()) {
     for (const t of SEED_TITLES) this.titles.set(t.id, t);
@@ -56,6 +65,23 @@ export class MemoryRepository implements Repository {
     this.activity = seed.activity;
     this.notifications = seed.notifications;
     for (const p of seed.preferences) this.preferences.set(p.userId, p);
+    // Demo: Luca is watching on Netflix right now, so "Unisciti" can be tried.
+    this.presence.set("u_luca", {
+      userId: "u_luca",
+      providerId: "netflix",
+      externalId: "80077368",
+      titleId: "stranger-things",
+      label: "Stranger Things",
+      season: 4,
+      episode: 7,
+      url: "https://www.netflix.com/watch/80077368",
+      partyUrl: null,
+      guestIds: [],
+      startedAt: new Date(now.getTime() - 25 * 60_000).toISOString(),
+      updatedAt: now.toISOString(),
+      pendingMinutes: 0,
+    });
+    this.demoLive.add("u_luca");
   }
 
   // Catalog -----------------------------------------------------------------
@@ -218,6 +244,10 @@ export class MemoryRepository implements Repository {
     return this.watchEvents.filter((e) => e.userId === userId && Date.parse(e.watchedAt) >= s);
   }
 
+  async addWatchEvent(event: WatchEvent) {
+    this.watchEvents.push({ ...event });
+  }
+
   // Wishlist ----------------------------------------------------------------
 
   async listWishlist(userId: string) {
@@ -279,6 +309,10 @@ export class MemoryRepository implements Repository {
       .slice(0, limit);
   }
 
+  async recordActivity(event: Omit<ActivityEvent, "id">) {
+    this.activity.push({ ...event, id: `a_${crypto.randomUUID()}` });
+  }
+
   // Watch parties -----------------------------------------------------------
 
   async createWatchParty(input: Omit<WatchParty, "id" | "createdAt">) {
@@ -299,10 +333,81 @@ export class MemoryRepository implements Repository {
       .slice(0, limit);
   }
 
+  // Browser extension -------------------------------------------------------
+
+  async createPairingCode(input: { codeHash: string; userId: string; expiresAt: Date }) {
+    this.pairingCodes.set(input.codeHash, { userId: input.userId, expiresAt: input.expiresAt });
+  }
+
+  async consumePairingCode(codeHash: string) {
+    const code = this.pairingCodes.get(codeHash);
+    this.pairingCodes.delete(codeHash);
+    return code && code.expiresAt.getTime() > Date.now() ? code.userId : null;
+  }
+
+  async createExtensionDevice(input: { id: string; userId: string; tokenHash: string; label: string }) {
+    this.devices.push({ ...input, createdAt: new Date().toISOString(), lastUsedAt: null });
+  }
+
+  async useExtensionToken(tokenHash: string) {
+    const device = this.devices.find((d) => d.tokenHash === tokenHash);
+    if (!device) return null;
+    device.lastUsedAt = new Date().toISOString();
+    return { deviceId: device.id, userId: device.userId };
+  }
+
+  async listExtensionDevices(userId: string) {
+    return this.devices
+      .filter((d) => d.userId === userId)
+      .map(({ id, label, createdAt, lastUsedAt }) => ({ id, label, createdAt, lastUsedAt }));
+  }
+
+  async deleteExtensionDevice(userId: string, deviceId: string) {
+    this.devices = this.devices.filter((d) => !(d.userId === userId && d.id === deviceId));
+  }
+
+  async getPresence(userId: string) {
+    const p = this.presence.get(userId);
+    if (!p) return null;
+    return this.demoLive.has(userId) ? { ...p, guestIds: [...p.guestIds], updatedAt: new Date().toISOString() } : { ...p, guestIds: [...p.guestIds] };
+  }
+
+  async listPresence(userIds: readonly string[]) {
+    const found = await Promise.all(userIds.map((id) => this.getPresence(id)));
+    return found.filter((p): p is Presence => Boolean(p));
+  }
+
+  async savePresence(presence: Presence) {
+    this.presence.set(presence.userId, { ...presence, guestIds: [...presence.guestIds] });
+  }
+
+  async clearPresence(userId: string) {
+    this.presence.delete(userId);
+  }
+
+  async findProviderLink(providerId: ProviderId, externalIds: readonly string[]) {
+    for (const id of externalIds) {
+      const titleId = this.providerLinks.get(`${providerId}:${id}`);
+      if (titleId) return titleId;
+    }
+    return null;
+  }
+
+  async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
+    this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
+  }
+
   // Notifications & preferences --------------------------------------------
 
   async listNotifications(userId: string) {
     return this.notifications.get(userId) ?? [];
+  }
+
+  async createNotification(input: Omit<AppNotification, "id" | "read"> & { userId: string }) {
+    const { userId, ...rest } = input;
+    const list = this.notifications.get(userId) ?? [];
+    list.unshift({ ...rest, id: `n_${crypto.randomUUID()}`, read: false });
+    this.notifications.set(userId, list);
   }
 
   async markNotificationsRead(userId: string) {

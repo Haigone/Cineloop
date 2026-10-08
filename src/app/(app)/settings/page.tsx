@@ -6,6 +6,7 @@ import { getSettingsView } from "@/server/services/settings";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
+import { ExtensionSettings } from "@/components/settings/extension-settings";
 import { PasswordForm } from "@/components/settings/password-form";
 import { PreferenceSwitch } from "@/components/settings/preference-switch";
 import { ProfileForm } from "@/components/settings/profile-form";
@@ -20,6 +21,7 @@ const SECTIONS = [
   { id: "privacy", label: "Privacy" },
   { id: "notifiche", label: "Notifiche" },
   { id: "servizi", label: "I tuoi servizi" },
+  { id: "estensione", label: "Estensione Netflix" },
   { id: "accessibilita", label: "Aspetto e accessibilità" },
 ] as const;
 
@@ -67,7 +69,7 @@ function Section({ id, title, description, children }: { id: string; title: stri
 }
 
 async function SettingsContent() {
-  const { user, preferences: p, providers } = await getSettingsView();
+  const { user, preferences: p, providers, devices } = await getSettingsView();
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <Section id="profilo" title="Profilo" description="Come ti vedono gli amici su CineLoop.">
@@ -122,6 +124,14 @@ async function SettingsContent() {
         description="Indica le piattaforme che usi: i suggerimenti daranno priorità a quello che puoi già guardare. CineLoop non riproduce contenuti e non accede ai tuoi account."
       >
         <SubscriptionList providers={providers} initial={p.subscriptions} />
+      </Section>
+
+      <Section
+        id="estensione"
+        title="Estensione Netflix"
+        description="Mentre guardi Netflix, CineLoop aggiorna da solo la libreria e mostra agli amici cosa stai guardando, così possono unirsi a te."
+      >
+        <ExtensionSettings devices={devices} />
       </Section>
 
       <Section id="accessibilita" title="Aspetto e accessibilità">
