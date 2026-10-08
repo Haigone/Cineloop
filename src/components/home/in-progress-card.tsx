@@ -13,7 +13,7 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
   const { title, progress, continueUrl, providerName, seriesFraction, live } = item;
   const ep = episodeLabel(progress, "short");
   const fraction = seriesFraction ?? progress.fraction;
-  const label = [`Continua ${title.title}`, providerName && `su ${providerName}`, episodeLabel(progress)].filter(Boolean).join(", ");
+  const label = [`Continua ${title.title}`, providerName && `su ${providerName}`, episodeLabel(progress, "long")].filter(Boolean).join(", ");
   const Wrapper = continueUrl ? "a" : "div";
 
   return (

@@ -26,11 +26,14 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, "--headless=new"],
   });
   const id = () => String(10_000_000 + Math.floor(Math.random() * 89_000_000));
-  const [show, ep1, ep2, named, named2] = [id(), id(), id(), id(), id()];
+  const [show, ep1, ep2, named, named2, named3, named4] = [id(), id(), id(), id(), id(), id(), id()];
   // One episode page carries the player's title line, as Netflix shows it.
   const player = `<div data-uia="video-title"><h4>Stranger Things</h4><span>S4:E5</span><span>Capitolo cinque</span></div>`;
   // Another layout: no heading, Italian labels.
   const player2 = `<div data-uia="video-title"><div><span>Dark</span></div><span>St. 2: Ep. 3</span><span>Fantasmi</span></div>`;
+  // Often the player shows the episode alone.
+  const player3 = `<div data-uia="video-title"><h4>Dark</h4><span>E4</span><span>Doppiogiochisti</span></div>`;
+  const player4 = `<div data-uia="video-title"><h4>Peaky Blinders</h4><span>E2</span><span>Episodio 2</span></div>`;
   // A playing, muted video stands in for Netflix's player.
   const video = `<video muted></video><script>
     const c = document.createElement("canvas"); const g = c.getContext("2d");
@@ -39,7 +42,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   </script>`;
   await ctx.route("https://www.netflix.com/**", (route) => {
     const url = route.request().url();
-    const body = `<title>Netflix</title>${url.includes(named) ? player : url.includes(named2) ? player2 : ""}${url.includes("/watch/") ? video : ""}`;
+    const body = `<title>Netflix</title>${[[named, player], [named2, player2], [named3, player3], [named4, player4]].find(([n]) => url.includes(n!))?.[1] ?? ""}${url.includes("/watch/") ? video : ""}`;
     return route.fulfill({ contentType: "text/html", body });
   });
   const worker = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent("serviceworker"));
@@ -131,18 +134,37 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
     await popup.reload();
     await expect(popup.locator("#watching-title")).toHaveText("Stranger Things", { timeout: 1000 });
   }).toPass({ timeout: 20_000 });
-  await expect(popup.locator("#watching-meta")).toContainText("S4 · E5");
+  await expect(popup.locator("#watching-meta")).toContainText("S4E5");
   await expect(popup.getByText("Che cosa stai guardando?")).toBeHidden();
-  await expect(popup.locator("#player-read")).toContainText("Stranger Things · St. 4 Ep. 5");
+  await expect(popup.locator("#player-read")).toContainText("Stranger Things · S4E5");
   await site.goto(`${baseURL}/home`);
-  await expect(site.getByText("Stagione 4 · Episodio 5").first()).toBeVisible();
+  await expect(site.getByText("S4E5").first()).toBeVisible();
 
   await netflix.goto(`https://www.netflix.com/watch/${named2}`);
   await expect(async () => {
     await popup.reload();
     await expect(popup.locator("#watching-title")).toHaveText("Dark", { timeout: 1000 });
   }).toPass({ timeout: 20_000 });
-  await expect(popup.locator("#watching-meta")).toContainText("S2 · E3");
+  await expect(popup.locator("#watching-meta")).toContainText("S2E3");
+
+  // "E4" alone: the season follows on from the episode before.
+  await netflix.goto(`https://www.netflix.com/watch/${named3}`);
+  await expect(async () => {
+    await popup.reload();
+    await expect(popup.locator("#watching-meta")).toContainText("S2E4", { timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+
+  // A new series with the episode alone: the popup asks for the season once.
+  await netflix.goto(`https://www.netflix.com/watch/${named4}`);
+  await expect(async () => {
+    await popup.reload();
+    await expect(popup.locator("#watching-title")).toHaveText("Peaky Blinders", { timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(popup.locator("#watching-meta")).not.toContainText("E2");
+  await popup.getByRole("tab", { name: "Sto guardando" }).click();
+  await popup.getByRole("button", { name: "Stagione 3" }).click();
+  await expect(popup.locator("#watching-meta")).toContainText("S3E2");
+  await expect(popup.locator("#season-ask")).toBeHidden();
 
   // Closing Netflix ends the session.
   await netflix.close();

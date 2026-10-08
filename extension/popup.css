@@ -75,3 +75,5 @@ details[open] summary { margin-bottom: 4px; }
   font-size: 12px;
   margin-top: 6px;
 }
+.seasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.seasons button { height: 28px; min-width: 40px; padding: 0 10px; }

@@ -27,11 +27,14 @@ export function formatDuration(totalMinutes: number): string {
   return `${h}h ${m}m`;
 }
 
-/** "Stagione 4 · Episodio 3" */
-export function episodeLabel(p: Pick<WatchProgress, "season" | "episode">, style: "long" | "short" = "long"): string | null {
-  if (p.season == null && p.episode == null) return null;
-  if (style === "short") return [p.season != null && `S${p.season}`, p.episode != null && `E${p.episode}`].filter(Boolean).join(" ");
-  return [p.season != null && `Stagione ${p.season}`, p.episode != null && `Episodio ${p.episode}`].filter(Boolean).join(" · ");
+/**
+ * "S4E3" ("short", what is shown) or "Stagione 4, episodio 3" ("long", for
+ * screen readers). An episode without its season is not shown at all.
+ */
+export function episodeLabel(p: Pick<WatchProgress, "season" | "episode">, style: "long" | "short" = "short"): string | null {
+  if (p.season == null) return null;
+  if (style === "long") return p.episode == null ? `Stagione ${p.season}` : `Stagione ${p.season}, episodio ${p.episode}`;
+  return p.episode == null ? `S${p.season}` : `S${p.season}E${p.episode}`;
 }
 
 export const MEDIA_TYPE_LABEL: Record<MediaType, string> = {

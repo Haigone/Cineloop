@@ -24,6 +24,8 @@ export interface ExtensionStatus {
     title: { id: string; title: string; year: number } | null;
     season: number | null;
     episode: number | null;
+    /** The series' season numbers, for asking which one when the player does not say. */
+    seasons: number[];
     partyUrl: string | null;
     guests: string[];
     /** The host, when the user joined a friend from CineLoop and is on the same title. */
@@ -106,6 +108,22 @@ export async function confirmTitle(userId: string, titleId: string, parentId: st
   return getExtensionStatus(userId);
 }
 
+/**
+ * The user said which season the episode on screen belongs to (Netflix's
+ * player often shows only "E4"). Later episodes follow on from it.
+ */
+export async function setSeason(userId: string, season: number): Promise<ExtensionStatus | null> {
+  const repo = getRepository();
+  const presence = await repo.getPresence(userId);
+  if (!presence?.titleId || !isLive(presence, new Date())) return null;
+  const [title] = await repo.getTitlesByIds([presence.titleId]);
+  if (!title || title.type === "movie" || !title.seasons.some((x) => x.number === season)) return null;
+  presence.season = season;
+  await syncProgress(repo, presence, null);
+  await repo.savePresence(presence);
+  return getExtensionStatus(userId);
+}
+
 export async function endPresence(userId: string): Promise<void> {
   const repo = getRepository();
   const presence = await repo.getPresence(userId);
@@ -162,6 +180,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
       title: title ? brief(title) : null,
       season: live.season,
       episode: live.episode,
+      seasons: title && title.type !== "movie" ? title.seasons.map((x) => x.number) : [],
       partyUrl: live.partyUrl,
       guests: people.filter((p) => p !== null).map((p) => p.displayName),
       with: hosts,
@@ -416,6 +435,14 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     repo.getTitlesByIds([titleId]),
   ]);
   const prev = entry?.progress ?? null;
+  // A series episode the player has not named yet: keep the last known season
+  // and episode (the next heartbeats bring the new ones), only the link moves.
+  if (title && title.type !== "movie" && presence.episode === null && prev) {
+    if (entry?.status !== "watching" || prev.url !== presence.url) {
+      await repo.saveProgress(presence.userId, { ...prev, providerId: presence.providerId, url: presence.url, updatedAt: new Date().toISOString() });
+    }
+    return;
+  }
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
   }

@@ -34,9 +34,10 @@ async function render() {
   $("confirm-help").textContent = w.label
     ? `Il player dice “${w.label}”, ma non l’ho trovato nel catalogo con questo nome. Sceglilo una volta: per le prossime puntate lo riconosco da solo.`
     : "Non riesco a leggerlo dal player. Sceglilo una volta: per le prossime puntate lo riconosco da solo.";
-  const ep = w.episode ? (w.season ? `S${w.season} · E${w.episode}` : `Episodio ${w.episode}`) : "";
+  const ep = w.season && w.episode ? `S${w.season}E${w.episode}` : "";
   $("watching-meta").textContent = [w.title?.year, ep, "su Netflix"].filter(Boolean).join(" · ");
   $("player-read").textContent = await playerReading();
+  renderSeasonAsk(w);
   show("change-btn", Boolean(w.title) && !changing);
   if (!w.title || changing) renderChoices($("suggestions"), status.suggestions);
   // The player named it but the catalog had no exact match: start the search from that name.
@@ -44,6 +45,27 @@ async function render() {
     $("q").value = w.label;
     $("q").dispatchEvent(new Event("input"));
   }
+}
+
+/** A series episode without its season: ask once, later episodes follow on. */
+function renderSeasonAsk(w) {
+  const ask = Boolean(w.title && w.episode && !w.season && w.seasons?.length > 1);
+  show("season-ask", ask);
+  if (!ask) return;
+  $("season-choices").replaceChildren(
+    ...w.seasons.map((n) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = `S${n}`;
+      b.setAttribute("aria-label", `Stagione ${n}`);
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        await api("/api/extension/season", { method: "POST", body: { season: n } }).catch(() => null);
+        await render();
+      });
+      return b;
+    }),
+  );
 }
 
 /** What the Netflix player last showed, so the user can see what CineLoop reads. */
@@ -56,7 +78,8 @@ async function playerReading() {
   if (!player || (!player.title && player.episode === null && player.progress === null)) {
     return "Il player non mi ha ancora mostrato nulla: muovi il mouse sul video per un attimo.";
   }
-  const ep = player.episode !== null ? (player.season !== null ? `St. ${player.season} Ep. ${player.episode}` : `Ep. ${player.episode}`) : "episodio non indicato";
+  const ep =
+    player.episode === null ? "episodio non indicato" : player.season !== null ? `S${player.season}E${player.episode}` : `stagione non indicata (E${player.episode})`;
   const seen = player.progress !== null ? `${Math.round(player.progress * 100)}% visto` : "";
   return ["Letto dal player:", [player.title || "titolo non indicato", ep, seen].filter(Boolean).join(" · ")].join(" ");
 }
@@ -83,7 +106,7 @@ function renderList(items) {
     name.textContent = item.title;
     const meta = document.createElement("span");
     meta.className = "meta";
-    meta.textContent = item.season && item.episode ? `S${item.season} · E${item.episode}` : String(item.year);
+    meta.textContent = item.season && item.episode ? `S${item.season}E${item.episode}` : String(item.year);
     a.append(name, meta);
     li.append(a);
     rows.push(li);
