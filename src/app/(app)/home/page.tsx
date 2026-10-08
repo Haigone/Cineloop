@@ -15,9 +15,9 @@ import { Hero } from "@/components/home/hero";
 import { InProgressCard } from "@/components/home/in-progress-card";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
-import { TonightRail } from "@/components/home/tonight";
+import { reasonLabel } from "@/components/home/tonight";
 import { WeekStats } from "@/components/home/week-stats";
-import { WishlistQueue } from "@/components/home/wishlist-queue";
+import { TonightQueue } from "@/components/home/tonight-queue";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -72,12 +72,19 @@ async function HomeContent() {
         <RevealItem as="section" className="order-4 min-w-0">
           <SectionHeader
             title="Da vedere stasera"
-            description="Dalla tua wishlist e da quello che piace ai tuoi amici."
+            description="La tua wishlist in ordine di priorità: trascina le copertine per cambiarlo. Dopo, le idee dei tuoi amici."
             href="/wishlist"
             hrefLabel="Apri wishlist"
           />
-          {view.tonight.length > 0 ? (
-            <TonightRail picks={view.tonight} wishlistIds={wishlistIds} />
+          {view.wishlist.length + view.tonight.length > 0 ? (
+            <TonightQueue
+              wishlist={view.wishlist.map((title) => {
+                const pick = view.tonight.find((p) => p.title.id === title.id);
+                // Only reasons worth reading: a friend suggested it or wants it too.
+                return { title, meta: pick && (pick.reason.kind !== "wishlist" || pick.sharedWith.length) ? reasonLabel(pick) : null };
+              })}
+              ideas={view.tonight.filter((p) => !wishlistIds.has(p.title.id)).map((p) => ({ title: p.title, meta: reasonLabel(p) }))}
+            />
           ) : (
             <EmptyState
               compact
@@ -111,25 +118,13 @@ async function HomeContent() {
             )}
           </Panel>
         </RevealItem>
-        {view.wishlist.length > 0 && (
-          <RevealItem className="order-5">
-            <Panel
-              title="La tua wishlist"
-              titleId="wishlist-queue"
-              action={<Link href="/wishlist" className="rounded-sm text-xs text-fg-2 hover:text-fg">Vedi tutta</Link>}
-            >
-              <p className="-mt-1 mb-2 text-xs text-fg-3">Trascina per mettere in ordine di priorità.</p>
-              <WishlistQueue titles={view.wishlist} />
-            </Panel>
-          </RevealItem>
-        )}
-        <RevealItem className="order-6">
+        <RevealItem className="order-5">
           <Panel title="Questa settimana" titleId="week-stats">
             <WeekStats stats={view.week} />
           </Panel>
         </RevealItem>
         {view.party.friends.length > 0 && (
-          <RevealItem className="order-7">
+          <RevealItem className="order-6">
             <Panel title="Serata insieme" titleId="party-teaser">
               <PartyTeaser friends={view.party.friends} compatibleCount={view.party.compatibleCount} />
             </Panel>

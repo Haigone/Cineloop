@@ -1,7 +1,5 @@
 import type { TonightPick } from "@/domain/recommend";
 import { firstName } from "@/lib/format";
-import { TitleCard } from "@/components/media/title-card";
-import { Rail } from "@/components/media/rail";
 
 export function reasonLabel(pick: TonightPick): string {
   const names = (users: { displayName: string }[]) => {
@@ -20,14 +18,4 @@ export function reasonLabel(pick: TonightPick): string {
         ? `In wishlist di ${names(pick.reason.friends)}`
         : `In wishlist di ${pick.reason.friends.length} amici`;
   }
-}
-
-export function TonightRail({ picks, wishlistIds }: { picks: TonightPick[]; wishlistIds: Set<string> }) {
-  return (
-    <Rail label="Da vedere stasera">
-      {picks.map((pick) => (
-        <TitleCard key={pick.title.id} title={pick.title} meta={reasonLabel(pick)} wishlisted={wishlistIds.has(pick.title.id)} />
-      ))}
-    </Rail>
-  );
 }

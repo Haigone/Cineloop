@@ -25,31 +25,36 @@ test("add a title to the wishlist, find it there, remove it and undo", async ({ 
   await expect(page.getByRole("list", { name: "Wishlist, in ordine di priorità" })).not.toContainText("Demon Slayer");
 });
 
-test("reorder the wishlist from Home, by dragging and with the buttons", async ({ page }) => {
+test("reorder the wishlist from Home, by dragging and with the arrows", async ({ page }) => {
   await signIn(page, "/home");
   const queue = page.getByRole("list", { name: "Wishlist, in ordine di priorità" });
-  const names = async () => (await queue.getByRole("link").allInnerTexts()).map((t) => t.trim());
+  const names = async () => (await queue.getByRole("listitem").getByRole("heading").allInnerTexts()).map((t) => t.trim());
+  await expect(queue.getByRole("listitem").nth(2)).toBeVisible();
   const before = await names();
   expect(before.length).toBeGreaterThan(2);
 
   // Keyboard: the second title moves up to first.
-  await queue.getByRole("button", { name: `Sposta ${before[1]} su` }).click();
+  await queue.getByRole("listitem").nth(1).hover();
+  await queue.getByRole("button", { name: `Sposta ${before[1]} prima` }).click();
   await expect.poll(names).toEqual([before[1], before[0], ...before.slice(2)]);
 
-  // Drag: the first goes below the third.
-  const handle = queue.getByRole("listitem").first().locator("button").first();
-  const target = queue.getByRole("listitem").nth(2);
-  await target.scrollIntoViewIfNeeded();
+  // Drag: the first goes after the second.
+  const handle = queue.getByRole("listitem").first().locator("[data-drag-handle]");
+  const target = queue.getByRole("listitem").nth(1);
+  await handle.scrollIntoViewIfNeeded();
   const from = (await handle.boundingBox())!;
   const to = (await target.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  for (let i = 1; i <= 10; i++) await page.mouse.move(from.x + from.width / 2, from.y + ((to.y + to.height * 0.8 - from.y) * i) / 10);
+  for (let i = 1; i <= 20; i++) await page.mouse.move(from.x + ((to.x + to.width * 0.6 - from.x) * i) / 20, from.y + from.height / 2);
   await page.mouse.up();
-  const after = [before[0], before[2], before[1], ...before.slice(3)];
+  const after = [before[0], before[1], ...before.slice(2)];
   await expect.poll(names).toEqual(after);
 
-  // Saved: the wishlist page has the same order.
+  // Saved: still in this order after reloading, and on the wishlist page.
+  await page.reload();
+  await expect(queue.getByRole("listitem").nth(2)).toBeVisible();
+  expect((await names()).slice(0, 3)).toEqual(after.slice(0, 3));
   await page.goto("/wishlist");
   const list = page.getByRole("list", { name: "Wishlist, in ordine di priorità" });
   await expect(list.getByRole("listitem").first()).toContainText(after[0]!);
