@@ -1,9 +1,19 @@
 import type { Genre, LibraryEntry, PublicUser, Title, WatchPartyFilter, WishlistItem } from "./types";
 
+/** The minimum the matcher needs per person: serialisable, so it can run in the browser. */
 export interface PartyMember {
   user: PublicUser;
-  library: LibraryEntry[];
-  wishlist: WishlistItem[];
+  /** Titles already watched or in progress. */
+  seenIds: string[];
+  wantedIds: string[];
+}
+
+export function toPartyMember(user: PublicUser, library: LibraryEntry[], wishlist: WishlistItem[]): PartyMember {
+  return {
+    user,
+    seenIds: library.filter((e) => e.status === "completed" || e.status === "watching").map((e) => e.titleId),
+    wantedIds: wishlist.map((w) => w.titleId),
+  };
 }
 
 export interface PartyCandidate {
@@ -27,15 +37,13 @@ export function compatibleTitles(input: {
 }): PartyCandidate[] {
   const { members } = input;
   if (members.length === 0) return [];
-  const seen = new Set<string>();
-  for (const m of members) for (const e of m.library) if (e.status === "completed" || e.status === "watching") seen.add(e.titleId);
-
+  const seen = new Set(members.flatMap((m) => m.seenIds));
   const wanted = new Map<string, PublicUser[]>();
   for (const m of members) {
-    for (const w of m.wishlist) {
-      const list = wanted.get(w.titleId) ?? [];
+    for (const id of m.wantedIds) {
+      const list = wanted.get(id) ?? [];
       list.push(m.user);
-      wanted.set(w.titleId, list);
+      wanted.set(id, list);
     }
   }
 

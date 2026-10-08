@@ -41,7 +41,7 @@ export function Avatar({ user, size = "md", live = false, className, decorative 
         {user.avatarUrl ? (
           <Image src={user.avatarUrl} alt="" width={96} height={96} className="size-full object-cover" />
         ) : (
-          initials(user.displayName)
+          size === "xs" ? initials(user.displayName).slice(0, 1) : initials(user.displayName)
         )}
       </span>
       {live && (

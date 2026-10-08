@@ -2,7 +2,7 @@ import "server-only";
 import type { ActivityEvent, PublicUser, Title } from "@/domain/types";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
-import { compatibleTitles } from "@/domain/watch-party";
+import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
@@ -75,8 +75,8 @@ export async function getHomeView(): Promise<HomeView> {
   // Suggested party: the friends active most recently.
   const partyFriends = friendsActivity.slice(0, 3).map((a) => a.user);
   const partyMembers = [
-    { user: toPublicUser(viewer), library, wishlist },
-    ...friends.filter((f) => partyFriends.some((p) => p.id === f.user.id)),
+    toPartyMember(toPublicUser(viewer), library, wishlist),
+    ...friends.filter((f) => partyFriends.some((p) => p.id === f.user.id)).map((f) => toPartyMember(f.user, f.library, f.wishlist)),
   ];
 
   return {
