@@ -17,6 +17,7 @@ import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
 import { TonightRail } from "@/components/home/tonight";
 import { WeekStats } from "@/components/home/week-stats";
+import { WishlistQueue } from "@/components/home/wishlist-queue";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -110,13 +111,25 @@ async function HomeContent() {
             )}
           </Panel>
         </RevealItem>
-        <RevealItem className="order-5">
+        {view.wishlist.length > 0 && (
+          <RevealItem className="order-5">
+            <Panel
+              title="La tua wishlist"
+              titleId="wishlist-queue"
+              action={<Link href="/wishlist" className="rounded-sm text-xs text-fg-2 hover:text-fg">Vedi tutta</Link>}
+            >
+              <p className="-mt-1 mb-2 text-xs text-fg-3">Trascina per mettere in ordine di priorità.</p>
+              <WishlistQueue titles={view.wishlist} />
+            </Panel>
+          </RevealItem>
+        )}
+        <RevealItem className="order-6">
           <Panel title="Questa settimana" titleId="week-stats">
             <WeekStats stats={view.week} />
           </Panel>
         </RevealItem>
         {view.party.friends.length > 0 && (
-          <RevealItem className="order-6">
+          <RevealItem className="order-7">
             <Panel title="Serata insieme" titleId="party-teaser">
               <PartyTeaser friends={view.party.friends} compatibleCount={view.party.compatibleCount} />
             </Panel>

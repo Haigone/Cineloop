@@ -28,6 +28,8 @@ export interface HomeView {
   tonight: TonightPick[];
   party: { friends: PublicUser[]; compatibleCount: number };
   wishlistIds: string[];
+  /** The wishlist's titles in the user's order of priority. */
+  wishlist: Title[];
 }
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -108,6 +110,7 @@ export async function getHomeView(): Promise<HomeView> {
       compatibleCount: compatibleTitles({ members: partyMembers, titles: allTitles, filter: "all", genre: null }).length,
     },
     wishlistIds: wishlist.map((w) => w.titleId),
+    wishlist: wishlist.map((w) => titles.get(w.titleId)).filter((t): t is Title => Boolean(t)),
   };
 }
 
