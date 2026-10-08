@@ -79,7 +79,6 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgb(255 255 255 / 0.12) transparent;
   scroll-snap-type: x mandatory;
-  scroll-padding-inline: 0;
   overscroll-behavior-x: contain;
 }
 .scroll-rail > * {

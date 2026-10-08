@@ -24,7 +24,8 @@ export function KeyArt({ title, variant, showTitle = false, sizes, priority, cla
   const src = variant === "poster" ? title.artwork.posterUrl : title.artwork.backdropUrl;
 
   return (
-    <div className={cn("@container relative isolate overflow-hidden bg-surface-2", className)}>
+    // Callers may position the art absolutely; otherwise it establishes its own box.
+    <div className={cn("@container isolate overflow-hidden bg-surface-2", !/\b(absolute|fixed)\b/.test(className ?? "") && "relative", className)}>
       {src ? (
         <Image
           src={src}

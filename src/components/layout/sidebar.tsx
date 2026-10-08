@@ -18,8 +18,7 @@ export function Sidebar({ footer }: { footer: ReactNode }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-line bg-bg/95 px-3 py-5 md:flex lg:w-[var(--sidebar-width)] lg:px-4">
       <div className="flex h-9 items-center px-1.5 lg:px-2">
-        <Logo className="lg:hidden" compact />
-        <Logo className="hidden lg:inline-flex" />
+        <Logo wordmarkClassName="max-lg:sr-only" />
       </div>
 
       <nav aria-label="Principale" className="mt-8 flex flex-1 flex-col">

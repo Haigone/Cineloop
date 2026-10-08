@@ -17,11 +17,11 @@ export function LogoMark({ className }: { className?: string }) {
   );
 }
 
-export function Logo({ compact = false, className }: { compact?: boolean; className?: string }) {
+export function Logo({ className, wordmarkClassName }: { className?: string; wordmarkClassName?: string }) {
   return (
     <Link href="/home" aria-label="CineLoop, vai alla Home" className={cn("inline-flex items-center gap-2.5 rounded-md", className)}>
       <LogoMark />
-      {!compact && <span className="text-[17px] font-semibold tracking-[-0.03em] text-fg">CineLoop</span>}
+      <span className={cn("text-[17px] font-semibold tracking-[-0.03em] text-fg", wordmarkClassName)}>CineLoop</span>
     </Link>
   );
 }
