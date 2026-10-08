@@ -4,6 +4,7 @@ import postgres from "postgres";
 import type {
   ActivityEvent,
   AppNotification,
+  ChartEntry,
   ExtensionDevice,
   Friend,
   LibraryEntry,
@@ -195,7 +196,34 @@ export class PostgresRepository implements Repository {
       minutes: e.minutes,
       season: e.season,
       episode: e.episode,
+      providerId: e.providerId ?? null,
     });
+  }
+
+  async topWatched({ since, providerId, limit }: { since: Date; providerId?: ProviderId; limit: number }) {
+    const w = schema.watchEvents;
+    const viewers = sql<number>`count(distinct ${w.userId})::int`;
+    const minutes = sql<number>`sum(${w.minutes})::int`;
+    const rows = await this.db
+      .select({ titleId: w.titleId, viewers, minutes })
+      .from(w)
+      // No preferences row yet means the defaults, which share activity.
+      .leftJoin(schema.preferences, eq(schema.preferences.userId, w.userId))
+      .where(and(gte(w.watchedAt, since), sql`coalesce(${schema.preferences.shareActivity}, true)`, providerId ? eq(w.providerId, providerId) : undefined))
+      .groupBy(w.titleId)
+      .orderBy(desc(viewers), desc(minutes))
+      .limit(limit);
+    return rows as ChartEntry[];
+  }
+
+  async getChart(id: string) {
+    const [row] = await this.db.select().from(schema.charts).where(eq(schema.charts.id, id));
+    return row ? { data: row.data, fetchedAt: row.fetchedAt } : null;
+  }
+
+  async saveChart(id: string, data: unknown) {
+    const row = { id, data, fetchedAt: new Date() };
+    await this.db.insert(schema.charts).values(row).onConflictDoUpdate({ target: schema.charts.id, set: row });
   }
 
   async listWatchEvents(userId: string, since: Date) {
@@ -204,7 +232,15 @@ export class PostgresRepository implements Repository {
       .from(schema.watchEvents)
       .where(and(eq(schema.watchEvents.userId, userId), gte(schema.watchEvents.watchedAt, since)));
     return rows.map(
-      (r): WatchEvent => ({ userId: r.userId, titleId: r.titleId, watchedAt: iso(r.watchedAt), minutes: r.minutes, season: r.season, episode: r.episode }),
+      (r): WatchEvent => ({
+        userId: r.userId,
+        titleId: r.titleId,
+        watchedAt: iso(r.watchedAt),
+        minutes: r.minutes,
+        season: r.season,
+        episode: r.episode,
+        providerId: r.providerId,
+      }),
     );
   }
 

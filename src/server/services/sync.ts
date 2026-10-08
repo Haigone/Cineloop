@@ -313,6 +313,7 @@ async function storeMinutes(repo: Repository, p: Presence, minutes: number, now:
     minutes: Math.round(minutes),
     season: p.season,
     episode: p.episode,
+    providerId: p.providerId,
   });
 }
 

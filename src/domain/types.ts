@@ -159,6 +159,15 @@ export interface WatchEvent {
   minutes: number;
   season: number | null;
   episode: number | null;
+  /** Where it was watched, when known (the extension reports it). */
+  providerId?: ProviderId | null;
+}
+
+/** One row of an aggregated chart: a title and how many people watched it. */
+export interface ChartEntry {
+  titleId: string;
+  viewers: number;
+  minutes: number;
 }
 
 export type ActivityKind = "watching" | "completed" | "wishlisted" | "rated";

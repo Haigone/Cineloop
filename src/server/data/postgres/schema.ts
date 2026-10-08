@@ -120,8 +120,9 @@ export const watchEvents = pgTable(
     minutes: integer("minutes").notNull(),
     season: integer("season"),
     episode: integer("episode"),
+    providerId: text("provider_id").$type<ProviderId>(),
   },
-  (t) => [index("watch_events_user_time_idx").on(t.userId, t.watchedAt)],
+  (t) => [index("watch_events_user_time_idx").on(t.userId, t.watchedAt), index("watch_events_time_idx").on(t.watchedAt)],
 );
 
 export const activity = pgTable(
@@ -247,3 +248,10 @@ export const providerTitleLinks = pgTable(
   },
   (t) => [primaryKey({ columns: [t.providerId, t.externalId] })],
 );
+
+/** Charts fetched from outside (e.g. Netflix's public Top 10), refreshed at most daily. */
+export const charts = pgTable("charts", {
+  id: text("id").primaryKey(),
+  data: jsonb("data").$type<unknown>().notNull(),
+  fetchedAt: ts("fetched_at").notNull(),
+});

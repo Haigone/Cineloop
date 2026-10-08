@@ -1,6 +1,7 @@
 import type {
   ActivityEvent,
   AppNotification,
+  ChartEntry,
   ExtensionDevice,
   Friend,
   LibraryEntry,
@@ -48,6 +49,7 @@ export class MemoryRepository implements Repository {
   private providerLinks = new Map<string, string>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
+  private charts = new Map<string, { data: unknown; fetchedAt: Date }>();
 
   constructor(now: Date = new Date()) {
     for (const t of SEED_TITLES) this.titles.set(t.id, t);
@@ -246,6 +248,30 @@ export class MemoryRepository implements Repository {
 
   async addWatchEvent(event: WatchEvent) {
     this.watchEvents.push({ ...event });
+  }
+
+  async topWatched({ since, providerId, limit }: { since: Date; providerId?: ProviderId; limit: number }) {
+    const byTitle = new Map<string, { users: Set<string>; minutes: number }>();
+    for (const e of this.watchEvents) {
+      if (Date.parse(e.watchedAt) < since.getTime() || (providerId && e.providerId !== providerId)) continue;
+      if (!(await this.getPreferences(e.userId)).shareActivity) continue;
+      const row = byTitle.get(e.titleId) ?? { users: new Set<string>(), minutes: 0 };
+      row.users.add(e.userId);
+      row.minutes += e.minutes;
+      byTitle.set(e.titleId, row);
+    }
+    return [...byTitle.entries()]
+      .map(([titleId, r]): ChartEntry => ({ titleId, viewers: r.users.size, minutes: r.minutes }))
+      .sort((a, b) => b.viewers - a.viewers || b.minutes - a.minutes)
+      .slice(0, limit);
+  }
+
+  async getChart(id: string) {
+    return this.charts.get(id) ?? null;
+  }
+
+  async saveChart(id: string, data: unknown) {
+    this.charts.set(id, { data, fetchedAt: new Date() });
   }
 
   // Wishlist ----------------------------------------------------------------

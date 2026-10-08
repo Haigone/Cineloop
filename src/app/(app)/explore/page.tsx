@@ -5,6 +5,7 @@ import { Compass, SearchX } from "lucide-react";
 import { GENRES } from "@/domain/genres";
 import type { Genre, MediaType } from "@/domain/types";
 import { getExploreView, getForYouView, TASTE_TARGET, type ExploreFilters as Filters } from "@/server/services/explore";
+import { getCommunityNetflixTop, getNetflixTop10, type RankedTitle } from "@/server/services/charts";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Reveal, RevealItem } from "@/components/ui/reveal";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -119,7 +120,15 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
 }
 
 async function ForYou({ type }: { type: Filters["type"] }) {
-  const view = await getForYouView(type);
+  const [view, netflix, community] = await Promise.all([getForYouView(type), getNetflixTop10(), getCommunityNetflixTop()]);
+  const ofType = (r: RankedTitle) => type === "all" || r.title.type === type;
+  const netflixRows = netflix
+    ? [
+        { id: "netflix-film", label: "Top 10 Netflix Italia: film", rows: type === "all" || type === "movie" ? netflix.films : [] },
+        { id: "netflix-tv", label: "Top 10 Netflix Italia: serie", rows: type === "movie" ? [] : netflix.tv.filter(ofType) },
+      ].filter((c) => c.rows.length > 0)
+    : [];
+  const communityRows = community.filter(ofType);
   const wishlistIds = new Set(view.wishlistIds);
   const topLabel = view.topIsWeekly ? "Top 10 della settimana" : "Top 10 del catalogo";
 
@@ -132,6 +141,26 @@ async function ForYou({ type }: { type: Filters["type"] }) {
             description={view.topIsWeekly ? "I titoli più visti in questi sette giorni." : "I più votati del catalogo di prova. Con TMDB diventa la classifica della settimana."}
           />
           <TopTen titles={view.top} wishlistIds={wishlistIds} label={topLabel} />
+        </RevealItem>
+      )}
+      {netflixRows.map((chart) => (
+        <RevealItem key={chart.id} as="section">
+          <SectionHeader title={chart.label} description={`Classifica ufficiale di Netflix, settimana fino al ${formatWeek(netflix!.week)}.`} />
+          <TopTen titles={chart.rows.map((r) => r.title)} wishlistIds={wishlistIds} label={chart.label} notes={chart.rows.map((r) => r.note)} />
+        </RevealItem>
+      ))}
+      {communityRows.length >= 3 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="Più visti su Netflix da chi usa CineLoop"
+            description="Questa settimana, da chi ha l’estensione e condivide la propria attività."
+          />
+          <TopTen
+            titles={communityRows.map((r) => r.title)}
+            wishlistIds={wishlistIds}
+            label="Più visti su Netflix da chi usa CineLoop"
+            notes={communityRows.map((r) => r.note)}
+          />
         </RevealItem>
       )}
       {view.picker.length > 0 && (
@@ -179,3 +208,8 @@ async function parseFilters(searchParams: PageProps<"/explore">["searchParams"])
   };
 }
 
+
+function formatWeek(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) ? isoDate : d.toLocaleDateString("it-IT", { day: "numeric", month: "long" });
+}

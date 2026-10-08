@@ -1,6 +1,7 @@
 import type {
   ActivityEvent,
   AppNotification,
+  ChartEntry,
   ExtensionDevice,
   Friend,
   LibraryEntry,
@@ -58,6 +59,11 @@ export interface Repository {
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;
   addWatchEvent(event: WatchEvent): Promise<void>;
+  /** Titles watched by the most people since a date, among users who share their activity. */
+  topWatched(input: { since: Date; providerId?: ProviderId; limit: number }): Promise<ChartEntry[]>;
+  /** A cached external chart and when it was fetched. */
+  getChart(id: string): Promise<{ data: unknown; fetchedAt: Date } | null>;
+  saveChart(id: string, data: unknown): Promise<void>;
 
   // Wishlist
   listWishlist(userId: string): Promise<WishlistItem[]>;

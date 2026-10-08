@@ -214,6 +214,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
           minutes: back === 0 ? Math.round(runtimeOf(w.id) * w.fraction) : runtimeOf(w.id),
           season: w.season ?? null,
           episode: ep,
+          providerId: w.provider,
         });
       }
       activity.push({

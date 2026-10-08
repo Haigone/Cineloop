@@ -102,18 +102,30 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
   const isKnown = knownMatcher(knownTitles);
   const ofType = (t: Title) => type === "all" || t.type === type;
 
-  // Seeds: the titles the viewer liked most; with none yet, what they want to see.
+  // Seeds for "Per te": what the viewer watched recently, what is at the top
+  // of their wishlist, and their favourites. Recommendations are things to
+  // add to the wishlist next.
   const liked = library
     .filter((e) => (e.rating ?? 0) >= 7 || (e.status === "completed" && e.rating === null))
     .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""));
-  const fromWishlist = liked.length === 0;
-  const seedIds = (fromWishlist ? wishlist.map((w) => w.titleId) : liked.map((e) => e.titleId)).slice(0, 4);
+  const recent = library
+    .filter((e) => e.lastWatchedAt && (e.status === "watching" || e.status === "completed") && (e.rating === null || e.rating >= 5))
+    .sort((a, b) => Date.parse(b.lastWatchedAt!) - Date.parse(a.lastWatchedAt!));
+  const seedIds = [
+    ...new Set([
+      ...recent.slice(0, 3).map((e) => e.titleId),
+      ...wishlist.slice(0, 3).map((w) => w.titleId),
+      ...liked.slice(0, 2).map((e) => e.titleId),
+    ]),
+  ].slice(0, 6);
+  const fromWishlist = liked.length === 0 && recent.length === 0;
   const seedTitles = await repo.getTitlesByIds(seedIds);
+  const favourite = (await repo.getTitlesByIds(liked.slice(0, 1).map((e) => e.titleId)))[0];
 
   const [forYou, trending, becauseOf, popular] = await Promise.all([
     seedTitles.length ? catalog.similarTo(seedTitles, 60) : Promise.resolve([]),
     catalog.trending(60),
-    !fromWishlist && seedTitles[0] ? catalog.similarTo([seedTitles[0]], 30) : Promise.resolve([]),
+    favourite ? catalog.similarTo([favourite], 30) : Promise.resolve([]),
     liked.length < TASTE_TARGET ? catalog.discover({ type, genre: null, sort: "popular" }, 40) : Promise.resolve([]),
   ]);
 
@@ -139,11 +151,13 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
     shelves.push({
       id: "for-you",
       title: "Per te",
-      description: fromWishlist ? "Simili a quello che hai in wishlist." : "Simili ai titoli che ti sono piaciuti di più.",
+      description: fromWishlist
+        ? "Simili a quello che hai in wishlist: aggiungi quelli che ti ispirano."
+        : "Da quello che hai visto di recente e dalla tua wishlist: aggiungi quelli che ti ispirano.",
       titles: forYouRow,
     });
   }
-  if (becauseRow.length && seedTitles[0]) shelves.push({ id: "because", title: `Perché ti è piaciuto ${seedTitles[0].title}`, titles: becauseRow });
+  if (becauseRow.length && favourite) shelves.push({ id: "because", title: `Perché ti è piaciuto ${favourite.title}`, titles: becauseRow });
   if (friendsRow.length) {
     shelves.push({ id: "friends", title: "Piace ai tuoi amici", description: "Votati alto o in wishlist dai tuoi amici.", titles: friendsRow });
   }

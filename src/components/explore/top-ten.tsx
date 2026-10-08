@@ -1,9 +1,21 @@
+import type { ReactNode } from "react";
 import type { Title } from "@/domain/types";
 import { TitleCard } from "@/components/media/title-card";
 import { Rail } from "@/components/media/rail";
 
 /** The week's chart: big outlined rank numbers set against each poster. */
-export function TopTen({ titles, wishlistIds, label }: { titles: Title[]; wishlistIds: ReadonlySet<string>; label: string }) {
+export function TopTen({
+  titles,
+  wishlistIds,
+  label,
+  notes,
+}: {
+  titles: Title[];
+  wishlistIds: ReadonlySet<string>;
+  label: string;
+  /** Optional line under each title instead of type and year (e.g. "3 persone"). */
+  notes?: (ReactNode | null)[];
+}) {
   return (
     <Rail label={label}>
       {titles.map((title, i) => (
@@ -15,7 +27,7 @@ export function TopTen({ titles, wishlistIds, label }: { titles: Title[]; wishli
           >
             {i + 1}
           </span>
-          <TitleCard title={title} wishlisted={wishlistIds.has(title.id)} className="relative" />
+          <TitleCard title={title} wishlisted={wishlistIds.has(title.id)} className="relative" meta={notes?.[i] ?? undefined} />
           <span className="sr-only">{i + 1}° posto</span>
         </div>
       ))}
