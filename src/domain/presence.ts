@@ -97,6 +97,20 @@ export function normalizePartyUrl(input: string): string | null {
  * one the viewer was on, or the next one when they had reached that season's
  * last episode and this is a first episode. Null when nothing is known.
  */
+/**
+ * The season a player's name points to, when the show's parts have names:
+ * "Le bizzarre avventure di JoJo: Stone Ocean" is the season named "Stone Ocean".
+ */
+export function seasonFromLabel(title: Title, label: string | null): number | null {
+  if (title.type === "movie" || !label) return null;
+  const key = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const full = key(label);
+  const named = title.seasons.filter((s) => s.name && key(s.name).length >= 4);
+  // The longest name first, so "Diamond is Unbreakable" beats a shorter one inside it.
+  named.sort((a, b) => b.name!.length - a.name!.length);
+  return named.find((s) => ` ${full} `.includes(` ${key(s.name!)} `))?.number ?? null;
+}
+
 export function inferSeason(title: Title, prev: Pick<WatchProgress, "season" | "episode"> | null, episode: number): number | null {
   if (title.type === "movie") return null;
   if (!prev?.season) return title.seasons.length === 1 ? title.seasons[0]!.number : null;

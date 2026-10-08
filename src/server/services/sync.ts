@@ -1,6 +1,6 @@
 import "server-only";
 import { applyReport, driftBetween, IN_SYNC_SECONDS, type PlaybackReport } from "@/domain/party";
-import { inferSeason, isLive, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
+import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
@@ -396,7 +396,11 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
       .findByName(presence.label, { series: presence.season !== null || presence.episode !== null, provider: presence.providerId })
       .catch(() => null);
     hit = remote ? (await canonical(repo, [remote]))[0] : undefined;
-    if (hit) await cacheTitles(repo, [hit]);
+    if (hit) {
+      await cacheTitles(repo, [hit]);
+      // Search results carry no seasons: fetch the details once.
+      hit = (await ensureTitle(hit.id)) ?? hit;
+    }
   }
   if (!hit) return null;
   await repo.saveProviderLink({ providerId: presence.providerId, externalId: presence.externalId, titleId: hit.id, userId: presence.userId });
@@ -430,9 +434,10 @@ async function startWatching(repo: Repository, presence: Presence, fraction: num
  */
 async function syncProgress(repo: Repository, presence: Presence, fraction: number | null): Promise<void> {
   const titleId = presence.titleId!;
-  const [entry, [title]] = await Promise.all([
+  const [entry, title] = await Promise.all([
     repo.listLibrary(presence.userId).then((l) => l.find((e) => e.titleId === titleId)),
-    repo.getTitlesByIds([titleId]),
+    // With its seasons: a series recognised from a search result gets them here.
+    ensureTitle(titleId),
   ]);
   const prev = entry?.progress ?? null;
   // A series episode the player has not named yet: keep the last known season
@@ -443,6 +448,10 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     }
     return;
   }
+  // A part named in the player's title ("JoJo: Stone Ocean") is that season,
+  // even when the service numbers the part as a show of its own ("S1:E3").
+  const named = title ? seasonFromLabel(title, presence.label) : null;
+  if (named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
   }

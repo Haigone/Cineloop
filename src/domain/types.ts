@@ -72,6 +72,8 @@ export interface Movie extends BaseTitle {
 export interface SeasonSummary {
   number: number;
   episodeCount: number;
+  /** The season's own name when it has one ("Stone Ocean"), from the catalogue. */
+  name?: string;
 }
 
 export interface Series extends BaseTitle {

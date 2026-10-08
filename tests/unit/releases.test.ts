@@ -145,4 +145,28 @@ describe("recognising what the player names", () => {
     });
     expect((await tmdb.findByName("Money Heist", { series: true, provider: "netflix" }))?.id).toBe("tmdb-tv-71446");
   });
+
+  it("reads \"Show: Part\" as the show when the part has no title of its own, and the part as its season", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      if (url.includes("/search/multi") && url.includes("Steel")) return { results: [] };
+      if (url.includes("/search/multi")) return { results: [{ id: 45790, media_type: "tv", name: "Le bizzarre avventure di JoJo" }] };
+      return { results: {} };
+    });
+    const hit = await tmdb.findByName("Le bizzarre avventure di JoJo: Steel Ball Run", { series: true, provider: "netflix" });
+    expect(hit?.id).toBe("tmdb-tv-45790");
+
+    const { seasonFromLabel } = await import("@/domain/presence");
+    const jojo = {
+      ...hit!,
+      type: "anime" as const,
+      seasons: [
+        { number: 4, episodeCount: 39, name: "Golden Wind" },
+        { number: 5, episodeCount: 38, name: "Stone Ocean" },
+        { number: 6, episodeCount: 24, name: "Steel Ball Run" },
+      ],
+      episodeRuntimeMinutes: 24,
+    };
+    expect(seasonFromLabel(jojo, "Le bizzarre avventure di JoJo: Steel Ball Run")).toBe(6);
+    expect(seasonFromLabel(jojo, "Le bizzarre avventure di JoJo")).toBeNull();
+  });
 });

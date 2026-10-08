@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import type { ActivityKind, RatingValue } from "@/domain/types";
+import type { ActivityKind, RatingValue, SeasonSummary } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
@@ -95,6 +95,14 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
   }, "Non siamo riusciti a salvare il voto.");
 }
 
+/** A series' seasons from the catalogue, fetched now if they were not known yet. */
+export async function loadSeasons(id: string): Promise<SeasonSummary[]> {
+  await getCurrentUser();
+  const parsed = titleId.safeParse(id);
+  const title = parsed.success ? await cacheRemoteTitle(parsed.data) : null;
+  return title && title.type !== "movie" ? title.seasons : [];
+}
+
 const manualProgressSchema = z.object({
   season: z.number().int().min(0).max(200).nullable(),
   episode: z.number().int().min(1).max(5000).nullable(),
@@ -118,7 +126,11 @@ export async function saveManualProgress(id: string, input: { season: number | n
     episode = null;
   } else {
     const s = title.seasons.find((x) => x.number === season);
-    if (!s || episode === null || episode > s.episodeCount) return { ok: false, error: "Scegli una stagione e un episodio che esistono." };
+    // When the catalogue does not list the seasons, any season and episode will do.
+    const known = title.seasons.length > 0;
+    if (season === null || episode === null || (known && (!s || episode > s.episodeCount))) {
+      return { ok: false, error: "Scegli una stagione e un episodio che esistono." };
+    }
   }
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
   return run(async () => {

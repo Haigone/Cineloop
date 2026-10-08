@@ -98,7 +98,7 @@ interface TmdbItem {
   genres?: { id: number }[];
   runtime?: number | null;
   episode_run_time?: number[];
-  seasons?: { season_number: number; episode_count: number; air_date?: string | null }[];
+  seasons?: { season_number: number; episode_count: number; air_date?: string | null; name?: string }[];
   /** TV details: what aired last and what airs next, when TMDB knows. */
   status?: string;
   last_episode_to_air?: TmdbEpisodeRef | null;
@@ -278,6 +278,12 @@ export class TmdbCatalog implements CatalogService {
     const named = (i: TmdbItem) =>
       [i.title, i.name, i.original_title, i.original_name].some((n) => n && searchKey(n) === key);
     const exact = items.filter(named);
+    // "Show: Part" with no title of that exact name: the part is a season of the show.
+    const show = /^(.{2,}?)\s*(?::|\s[-–]\s)\s*\S/.exec(q)?.[1];
+    if (!exact.length && show) {
+      const whole = await this.findByName(show, { ...prefer, series: true });
+      if (whole) return whole;
+    }
     // Among namesakes (or, with no exact name, the first few results), the one on this service wins.
     const pool = (exact.length ? exact : items).slice(0, exact.length ? 4 : 5);
     const onService = await this.availableOn(pool, prefer.provider);
@@ -441,7 +447,12 @@ export function toTitle(kind: "movie" | "tv", d: TmdbItem): Title {
   return {
     ...base,
     type: (isAnime(d) ? "anime" : "series") as Exclude<MediaType, "movie">,
-    seasons: (d.seasons ?? []).filter((s) => s.season_number > 0).map((s) => ({ number: s.season_number, episodeCount: s.episode_count })),
+    seasons: (d.seasons ?? []).filter((s) => s.season_number > 0).map((s) => ({
+        number: s.season_number,
+        episodeCount: s.episode_count,
+        // "Stagione 3" says nothing; a part's own name ("Stone Ocean") does.
+        ...(s.name && !/^(stagione|season|temporada|saison|staffel)\s*\d+$/i.test(s.name.trim()) ? { name: s.name.trim() } : {}),
+      })),
     episodeRuntimeMinutes: d.episode_run_time?.[0] ?? 0,
   };
 }

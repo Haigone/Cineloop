@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Pencil } from "lucide-react";
-import type { Title, WatchProgress } from "@/domain/types";
-import { saveManualProgress } from "@/server/actions/library";
+import type { SeasonSummary, Title, WatchProgress } from "@/domain/types";
+import { loadSeasons, saveManualProgress } from "@/server/actions/library";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
@@ -28,13 +28,32 @@ export function ProgressEditor({ title, progress, size = "sm" }: { title: Title;
 function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onClose: () => void; title: Title; progress: WatchProgress | null }) {
   const isMovie = title.type === "movie";
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 0;
-  const seasons = title.type === "movie" ? [] : title.seasons;
+  const [seasons, setSeasons] = useState<SeasonSummary[]>(title.type === "movie" ? [] : title.seasons);
   const [season, setSeason] = useState(progress?.season ?? seasons[0]?.number ?? 1);
+  // A series recognised from a search may not have its seasons yet: ask the catalogue.
+  const [loading, setLoading] = useState(open && !isMovie && seasons.length === 0);
+  useEffect(() => {
+    if (!loading) return;
+    let live = true;
+    loadSeasons(title.id)
+      .then((list) => {
+        if (!live) return;
+        setSeasons(list);
+        if (list.length) setSeason((n) => (list.some((s) => s.number === n) ? n : list[0]!.number));
+      })
+      .catch(() => {})
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+    // Runs once per opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, title.id]);
   const [episode, setEpisode] = useState(progress?.episode ?? 1);
   const [minute, setMinute] = useState(progress ? Math.round(progress.fraction * runtime) : 0);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
-  const episodes = seasons.find((s) => s.number === season)?.episodeCount ?? 1;
+  const episodes = seasons.find((s) => s.number === season)?.episodeCount ?? 0;
 
   function save() {
     startTransition(async () => {
@@ -64,7 +83,8 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
       }
     >
       <div className="flex flex-wrap items-end gap-3">
-        {!isMovie && (
+        {!isMovie && loading && <p className="text-sm text-fg-3">Carico le stagioni…</p>}
+        {!isMovie && !loading && seasons.length > 0 && (
           <>
             <Select
               label="Stagione"
@@ -76,7 +96,7 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
             >
               {seasons.map((s) => (
                 <option key={s.number} value={s.number}>
-                  {s.number}
+                  {s.name ? `${s.number} · ${s.name}` : s.number}
                 </option>
               ))}
             </Select>
@@ -89,20 +109,46 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
             </Select>
           </>
         )}
-        <label className="flex items-center gap-2 text-sm text-fg-2">
-          Minuto
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={runtime || undefined}
-            value={minute}
-            onChange={(e) => setMinute(Math.max(0, Math.min(runtime || 1000, Math.round(Number(e.target.value) || 0))))}
-            className="h-9 w-20 rounded-md border border-line-strong bg-white/[0.03] px-2 text-sm text-fg tabular outline-none focus-visible:outline-2 focus-visible:outline-white/40"
-          />
-          {runtime > 0 && <span className="text-fg-3">di {runtime}</span>}
-        </label>
+        {!isMovie && !loading && seasons.length === 0 && (
+          <>
+            <NumberField label="Stagione" value={season} min={1} max={200} onChange={setSeason} />
+            <NumberField label="Episodio" value={episode} min={1} max={5000} onChange={setEpisode} />
+          </>
+        )}
+        <NumberField label="Minuto" value={minute} min={0} max={runtime || 1000} onChange={setMinute} suffix={runtime > 0 ? `di ${runtime}` : undefined} />
       </div>
     </Modal>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (n: number) => void;
+  suffix?: string;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[13px] text-fg-3">
+      {label}
+      <input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Math.max(min, Math.min(max, Math.round(Number(e.target.value) || 0))))}
+        className="h-8 w-20 rounded-md border border-line-strong bg-white/[0.03] px-2 text-[13px] text-fg tabular outline-none focus-visible:outline-2 focus-visible:outline-white/40"
+      />
+      {suffix && <span>{suffix}</span>}
+    </label>
   );
 }
