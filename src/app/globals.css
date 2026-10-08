@@ -16,11 +16,14 @@
 
   --color-fg: #f2f3f6;
   --color-fg-2: #a2a8b6;
-  --color-fg-3: #6e7483;
+  --color-fg-3: #858b9b;
 
   --color-accent: #e8364f;
   --color-accent-hover: #f04d64;
   --color-accent-soft: rgb(232 54 79 / 0.14);
+  /* Filled buttons carry white text: a deeper red keeps it at 4.5:1 or better. */
+  --color-accent-fill: #d4294a;
+  --color-accent-fill-hover: #d92c46;
   --color-violet: #8c7cf0;
   --color-blue: #5b8cf5;
   --color-success: #3fb68b;

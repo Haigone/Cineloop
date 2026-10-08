@@ -48,7 +48,6 @@ export function WishlistButton({ titleId, titleName, wishlisted, appearance = "i
     return (
       <button
         type="button"
-        aria-pressed={optimistic}
         onClick={() => toggle(!optimistic)}
         disabled={pending}
         className={buttonClasses({ variant: "secondary", size: "lg", className })}
@@ -71,7 +70,6 @@ export function WishlistButton({ titleId, titleName, wishlisted, appearance = "i
     <button
       type="button"
       aria-label={label}
-      aria-pressed={optimistic}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

@@ -60,7 +60,7 @@ async function ProfileContent() {
               <h1 className="text-2xl font-semibold tracking-[-0.02em] md:text-[28px]">{user.displayName}</h1>
               <p className="text-sm text-fg-3">
                 @{user.username} · su CineLoop da {memberSince.format(new Date(user.createdAt))} ·{" "}
-                <Link href="/friends" className="rounded-sm text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+                <Link href="/friends" className="rounded-sm text-fg-2 underline decoration-white/25 underline-offset-4 hover:text-fg hover:decoration-current">
                   {v.friendCount === 1 ? "1 amico" : `${v.friendCount} amici`}
                 </Link>
               </p>
