@@ -107,3 +107,16 @@ describe("SeedCatalog", () => {
     expect(res.map((t) => t.title)).toContain("Shōgun");
   });
 });
+
+describe("caching catalog titles", () => {
+  it("keeps a series' seasons when a search result without them is cached again", async () => {
+    const { MemoryRepository } = await import("@/server/data/memory-repository");
+    const { cacheTitles } = await import("@/server/services/explore");
+    const repo = new MemoryRepository();
+    const full = toTitle("tv", details);
+    await cacheTitles(repo, [full]);
+    await cacheTitles(repo, [{ ...full, seasons: [], episodeRuntimeMinutes: 0 } as typeof full]);
+    const [cached] = await repo.getTitlesByIds([full.id]);
+    expect(cached).toMatchObject({ seasons: [{ number: 1, episodeCount: 7 }], episodeRuntimeMinutes: 47 });
+  });
+});

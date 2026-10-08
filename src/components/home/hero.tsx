@@ -8,14 +8,14 @@ import { ButtonAnchor } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProviderBadge } from "@/components/ui/provider-badge";
 import { KeyArt } from "@/components/media/key-art";
-import { WishlistButton } from "@/components/media/wishlist-button";
+import { ProgressEditor } from "@/components/title/progress-editor";
 
 /**
  * What is playing now (reported by the extension) or, failing that, the last
  * title opened: the single most important thing on Home. CineLoop does
  * not play anything; the primary action hands the user back to the provider.
  */
-export function Hero({ item, wishlisted }: { item: ContinueItem; wishlisted: boolean }) {
+export function Hero({ item }: { item: ContinueItem }) {
   const { title, progress, providerName, continueUrl, live, seriesFraction, seasonEpisodes } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
@@ -83,7 +83,7 @@ export function Hero({ item, wishlisted }: { item: ContinueItem; wishlisted: boo
               {providerName ? `Continua su ${providerName}` : "Continua"}
             </ButtonAnchor>
           ) : null}
-          <WishlistButton titleId={title.id} titleName={title.title} wishlisted={wishlisted} appearance="button" />
+          <ProgressEditor title={title} progress={progress} size="lg" />
         </div>
       </motion.div>
     </section>

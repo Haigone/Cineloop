@@ -39,7 +39,7 @@ async function HomeContent() {
       <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-10">
         <RevealItem className="order-1">
           {view.nowWatching ? (
-            <Hero item={view.nowWatching} wishlisted={wishlistIds.has(view.nowWatching.title.id)} />
+            <Hero item={view.nowWatching} />
           ) : (
             <section aria-labelledby="hero-empty" className="rounded-xl border border-line bg-surface">
               <h1 id="hero-empty" className="sr-only">

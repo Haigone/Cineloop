@@ -13,12 +13,12 @@ import { useToast } from "@/components/ui/toast";
  * "Dove sei arrivato", set by hand: for titles watched where CineLoop cannot
  * follow along (TV, cinema, another service). Season, episode and minute.
  */
-export function ProgressEditor({ title, progress }: { title: Title; progress: WatchProgress | null }) {
+export function ProgressEditor({ title, progress, size = "sm" }: { title: Title; progress: WatchProgress | null; size?: "sm" | "lg" }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="secondary" size="sm" icon={<Pencil aria-hidden className="size-3.5" />} onClick={() => setOpen(true)}>
-        {progress ? "Aggiorna a mano" : "Segna dove sei arrivato"}
+      <Button variant="secondary" size={size} icon={<Pencil aria-hidden className={size === "lg" ? "size-4" : "size-3.5"} />} onClick={() => setOpen(true)}>
+        A che punto sei?
       </Button>
       <ProgressDialog key={String(open)} open={open} onClose={() => setOpen(false)} title={title} progress={progress} />
     </>
@@ -50,7 +50,7 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
     <Modal
       open={open}
       onClose={onClose}
-      title="Dove sei arrivato"
+      title="A che punto sei?"
       description={isMovie ? "Il minuto in cui ti sei fermato." : "Stagione, episodio e minuto in cui ti sei fermato."}
       footer={
         <>

@@ -297,10 +297,17 @@ export async function canonical(repo: Repository, titles: Title[]): Promise<Titl
  * Stores catalog results locally. Lists reference titles by id, so a title
  * must exist here before it can be added to one.
  */
+function withKnownSeasons(fresh: Title, known: Title | undefined): Title {
+  if (fresh.type === "movie" || fresh.seasons.length > 0 || !known || known.type === "movie" || known.seasons.length === 0) return fresh;
+  return { ...fresh, seasons: known.seasons, episodeRuntimeMinutes: fresh.episodeRuntimeMinutes || known.episodeRuntimeMinutes };
+}
+
 export async function cacheTitles(repo: Repository, titles: readonly Title[]): Promise<void> {
   if (titles.length === 0) return;
   try {
-    await repo.upsertTitles(titles);
+    // Search and list results carry no seasons: keep the ones already known.
+    const known = new Map((await repo.getTitlesByIds(titles.map((t) => t.id))).map((t) => [t.id, t]));
+    await repo.upsertTitles(titles.map((t) => withKnownSeasons(t, known.get(t.id))));
   } catch (err) {
     console.error("caching catalog titles failed", err);
   }
@@ -310,9 +317,11 @@ export async function cacheTitles(repo: Repository, titles: readonly Title[]): P
 export async function ensureTitle(id: string): Promise<Title | null> {
   const repo = getRepository();
   const [local] = await repo.getTitlesByIds([id]);
-  if (local) return local;
+  // A series cached from a search result has no seasons yet: fetch its details once.
+  if (local && (local.type === "movie" || local.seasons.length > 0)) return local;
   const remote = await getCatalog().getTitle(id);
-  if (remote) await cacheTitles(repo, [remote]);
+  if (!remote) return local ?? null;
+  await cacheTitles(repo, [remote]);
   return remote;
 }
 
