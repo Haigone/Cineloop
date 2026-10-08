@@ -148,12 +148,14 @@ describe("recognising what the player names", () => {
 
   it("reads \"Show: Part\" as the show when the part has no title of its own, and the part as its season", async () => {
     const { tmdb } = tmdbWith((url) => {
-      if (url.includes("/search/multi") && url.includes("Steel")) return { results: [] };
+      if (url.includes("/search/multi") && /steel/i.test(url)) return { results: [] };
       if (url.includes("/search/multi")) return { results: [{ id: 45790, media_type: "tv", name: "Le bizzarre avventure di JoJo" }] };
       return { results: {} };
     });
     const hit = await tmdb.findByName("Le bizzarre avventure di JoJo: Steel Ball Run", { series: true, provider: "netflix" });
     expect(hit?.id).toBe("tmdb-tv-45790");
+    // As Netflix's player writes it: the part, a dash, the show.
+    expect((await tmdb.findByName("STEEL BALL RUN - Le bizzarre avventure di JoJo", { series: true, provider: "netflix" }))?.id).toBe("tmdb-tv-45790");
 
     const { seasonFromLabel } = await import("@/domain/presence");
     const jojo = {
@@ -167,6 +169,7 @@ describe("recognising what the player names", () => {
       episodeRuntimeMinutes: 24,
     };
     expect(seasonFromLabel(jojo, "Le bizzarre avventure di JoJo: Steel Ball Run")).toBe(6);
+    expect(seasonFromLabel(jojo, "STEEL BALL RUN - Le bizzarre avventure di JoJo")).toBe(6);
     expect(seasonFromLabel(jojo, "Le bizzarre avventure di JoJo")).toBeNull();
   });
 });

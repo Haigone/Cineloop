@@ -269,6 +269,10 @@ export class TmdbCatalog implements CatalogService {
   }
 
   async findByName(name: string, prefer: NamePreference): Promise<Title | null> {
+    return this.byName(name, prefer, true);
+  }
+
+  private async byName(name: string, prefer: NamePreference, fuzzy: boolean): Promise<Title | null> {
     const q = name.trim();
     if (!q) return null;
     const key = searchKey(q);
@@ -278,11 +282,20 @@ export class TmdbCatalog implements CatalogService {
     const named = (i: TmdbItem) =>
       [i.title, i.name, i.original_title, i.original_name].some((n) => n && searchKey(n) === key);
     const exact = items.filter(named);
-    // "Show: Part" with no title of that exact name: the part is a season of the show.
-    const show = /^(.{2,}?)\s*(?::|\s[-–]\s)\s*\S/.exec(q)?.[1];
-    if (!exact.length && show) {
-      const whole = await this.findByName(show, { ...prefer, series: true });
-      if (whole) return whole;
+    if (!exact.length) {
+      // "Show: Part" or "PART - Show" (Netflix writes both): with no title of the
+      // whole name, the show is whichever side has a title of exactly that name.
+      const dashed = /\s[-–—]\s/.test(q);
+      const sides = q.split(/\s*:\s+|\s+[-–—]\s+/).filter((p) => p.length >= 2);
+      // After a dash the show comes last ("STEEL BALL RUN - Le bizzarre avventure di JoJo").
+      if (dashed) sides.reverse();
+      if (sides.length > 1) {
+        for (const side of sides) {
+          const whole = await this.byName(side, { ...prefer, series: true }, false);
+          if (whole) return whole;
+        }
+      }
+      if (!fuzzy) return null;
     }
     // Among namesakes (or, with no exact name, the first few results), the one on this service wins.
     const pool = (exact.length ? exact : items).slice(0, exact.length ? 4 : 5);
