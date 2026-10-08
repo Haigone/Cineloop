@@ -7,8 +7,12 @@
 // else on the page is read, nothing is changed, and no request is made: the
 // result goes to the extension's own background worker.
 (() => {
-  if (globalThis.__cineloopPlayerTitle) return;
-  globalThis.__cineloopPlayerTitle = true;
+  // A copy left behind by an earlier version of the extension can no longer
+  // talk to it (its context is gone): only a live copy stops this one.
+  const alive = () => Boolean(globalThis.chrome?.runtime?.id);
+  if (typeof globalThis.__cineloopPlayerTitle === "function" && globalThis.__cineloopPlayerTitle()) return;
+  let stopped = false;
+  globalThis.__cineloopPlayerTitle = () => !stopped && alive();
 
   /** "S4:E3", "St. 4 Ep. 3", "Stagione 4: Episodio 3", "T4:E3", "Season 4 Episode 3". */
   const SEASON_EPISODE = /(?:\bS|\bSt\.?|\bStagione|\bSeason|\bT|\bTemporada)\s*(\d{1,3})\s*[:,.·-]?\s*(?:E|Ep\.?|Episodio|Episode|Episodi)\s*(\d{1,4})/i;
@@ -32,25 +36,43 @@
     return { season: null, episode: null };
   }
 
+  const isEpisodeMarker = (t) => SEASON_EPISODE.test(t) || EPISODE_ONLY.test(t.trim());
+
+  /** The texts of the title line, one per element that holds text of its own. */
+  function lines(box) {
+    const out = [];
+    for (const el of box.querySelectorAll("*")) {
+      const own = [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join(" ");
+      const text = own.replace(/\s+/g, " ").trim();
+      if (text) out.push(text);
+    }
+    return out.length ? out : [(box.textContent ?? "").replace(/\s+/g, " ").trim()].filter(Boolean);
+  }
+
   function fromPlayer() {
     const box = document.querySelector('[data-uia="video-title"]');
     if (!box) return null;
-    const show = box.querySelector("h4")?.textContent?.trim() ?? "";
-    const parts = [...box.querySelectorAll("span")].map((s) => (s.textContent ?? "").trim()).filter(Boolean);
-    // A film has just its name, sometimes without an <h4>.
-    const title = show || (parts.length ? "" : (box.textContent ?? "").trim());
-    return { title, ...parseEpisode(parts.length ? parts : [box.textContent ?? ""]) };
+    const texts = lines(box);
+    // The show is the heading when there is one, else the first line that is not
+    // "S4:E3" (a film has just its name). The episode's own name comes after it.
+    const heading = box.querySelector("h1, h2, h3, h4, h5, h6")?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    let title = heading || texts.find((t) => !isEpisodeMarker(t)) || "";
+    // "Stranger Things S4:E3 Capitolo tre" written as a single line.
+    const inline = SEASON_EPISODE.exec(title) ?? /\s(?:E|Ep\.?|Episodio|Episode)\s*\d{1,4}\b/i.exec(title);
+    if (inline && inline.index > 0) title = title.slice(0, inline.index).trim();
+    return { title, ...parseEpisode(texts) };
   }
 
   function fromMediaSession() {
     const m = navigator.mediaSession?.metadata;
     if (!m?.title) return null;
     const fields = [m.title, m.artist, m.album].filter(Boolean);
-    const show = fields.find((f) => !SEASON_EPISODE.test(f) && !EPISODE_ONLY.test(f)) ?? "";
+    const show = fields.find((f) => !isEpisodeMarker(f)) ?? "";
     return { title: show, ...parseEpisode(fields) };
   }
 
   function read() {
+    if (!alive()) return stop();
     const id = watchIdNow();
     if (!id) return;
     if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null };
@@ -71,18 +93,28 @@
     if (!known.title && progress === null) return;
     lastSent = key;
     read.progressAt = now;
-    chrome.runtime.sendMessage(message).catch(() => {});
+    try {
+      chrome.runtime.sendMessage(message).catch(() => {});
+    } catch {
+      stop();
+    }
   }
 
   // The title line appears only while the player's controls are showing (mouse
   // moved, video paused): catch it when it does, and look again every few seconds.
   let pending = null;
-  new MutationObserver(() => {
+  const observer = new MutationObserver(() => {
     pending ??= setTimeout(() => {
       pending = null;
       if (document.querySelector('[data-uia="video-title"]')) read();
     }, 500);
-  }).observe(document.documentElement, { childList: true, subtree: true });
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  const timer = setInterval(read, 5000);
+  function stop() {
+    stopped = true;
+    observer.disconnect();
+    clearInterval(timer);
+  }
   read();
-  setInterval(read, 5000);
 })();

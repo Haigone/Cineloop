@@ -65,6 +65,14 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* The open list of a <select> is drawn by the system: give it the dark surface,
+   or Windows paints it white under our light text. */
+select option,
+select optgroup {
+  background-color: var(--color-surface);
+  color: var(--color-fg);
+}
+
 ::selection {
   background: rgb(232 54 79 / 0.35);
   color: #fff;

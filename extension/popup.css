@@ -70,3 +70,8 @@ button.link:hover { background: none; color: var(--fg); }
 .offsets li { color: var(--fg); }
 details summary { cursor: pointer; color: var(--fg-2); }
 details[open] summary { margin-bottom: 4px; }
+
+.small {
+  font-size: 12px;
+  margin-top: 6px;
+}

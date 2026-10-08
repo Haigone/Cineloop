@@ -78,36 +78,51 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   return false;
 });
 
+/**
+ * Changes one tab's entry. Updates run one at a time, so the player's report
+ * and a tab event arriving together cannot overwrite each other.
+ */
+let tabsQueue = Promise.resolve();
+function updateTab(tabId, change) {
+  const run = tabsQueue.then(async () => {
+    const { tabs = {} } = await chrome.storage.session.get("tabs");
+    const entry = tabs[tabId] ?? {};
+    const result = change(entry);
+    tabs[tabId] = entry;
+    await chrome.storage.session.set({ tabs });
+    return result;
+  });
+  tabsQueue = run.catch(() => {});
+  return run;
+}
+
 /** Per tab: the last show id seen before playback, and when it last made sound. */
 async function remember(tab) {
   if (!tab?.id || !tab.url) return;
-  const { tabs = {} } = await chrome.storage.session.get("tabs");
-  const entry = tabs[tab.id] ?? {};
-  // The show page the user came from; any other Netflix page means it no longer applies.
-  if (!watchId(tab.url)) entry.parentId = browseId(tab.url);
-  if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
-  tabs[tab.id] = entry;
-  await chrome.storage.session.set({ tabs });
+  await updateTab(tab.id, (entry) => {
+    // The show page the user came from; any other Netflix page means it no longer applies.
+    if (!watchId(tab.url)) entry.parentId = browseId(tab.url);
+    if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
+  });
 }
 
 /** What the player says is on screen, kept per tab until the next episode. */
 async function playerTitle(tabId, m) {
   if (typeof m.watchId !== "string" || typeof m.title !== "string") return;
-  const { tabs = {} } = await chrome.storage.session.get("tabs");
-  const entry = tabs[tabId] ?? {};
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
-  const changed =
-    entry.player?.watchId !== m.watchId || entry.player?.title !== m.title || entry.player?.episode !== episode || entry.player?.season !== season;
-  entry.player = {
-    watchId: m.watchId,
-    title: m.title.slice(0, 200),
-    season,
-    episode,
-    progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
-  };
-  tabs[tabId] = entry;
-  await chrome.storage.session.set({ tabs });
+  const changed = await updateTab(tabId, (entry) => {
+    const was = entry.player;
+    entry.player = {
+      watchId: m.watchId,
+      title: m.title.slice(0, 200),
+      season,
+      episode,
+      progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
+      at: Date.now(),
+    };
+    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.season !== season;
+  });
   if (changed) await tick();
 }
 

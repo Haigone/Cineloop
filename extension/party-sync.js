@@ -9,8 +9,11 @@
 // makes no request itself. Outside a room it only reports every few seconds,
 // so the background can tell when a room starts.
 (() => {
-  if (globalThis.__cineloopParty) return;
-  globalThis.__cineloopParty = true;
+  // As in player-title.js: a copy from an earlier version of the extension is dead.
+  const alive = () => Boolean(globalThis.chrome?.runtime?.id);
+  if (typeof globalThis.__cineloopParty === "function" && globalThis.__cineloopParty()) return;
+  let stopped = false;
+  globalThis.__cineloopParty = () => !stopped && alive();
 
   /** The last room action applied here, so each play/pause is applied once. */
   let lastSeq = null;
@@ -31,7 +34,7 @@
   async function report(action) {
     const id = watchId();
     const v = video();
-    if (!id || !v) return;
+    if (!id || !v || !alive()) return;
     const res = await chrome.runtime
       .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, ...(action ? { action } : {}) })
       .catch(() => null);
@@ -52,7 +55,11 @@
     }
   }
 
-  setInterval(() => {
+  const timer = setInterval(() => {
+    if (!alive()) {
+      stopped = true;
+      return clearInterval(timer);
+    }
     const v = video();
     if (!v || !watchId()) return;
     bind(v);

@@ -34,8 +34,9 @@ async function render() {
   $("confirm-help").textContent = w.label
     ? `Il player dice “${w.label}”, ma non l’ho trovato nel catalogo con questo nome. Sceglilo una volta: per le prossime puntate lo riconosco da solo.`
     : "Non riesco a leggerlo dal player. Sceglilo una volta: per le prossime puntate lo riconosco da solo.";
-  const ep = w.season && w.episode ? `S${w.season} · E${w.episode}` : "";
+  const ep = w.episode ? (w.season ? `S${w.season} · E${w.episode}` : `Episodio ${w.episode}`) : "";
   $("watching-meta").textContent = [w.title?.year, ep, "su Netflix"].filter(Boolean).join(" · ");
+  $("player-read").textContent = await playerReading();
   show("change-btn", Boolean(w.title) && !changing);
   if (!w.title || changing) renderChoices($("suggestions"), status.suggestions);
   // The player named it but the catalog had no exact match: start the search from that name.
@@ -43,6 +44,21 @@ async function render() {
     $("q").value = w.label;
     $("q").dispatchEvent(new Event("input"));
   }
+}
+
+/** What the Netflix player last showed, so the user can see what CineLoop reads. */
+async function playerReading() {
+  const { tabs = {} } = await chrome.storage.session.get("tabs");
+  const player = Object.values(tabs)
+    .map((t) => t.player)
+    .filter(Boolean)
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0];
+  if (!player || (!player.title && player.episode === null && player.progress === null)) {
+    return "Il player non mi ha ancora mostrato nulla: muovi il mouse sul video per un attimo.";
+  }
+  const ep = player.episode !== null ? (player.season !== null ? `St. ${player.season} Ep. ${player.episode}` : `Ep. ${player.episode}`) : "episodio non indicato";
+  const seen = player.progress !== null ? `${Math.round(player.progress * 100)}% visto` : "";
+  return ["Letto dal player:", [player.title || "titolo non indicato", ep, seen].filter(Boolean).join(" · ")].join(" ");
 }
 
 /** In progress (with the episode) and wishlist; each opens a Netflix search for it. */
