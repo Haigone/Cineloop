@@ -1,5 +1,6 @@
 import "server-only";
 import type { LibraryEntry, PublicUser, Title, User, WatchProgress } from "@/domain/types";
+import { seriesProgress } from "@/domain/library";
 import { getProvider } from "@/domain/providers";
 import { resolveContinueUrl } from "@/integrations/providers/registry";
 import type { Repository } from "@/server/data";
@@ -39,7 +40,14 @@ export interface ContinueItem {
   progress: WatchProgress;
   providerName: string | null;
   continueUrl: string | null;
+  /** True when the extension reports it playing right now. */
+  live: boolean;
+  /** For series: how far through the whole series (current episode included), 0–1. */
+  seriesFraction: number | null;
+  /** "Episodio 5 di 9" style position in the season, when known. */
+  seasonEpisodes: number | null;
 }
+
 
 export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem | null {
   if (!entry.progress) return null;
@@ -58,7 +66,16 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
         entry.progress.url,
       )
     : null;
-  return { title, progress: entry.progress, providerName: provider?.name ?? null, continueUrl };
+  const season = title.type === "movie" ? undefined : title.seasons.find((s) => s.number === entry.progress!.season);
+  return {
+    title,
+    progress: entry.progress,
+    providerName: provider?.name ?? null,
+    continueUrl,
+    live: false,
+    seriesFraction: seriesProgress(title, entry.progress),
+    seasonEpisodes: season?.episodeCount ?? null,
+  };
 }
 
 /** Activity from the given users, leaving out anyone who chose not to share it. */

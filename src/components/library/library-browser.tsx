@@ -32,7 +32,6 @@ const STATUS_OPTIONS: { value: LibraryStatusFilter; label: string }[] = [
   { value: "all", label: "Tutti" },
   { value: "completed", label: "Visti" },
   { value: "watching", label: "In corso" },
-  { value: "planned", label: "Da vedere" },
 ];
 
 const SORT_LABEL: Record<LibrarySort, string> = {
@@ -165,7 +164,7 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
                   title={title}
                   className="w-full"
                   wishlisted={wishlist.has(title.id)}
-                  showWishlist={entry.status === "planned"}
+                  showWishlist={false}
                   badge={
                     entry.status === "watching" ? (
                       <span className="rounded-sm bg-black/60 px-1.5 py-0.5 text-[11px] text-fg backdrop-blur-md">In corso</span>

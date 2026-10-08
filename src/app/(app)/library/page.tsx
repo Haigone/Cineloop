@@ -9,7 +9,7 @@ import { GridSkeleton } from "@/components/media/grid-skeleton";
 export const metadata: Metadata = { title: "La mia libreria" };
 
 const TYPES: LibraryTypeFilter[] = ["all", "movie", "series", "anime"];
-const STATUSES: LibraryStatusFilter[] = ["all", "completed", "watching", "planned"];
+const STATUSES: LibraryStatusFilter[] = ["all", "completed", "watching"];
 const SORTS: LibrarySort[] = ["recent", "rating", "title", "added"];
 
 function pick<T extends string>(value: string | string[] | undefined, allowed: T[], fallback: T): T {
@@ -19,7 +19,7 @@ function pick<T extends string>(value: string | string[] | undefined, allowed: T
 export default function LibraryPage({ searchParams }: PageProps<"/library">) {
   return (
     <>
-      <SectionHeader as="h1" title="La mia libreria" description="Tutto quello che hai visto, che stai seguendo e che hai in programma." />
+      <SectionHeader as="h1" title="La mia libreria" description="Tutto quello che hai visto e che stai seguendo. Quello che vuoi vedere è nella wishlist." />
       <Suspense fallback={<GridSkeleton label="Caricamento della libreria" />}>
         <LibraryContent searchParams={searchParams} />
       </Suspense>

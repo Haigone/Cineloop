@@ -29,6 +29,13 @@
       "when": 1791491490908,
       "tag": "0003_party",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791492480153,
+      "tag": "0004_planned_to_wishlist",
+      "breakpoints": true
     }
   ]
 }

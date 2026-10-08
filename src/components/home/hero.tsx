@@ -11,11 +11,12 @@ import { KeyArt } from "@/components/media/key-art";
 import { WishlistButton } from "@/components/media/wishlist-button";
 
 /**
- * "Ora in visione": the single most important thing on Home. CineLoop does
+ * What is playing now (reported by the extension) or, failing that, the last
+ * title opened: the single most important thing on Home. CineLoop does
  * not play anything; the primary action hands the user back to the provider.
  */
 export function Hero({ item, wishlisted }: { item: ContinueItem; wishlisted: boolean }) {
-  const { title, progress, providerName, continueUrl } = item;
+  const { title, progress, providerName, continueUrl, live, seriesFraction, seasonEpisodes } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
   const remaining = Math.max(1, Math.round(runtime * (1 - progress.fraction)));
@@ -47,10 +48,10 @@ export function Hero({ item, wishlisted }: { item: ContinueItem; wishlisted: boo
       >
         <p className="inline-flex items-center gap-2 text-[13px] text-fg-2">
           <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full rounded-full bg-accent opacity-60 motion-safe:animate-ping" />
-            <span className="relative inline-flex size-2 rounded-full bg-accent" />
+            {live && <span className="absolute inline-flex size-full rounded-full bg-accent opacity-60 motion-safe:animate-ping" />}
+            <span className={`relative inline-flex size-2 rounded-full ${live ? "bg-accent" : "bg-fg-3"}`} />
           </span>
-          Ora in visione
+          {live ? "Ora in visione" : "L’ultimo che hai aperto"}
         </p>
         <h1 id="hero-title" className="mt-3 text-[34px] leading-[1.02] font-semibold tracking-[-0.035em] text-fg [text-wrap:balance] sm:text-[44px] xl:text-[52px]">
           {title.title}
@@ -58,15 +59,22 @@ export function Hero({ item, wishlisted }: { item: ContinueItem; wishlisted: boo
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-2">
           <ProviderBadge id={progress.providerId} />
           {ep && <span className="text-fg">{ep}</span>}
+          {seasonEpisodes && progress.episode && <span>di {seasonEpisodes}</span>}
         </div>
         <p className="mt-3 line-clamp-2 max-w-[48ch] text-sm leading-relaxed text-fg-2 max-sm:hidden">{title.overview}</p>
 
         <div className="mt-5 max-w-[420px]">
           <ProgressBar value={progress.fraction} label={`Avanzamento di ${title.title}`} />
           <div className="mt-2 flex justify-between text-xs tabular text-fg-3">
-            <span>{percent(progress.fraction)} visto</span>
+            <span>{percent(progress.fraction)} {title.type === "movie" ? "visto" : "dell’episodio"}</span>
             <span>Mancano {formatDuration(remaining)}</span>
           </div>
+          {seriesFraction !== null && (
+            <div className="mt-3">
+              <ProgressBar value={seriesFraction} label={`Avanzamento nella serie ${title.title}`} size="xs" />
+              <p className="mt-1.5 text-xs tabular text-fg-3">{percent(seriesFraction)} della serie</p>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">

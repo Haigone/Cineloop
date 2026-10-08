@@ -80,3 +80,31 @@ describe("filterNotifications", () => {
     expect(filterNotifications(list, prefs).map((x) => x.id)).toEqual(["2", "4"]);
   });
 });
+
+describe("seriesProgress", () => {
+  it("counts earlier seasons, earlier episodes and the current one's fraction", async () => {
+    const { seriesProgress } = await import("@/domain/library");
+    const { SEED_TITLE_MAP } = await import("@/server/data/seed/catalog");
+    const dark = SEED_TITLE_MAP.get("dark")!; // 10 + 8 + 8 episodes
+    expect(seriesProgress(dark, { season: 2, episode: 3, fraction: 0.5 })).toBeCloseTo((10 + 2 + 0.5) / 26);
+    expect(seriesProgress(dark, { season: null, episode: null, fraction: 0.5 })).toBeNull();
+    expect(seriesProgress(SEED_TITLE_MAP.get("whiplash")!, { season: null, episode: null, fraction: 0.5 })).toBeNull();
+  });
+});
+
+describe("onboarding pool", () => {
+  it("is 10 to 20 Netflix series from the bundled catalog, no films", async () => {
+    const { ONBOARDING_POOL } = await import("@/domain/onboarding");
+    const { SEED_TITLE_MAP } = await import("@/server/data/seed/catalog");
+    const ids = ONBOARDING_POOL.flatMap((g) => g.ids);
+    expect(ids.length).toBeGreaterThanOrEqual(10);
+    expect(ids.length).toBeLessThanOrEqual(20);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) {
+      const t = SEED_TITLE_MAP.get(id);
+      expect(t, id).toBeDefined();
+      expect(t!.type).not.toBe("movie");
+      expect(t!.providers).toContain("netflix");
+    }
+  });
+});

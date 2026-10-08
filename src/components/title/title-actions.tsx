@@ -8,11 +8,11 @@ import { Segmented } from "@/components/ui/segmented";
 import { useToast } from "@/components/ui/toast";
 import { WishlistButton } from "@/components/media/wishlist-button";
 
-type StatusChoice = "none" | "planned" | "watching" | "completed";
+type StatusChoice = "none" | "watching" | "completed";
 
+/** Plans are the wishlist's job, so the library only knows started and finished. */
 const OPTIONS: { value: StatusChoice; label: string }[] = [
   { value: "none", label: "Non in libreria" },
-  { value: "planned", label: "Da vedere" },
   { value: "watching", label: "In corso" },
   { value: "completed", label: "Visto" },
 ];
@@ -29,7 +29,7 @@ export function TitleActions({ titleId, titleName, status, rating, wishlisted }:
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useOptimistic<StatusChoice>(
-    status === "dropped" || status === null ? "none" : status,
+    status === "watching" || status === "completed" ? status : "none",
   );
   const [optimisticRating, setOptimisticRating] = useOptimistic(rating);
 

@@ -58,6 +58,7 @@ export async function reorderWishlist(orderedIds: string[]): Promise<ActionResul
 
 const statusSchema = z.enum(["watching", "completed", "planned", "dropped"]);
 
+
 export async function setStatus(id: string, status: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
@@ -67,6 +68,8 @@ export async function setStatus(id: string, status: string): Promise<ActionResul
   }
   return run(async () => {
     const repo = getRepository();
+    // "Da vedere" no longer exists in the library: a plan goes to the wishlist.
+    if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, parsedId.data);
     await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {

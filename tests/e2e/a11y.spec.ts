@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { signIn } from "./helpers";
 
-const PAGES = ["/home", "/explore", "/explore?genre=Dramma&type=movie", "/library", "/wishlist", "/rankings", "/friends", "/friends/giulia", "/watch-party", "/profile", "/settings", "/title/arcane"];
+const PAGES = ["/home", "/explore", "/explore?genre=Dramma&type=movie", "/library", "/wishlist", "/rankings", "/friends", "/friends/giulia", "/watch-party", "/profile", "/settings", "/title/arcane", "/welcome"];
 
 test("login page has no serious accessibility violations", async ({ page }) => {
   await page.goto("/login");

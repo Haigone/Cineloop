@@ -8,11 +8,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Panel } from "@/components/ui/panel";
 import { Reveal, RevealItem } from "@/components/ui/reveal";
 import { SectionHeader } from "@/components/ui/section-header";
-import { ContinueWatchingCard } from "@/components/media/continue-watching-card";
 import { Rail } from "@/components/media/rail";
 import { FriendActivityList } from "@/components/social/friend-activity-list";
 import { LiveFriends } from "@/components/social/live-friends";
 import { Hero } from "@/components/home/hero";
+import { InProgressCard } from "@/components/home/in-progress-card";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
 import { TonightRail } from "@/components/home/tonight";
@@ -57,12 +57,14 @@ async function HomeContent() {
 
         {view.continueWatching.length > 0 && (
           <RevealItem as="section" className="order-2 min-w-0">
-            <SectionHeader title="Continua a guardare" href="/library?filter=watching" />
-            <Rail label="Continua a guardare">
+            <SectionHeader title="Stai guardando anche" href="/library?filter=watching" />
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 2xl:grid-cols-3">
               {view.continueWatching.map((item) => (
-                <ContinueWatchingCard key={item.title.id} item={item} />
+                <li key={item.title.id} className="min-w-0">
+                  <InProgressCard item={item} />
+                </li>
               ))}
-            </Rail>
+            </ul>
           </RevealItem>
         )}
 

@@ -30,5 +30,29 @@ test("the demo button signs in without typing", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Entra con l'account demo" }).click();
   await expect(page).toHaveURL(/\/home$/);
-  await expect(page.getByText("Ora in visione")).toBeVisible();
+  // Nothing is playing in the demo, so the hero is the last title opened.
+  await expect(page.getByText("L’ultimo che hai aperto")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Stranger Things" })).toBeVisible();
+});
+
+test("a new account starts by picking Netflix series it liked", async ({ page }) => {
+  const id = Date.now().toString(36);
+  await page.goto("/register");
+  await page.getByLabel("Nome").fill("Nuovo Utente");
+  await page.getByLabel("Username").fill(`nuovo${id}`);
+  await page.getByLabel("Email").fill(`nuovo${id}@example.com`);
+  await page.getByLabel("Password").fill("una-password-lunga");
+  await page.getByRole("button", { name: /Crea/ }).click();
+  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Crime" })).toBeVisible();
+  for (const name of ["Breaking Bad", "Dark", "Arcane"]) {
+    await page.getByRole("button", { name }).click();
+    await expect(page.getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
+  }
+  await expect(page.getByText("3 scelte")).toBeVisible();
+  await page.getByRole("link", { name: "Vedi i consigli per te" }).click();
+  await expect(page).toHaveURL(/\/explore$/);
+  await expect(page.getByRole("heading", { name: "Per te" })).toBeVisible();
+  await page.goto("/library");
+  await expect(page.getByRole("heading", { level: 3, name: "Breaking Bad" })).toBeVisible();
 });

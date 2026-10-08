@@ -1,7 +1,8 @@
-import type { LibraryEntry, MediaType, Title, WatchStatus } from "./types";
+import type { LibraryEntry, MediaType, Title, WatchProgress, WatchStatus } from "./types";
 
 export type LibraryTypeFilter = "all" | MediaType;
-export type LibraryStatusFilter = "all" | "completed" | "watching" | "planned";
+/** No "planned": what to watch next lives in the wishlist. */
+export type LibraryStatusFilter = "all" | "completed" | "watching";
 export type LibrarySort = "recent" | "rating" | "title" | "added";
 
 export interface LibraryItem {
@@ -42,4 +43,13 @@ export function countBy<T>(items: T[], key: (item: T) => string): Record<string,
   const out: Record<string, number> = {};
   for (const i of items) out[key(i)] = (out[key(i)] ?? 0) + 1;
   return out;
+}
+
+/** How far through a whole series the viewer is: earlier seasons, earlier episodes, and this one's fraction. */
+export function seriesProgress(title: Title, progress: Pick<WatchProgress, "season" | "episode" | "fraction">): number | null {
+  if (title.type === "movie" || !progress.season || !progress.episode) return null;
+  const total = title.seasons.reduce((n, s) => n + s.episodeCount, 0);
+  if (total === 0) return null;
+  const before = title.seasons.filter((s) => s.number < progress.season!).reduce((n, s) => n + s.episodeCount, 0);
+  return Math.min(1, (before + progress.episode - 1 + progress.fraction) / total);
 }

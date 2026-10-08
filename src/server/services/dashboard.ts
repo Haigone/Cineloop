@@ -1,4 +1,5 @@
 import "server-only";
+import { isLive } from "@/domain/presence";
 import type { ActivityEvent, PublicUser, Title } from "@/domain/types";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
@@ -36,11 +37,12 @@ export async function getHomeView(): Promise<HomeView> {
   const repo = getRepository();
   const now = new Date();
 
-  const [library, wishlist, events, friends] = await Promise.all([
+  const [library, wishlist, events, friends, presence] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     repo.listWatchEvents(viewer.id, weekStart(now)),
     loadFriendBundles(repo, viewer.id),
+    repo.getPresence(viewer.id),
   ]);
   const friendIds = friends.map((f) => f.user.id);
   const [activity, prefs, liveFriends] = await Promise.all([
@@ -53,11 +55,18 @@ export async function getHomeView(): Promise<HomeView> {
   const allTitles = await repo.listTitles();
   const titles = new Map(allTitles.map((t) => [t.id, t]));
 
+  // What the extension says is playing right now comes first; then the last one opened.
+  const liveTitleId = presence && isLive(presence, now) ? presence.titleId : null;
   const continueWatching = library
     .filter((e) => e.status === "watching" && e.progress)
-    .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
+    .sort(
+      (a, b) =>
+        Number(b.titleId === liveTitleId) - Number(a.titleId === liveTitleId) ||
+        Date.parse(b.lastWatchedAt ?? b.progress?.updatedAt ?? "") - Date.parse(a.lastWatchedAt ?? a.progress?.updatedAt ?? ""),
+    )
     .map((e) => (titles.get(e.titleId) ? toContinueItem(e, titles.get(e.titleId)!) : null))
-    .filter((x): x is ContinueItem => x !== null);
+    .filter((x): x is ContinueItem => x !== null)
+    .map((item) => (item.title.id === liveTitleId ? { ...item, live: true } : item));
 
   // One line per friend: what they are watching now, else their latest action.
   const byUser = new Map(friends.map((f) => [f.user.id, f.user]));

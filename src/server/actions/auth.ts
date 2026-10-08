@@ -73,7 +73,8 @@ export async function register(_prev: AuthFormState, formData: FormData): Promis
     console.error("register failed", err);
     return { error: "Non siamo riusciti a creare l'account. Riprova tra un momento.", values };
   }
-  redirect("/home");
+  // First access: pick a few series so recommendations have somewhere to start.
+  redirect("/welcome");
 }
 
 export async function logout() {

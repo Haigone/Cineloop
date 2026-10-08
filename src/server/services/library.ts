@@ -19,7 +19,8 @@ export async function getLibraryView(): Promise<LibraryView> {
   const [entries, wishlist] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id)]);
   const titles = new Map((await repo.getTitlesByIds(entries.map((e) => e.titleId))).map((t) => [t.id, t]));
   return {
-    items: entries.filter((e) => titles.has(e.titleId)).map((entry) => ({ entry, title: titles.get(entry.titleId)! })),
+    // Older "planned" entries are plans, which belong to the wishlist, not here.
+    items: entries.filter((e) => e.status !== "planned" && titles.has(e.titleId)).map((entry) => ({ entry, title: titles.get(entry.titleId)! })),
     wishlistIds: wishlist.map((w) => w.titleId),
   };
 }

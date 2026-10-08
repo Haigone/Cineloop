@@ -253,19 +253,8 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
       });
     }
 
-    for (const titleId of person.planned) {
-      library.push({
-        userId,
-        titleId,
-        status: "planned",
-        addedAt: at(10 * DAY),
-        lastWatchedAt: null,
-        rating: null,
-        progress: null,
-      });
-    }
-
-    person.wishlist.forEach((titleId, position) => {
+    // Plans live in the wishlist: "planned" titles go to its end.
+    [...person.wishlist, ...person.planned.filter((id) => !person.wishlist.includes(id))].forEach((titleId, position) => {
       const addedAt = at((position * 3 + 1) * DAY + position * HOUR);
       wishlist.push({ userId, titleId, addedAt, position, suggestedBy: null });
       if (position < 2) {

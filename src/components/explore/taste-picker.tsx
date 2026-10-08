@@ -44,39 +44,43 @@ export function TastePicker({ titles, liked, target }: { titles: Title[]; liked:
       </div>
       <p className="mt-1 max-w-[62ch] text-sm text-fg-2">Bastano pochi tocchi: da questi titoli costruisco i consigli “Per te”.</p>
       <ul className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3">
-        {titles.map((t) => {
-          const on = picked.has(t.id);
-          return (
-            <li key={t.id}>
-              <button
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggle(t)}
-                className="group/pick block w-full rounded-lg text-left"
-              >
-                <span className="relative block">
-                  <KeyArt
-                    title={t}
-                    variant="poster"
-                    showTitle
-                    className={cn("aspect-[2/3] rounded-lg border transition-[border-color,opacity]", on ? "border-accent" : "border-line group-hover/pick:border-white/25")}
-                  />
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full border transition-colors",
-                      on ? "border-transparent bg-accent-fill text-white" : "border-white/30 bg-black/40 text-transparent",
-                    )}
-                  >
-                    <Check className="size-3.5" />
-                  </span>
-                </span>
-                <span className="mt-1.5 block truncate text-xs text-fg-2">{t.title}</span>
-              </button>
-            </li>
-          );
-        })}
+        {titles.map((t) => (
+          <li key={t.id}>
+            <PickTile title={t} on={picked.has(t.id)} onToggle={() => toggle(t)} />
+          </li>
+        ))}
       </ul>
     </section>
+  );
+}
+
+/** A poster that toggles: "seen and liked". */
+export function PickTile({ title, on, onToggle }: { title: Title; on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onToggle}
+      className="group/pick block w-full rounded-lg text-left"
+    >
+      <span className="relative block">
+        <KeyArt
+          title={title}
+          variant="poster"
+          showTitle
+          className={cn("aspect-[2/3] rounded-lg border transition-[border-color,opacity]", on ? "border-accent" : "border-line group-hover/pick:border-white/25")}
+        />
+        <span
+          aria-hidden
+          className={cn(
+            "absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full border transition-colors",
+            on ? "border-transparent bg-accent-fill text-white" : "border-white/30 bg-black/40 text-transparent",
+          )}
+        >
+          <Check className="size-3.5" />
+        </span>
+      </span>
+      <span className="mt-1.5 block truncate text-xs text-fg-2">{title.title}</span>
+    </button>
   );
 }
