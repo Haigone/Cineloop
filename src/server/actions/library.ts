@@ -95,6 +95,51 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
   }, "Non siamo riusciti a salvare il voto.");
 }
 
+const manualProgressSchema = z.object({
+  season: z.number().int().min(0).max(200).nullable(),
+  episode: z.number().int().min(1).max(5000).nullable(),
+  minute: z.number().int().min(0).max(1000),
+});
+
+/**
+ * The viewer says where they are in a title they watch somewhere CineLoop
+ * cannot follow (TV, cinema, another service): season, episode and minute.
+ */
+export async function saveManualProgress(id: string, input: { season: number | null; episode: number | null; minute: number }): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  const parsed = manualProgressSchema.safeParse(input);
+  const title = parsedId.success ? await cacheRemoteTitle(parsedId.data) : null;
+  if (!parsedId.success || !parsed.success || !title) return { ok: false, error: "Dati non validi." };
+  const { minute } = parsed.data;
+  let { season, episode } = parsed.data;
+  if (title.type === "movie") {
+    season = null;
+    episode = null;
+  } else {
+    const s = title.seasons.find((x) => x.number === season);
+    if (!s || episode === null || episode > s.episodeCount) return { ok: false, error: "Scegli una stagione e un episodio che esistono." };
+  }
+  const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
+  return run(async () => {
+    const repo = getRepository();
+    const prev = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id)?.progress ?? null;
+    const sameEpisode = prev?.season === season && prev?.episode === episode;
+    await repo.saveProgress(user.id, {
+      titleId: title.id,
+      providerId: prev?.providerId ?? null,
+      season,
+      episode,
+      fraction: Math.min(0.99, minute / runtime),
+      // A link to another episode would open the wrong one.
+      url: sameEpisode ? (prev?.url ?? null) : null,
+      updatedAt: new Date().toISOString(),
+    });
+    await repo.removeFromWishlist(user.id, title.id);
+    await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season, episode, rating: null });
+  }, "Non siamo riusciti a salvare dove sei arrivato.");
+}
+
 const podiumSchema = z.array(titleId).max(3);
 
 /** The viewer's top 3 for Classifiche, first place first. Only titles they have watched. */

@@ -12,6 +12,7 @@ import { RatingStars } from "@/components/ui/rating-stars";
 import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
 import { SuggestDialog } from "@/components/title/suggest-dialog";
+import { ProgressEditor } from "@/components/title/progress-editor";
 
 export const metadata: Metadata = { title: "Titolo" };
 
@@ -54,16 +55,23 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
         <div className="min-w-0 space-y-8">
           <p className="max-w-[68ch] text-[15px] leading-relaxed text-fg-2">{title.overview}</p>
 
-          {entry?.progress && (
-            <section aria-labelledby="progress-h" className="max-w-md">
+          <section aria-labelledby="progress-h" className="max-w-md">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="progress-h" className="text-[15px] font-semibold">
                 Dove sei arrivato
               </h2>
-              <p className="mt-1 text-sm text-fg-2">{episodeLabel(entry.progress) ?? "In corso"}</p>
-              <ProgressBar className="mt-3" value={entry.progress.fraction} label={`Avanzamento di ${title.title}`} />
-              <p className="mt-1.5 text-xs text-fg-3 tabular">{percent(entry.progress.fraction)} visto</p>
-            </section>
-          )}
+              <ProgressEditor title={title} progress={entry?.progress ?? null} />
+            </div>
+            {entry?.progress ? (
+              <>
+                <p className="mt-1 text-sm text-fg-2">{episodeLabel(entry.progress) ?? "In corso"}</p>
+                <ProgressBar className="mt-3" value={entry.progress.fraction} label={`Avanzamento di ${title.title}`} />
+                <p className="mt-1.5 text-xs text-fg-3 tabular">{percent(entry.progress.fraction)} visto</p>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-fg-2">Lo guardi fuori da Netflix? Segna qui il punto, lo ritrovi in Home su ogni dispositivo.</p>
+            )}
+          </section>
 
           <section aria-labelledby="where-h">
             <h2 id="where-h" className="text-[15px] font-semibold">
