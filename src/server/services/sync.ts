@@ -1,6 +1,6 @@
 import "server-only";
 import { applyReport, driftBetween, IN_SYNC_SECONDS, type PlaybackReport } from "@/domain/party";
-import { isLive, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
+import { inferSeason, isLive, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
@@ -55,6 +55,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     episode: content.episode,
     url: content.url,
   };
+  const fraction = obs.hints?.progress ?? null;
   const now = new Date();
   const before = await repo.getPresence(userId);
   const step = nextPresence(userId, before, seen, now);
@@ -68,7 +69,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const titleId = await recognise(repo, presence, content.parentId ?? null);
     if (titleId) {
       presence.titleId = titleId;
-      await startWatching(repo, presence);
+      await startWatching(repo, presence, fraction);
     }
   } else if (!step.started) {
     // The player's name arrived after the session was matched (by the show page,
@@ -76,10 +77,10 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const named = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
     if (named && named !== presence.titleId) {
       presence.titleId = named;
-      await startWatching(repo, presence);
-    } else if (presence.season !== before?.season || presence.episode !== before?.episode) {
-      // The player named the episode after the session was matched: keep "Continua a guardare" exact.
-      await updateEpisode(repo, presence);
+      await startWatching(repo, presence, fraction);
+    } else {
+      // Episode and position as the player reports them, every heartbeat.
+      await syncProgress(repo, presence, fraction);
     }
   }
   await repo.savePresence(presence);
@@ -384,45 +385,47 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   return hit.id;
 }
 
-/** First time a session is matched to a title: it goes to "In corso" and friends see it. */
-async function startWatching(repo: Repository, presence: Presence): Promise<void> {
+/** First time a session is matched to a title: it goes to "In corso" (even if seen before) and friends see it. */
+async function startWatching(repo: Repository, presence: Presence, fraction: number | null = null): Promise<void> {
   const titleId = presence.titleId!;
-  const library = await repo.listLibrary(presence.userId);
-  const entry = library.find((e) => e.titleId === titleId);
-  const at = new Date().toISOString();
-  if (entry?.status !== "completed") {
-    const sameEpisode = entry?.progress && entry.progress.season === presence.season && entry.progress.episode === presence.episode;
-    await repo.saveProgress(presence.userId, {
-      titleId,
-      providerId: presence.providerId,
-      season: presence.season,
-      episode: presence.episode,
-      fraction: sameEpisode ? entry!.progress!.fraction : 0,
-      url: presence.url,
-      updatedAt: at,
-    });
-    await repo.removeFromWishlist(presence.userId, titleId);
-  }
+  await syncProgress(repo, presence, fraction);
+  await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
     userId: presence.userId,
     kind: "watching",
     titleId,
-    at,
+    at: new Date().toISOString(),
     season: presence.season,
     episode: presence.episode,
     rating: null,
   });
 }
 
-async function updateEpisode(repo: Repository, presence: Presence): Promise<void> {
-  const entry = (await repo.listLibrary(presence.userId)).find((e) => e.titleId === presence.titleId);
-  if (!entry || entry.status === "completed") return;
+/**
+ * Keeps the library in step with the player: "In corso", season, episode and
+ * how far into it. Watching a title marked as seen (a rewatch, a new season)
+ * puts it back in progress. Writes only when something changed.
+ */
+async function syncProgress(repo: Repository, presence: Presence, fraction: number | null): Promise<void> {
+  const titleId = presence.titleId!;
+  const [entry, [title]] = await Promise.all([
+    repo.listLibrary(presence.userId).then((l) => l.find((e) => e.titleId === titleId)),
+    repo.getTitlesByIds([titleId]),
+  ]);
+  const prev = entry?.progress ?? null;
+  if (presence.season === null && presence.episode !== null && title) {
+    presence.season = inferSeason(title, prev, presence.episode);
+  }
+  const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
+  const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
+  const unchanged = entry?.status === "watching" && sameEpisode && Math.abs(prev!.fraction - next) < 0.01 && prev!.url === presence.url;
+  if (unchanged) return;
   await repo.saveProgress(presence.userId, {
-    titleId: presence.titleId!,
+    titleId,
     providerId: presence.providerId,
     season: presence.season,
     episode: presence.episode,
-    fraction: 0,
+    fraction: next,
     url: presence.url,
     updatedAt: new Date().toISOString(),
   });

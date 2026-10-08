@@ -50,6 +50,8 @@ export interface SyncObservation {
     title?: string;
     season?: number;
     episode?: number;
+    /** How far through the video the player is, 0–1. */
+    progress?: number;
     /** The provider's id for the show, when the tab came from its page (Netflix ?jbv= or /title/{id}). */
     parentId?: string;
   };

@@ -1,4 +1,4 @@
-import type { Presence, ProviderId } from "./types";
+import type { Presence, ProviderId, Title, WatchProgress } from "./types";
 
 /** Heartbeats arrive every minute; after this much silence the viewer has stopped. */
 export const PRESENCE_TTL_MS = 3 * 60 * 1000;
@@ -90,4 +90,18 @@ export function normalizePartyUrl(input: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Netflix's player sometimes names only the episode ("E3"). The season is the
+ * one the viewer was on, or the next one when they had reached that season's
+ * last episode and this is a first episode. Null when nothing is known.
+ */
+export function inferSeason(title: Title, prev: Pick<WatchProgress, "season" | "episode"> | null, episode: number): number | null {
+  if (title.type === "movie") return null;
+  if (!prev?.season) return title.seasons.length === 1 ? title.seasons[0]!.number : null;
+  const current = title.seasons.find((s) => s.number === prev.season);
+  const finished = current && prev.episode !== null && prev.episode >= current.episodeCount;
+  if (episode === 1 && finished && title.seasons.some((s) => s.number === prev.season! + 1)) return prev.season + 1;
+  return prev.season;
 }

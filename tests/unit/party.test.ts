@@ -73,3 +73,39 @@ describe("watch together", () => {
     expect((await listLiveFriends(repo, "u_giulia", ["u_marco"])).length).toBe(1);
   });
 });
+
+describe("library follows the player", () => {
+  const repo = getRepository();
+  const watch = (id: string, hints: Record<string, unknown> = {}) => ({
+    providerId: "netflix" as const,
+    url: `https://www.netflix.com/watch/${id}`,
+    documentTitle: "Netflix",
+    hints,
+    observedAt: new Date().toISOString(),
+  });
+
+  it("puts a series seen before back in progress, with episode and position", async () => {
+    await endPresence("u_marco");
+    // Marco has Breaking Bad as seen (completed).
+    expect((await repo.listLibrary("u_marco")).find((e) => e.titleId === "breaking-bad")?.status).toBe("completed");
+    await handleObservation("u_marco", watch("82000001", { title: "Breaking Bad", season: 5, episode: 14, progress: 0.25 }));
+    let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "breaking-bad")!;
+    expect(entry.status).toBe("watching");
+    expect(entry.progress).toMatchObject({ season: 5, episode: 14, fraction: 0.25 });
+
+    await handleObservation("u_marco", watch("82000001", { title: "Breaking Bad", season: 5, episode: 14, progress: 0.6 }));
+    entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "breaking-bad")!;
+    expect(entry.progress?.fraction).toBe(0.6);
+    await endPresence("u_marco");
+  });
+
+  it("works out the season when the player shows only the episode", async () => {
+    const { inferSeason } = await import("@/domain/presence");
+    const { SEED_TITLE_MAP } = await import("@/server/data/seed/catalog");
+    const dark = SEED_TITLE_MAP.get("dark")!; // 10, 8, 8
+    expect(inferSeason(dark, { season: 2, episode: 3 }, 4)).toBe(2);
+    expect(inferSeason(dark, { season: 1, episode: 10 }, 1)).toBe(2);
+    expect(inferSeason(dark, null, 1)).toBeNull();
+    expect(inferSeason(SEED_TITLE_MAP.get("adolescence")!, null, 2)).toBe(1);
+  });
+});

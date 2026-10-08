@@ -31,10 +31,18 @@ async function render() {
   if (!w) return;
 
   $("watching-title").textContent = w.title ? w.title.title : (w.label ?? "Titolo da confermare");
+  $("confirm-help").textContent = w.label
+    ? `Il player dice “${w.label}”, ma non l’ho trovato nel catalogo con questo nome. Sceglilo una volta: per le prossime puntate lo riconosco da solo.`
+    : "Non riesco a leggerlo dal player. Sceglilo una volta: per le prossime puntate lo riconosco da solo.";
   const ep = w.season && w.episode ? `S${w.season} · E${w.episode}` : "";
   $("watching-meta").textContent = [w.title?.year, ep, "su Netflix"].filter(Boolean).join(" · ");
   show("change-btn", Boolean(w.title) && !changing);
   if (!w.title || changing) renderChoices($("suggestions"), status.suggestions);
+  // The player named it but the catalog had no exact match: start the search from that name.
+  if (!w.title && w.label && !$("q").value) {
+    $("q").value = w.label;
+    $("q").dispatchEvent(new Event("input"));
+  }
 }
 
 /** In progress (with the episode) and wishlist; each opens a Netflix search for it. */

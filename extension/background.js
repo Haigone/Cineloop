@@ -95,12 +95,16 @@ async function playerTitle(tabId, m) {
   if (typeof m.watchId !== "string" || typeof m.title !== "string") return;
   const { tabs = {} } = await chrome.storage.session.get("tabs");
   const entry = tabs[tabId] ?? {};
-  const changed = entry.player?.watchId !== m.watchId || entry.player?.title !== m.title || entry.player?.episode !== m.episode;
+  const season = Number.isInteger(m.season) ? m.season : null;
+  const episode = Number.isInteger(m.episode) ? m.episode : null;
+  const changed =
+    entry.player?.watchId !== m.watchId || entry.player?.title !== m.title || entry.player?.episode !== episode || entry.player?.season !== season;
   entry.player = {
     watchId: m.watchId,
     title: m.title.slice(0, 200),
-    season: Number.isInteger(m.season) ? m.season : null,
-    episode: Number.isInteger(m.episode) ? m.episode : null,
+    season,
+    episode,
+    progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
   };
   tabs[tabId] = entry;
   await chrome.storage.session.set({ tabs });
@@ -111,9 +115,10 @@ async function playerTitle(tabId, m) {
 function playerHints(player, url) {
   if (!player || player.watchId !== watchId(url)) return {};
   return {
-    title: player.title,
+    ...(player.title ? { title: player.title } : {}),
     ...(player.season !== null ? { season: player.season } : {}),
     ...(player.episode !== null ? { episode: player.episode } : {}),
+    ...(player.progress !== null && player.progress !== undefined ? { progress: player.progress } : {}),
   };
 }
 
