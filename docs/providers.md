@@ -34,6 +34,8 @@ Nessun provider è segnato `available`, e un test (`tests/unit/providers.test.ts
   - *Più visti su Netflix da chi usa CineLoop*: conteggio dei minuti registrati dall'estensione nella settimana, solo per chi condivide l'attività, senza nomi.
 - **Non fatto, di proposito**: far leggere all'estensione il catalogo o la Top 10 dalle pagine di Netflix (anche "una volta al giorno, dal primo utente"). Sarebbe scraping del servizio con l'account di un utente, vietato dai termini (1.8) e dai vincoli del progetto. L'estensione resta limitata a indirizzo e titolo della scheda in cui l'utente sta guardando.
 
+- **Catalogo completo di Netflix** (8 ottobre 2026): Esplora > "Su: Netflix" (`/explore?on=netflix`). I dati vengono da TMDB (`/discover` con `with_watch_providers=8`, `watch_region=IT`, solo abbonamento), che a sua volta li prende da JustWatch. Nessuna richiesta a Netflix. Vale anche per Prime Video, Disney+, Apple TV+, NOW e Crunchyroll. Richiede `TMDB_READ_TOKEN`; senza, il filtro lavora sul catalogo di prova.
+
 **Prossimo passo consigliato**: import del CSV di Netflix per lo storico precedente all'installazione dell'estensione.
 
 ## Prime Video, Disney+, Apple TV+, NOW, Crunchyroll
@@ -41,6 +43,10 @@ Nessun provider è segnato `available`, e un test (`tests/unit/providers.test.ts
 Servizi con licenza. Nessuna integrazione costruita: l'adapter `HomepageAdapter` porta solo alla homepage ufficiale, così "Continua su…" funziona senza pretendere di sapere a che punto è l'utente. Prima di implementare qualsiasi rilevamento serve la stessa verifica fatta per Netflix (API ufficiali, termini, export dei dati).
 
 Nelle impostazioni l'utente può indicare i servizi che usa ("I tuoi servizi"). È una lista compilata a mano: non collega account e non sincronizza nulla. Serve solo a dare priorità, in "Da vedere stasera", ai titoli disponibili sui suoi servizi.
+
+## Nuove stagioni e uscite
+
+Da TMDB, aggiornati al massimo una volta al giorno: per le serie viste o in corso, `next_episode_to_air` e l'elenco delle stagioni dicono se ne è annunciata una nuova e quando esce; "In uscita" usa `/discover/movie` (data di uscita italiana da `/movie/{id}/release_dates`) e `/discover/tv` sui prossimi sei mesi. Il giorno dell'uscita CineLoop lascia una notifica a chi segue la serie o ha il titolo in wishlist. Nel catalogo di prova le date sono esempi.
 
 ## Anime Unity e Streaming Community
 

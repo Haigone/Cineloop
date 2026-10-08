@@ -1,7 +1,19 @@
-import type { Title } from "@/domain/types";
+import type { MediaType, Release, Title } from "@/domain/types";
+import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
-import type { CatalogService, DiscoverQuery } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery } from "./types";
+
+/**
+ * Example announcements so the demo can show "new season" rows. The dates are
+ * relative to today and made up; with TMDB the real ones are used.
+ */
+const DEMO_NEXT_SEASONS: Record<string, { season: number; inDays: number | null }> = {
+  "the-boys": { season: 5, inDays: 12 },
+  frieren: { season: 2, inDays: 4 },
+  "the-last-of-us": { season: 3, inDays: 210 },
+  severance: { season: 3, inDays: null },
+};
 
 /**
  * The bundled demo catalog: a few dozen titles, no keys, works offline.
@@ -27,12 +39,28 @@ export class SeedCatalog implements CatalogService {
     return this.sorted("popular").slice(0, limit);
   }
 
-  async discover(query: DiscoverQuery, limit: number): Promise<Title[]> {
+  async discover(query: DiscoverQuery, limit: number): Promise<DiscoverPage> {
     const page = Math.max(1, query.page ?? 1);
     const matching = this.sorted(query.sort).filter(
-      (t) => (query.type === "all" || t.type === query.type) && (!query.genre || t.genres.includes(query.genre)),
+      (t) =>
+        (query.type === "all" || t.type === query.type) &&
+        (!query.genre || t.genres.includes(query.genre)) &&
+        (!query.provider || t.providers.includes(query.provider)),
     );
-    return matching.slice((page - 1) * limit, page * limit);
+    return { titles: matching.slice((page - 1) * limit, page * limit), hasMore: matching.length > page * limit };
+  }
+
+  async nextSeasons(series: readonly Title[], today: string): Promise<Release[]> {
+    return series.flatMap((title) => {
+      const next = DEMO_NEXT_SEASONS[title.id];
+      if (!next || title.type === "movie") return [];
+      return [{ title, season: next.season, date: next.inDays === null ? null : addDays(today, next.inDays) }];
+    });
+  }
+
+  async upcoming(_type: MediaType | "all", _today: string, _limit: number): Promise<Release[]> {
+    // Every bundled title is already out.
+    return [];
   }
 
   async match(title: Title): Promise<Title | null> {

@@ -82,6 +82,15 @@ export interface Series extends BaseTitle {
 
 export type Title = Movie | Series;
 
+/** Something coming out: a film, a new series, or a new season of one. */
+export interface Release {
+  title: Title;
+  /** First release (or first episode) date, YYYY-MM-DD; null when announced without a date. */
+  date: string | null;
+  /** For a series that is coming back, the new season's number. */
+  season: number | null;
+}
+
 export interface Episode {
   seriesId: string;
   season: number;

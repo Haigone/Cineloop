@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Compass, SearchX } from "lucide-react";
 import { GENRES } from "@/domain/genres";
-import type { Genre, MediaType } from "@/domain/types";
+import { BROWSABLE_PROVIDERS, PROVIDERS } from "@/domain/providers";
+import type { Genre, MediaType, ProviderId } from "@/domain/types";
 import { getExploreView, getForYouView, TASTE_TARGET, type ExploreFilters as Filters } from "@/server/services/explore";
 import { getCommunityNetflixTop, getNetflixTop10, type RankedTitle } from "@/server/services/charts";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,6 +18,7 @@ import { ExploreFilters } from "@/components/explore/explore-filters";
 import { TitleGrid } from "@/components/explore/title-grid";
 import { TastePicker } from "@/components/explore/taste-picker";
 import { TopTen } from "@/components/explore/top-ten";
+import { ReleaseRail } from "@/components/explore/release-rail";
 
 const TYPE_PLURAL: Record<Filters["type"], string> = { all: "Tutto il catalogo", movie: "Tutti i film", series: "Tutte le serie", anime: "Tutti gli anime" };
 
@@ -44,13 +46,14 @@ export default function ExplorePage({ searchParams }: PageProps<"/explore">) {
 
 async function Filters({ searchParams }: { searchParams: PageProps<"/explore">["searchParams"] }) {
   const f = await parseFilters(searchParams);
-  return <ExploreFilters q={f.q} type={f.type} genre={f.genre ?? ""} sort={f.sort} />;
+  return <ExploreFilters q={f.q} type={f.type} genre={f.genre ?? ""} provider={f.provider ?? ""} sort={f.sort} />;
 }
 
 async function Results({ searchParams }: { searchParams: PageProps<"/explore">["searchParams"] }) {
   const filters = await parseFilters(searchParams);
   // Searching, or narrowing by genre/order/page, is browsing: just the results.
-  const browsing = filters.q.length >= 2 || filters.genre !== null || filters.sort !== "popular" || filters.page > 1;
+  const browsing =
+    filters.q.length >= 2 || filters.genre !== null || filters.provider !== null || filters.sort !== "popular" || filters.page > 1;
   if (browsing) return <BrowseResults filters={filters} />;
   // Otherwise the recommendations come first (for the chosen type), then the catalog.
   return (
@@ -88,6 +91,7 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
   if (filters.q) base.set("q", filters.q);
   if (filters.type !== "all") base.set("type", filters.type);
   if (filters.genre) base.set("genre", filters.genre);
+  if (filters.provider) base.set("on", filters.provider);
   if (filters.sort !== "popular") base.set("sort", filters.sort);
   const pageHref = (page: number) => {
     const p = new URLSearchParams(base);
@@ -98,7 +102,19 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
 
   return (
     <section className={bare ? "" : "mt-8"}>
-      {!bare && <h2 className="sr-only">Risultati</h2>}
+      {!bare &&
+        (filters.provider ? (
+          <SectionHeader
+            title={`${filters.type === "all" ? "Tutto" : TYPE_PLURAL[filters.type]} su ${PROVIDERS[filters.provider].name}`}
+            description={
+              view.completeCatalog
+                ? "Incluso nell’abbonamento in Italia, secondo JustWatch. Si aggiorna ogni giorno."
+                : "Nel catalogo di prova ci sono solo pochi titoli. Collega TMDB per vedere il catalogo completo del servizio."
+            }
+          />
+        ) : (
+          <h2 className="sr-only">Risultati</h2>
+        ))}
       <TitleGrid titles={view.titles} wishlistIds={wishlistIds} label="Risultati della ricerca" />
       {(view.hasMore || filters.page > 1) && (
         <nav aria-label="Pagine dei risultati" className="mt-10 flex items-center justify-center gap-4 text-sm">
@@ -134,6 +150,20 @@ async function ForYou({ type }: { type: Filters["type"] }) {
 
   return (
     <Reveal className="mt-8 flex flex-col gap-10">
+      {view.comingBack.length > 0 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="Nuove stagioni delle tue serie"
+            id="shelf-coming-back"
+            description={
+              view.realDates
+                ? "Serie che hai visto e che tornano: ti avvisiamo il giorno dell’uscita."
+                : "Date di esempio nel catalogo di prova: con TMDB sono quelle annunciate."
+            }
+          />
+          <ReleaseRail label="Nuove stagioni delle tue serie" releases={view.comingBack} wishlistIds={wishlistIds} />
+        </RevealItem>
+      )}
       {view.top.length > 0 && (
         <RevealItem as="section">
           <SectionHeader
@@ -145,7 +175,12 @@ async function ForYou({ type }: { type: Filters["type"] }) {
       )}
       {netflixRows.map((chart) => (
         <RevealItem key={chart.id} as="section">
-          <SectionHeader title={chart.label} description={`Classifica ufficiale di Netflix, settimana fino al ${formatWeek(netflix!.week)}.`} />
+          <SectionHeader
+            title={chart.label}
+            description={`Classifica ufficiale di Netflix, settimana fino al ${formatWeek(netflix!.week)}.`}
+            href="/explore?on=netflix"
+            hrefLabel="Tutto Netflix"
+          />
           <TopTen titles={chart.rows.map((r) => r.title)} wishlistIds={wishlistIds} label={chart.label} notes={chart.rows.map((r) => r.note)} />
         </RevealItem>
       ))}
@@ -178,6 +213,16 @@ async function ForYou({ type }: { type: Filters["type"] }) {
           </Rail>
         </RevealItem>
       ))}
+      {view.upcoming.length > 0 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="In uscita"
+            id="shelf-upcoming"
+            description="Nei prossimi mesi, in sala e in streaming. Metti il cuore e ti avvisiamo quando esce."
+          />
+          <ReleaseRail label="In uscita" releases={view.upcoming} wishlistIds={wishlistIds} />
+        </RevealItem>
+      )}
       {view.shelves.length === 0 && view.picker.length === 0 && (
         <RevealItem>
           <EmptyState
@@ -198,11 +243,13 @@ async function parseFilters(searchParams: PageProps<"/explore">["searchParams"])
   const type = one(sp.type);
   const genre = one(sp.genre);
   const sort = one(sp.sort);
+  const on = one(sp.on);
   const page = Number.parseInt(one(sp.page), 10);
   return {
     q: one(sp.q).slice(0, 80),
     type: (["movie", "series", "anime"] as const).includes(type as MediaType) ? (type as MediaType) : "all",
     genre: (GENRES as readonly string[]).includes(genre) ? (genre as Genre) : null,
+    provider: (BROWSABLE_PROVIDERS as string[]).includes(on) ? (on as ProviderId) : null,
     sort: sort === "top" || sort === "recent" ? sort : "popular",
     page: Number.isFinite(page) && page > 1 ? Math.min(page, 50) : 1,
   };

@@ -1,19 +1,23 @@
 import "server-only";
+import { after } from "next/server";
 import { getCatalog } from "@/integrations/catalog";
 import type { CatalogSort } from "@/integrations/catalog/types";
-import type { Genre, MediaType, Title } from "@/domain/types";
+import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
+import { countdownLabel, formatDay, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { loadFriendBundles } from "./shared";
 
-export const PAGE_SIZE = 24;
+export const PAGE_SIZE = 20;
 
 export interface ExploreFilters {
   q: string;
   type: MediaType | "all";
   genre: Genre | null;
+  /** Only what is included with this service in Italy. */
+  provider: ProviderId | null;
   sort: CatalogSort;
   page: number;
 }
@@ -39,19 +43,33 @@ export async function getExploreView(filters: ExploreFilters): Promise<ExploreVi
   const repo = getRepository();
   const catalog = getCatalog();
 
-  const found = filters.q.trim().length >= 2
-    ? await catalog.search(filters.q.trim(), PAGE_SIZE * filters.page)
-    : await catalog.discover({ type: filters.type, genre: filters.genre, sort: filters.sort, page: filters.page }, PAGE_SIZE);
+  const searching = filters.q.trim().length >= 2;
+  let found: Title[];
+  let hasMore: boolean;
+  if (searching) {
+    // Search has no server-side paging here: ask for everything up to this page and slice.
+    const all = await catalog.search(filters.q.trim(), PAGE_SIZE * filters.page + 1);
+    const matching = filters.provider ? all.filter((t) => t.providers.includes(filters.provider!)) : all;
+    found = matching.slice((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE);
+    hasMore = matching.length > filters.page * PAGE_SIZE;
+  } else {
+    // "Tutto" asks for a page of films and one of series together.
+    const page = await catalog.discover(
+      { type: filters.type, genre: filters.genre, provider: filters.provider, sort: filters.sort, page: filters.page },
+      filters.type === "all" ? PAGE_SIZE * 2 : PAGE_SIZE,
+    );
+    found = page.titles;
+    hasMore = page.hasMore;
+  }
 
-  // Search has no server-side paging here: ask for everything up to this page and slice.
-  const titles = await canonical(repo, filters.q.trim().length >= 2 ? found.slice((filters.page - 1) * PAGE_SIZE) : found);
+  const titles = await canonical(repo, found);
   await cacheTitles(repo, titles);
 
   const [wishlist, library] = await Promise.all([repo.listWishlist(viewer.id), repo.listLibrary(viewer.id)]);
   return {
     filters,
     titles,
-    hasMore: titles.length >= PAGE_SIZE,
+    hasMore,
     wishlistIds: wishlist.map((w) => w.titleId),
     libraryIds: library.map((e) => e.titleId),
     completeCatalog: catalog.complete,
@@ -65,9 +83,25 @@ export interface Shelf {
   titles: Title[];
 }
 
+/** A release ready for a poster: the countdown badge and the line under the title. */
+export interface ReleaseCard {
+  title: Title;
+  date: string | null;
+  /** "Tra 12 giorni", "Domani", "Oggi"; "Annunciata" without a date. */
+  badge: string;
+  /** "Stagione 5 · 14 novembre". */
+  meta: string;
+}
+
 export interface ForYouView {
   /** The week's most watched titles, in order. */
   top: Title[];
+  /** New seasons of series the viewer has watched, soonest first. */
+  comingBack: ReleaseCard[];
+  /** Films and series coming out soon, for the chosen type. */
+  upcoming: ReleaseCard[];
+  /** False when release dates are examples (demo catalog). */
+  realDates: boolean;
   /** True when `top` really is this week's chart (TMDB), not the demo catalog's best rated. */
   topIsWeekly: boolean;
   shelves: Shelf[];
@@ -122,11 +156,22 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
   const seedTitles = await repo.getTitlesByIds(seedIds);
   const favourite = (await repo.getTitlesByIds(liked.slice(0, 1).map((e) => e.titleId)))[0];
 
-  const [forYou, trending, becauseOf, popular] = await Promise.all([
+  // Series the viewer watched (or is watching): are they coming back?
+  const followed = await repo.getTitlesByIds(
+    library
+      .filter((e) => e.status === "watching" || e.status === "completed")
+      .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
+      .map((e) => e.titleId),
+  );
+  const today = italianDay();
+
+  const [forYou, trending, becauseOf, popular, returning, coming] = await Promise.all([
     seedTitles.length ? catalog.similarTo(seedTitles, 60) : Promise.resolve([]),
     catalog.trending(60),
     favourite ? catalog.similarTo([favourite], 30) : Promise.resolve([]),
-    liked.length < TASTE_TARGET ? catalog.discover({ type, genre: null, sort: "popular" }, 40) : Promise.resolve([]),
+    liked.length < TASTE_TARGET ? catalog.discover({ type, genre: null, sort: "popular" }, 40).then((p) => p.titles) : Promise.resolve([]),
+    catalog.nextSeasons(followed.filter((t) => t.type !== "movie" && ofType(t)).slice(0, 20), today).catch(() => []),
+    catalog.upcoming(type, today, 20).catch(() => []),
   ]);
 
   // What friends rated highly or put on their own wishlist.
@@ -162,10 +207,22 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
     shelves.push({ id: "friends", title: "Piace ai tuoi amici", description: "Votati alto o in wishlist dai tuoi amici.", titles: friendsRow });
   }
 
-  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker]);
+  const comingBack = sortReleases(returning).map((r) => releaseCard(r, today));
+  const upcomingRow = sortReleases(
+    (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id)),
+  ).map((r) => releaseCard(r, today));
+
+  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker, ...upcomingRow.map((r) => r.title)]);
+  // On the day something the viewer follows comes out, leave a notification.
+  const wished = new Set(wishlist.map((w) => w.titleId));
+  const outToday = [...returning, ...coming.filter((r) => wished.has(r.title.id))].filter((r) => r.date === today);
+  if (outToday.length && catalog.complete) after(() => notifyReleases(repo, viewer.id, outToday));
 
   return {
     top,
+    comingBack,
+    upcoming: upcomingRow,
+    realDates: catalog.complete,
     topIsWeekly: catalog.complete,
     shelves,
     picker: liked.length < TASTE_TARGET ? picker : [],
@@ -174,6 +231,36 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
     libraryIds: library.map((e) => e.titleId),
     completeCatalog: catalog.complete,
   };
+}
+
+/** Dated releases first, soonest first; announced-without-date last. */
+function sortReleases(list: Release[]): Release[] {
+  return [...list].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
+}
+
+export function releaseCard(r: Release, today: string): ReleaseCard {
+  const when = r.date ? formatDay(r.date, today) : "senza data";
+  return {
+    title: r.title,
+    date: r.date,
+    badge: r.date ? countdownLabel(r.date, today) : "Annunciata",
+    meta: r.season ? `Stagione ${r.season} · ${when}` : r.date ? `Dal ${when}` : when,
+  };
+}
+
+async function canonicalReleases(repo: Repository, list: Release[]): Promise<Release[]> {
+  const titles = await canonical(repo, list.map((r) => r.title));
+  const byKey = new Map(titles.map((t) => [identity(t), t]));
+  return list.map((r) => ({ ...r, title: byKey.get(identity(r.title)) ?? r.title }));
+}
+
+async function notifyReleases(repo: Repository, userId: string, releases: Release[]) {
+  const existing = new Set((await repo.listNotifications(userId)).map((n) => n.message));
+  for (const r of releases) {
+    const message = r.season ? `Esce oggi la stagione ${r.season} di ${r.title.title}.` : `Esce oggi ${r.title.title}.`;
+    if (existing.has(message)) continue;
+    await repo.createNotification({ userId, kind: "system", message, href: `/title/${r.title.id}`, at: new Date().toISOString() });
+  }
 }
 
 const identity = (t: Pick<Title, "title" | "year">) => `${searchKey(t.title)}|${t.year}`;

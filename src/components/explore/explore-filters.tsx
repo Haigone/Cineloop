@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LoaderCircle, Search, X } from "lucide-react";
 import { GENRES } from "@/domain/genres";
+import { BROWSABLE_PROVIDERS, PROVIDERS } from "@/domain/providers";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 
@@ -24,7 +25,7 @@ const SORTS = [
  * Search and filters for Esplora. State lives in the URL, so results are
  * server-rendered, shareable and survive a reload; typing is debounced.
  */
-export function ExploreFilters({ q, type, genre, sort }: { q: string; type: string; genre: string; sort: string }) {
+export function ExploreFilters({ q, type, genre, provider, sort }: { q: string; type: string; genre: string; provider: string; sort: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -104,6 +105,14 @@ export function ExploreFilters({ q, type, genre, sort }: { q: string; type: stri
           options={TYPES.map((t) => ({ ...t }))}
         />
         <div className="flex flex-wrap items-center gap-3">
+          <Select label="Su" value={provider} onChange={(e) => apply({ on: e.target.value })}>
+            <option value="">Ovunque</option>
+            {BROWSABLE_PROVIDERS.map((id) => (
+              <option key={id} value={id}>
+                {PROVIDERS[id].name}
+              </option>
+            ))}
+          </Select>
           <Select label="Genere" value={genre} onChange={(e) => apply({ genre: e.target.value })}>
             <option value="">Tutti</option>
             {GENRES.map((g) => (

@@ -66,6 +66,13 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
 
 export const PROVIDER_LIST: Provider[] = Object.values(PROVIDERS);
 
+/**
+ * Services Esplora can filter by ("what's included with my subscription in
+ * Italy"). Availability comes from TMDB/JustWatch, which only tracks
+ * official services.
+ */
+export const BROWSABLE_PROVIDERS: ProviderId[] = ["netflix", "prime-video", "disney-plus", "apple-tv", "now", "crunchyroll"];
+
 export function getProvider(id: ProviderId | null | undefined): Provider | null {
   return id ? (PROVIDERS[id] ?? null) : null;
 }

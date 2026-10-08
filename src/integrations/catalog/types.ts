@@ -1,4 +1,4 @@
-import type { Genre, MediaType, Title } from "@/domain/types";
+import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
 
 export type CatalogSort = "popular" | "top" | "recent";
 
@@ -6,8 +6,16 @@ export interface DiscoverQuery {
   type: MediaType | "all";
   genre: Genre | null;
   sort: CatalogSort;
+  /** Only titles included in this service's subscription in Italy. */
+  provider?: ProviderId | null;
   /** 1-based. Sources that cannot paginate return an empty page after the first. */
   page?: number;
+}
+
+export interface DiscoverPage {
+  titles: Title[];
+  /** True when the source has another page after this one. */
+  hasMore: boolean;
 }
 
 /**
@@ -23,8 +31,8 @@ export interface CatalogService {
   getTitle(id: string): Promise<Title | null>;
   /** What people are watching now: the opening row of Esplora. */
   trending(limit: number): Promise<Title[]>;
-  /** Browse by type, genre and order. */
-  discover(query: DiscoverQuery, limit: number): Promise<Title[]>;
+  /** Browse by type, genre, service and order. */
+  discover(query: DiscoverQuery, limit: number): Promise<DiscoverPage>;
   /** Titles similar to ones the viewer already likes. Seeds can come from any source. */
   similarTo(seeds: readonly Title[], limit: number): Promise<Title[]>;
   /**
@@ -32,4 +40,12 @@ export interface CatalogService {
    * on TMDB), matched by name, type and year. Used for artwork and similarity.
    */
   match(title: Title): Promise<Title | null>;
+  /**
+   * For series the viewer has watched: the next season, when one is announced
+   * (with its first air date, or a null date when it has none yet).
+   * `today` is YYYY-MM-DD in Italy.
+   */
+  nextSeasons(series: readonly Title[], today: string): Promise<Release[]>;
+  /** Films and new series coming out after `today`, soonest first. */
+  upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]>;
 }
