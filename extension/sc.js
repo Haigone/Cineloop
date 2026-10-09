@@ -32,6 +32,36 @@ export async function hasStreamingAccess() {
   }
 }
 
+/** Recognize the domain only from a watch URL the user has opened themselves. */
+export function streamingOriginFromWatchUrl(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\\./, "");
+    const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host);
+    const validPath = /^\\/(?:[a-z]{2}\\/)?watch\\/\\d{1,9}(?:\\/|$)/i.test(url.pathname) ||
+      /^\\/titles?\\/\\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
+    if (url.protocol !== "https:" || url.username || url.password || url.origin === DIRECTORY_ORIGIN || !validHost || !validPath) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remember a changed origin observed in the user's own StreamingCommunity watch
+ * tab. This does not visit or crawl any replacement domain. Chrome still
+ * requires the user to grant host access before page contents can be read.
+ */
+export async function rememberObservedStreamingUrl(value) {
+  const origin = streamingOriginFromWatchUrl(value);
+  if (!origin) return null;
+  const current = await getResolved();
+  if (current?.origin !== origin) {
+    await chrome.storage.local.set({ [RESOLVED_KEY]: { origin, at: Date.now() } });
+  }
+  return origin;
+}
+
 /**
  * Apre la directory e segue il pulsante "StreamingCommunity". Senza permesso
  * per la directory, o se la directory e' irraggiungibile, torna l'ultimo
