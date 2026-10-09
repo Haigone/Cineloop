@@ -253,12 +253,20 @@ async function togglePermission(provider) {
     else await chrome.permissions.request({ origins: AU_ORIGINS });
   } else {
     const resolved = await getResolved();
-    const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
-    if (await hasDirectoryAccess() || await hasStreamingAccess()) {
+    const directory = await hasDirectoryAccess();
+    const streaming = await hasStreamingAccess();
+    if (streaming) {
+      const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [\`${resolved.origin}/*\`] : [])])];
       await chrome.permissions.remove({ origins });
+    } else if (directory && resolved?.origin) {
+      // A changed origin is detected from the watch tab. Chrome requires an
+      // explicit user gesture to grant this new host before reading the player.
+      await chrome.permissions.request({ origins: [\`${resolved.origin}/*\`] });
+    } else if (directory) {
+      const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
+      if (origin) await chrome.permissions.request({ origins: [\`${origin}/*\`] });
     } else {
-      const granted = await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
-      if (granted) await renderGrant();
+      await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
     }
   }
   await render();
