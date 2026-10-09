@@ -37,14 +37,14 @@ function streamingCommunityPlaceholderUrl(
     const params = new URLSearchParams({
       provider: "streamingcommunity",
       watching: "true",
-      id: match[1],
+      id: match[1]!,
       minute: String(Math.max(0, Math.floor(fraction * runtimeMinutes))),
     });
     const episodeId = source.searchParams.get("e");
     if (episodeId && /^\d{1,12}$/.test(episodeId)) params.set("e", episodeId);
     if (season !== null) params.set("season", String(season));
     if (episode !== null) params.set("episode", String(episode));
-    return \`https://cineloop.freedev.app/title/\${encodeURIComponent(titleId)}?\${params.toString()}\`;
+    return `https://cineloop.freedev.app/title/${encodeURIComponent(titleId)}?${params.toString()}`;
   } catch {
     return null;
   }
