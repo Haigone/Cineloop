@@ -76,6 +76,10 @@ export class PostgresRepository implements Repository {
 
   // Users -------------------------------------------------------------------
 
+  async listUsers() {
+    return (await this.db.select().from(schema.users)).map(toUser);
+  }
+
   async getUserById(id: string) {
     const [row] = await this.db.select().from(schema.users).where(eq(schema.users.id, id));
     return row ? toUser(row) : null;
