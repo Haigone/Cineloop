@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryEntry, Title } from "@/domain/types";
-import { toContinueItem } from "@/server/services/shared";
+import { animeUnityResumeUrl, toContinueItem } from "@/server/services/shared";
 
 const got = (providers: Title["providers"]): Title => ({
   id: "tmdb-tv-1399",
@@ -36,5 +36,18 @@ describe("Continua for progress set by hand", () => {
   it("with no service known, opens the title's page to see where it streams", () => {
     const item = toContinueItem(byHand, got([]))!;
     expect(item).toMatchObject({ providerName: null, continueUrl: "/title/tmdb-tv-1399", continueOnSite: true });
+  });
+
+  it("adds a one-shot resume fraction for a saved Anime Unity page", () => {
+    const entry = { ...byHand, progress: { ...byHand.progress!, providerId: "animeunity" as const, url: "https://www.animeunity.so/anime/123-example" } };
+    const item = toContinueItem(entry, got([]))!;
+    expect(item.continueUrl).toBe("https://www.animeunity.so/anime/123-example?cineloopResume=0.4");
+    expect(item.providerName).toBe("Anime Unity");
+    expect(item.continueOnSite).toBe(false);
+  });
+
+  it("only adds the resume hint to Anime Unity HTTPS URLs", () => {
+    expect(animeUnityResumeUrl("https://www.animeunity.so/anime/123", 1.4)).toBe("https://www.animeunity.so/anime/123?cineloopResume=1");
+    expect(animeUnityResumeUrl("https://evil.example/anime/123", 0.5)).toBe("https://evil.example/anime/123");
   });
 });
