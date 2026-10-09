@@ -8,8 +8,10 @@ import type { ProviderId } from "@/domain/types";
  * or discover replacement domains automatically.
  */
 function streamingCommunitySearchUrl(encodedTitle: string): string | null {
-  const configured = process.env.STREAMINGCOMMUNITY_BASE_URL?.trim();
-  const base = configured || "https://www.streaming-community.how";
+  // The .how site is not the viewing/search destination. Require the actual
+  // current StreamingCommunity origin to be configured explicitly.
+  const base = process.env.STREAMINGCOMMUNITY_BASE_URL?.trim();
+  if (!base) return null;
   try {
     const url = new URL(base);
     if (url.protocol !== "https:" || url.username || url.password) return null;
