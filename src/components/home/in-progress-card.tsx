@@ -15,7 +15,7 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
   const ep = episodeLabel(progress, "short");
   const fraction = seriesFraction ?? progress.fraction;
   const label = continueOnSite
-    ? [`${title.title}: dove guardarlo`, episodeLabel(progress, "long")].filter(Boolean).join(", ")
+    ? [`${title.title}: ${progress.providerId === "streamingcommunity" ? "continua a guardare" : "dove guardarlo"}`, episodeLabel(progress, "long")].filter(Boolean).join(", ")
     : [`Continua ${title.title}`, providerName && `su ${providerName}`, episodeLabel(progress, "long")].filter(Boolean).join(", ");
   // The service in a new tab; with no service known, the title's own page here.
   const Wrapper = continueOnSite ? Link : "a";
