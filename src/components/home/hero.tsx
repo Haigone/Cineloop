@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Play } from "lucide-react";
+import { MapPin, Play } from "lucide-react";
 import type { ContinueItem } from "@/server/services/shared";
 import { episodeLabel, formatDuration, percent } from "@/lib/format";
-import { ButtonAnchor } from "@/components/ui/button";
+import { ButtonAnchor, ButtonLink } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProviderBadge } from "@/components/ui/provider-badge";
 import { KeyArt } from "@/components/media/key-art";
@@ -16,7 +16,7 @@ import { ProgressEditor } from "@/components/title/progress-editor";
  * not play anything; the primary action hands the user back to the provider.
  */
 export function Hero({ item }: { item: ContinueItem }) {
-  const { title, progress, providerName, continueUrl, live, seriesFraction, seasonEpisodes } = item;
+  const { title, progress, providerName, continueUrl, continueOnSite, live, seriesFraction, seasonEpisodes } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
   const remaining = Math.max(1, Math.round(runtime * (1 - progress.fraction)));
@@ -78,7 +78,12 @@ export function Hero({ item }: { item: ContinueItem }) {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {continueUrl ? (
+          {continueUrl && continueOnSite ? (
+            // No service known for this title: its page says where it streams.
+            <ButtonLink href={continueUrl} size="lg" icon={<MapPin aria-hidden className="size-4" />}>
+              Dove guardarlo
+            </ButtonLink>
+          ) : continueUrl ? (
             <ButtonAnchor href={continueUrl} size="lg" icon={<Play aria-hidden className="size-4" fill="currentColor" />}>
               {providerName ? `Continua su ${providerName}` : "Continua"}
             </ButtonAnchor>

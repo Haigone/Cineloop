@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Play } from "lucide-react";
 import type { ContinueItem } from "@/server/services/shared";
 import { episodeLabel, percent } from "@/lib/format";
@@ -10,20 +11,25 @@ import { KeyArt } from "@/components/media/key-art";
  * you are (episode, or how much of the film) and how far through the series.
  */
 export function InProgressCard({ item }: { item: ContinueItem }) {
-  const { title, progress, continueUrl, providerName, seriesFraction, live } = item;
+  const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live } = item;
   const ep = episodeLabel(progress, "short");
   const fraction = seriesFraction ?? progress.fraction;
-  const label = [`Continua ${title.title}`, providerName && `su ${providerName}`, episodeLabel(progress, "long")].filter(Boolean).join(", ");
-  const Wrapper = continueUrl ? "a" : "div";
+  const label = continueOnSite
+    ? [`${title.title}: dove guardarlo`, episodeLabel(progress, "long")].filter(Boolean).join(", ")
+    : [`Continua ${title.title}`, providerName && `su ${providerName}`, episodeLabel(progress, "long")].filter(Boolean).join(", ");
+  // The service in a new tab; with no service known, the title's own page here.
+  const Wrapper = continueOnSite ? Link : "a";
 
   return (
     <Wrapper
-      {...(continueUrl ? { href: continueUrl, target: "_blank", rel: "noopener noreferrer", "aria-label": label } : {})}
+      href={continueUrl ?? `/title/${title.id}`}
+      aria-label={label}
+      {...(continueOnSite ? {} : { target: "_blank", rel: "noopener noreferrer" })}
       className="group/card flex items-center gap-3 rounded-lg border border-line bg-surface p-2 pr-3 transition-colors hover:border-line-strong hover:bg-surface-2"
     >
       <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-surface-2">
         <KeyArt title={title} variant="backdrop" className="absolute inset-0" />
-        {continueUrl && (
+        {!continueOnSite && (
           <span className="absolute inset-0 grid place-items-center bg-black/45 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
             <Play aria-hidden className="size-4 text-white" fill="currentColor" />
           </span>

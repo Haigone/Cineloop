@@ -39,7 +39,12 @@ export interface ContinueItem {
   title: Title;
   progress: WatchProgress;
   providerName: string | null;
+  /**
+   * Where "Continua" goes: the service (new tab), or, when no service is known
+   * for the title, its CineLoop page with "Dove guardarlo" (same tab).
+   */
   continueUrl: string | null;
+  continueOnSite: boolean;
   /** True when the extension reports it playing right now. */
   live: boolean;
   /** For series: how far through the whole series (current episode included), 0–1. */
@@ -51,11 +56,14 @@ export interface ContinueItem {
 
 export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem | null {
   if (!entry.progress) return null;
-  const provider = getProvider(entry.progress.providerId);
-  const continueUrl = entry.progress.providerId
+  // Progress set by hand has no service: use one the title streams on, if any.
+  const providerId =
+    entry.progress.providerId ?? title.providers.find((id) => getProvider(id)?.homepage) ?? null;
+  const provider = getProvider(providerId);
+  const providerUrl = providerId
     ? resolveContinueUrl(
         {
-          providerId: entry.progress.providerId,
+          providerId,
           externalId: null,
           title: title.title,
           type: title.type,
@@ -63,15 +71,17 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
           episode: entry.progress.episode,
           titleId: title.id,
         },
-        entry.progress.url,
+        entry.progress.providerId === providerId ? entry.progress.url : null,
       )
     : null;
+  const continueUrl = providerUrl ?? `/title/${title.id}`;
   const season = title.type === "movie" ? undefined : title.seasons.find((s) => s.number === entry.progress!.season);
   return {
     title,
     progress: entry.progress,
-    providerName: provider?.name ?? null,
+    providerName: providerUrl ? (provider?.name ?? null) : null,
     continueUrl,
+    continueOnSite: !providerUrl,
     live: false,
     seriesFraction: seriesProgress(title, entry.progress),
     seasonEpisodes: season?.episodeCount ?? null,
