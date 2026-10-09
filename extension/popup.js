@@ -238,7 +238,7 @@ async function renderProviderPermissions() {
   };
   setButton("manage-netflix", netflix, "Netflix");
   setButton("manage-au", anime, "AnimeUnity");
-  setButton("manage-sc", sc, "StreamingCommunity");
+  setButton("manage-sc", streaming, "StreamingCommunity");
   $("manage-sc-status").textContent = sc
     ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
     : "Disattivato. Puoi attivarlo quando vuoi.";
