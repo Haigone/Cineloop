@@ -194,6 +194,44 @@ export async function saveManualProgress(
   }, "Non siamo riusciti a salvare dove sei arrivato.");
 }
 
+/** The user chooses a service on the title page before playback detection arrives. */
+export async function chooseWatchProvider(id: string, providerId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  const parsedProvider = z.enum(["netflix", "animeunity"]).safeParse(providerId);
+  const title = parsedId.success ? await cacheRemoteTitle(parsedId.data) : null;
+  if (!parsedId.success || !parsedProvider.success || !title) {
+    return { ok: false, error: "Scelta del servizio non valida." };
+  }
+  if (parsedProvider.data === "animeunity" && title.type !== "anime" && !("partOf" in title && title.partOf)) {
+    return { ok: false, error: "Anime Unity è disponibile solo per i titoli anime." };
+  }
+  const { providerSearchUrl } = await import("@/integrations/providers/search-links");
+  const searchUrl = providerSearchUrl(parsedProvider.data, title.title);
+  if (!searchUrl) return { ok: false, error: "Non è disponibile un link di ricerca per questo servizio." };
+
+  return run(async () => {
+    const repo = getRepository();
+    const entry = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id);
+    const previous = entry?.progress ?? null;
+    const now = new Date().toISOString();
+    await repo.setLibraryStatus(user.id, title.id, "watching");
+    await repo.removeFromWishlist(user.id, title.id);
+    await repo.saveProgress(user.id, {
+      titleId: title.id,
+      providerId: parsedProvider.data,
+      season: previous?.season ?? null,
+      episode: previous?.episode ?? null,
+      fraction: previous?.fraction ?? 0,
+      // Keep a previously observed page only when the provider is unchanged.
+      // Otherwise point to a provider-side search until the extension reports the exact page.
+      url: previous?.providerId === parsedProvider.data && previous.url ? previous.url : searchUrl,
+      updatedAt: now,
+    });
+    await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: now, season: previous?.season ?? null, episode: previous?.episode ?? null, rating: null });
+  }, "Non siamo riusciti a salvare il servizio scelto.");
+}
+
 const podiumSchema = z.array(titleId).max(3);
 
 /** The viewer's top 3 for Classifiche, first place first. Only titles they have watched. */
