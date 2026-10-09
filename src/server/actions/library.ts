@@ -111,6 +111,28 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
   }, "Non siamo riusciti a salvare il voto.");
 }
 
+/** Library card menu: takes the title out of the library, progress and rating included. */
+export async function removeFromLibrary(id: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  if (!parsedId.success) return { ok: false, error: "Richiesta non valida." };
+  return run(() => getRepository().removeFromLibrary(user.id, parsedId.data), "Non siamo riusciti a rimuovere il titolo.");
+}
+
+/** Library card menu: seen to the end (a series up to its latest season out), then Home asks for a rating. */
+export async function finishTitle(id: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  const title = parsedId.success ? await cacheRemoteTitle(parsedId.data) : null;
+  if (!title) return { ok: false, error: "Richiesta non valida." };
+  return run(async () => {
+    const repo = getRepository();
+    await repo.markFinished(user.id, title.id, title.type === "movie" ? null : (airedSeasons(title, italianDay()).at(-1)?.number ?? null));
+    await repo.removeFromWishlist(user.id, title.id);
+    await record(user.id, "completed", title.id);
+  }, "Non siamo riusciti a segnarlo come visto.");
+}
+
 /** "Non ora" on Home's rating prompt. */
 export async function dismissRatingPrompt(id: string): Promise<ActionResult> {
   const user = await getCurrentUser();

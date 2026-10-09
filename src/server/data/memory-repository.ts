@@ -222,6 +222,10 @@ export class MemoryRepository implements Repository {
     else this.library.push({ userId, titleId, addedAt: now, rating: null, askRating: true, ...set });
   }
 
+  async removeFromLibrary(userId: string, titleId: string) {
+    this.library = this.library.filter((e) => !(e.userId === userId && e.titleId === titleId));
+  }
+
   async dismissRatingPrompt(userId: string, titleId: string) {
     const entry = this.findEntry(userId, titleId);
     if (entry) entry.askRating = false;

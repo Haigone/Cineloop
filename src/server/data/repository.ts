@@ -56,6 +56,8 @@ export interface Repository {
   // Library & progress
   listLibrary(userId: string): Promise<LibraryEntry[]>;
   setLibraryStatus(userId: string, titleId: string, status: WatchStatus): Promise<void>;
+  /** Takes a title out of the library, with its progress and rating. */
+  removeFromLibrary(userId: string, titleId: string): Promise<void>;
   /** Marks a series as seen up to the end of a season (status "completed", no progress). */
   markSeenThrough(userId: string, titleId: string, season: number): Promise<void>;
   /** Watched to the end: seen, up to `seenThrough` for a series, and a rating to ask for if there is none. */

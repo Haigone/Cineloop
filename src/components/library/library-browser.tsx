@@ -14,6 +14,7 @@ import {
   type LibraryTypeFilter,
 } from "@/domain/library";
 import { sectionOf } from "@/domain/types";
+import { EntryMenu } from "./entry-menu";
 import { episodeLabel, percent } from "@/lib/format";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -160,10 +161,15 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.2 }}
+                // An open menu stays above the cards after it.
+                className="relative focus-within:z-20"
               >
+                <div className="absolute top-2 right-2 z-10">
+                  <EntryMenu title={title} entry={entry} />
+                </div>
                 <TitleCard
                   title={title}
-                  className="w-full"
+                  className="w-full sm:w-full"
                   wishlisted={wishlist.has(title.id)}
                   showWishlist={false}
                   badge={

@@ -185,6 +185,10 @@ export class PostgresRepository implements Repository {
       });
   }
 
+  async removeFromLibrary(userId: string, titleId: string) {
+    await this.db.delete(schema.libraryEntries).where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+  }
+
   async dismissRatingPrompt(userId: string, titleId: string) {
     await this.db
       .update(schema.libraryEntries)
