@@ -25,8 +25,16 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const day = WEEKDAYS[now.getUTCDay()];
-  const date = now.toISOString().slice(0, 10);
+  const italianParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: string) => italianParts.find((item) => item.type === type)?.value ?? "";
+  const date = `${part("year")}-${part("month")}-${part("day")}`;
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Rome", weekday: "long" }).format(now).toLowerCase();
+  const day = WEEKDAYS.includes(weekday) ? weekday : WEEKDAYS[now.getUTCDay()];
   const response = await fetch(`https://api.jikan.moe/v4/schedules?filter=${day}&sfw`, {
     headers: { Accept: "application/json", "User-Agent": "CineLoop/1.0 (anime release notifications)" },
     next: { revalidate: 0 },
@@ -64,7 +72,7 @@ export async function GET(request: Request) {
         userId: user.id,
         kind: "system",
         message,
-        href: `/title/${encodeURIComponent(title.id)}`,
+        href: null,
         at: now.toISOString(),
       });
       created++;
