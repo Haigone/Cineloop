@@ -19,7 +19,7 @@
   const titleIdNow = () => /\/titles?\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
 
   /** La serie che questa pagina sta mostrando, finche' non cambia pagina. */
-  let known = { watchId: null, title: "", season: null, episode: null };
+  let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
   let lastSent = "";
 
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
@@ -96,7 +96,7 @@
     if (!alive()) return stop();
     const id = titleIdNow();
     if (!id) return;
-    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null };
+    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };\n    const urlEpisodeId = new URL(location.href).searchParams.get("e");\n    known.episodeId = urlEpisodeId && /^\\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
       if (found.title && !known.title) known.title = found.title;
