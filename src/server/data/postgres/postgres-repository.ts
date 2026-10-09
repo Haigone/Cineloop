@@ -163,6 +163,15 @@ export class PostgresRepository implements Repository {
       });
   }
 
+  async markSeenThrough(userId: string, titleId: string, season: number) {
+    const now = new Date();
+    const set = { status: "completed" as const, progress: null, seenThrough: season, lastWatchedAt: now };
+    await this.db
+      .insert(schema.libraryEntries)
+      .values({ userId, titleId, addedAt: now, ...set })
+      .onConflictDoUpdate({ target: [schema.libraryEntries.userId, schema.libraryEntries.titleId], set });
+  }
+
   async setRating(userId: string, titleId: string, value: RatingValue | null) {
     if (value === null) {
       await this.db
@@ -586,6 +595,7 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     lastWatchedAt: isoOrNull(r.lastWatchedAt),
     rating: r.rating as RatingValue | null,
     progress: r.progress,
+    seenThrough: r.seenThrough,
   };
 }
 

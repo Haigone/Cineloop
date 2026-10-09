@@ -60,7 +60,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               <h2 id="progress-h" className="text-[15px] font-semibold">
                 Dove sei arrivato
               </h2>
-              <ProgressEditor title={title} progress={entry?.progress ?? null} />
+              <ProgressEditor title={title} progress={entry?.progress ?? null} seenThrough={entry?.seenThrough ?? null} />
             </div>
             {entry?.progress ? (
               <>
@@ -68,6 +68,8 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 <ProgressBar className="mt-3" value={entry.progress.fraction} label={`Avanzamento di ${title.title}`} />
                 <p className="mt-1.5 text-xs text-fg-3 tabular">{percent(entry.progress.fraction)} visto</p>
               </>
+            ) : entry?.status === "completed" && entry.seenThrough != null ? (
+              <p className="mt-1 text-sm text-fg-2">Vista fino alla stagione {entry.seenThrough}.</p>
             ) : (
               <p className="mt-1 text-sm text-fg-2">Lo guardi fuori da Netflix? Segna qui il punto, lo ritrovi in Home su ogni dispositivo.</p>
             )}

@@ -13,23 +13,50 @@ import { useToast } from "@/components/ui/toast";
  * "Dove sei arrivato", set by hand: for titles watched where CineLoop cannot
  * follow along (TV, cinema, another service). Season, episode and minute.
  */
-export function ProgressEditor({ title, progress, size = "sm" }: { title: Title; progress: WatchProgress | null; size?: "sm" | "lg" }) {
+export function ProgressEditor({
+  title,
+  progress,
+  seenThrough = null,
+  size = "sm",
+  label = "A che punto sei?",
+}: {
+  title: Title;
+  progress: WatchProgress | null;
+  /** Set when the series is marked as seen up to a season. */
+  seenThrough?: number | null;
+  size?: "sm" | "lg";
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button variant="secondary" size={size} icon={<Pencil aria-hidden className={size === "lg" ? "size-4" : "size-3.5"} />} onClick={() => setOpen(true)}>
-        A che punto sei?
+        {label}
       </Button>
-      <ProgressDialog key={String(open)} open={open} onClose={() => setOpen(false)} title={title} progress={progress} />
+      <ProgressDialog key={String(open)} open={open} onClose={() => setOpen(false)} title={title} progress={progress} seenThrough={seenThrough} />
     </>
   );
 }
 
-function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onClose: () => void; title: Title; progress: WatchProgress | null }) {
+function ProgressDialog({
+  open,
+  onClose,
+  title,
+  progress,
+  seenThrough,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: Title;
+  progress: WatchProgress | null;
+  seenThrough: number | null;
+}) {
   const isMovie = title.type === "movie";
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 0;
   const [seasons, setSeasons] = useState<SeasonSummary[]>(title.type === "movie" ? [] : title.seasons);
-  const [season, setSeason] = useState(progress?.season ?? seasons[0]?.number ?? 1);
+  const [season, setSeason] = useState(progress?.season ?? seenThrough ?? seasons[0]?.number ?? 1);
+  // Watching it now, or had finished it (up to a season) and is waiting for more.
+  const [finished, setFinished] = useState(!progress && seenThrough !== null);
   // A series recognised from a search may not have its seasons yet: ask the catalogue.
   const [loading, setLoading] = useState(open && !isMovie && seasons.length === 0);
   useEffect(() => {
@@ -57,7 +84,7 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
 
   function save() {
     startTransition(async () => {
-      const res = await saveManualProgress(title.id, { season: isMovie ? null : season, episode: isMovie ? null : episode, minute });
+      const res = await saveManualProgress(title.id, { season: isMovie ? null : season, episode: isMovie ? null : episode, minute, finished: !isMovie && finished });
       if (res.ok) {
         toast.show("Progressi salvati", { tone: "success" });
         onClose();
@@ -70,7 +97,7 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
       open={open}
       onClose={onClose}
       title="A che punto sei?"
-      description={isMovie ? "Il minuto in cui ti sei fermato." : "Stagione, episodio e minuto in cui ti sei fermato."}
+      description={isMovie ? "Il minuto in cui ti sei fermato." : finished ? "L'ultima stagione che hai visto: quando ne esce una nuova la trovi in Novità." : "Stagione, episodio e minuto in cui ti sei fermato."}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -82,12 +109,34 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
         </>
       }
     >
+      {!isMovie && (
+        <fieldset className="mb-4">
+          <legend className="sr-only">La stai guardando?</legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {[
+              { value: false, label: "La sto guardando adesso", hint: "Va in Home tra quelle da continuare" },
+              { value: true, label: "L'avevo finita", hint: "Aspettavo le stagioni nuove" },
+            ].map((o) => (
+              <label
+                key={String(o.value)}
+                className="flex cursor-pointer items-start gap-2.5 rounded-md border border-line-strong px-3 py-2.5 has-checked:border-white/40 has-checked:bg-white/[0.05]"
+              >
+                <input type="radio" name="progress-mode" className="mt-0.5 accent-[var(--color-accent)]" checked={finished === o.value} onChange={() => setFinished(o.value)} />
+                <span>
+                  <span className="block text-sm text-fg">{o.label}</span>
+                  <span className="block text-xs text-fg-3">{o.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
       <div className="flex flex-wrap items-end gap-3">
         {!isMovie && loading && <p className="text-sm text-fg-3">Carico le stagioni…</p>}
         {!isMovie && !loading && seasons.length > 0 && (
           <>
             <Select
-              label="Stagione"
+              label={finished ? "Vista fino alla stagione" : "Stagione"}
               value={String(season)}
               onChange={(e) => {
                 setSeason(Number(e.target.value));
@@ -100,22 +149,24 @@ function ProgressDialog({ open, onClose, title, progress }: { open: boolean; onC
                 </option>
               ))}
             </Select>
-            <Select label="Episodio" value={String(Math.min(episode, episodes))} onChange={(e) => setEpisode(Number(e.target.value))}>
-              {Array.from({ length: episodes }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                </option>
-              ))}
-            </Select>
+            {!finished && (
+              <Select label="Episodio" value={String(Math.min(episode, episodes))} onChange={(e) => setEpisode(Number(e.target.value))}>
+                {Array.from({ length: episodes }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1}
+                  </option>
+                ))}
+              </Select>
+            )}
           </>
         )}
         {!isMovie && !loading && seasons.length === 0 && (
           <>
-            <NumberField label="Stagione" value={season} min={1} max={200} onChange={setSeason} />
-            <NumberField label="Episodio" value={episode} min={1} max={5000} onChange={setEpisode} />
+            <NumberField label={finished ? "Vista fino alla stagione" : "Stagione"} value={season} min={1} max={200} onChange={setSeason} />
+            {!finished && <NumberField label="Episodio" value={episode} min={1} max={5000} onChange={setEpisode} />}
           </>
         )}
-        <NumberField label="Minuto" value={minute} min={0} max={runtime || 1000} onChange={setMinute} suffix={runtime > 0 ? `di ${runtime}` : undefined} />
+        {(isMovie || !finished) && <NumberField label="Minuto" value={minute} min={0} max={runtime || 1000} onChange={setMinute} suffix={runtime > 0 ? `di ${runtime}` : undefined} />}
       </div>
     </Modal>
   );

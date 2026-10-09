@@ -3,6 +3,8 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { ActivityKind, RatingValue, SeasonSummary } from "@/domain/types";
+import { airedSeasons } from "@/domain/library";
+import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
@@ -70,7 +72,11 @@ export async function setStatus(id: string, status: string): Promise<ActionResul
     const repo = getRepository();
     // "Da vedere" no longer exists in the library: a plan goes to the wishlist.
     if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, parsedId.data);
-    await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
+    const title = await cacheRemoteTitle(parsedId.data);
+    const latest = title ? airedSeasons(title, italianDay()).at(-1) : undefined;
+    // A series marked as seen is seen up to its latest season: a later one will be "Novità".
+    if (parsedStatus.data === "completed" && latest) await repo.markSeenThrough(user.id, parsedId.data, latest.number);
+    else await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
       await repo.removeFromWishlist(user.id, parsedId.data);
@@ -107,18 +113,34 @@ const manualProgressSchema = z.object({
   season: z.number().int().min(0).max(200).nullable(),
   episode: z.number().int().min(1).max(5000).nullable(),
   minute: z.number().int().min(0).max(1000),
+  finished: z.boolean().optional(),
 });
 
 /**
  * The viewer says where they are in a title they watch somewhere CineLoop
  * cannot follow (TV, cinema, another service): season, episode and minute.
  */
-export async function saveManualProgress(id: string, input: { season: number | null; episode: number | null; minute: number }): Promise<ActionResult> {
+export async function saveManualProgress(
+  id: string,
+  input: { season: number | null; episode: number | null; minute: number; finished?: boolean },
+): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
   const parsed = manualProgressSchema.safeParse(input);
   const title = parsedId.success ? await cacheRemoteTitle(parsedId.data) : null;
   if (!parsedId.success || !parsed.success || !title) return { ok: false, error: "Dati non validi." };
+  // "I had finished it, waiting for the next season": seen up to the end of that season.
+  if (parsed.data.finished && title.type !== "movie") {
+    const season = parsed.data.season;
+    if (season === null || (title.seasons.length > 0 && !title.seasons.some((s) => s.number === season))) {
+      return { ok: false, error: "Scegli una stagione che esiste." };
+    }
+    return run(async () => {
+      const repo = getRepository();
+      await repo.markSeenThrough(user.id, title.id, season);
+      await repo.removeFromWishlist(user.id, title.id);
+    }, "Non siamo riusciti a salvare dove sei arrivato.");
+  }
   const { minute } = parsed.data;
   let { season, episode } = parsed.data;
   if (title.type === "movie") {

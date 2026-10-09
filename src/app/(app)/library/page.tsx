@@ -5,6 +5,7 @@ import { getLibraryView } from "@/server/services/library";
 import { LibraryBrowser } from "@/components/library/library-browser";
 import { SectionHeader } from "@/components/ui/section-header";
 import { GridSkeleton } from "@/components/media/grid-skeleton";
+import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
 
 export const metadata: Metadata = { title: "La mia libreria" };
 
@@ -30,7 +31,14 @@ export default function LibraryPage({ searchParams }: PageProps<"/library">) {
 async function LibraryContent({ searchParams }: { searchParams: PageProps<"/library">["searchParams"] }) {
   const [params, view] = await Promise.all([searchParams, getLibraryView()]);
   return (
-    <LibraryBrowser
+    <>
+      {view.newSeasons.length > 0 && (
+        <section aria-labelledby="library-new-seasons" className="mb-10">
+          <SectionHeader id="library-new-seasons" title="Novità" description="Serie che avevi finito e che hanno una stagione nuova. Aprile e scegli “A che punto sei?” quando ricominci." />
+          <NewSeasonsRail items={view.newSeasons} wishlistIds={new Set(view.wishlistIds)} />
+        </section>
+      )}
+      <LibraryBrowser
       items={view.items}
       wishlistIds={view.wishlistIds}
       initial={{
@@ -39,5 +47,6 @@ async function LibraryContent({ searchParams }: { searchParams: PageProps<"/libr
         sort: pick(params.sort, SORTS, "recent"),
       }}
     />
+    </>
   );
 }

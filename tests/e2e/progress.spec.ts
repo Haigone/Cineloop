@@ -21,3 +21,30 @@ test("set by hand where you are in a series and find it on Home", async ({ page 
   await hero.getByRole("button", { name: "A che punto sei?" }).click();
   await expect(page.getByRole("dialog", { name: "A che punto sei?" }).getByLabel("Episodio")).toHaveValue("3");
 });
+
+test("a series finished before a new season shows in Novità, not in what you are watching", async ({ page }) => {
+  await signIn(page, "/home");
+  const novita = page.getByRole("region", { name: "Novità: serie con stagioni nuove" });
+  await expect(novita.getByText("Stagione 2 nuova")).toBeVisible();
+  await expect(novita.getByRole("link", { name: "Arcane" })).toBeVisible();
+
+  // Mark another series as finished up to season 2 of 3.
+  await page.goto("/title/narcos");
+  await page.getByRole("button", { name: "A che punto sei?" }).click();
+  const dialog = page.getByRole("dialog", { name: "A che punto sei?" });
+  await dialog.getByText("L'avevo finita").click();
+  await expect(dialog.getByLabel("Episodio")).toHaveCount(0);
+  await dialog.getByLabel("Vista fino alla stagione").selectOption("2");
+  await dialog.getByRole("button", { name: "Salva" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("Vista fino alla stagione 2.")).toBeVisible();
+
+  await page.goto("/library");
+  const libraryNovita = page.getByRole("region", { name: "Novità: serie con stagioni nuove" });
+  await expect(libraryNovita.getByRole("link", { name: "Narcos" })).toBeVisible();
+  await expect(libraryNovita.getByText("Stagione 3 nuova")).toBeVisible();
+
+  await page.goto("/home");
+  await expect(page.getByRole("region", { name: "Narcos" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Novità: serie con stagioni nuove" }).getByRole("link", { name: "Narcos" })).toBeVisible();
+});

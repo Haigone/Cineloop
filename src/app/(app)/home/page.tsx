@@ -18,6 +18,7 @@ import { PartyTeaser } from "@/components/home/party-teaser";
 import { reasonLabel } from "@/components/home/tonight";
 import { WeekStats } from "@/components/home/week-stats";
 import { TonightQueue } from "@/components/home/tonight-queue";
+import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -94,6 +95,13 @@ async function HomeContent() {
             />
           )}
         </RevealItem>
+
+        {view.newSeasons.length > 0 && (
+          <RevealItem as="section" className="order-4 min-w-0">
+            <SectionHeader title="Novità" description="Serie che avevi finito e che hanno una stagione nuova." href="/library" hrefLabel="Apri libreria" />
+            <NewSeasonsRail items={view.newSeasons} wishlistIds={wishlistIds} />
+          </RevealItem>
+        )}
       </div>
 
       {/* Side column */}

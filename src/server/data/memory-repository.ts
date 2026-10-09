@@ -207,6 +207,13 @@ export class MemoryRepository implements Repository {
     }
   }
 
+  async markSeenThrough(userId: string, titleId: string, season: number) {
+    const now = new Date().toISOString();
+    const entry = this.findEntry(userId, titleId);
+    if (entry) Object.assign(entry, { status: "completed", progress: null, seenThrough: season, lastWatchedAt: now });
+    else this.library.push({ userId, titleId, status: "completed", addedAt: now, lastWatchedAt: now, rating: null, progress: null, seenThrough: season });
+  }
+
   async setRating(userId: string, titleId: string, value: RatingValue | null) {
     const entry = this.findEntry(userId, titleId);
     if (entry) {

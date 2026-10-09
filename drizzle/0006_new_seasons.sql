@@ -1,0 +1,1 @@
+ALTER TABLE "library_entries" ADD COLUMN "seen_through" smallint;

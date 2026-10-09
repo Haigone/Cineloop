@@ -71,6 +71,7 @@ export const libraryEntries = pgTable(
     lastWatchedAt: ts("last_watched_at"),
     rating: smallint("rating"),
     progress: jsonb("progress").$type<WatchProgress>(),
+    seenThrough: smallint("seen_through"),
   },
   (t) => [primaryKey({ columns: [t.userId, t.titleId] }), check("rating_range", sql`${t.rating} is null or ${t.rating} between 1 and 10`)],
 );

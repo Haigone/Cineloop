@@ -31,8 +31,8 @@ interface WatchingSeed {
 interface PersonSeed {
   user: Omit<User, "createdAt">;
   watching: WatchingSeed[];
-  /** [titleId, rating 1–10, days ago completed] */
-  completed: [string, RatingValue, number][];
+  /** [titleId, rating 1–10, days ago completed, for a series: last season seen when not the latest] */
+  completed: ([string, RatingValue, number] | [string, RatingValue, number, number])[];
   planned: string[];
   wishlist: string[];
 }
@@ -63,7 +63,8 @@ const PEOPLE: PersonSeed[] = [
       ["interstellar", 10, 90],
       ["parasite", 9, 120],
       ["the-batman", 7, 150],
-      ["arcane", 10, 33],
+      // Seen before season 2 came out: it shows in "Novità".
+      ["arcane", 10, 33, 1],
       ["whiplash", 9, 200],
       ["spirited-away", 10, 260],
       ["mindhunter", 9, 75],
@@ -171,6 +172,11 @@ function runtimeOf(titleId: string): number {
   return t.type === "movie" ? t.runtimeMinutes : t.episodeRuntimeMinutes;
 }
 
+function lastSeasonOf(titleId: string): number | null {
+  const t = SEED_TITLE_MAP.get(titleId);
+  return t && t.type !== "movie" ? (t.seasons.at(-1)?.number ?? null) : null;
+}
+
 export function buildSeed(now: Date = new Date()): SeedSnapshot {
   const at = (msAgo: number) => new Date(now.getTime() - msAgo).toISOString();
   const users: User[] = [];
@@ -229,7 +235,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
       });
     }
 
-    for (const [titleId, rating, daysAgo] of person.completed) {
+    for (const [titleId, rating, daysAgo, seenThrough] of person.completed) {
       const doneAt = at(daysAgo * DAY + 3 * HOUR);
       library.push({
         userId,
@@ -239,6 +245,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
         lastWatchedAt: doneAt,
         rating,
         progress: null,
+        seenThrough: seenThrough ?? lastSeasonOf(titleId),
       });
       watchEvents.push({ userId, titleId, watchedAt: doneAt, minutes: runtimeOf(titleId), season: null, episode: null });
       activity.push({

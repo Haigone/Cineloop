@@ -1,4 +1,4 @@
-import type { LibraryEntry, MediaType, Title, WatchProgress, WatchStatus } from "./types";
+import type { LibraryEntry, MediaType, SeasonSummary, Title, WatchProgress, WatchStatus } from "./types";
 
 export type LibraryTypeFilter = "all" | MediaType;
 /** No "planned": what to watch next lives in the wishlist. */
@@ -52,4 +52,19 @@ export function seriesProgress(title: Title, progress: Pick<WatchProgress, "seas
   if (total === 0) return null;
   const before = title.seasons.filter((s) => s.number < progress.season!).reduce((n, s) => n + s.episodeCount, 0);
   return Math.min(1, (before + progress.episode - 1 + progress.fraction) / total);
+}
+
+/** Seasons out by `today` (an unknown air date counts as out, an empty season does not). */
+export function airedSeasons(title: Title, today: string): SeasonSummary[] {
+  if (title.type === "movie") return [];
+  return title.seasons.filter((s) => s.episodeCount > 0 && (!s.airDate || s.airDate <= today));
+}
+
+/**
+ * "Novità": the seasons of a series the user had finished that have come out
+ * since. Only for series marked as seen up to a known season.
+ */
+export function newSeasons(entry: LibraryEntry, title: Title, today: string): SeasonSummary[] {
+  if (entry.status !== "completed" || entry.seenThrough == null) return [];
+  return airedSeasons(title, today).filter((s) => s.number > entry.seenThrough!);
 }

@@ -74,6 +74,8 @@ export interface SeasonSummary {
   episodeCount: number;
   /** The season's own name when it has one ("Stone Ocean"), from the catalogue. */
   name?: string;
+  /** First air date (YYYY-MM-DD), when the catalogue knows it. */
+  airDate?: string;
 }
 
 export interface Series extends BaseTitle {
@@ -151,6 +153,11 @@ export interface LibraryEntry {
   lastWatchedAt: string | null;
   rating: RatingValue | null;
   progress: WatchProgress | null;
+  /**
+   * For a series marked as seen: the last season the user had watched. A later
+   * season that has aired since is "Novità".
+   */
+  seenThrough?: number | null;
 }
 
 export interface WishlistItem {

@@ -56,6 +56,8 @@ export interface Repository {
   // Library & progress
   listLibrary(userId: string): Promise<LibraryEntry[]>;
   setLibraryStatus(userId: string, titleId: string, status: WatchStatus): Promise<void>;
+  /** Marks a series as seen up to the end of a season (status "completed", no progress). */
+  markSeenThrough(userId: string, titleId: string, season: number): Promise<void>;
   setRating(userId: string, titleId: string, value: RatingValue | null): Promise<void>;
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;

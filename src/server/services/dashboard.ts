@@ -1,6 +1,8 @@
 import "server-only";
 import { isLive } from "@/domain/presence";
 import type { ActivityEvent, PublicUser, Title } from "@/domain/types";
+import { italianDay } from "@/lib/dates";
+import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
 import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
@@ -30,6 +32,8 @@ export interface HomeView {
   wishlistIds: string[];
   /** The wishlist's titles in the user's order of priority. */
   wishlist: Title[];
+  /** "Novità": finished series with a new season out. */
+  newSeasons: NewSeasonItem[];
 }
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -111,6 +115,7 @@ export async function getHomeView(): Promise<HomeView> {
     },
     wishlistIds: wishlist.map((w) => w.titleId),
     wishlist: wishlist.map((w) => titles.get(w.titleId)).filter((t): t is Title => Boolean(t)),
+    newSeasons: await listNewSeasons(repo, library, titles, italianDay(now)),
   };
 }
 

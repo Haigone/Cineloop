@@ -1,4 +1,6 @@
 import "server-only";
+import { italianDay } from "@/lib/dates";
+import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import type { LibraryItem } from "@/domain/library";
 import type { LibraryEntry, PublicUser, RatingValue, Title, WatchStatus } from "@/domain/types";
 import { getProvider } from "@/domain/providers";
@@ -11,6 +13,7 @@ import { loadFriendBundles } from "./shared";
 export interface LibraryView {
   items: LibraryItem[];
   wishlistIds: string[];
+  newSeasons: NewSeasonItem[];
 }
 
 export async function getLibraryView(): Promise<LibraryView> {
@@ -22,6 +25,7 @@ export async function getLibraryView(): Promise<LibraryView> {
     // Older "planned" entries are plans, which belong to the wishlist, not here.
     items: entries.filter((e) => e.status !== "planned" && titles.has(e.titleId)).map((entry) => ({ entry, title: titles.get(entry.titleId)! })),
     wishlistIds: wishlist.map((w) => w.titleId),
+    newSeasons: await listNewSeasons(repo, entries, titles, italianDay()),
   };
 }
 

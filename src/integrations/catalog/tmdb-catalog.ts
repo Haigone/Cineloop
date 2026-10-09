@@ -464,6 +464,7 @@ export function toTitle(kind: "movie" | "tv", d: TmdbItem): Title {
         number: s.season_number,
         episodeCount: s.episode_count,
         // "Stagione 3" says nothing; a part's own name ("Stone Ocean") does.
+        ...(s.air_date ? { airDate: s.air_date } : {}),
         ...(s.name && !/^(stagione|season|temporada|saison|staffel)\s*\d+$/i.test(s.name.trim()) ? { name: s.name.trim() } : {}),
       })),
     episodeRuntimeMinutes: d.episode_run_time?.[0] ?? 0,
