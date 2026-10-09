@@ -170,7 +170,7 @@ function updateTab(tabId, change) {
 }
 
 /** Per scheda: l'ultimo id serie visto prima della riproduzione e l'ultimo audio. */
-async function remember(tab) {
+async async function remember(tab) {
   if (!tab?.id || !tab.url) return;
   const onNetflix = Boolean(watchId(tab.url) || browseId(tab.url));
   const onAnime = isAnimeUrl(tab.url);
