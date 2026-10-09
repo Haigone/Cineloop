@@ -39,10 +39,7 @@ export interface ContinueItem {
   title: Title;
   progress: WatchProgress;
   providerName: string | null;
-  /**
-   * Where "Continua" goes: the service (new tab), or, when no service is known
-   * for the title, its CineLoop page with "Dove guardarlo" (same tab).
-   */
+  /** Where "Continua" goes: the service, or CineLoop's title page when unknown. */
   continueUrl: string | null;
   continueOnSite: boolean;
   /** True when the extension reports it playing right now. */
@@ -53,14 +50,25 @@ export interface ContinueItem {
   seasonEpisodes: number | null;
 }
 
+/** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
+export function animeUnityResumeUrl(value: string, fraction: number): string {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== "https:" || !(host === "animeunity.so" || host.endsWith(".animeunity.so"))) return value;
+    url.searchParams.set("cineloopResume", String(Math.min(1, Math.max(0, fraction))));
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
 
 export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem | null {
   if (!entry.progress) return null;
-  // Progress set by hand has no service: use one the title streams on, if any.
   const providerId =
     entry.progress.providerId ?? title.providers.find((id) => getProvider(id)?.homepage) ?? null;
   const provider = getProvider(providerId);
-  const providerUrl = providerId
+  const resolvedUrl = providerId
     ? resolveContinueUrl(
         {
           providerId,
@@ -74,6 +82,9 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
         entry.progress.providerId === providerId ? entry.progress.url : null,
       )
     : null;
+  const providerUrl = resolvedUrl && providerId === "animeunity" && entry.progress.providerId === "animeunity"
+    ? animeUnityResumeUrl(resolvedUrl, entry.progress.fraction)
+    : resolvedUrl;
   const continueUrl = providerUrl ?? `/title/${title.id}`;
   const season = title.type === "movie" ? undefined : title.seasons.find((s) => s.number === entry.progress!.season);
   return {
