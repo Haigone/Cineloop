@@ -38,6 +38,7 @@ export interface Repository {
   upsertTitles(titles: readonly Title[]): Promise<void>;
 
   // Users & credentials
+  listUsers(): Promise<User[]>;
   getUserById(id: string): Promise<User | null>;
   getUserByUsername(username: string): Promise<User | null>;
   getCredentialsByEmail(email: string): Promise<{ user: User; passwordHash: string } | null>;
