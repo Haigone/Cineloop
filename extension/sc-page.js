@@ -16,7 +16,7 @@
 
   const SEASON_EPISODE = /(?:\bS|\bSt\.?|\bStagione|\bSeason|\bT|\bTemporada)\s*(\d{1,3})\s*[:,.·-]?\s*(?:E|Ep\.?|Episodio|Episode|Episodi)\s*(\d{1,4})/i;
   const EPISODE_ONLY = /(?:^|\b)(?:E|Ep\.?|Episodio|Episode)\s*(\d{1,4})\b/i;
-  const titleIdNow = () => /\/titles?\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+  const titleIdNow = () => /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname)?.slice(1).find(Boolean) ?? null;
 
   /** La serie che questa pagina sta mostrando, finche' non cambia pagina. */
   let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
@@ -96,7 +96,9 @@
     if (!alive()) return stop();
     const id = titleIdNow();
     if (!id) return;
-    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };\n    const urlEpisodeId = new URL(location.href).searchParams.get("e");\n    known.episodeId = urlEpisodeId && /^\\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
+    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
+    const urlEpisodeId = new URL(location.href).searchParams.get("e");
+    known.episodeId = urlEpisodeId && /^\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
       if (found.title && !known.title) known.title = found.title;
