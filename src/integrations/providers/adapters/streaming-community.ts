@@ -21,7 +21,8 @@ export class StreamingCommunityAdapter extends ObservationAdapter {
 
     const rawTitle = obs.hints?.title?.trim() ||
       obs.documentTitle.replace(/\s*[-|–·]\s*(streaming\s*community.*|streamingcommunity.*)$/i, "").trim();
-    const title = /^(streaming\s*community|film|serie tv)$/i.test(rawTitle) ? "" : rawTitle.slice(0, 200);
+    const cleanedTitle = rawTitle.replace(/^watch\s+/i, "").trim();
+    const title = /^(streaming\s*community|film|serie tv)$/i.test(cleanedTitle) ? "" : cleanedTitle.slice(0, 200);
     const season = Number.isInteger(obs.hints?.season) && (obs.hints?.season ?? 0) > 0
       ? obs.hints!.season!
       : null;
