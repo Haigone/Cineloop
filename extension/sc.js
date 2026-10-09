@@ -43,7 +43,7 @@ export async function resolveStreamingUrl({ force = false } = {}) {
   if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.origin;
   if (!(await hasDirectoryAccess())) return cached?.origin ?? null;
   try {
-    const res = await fetch(`${DIRECTORY_ORIGIN}/`, { credentials: "omit", redirect: "follow" });
+    const res = await fetch(DIRECTORY_ORIGIN + "/", { credentials: "omit", redirect: "follow" });
     if (!res.ok) throw new Error(String(res.status));
     const html = await res.text();
     const anchor = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -52,18 +52,48 @@ export async function resolveStreamingUrl({ force = false } = {}) {
       const label = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (!/streaming\s*community/i.test(label)) continue;
       try {
-        const url = new URL(m[1], DIRECTORY_ORIGIN);
-        if (url.protocol !== "https:" && url.protocol !== "http:") continue;
-        if (url.origin === DIRECTORY_ORIGIN) continue;
-        const resolved = { origin: url.origin, at: Date.now() };
+        const target = new URL(m[1], res.url || DIRECTORY_ORIGIN);
+        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || !/streaming[-]?community/i.test(target.hostname)) continue;
+
+        // The directory button may redirect to another host. Resolve that
+        // redirect with a temporary inactive tab; fetch() would require the
+        // destination host permission before it could follow the redirect.
+        const tab = await chrome.tabs.create({ url: target.href, active: false });
+        let finalUrl = null;
+        try {
+          finalUrl = await new Promise((resolve) => {
+            let finished = false;
+            let timeout;
+            const finish = (value) => {
+              if (finished) return;
+              finished = true;
+              clearTimeout(timeout);
+              chrome.tabs.onUpdated.removeListener(onUpdated);
+              resolve(value);
+            };
+            const onUpdated = (tabId, change, updated) => {
+              if (tabId === tab.id && change.status === "complete") finish(updated.url || null);
+            };
+            chrome.tabs.onUpdated.addListener(onUpdated);
+            timeout = setTimeout(() => finish(null), 12000);
+            chrome.tabs.get(tab.id).then((current) => {
+              if (current.status === "complete") finish(current.url || null);
+            }).catch(() => finish(null));
+          });
+        } finally {
+          if (tab.id !== undefined) await chrome.tabs.remove(tab.id).catch(() => {});
+        }
+        const final = new URL(finalUrl || target.href);
+        if (final.protocol !== "https:" || !/streaming[-]?community/i.test(final.hostname)) continue;
+        const resolved = { origin: final.origin, at: Date.now() };
         await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
-        return url.origin;
+        return resolved.origin;
       } catch {
-        // href non valido: prova il prossimo pulsante
+        // Invalid link or redirect: try the next StreamingCommunity button.
       }
     }
   } catch {
-    // directory irraggiungibile: resta sull'ultimo dominio noto
+    // Directory unavailable: keep the last known host.
   }
   return cached?.origin ?? null;
 }
