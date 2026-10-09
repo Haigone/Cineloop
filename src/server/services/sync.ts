@@ -395,15 +395,28 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // With an episode number it is a series: never a film of the same name.
   const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null && presence.episode === null && !seasonSuffix || t.type !== "movie");
   let hit = local.find(fits);
-  if (!hit && getCatalog().complete) {
-    // Search the base title first: season suffixes are not part of the catalogue title.
-    const remote = await getCatalog()
-      .findByName(baseLabel, { series: presence.season !== null || presence.episode !== null || Boolean(seasonSuffix), provider: presence.providerId })
+  if (!hit) {
+    const catalog = getCatalog();
+    const series = presence.season !== null || presence.episode !== null || Boolean(seasonSuffix);
+    // Prefer an exact provider-aware match, but don't let a provider availability
+    // lookup prevent recognition when the title itself exists in the catalogue.
+    const remote = await catalog
+      .findByName(baseLabel, { series, provider: presence.providerId })
       .catch(() => null);
-    hit = remote ? (await canonical(repo, [remote]))[0] : undefined;
+    let candidates: Title[] = remote ? [remote] : [];
+    if (!candidates.length) {
+      candidates = await catalog.search(baseLabel, 12).catch(() => []);
+    }
+    const exact = candidates.find((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
+    const startsWith = candidates.find((t) => {
+      const candidate = searchKey(t.title);
+      return (!series || t.type !== "movie") && (candidate.startsWith(key) || key.startsWith(candidate));
+    });
+    const candidate = exact ?? startsWith ?? (series ? candidates.find((t) => t.type !== "movie") : undefined);
+    hit = candidate ? (await canonical(repo, [candidate]))[0] : undefined;
     if (hit) {
       await cacheTitles(repo, [hit]);
-      // Search results carry no seasons: fetch the details once.
+      // Search results carry no seasons: fetch details so season numbers are accurate.
       hit = (await ensureTitle(hit.id)) ?? hit;
     }
   }
