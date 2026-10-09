@@ -20,37 +20,48 @@ import { TitleCard } from "@/components/media/title-card";
 
 export const metadata: Metadata = { title: "Titolo" };
 
-/** A CineLoop-only placeholder carrying the provider IDs and current minute. */
-function streamingCommunityPlaceholderUrl(
+/** Build a CineLoop destination for every provider button, with resume metadata when known. */
+function siteWatchUrl(
   titleId: string,
+  titleName: string,
+  providerId: string,
   sourceUrl: string | null,
   fraction: number,
   runtimeMinutes: number,
   season: number | null,
   episode: number | null,
-): string | null {
-  if (!sourceUrl) return null;
-  try {
-    const source = new URL(sourceUrl);
-    const match = /^\/(?:[a-z]{2}\/)?watch\/(\d{1,9})(?:\/|$)/i.exec(source.pathname);
-    if (!match) return null;
-    const params = new URLSearchParams({
-      provider: "streamingcommunity",
-      watching: "true",
-      id: match[1]!,
-      titleId: match[1]!,
-      minute: String(Math.max(0, Math.floor(fraction * runtimeMinutes))),
-    });
-    const episodeId = source.searchParams.get("e");
-    if (episodeId && /^\d{1,12}$/.test(episodeId)) { params.set("e", episodeId); params.set("episodeId", episodeId); }
-    if (season !== null) params.set("season", String(season));
-    if (episode !== null) params.set("episode", String(episode));
-    return `https://cineloop.freedev.app/title/${encodeURIComponent(titleId)}?${params.toString()}`;
-  } catch {
-    return null;
-  }
-}
+): string {
+  const params = new URLSearchParams({
+    provider: providerId,
+    watching: "true",
+    title: titleName.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    minute: String(Math.max(0, Math.floor(fraction * runtimeMinutes))),
+  });
+  if (season !== null) params.set("season", String(season));
+  if (episode !== null) params.set("episode", String(episode));
 
+  // Carry a StreamingCommunity title/episode ID only when it comes from a valid SC watch URL.
+  if (providerId === "streamingcommunity" && sourceUrl) {
+    try {
+      const source = new URL(sourceUrl);
+      const host = source.hostname.toLowerCase().replace(/^www\\./, "");
+      const match = /^\\/(?:[a-z]{2}\\/)?(?:watch|titles?)\\/(\\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+      if (source.protocol === "https:" && /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host) && match) {
+        params.set("id", match[1]!);
+        params.set("titleId", match[1]!);
+        const episodeId = source.searchParams.get("e");
+        if (episodeId && /^\\d{1,12}$/.test(episodeId)) {
+          params.set("e", episodeId);
+          params.set("episodeId", episodeId);
+        }
+      }
+    } catch {
+      // Keep the generic CineLoop title URL if the stored source URL is unavailable or invalid.
+    }
+  }
+
+  return `/title/${encodeURIComponent(titleId)}?${params.toString()}`;
+}
 export default function TitlePage({ params }: PageProps<"/title/[id]">) {
   return (
     <Suspense
@@ -133,44 +144,26 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             )}
             <ul className="mt-3 flex flex-wrap gap-2">
               {providers.map((p) => {
-                const continueUrl = p.id === "streamingcommunity" && entry?.progress?.providerId === "streamingcommunity"
-                  ? streamingCommunityPlaceholderUrl(
-                      title.id,
-                      entry.progress.url,
-                      entry.progress.fraction,
-                      title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes,
-                      entry.progress.season,
-                      entry.progress.episode,
-                    )
-                  : null;
+                const progress = entry?.progress;
+                const destination = siteWatchUrl(
+                  title.id,
+                  title.title,
+                  p.id,
+                  progress?.providerId === "streamingcommunity" ? progress.url : null,
+                  progress?.fraction ?? 0,
+                  title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes,
+                  title.type === "movie" ? null : (progress?.season ?? null),
+                  title.type === "movie" ? null : (progress?.episode ?? null),
+                );
                 return (
                   <li key={p.id}>
-                    {continueUrl ? (
-                      <a
-                        href={continueUrl}
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
-                      >
-                        <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
-                        Continua a guardare
-                      </a>
-                    ) : p.url && p.id !== "streamingcommunity" ? (
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
-                      >
-                        <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
-                        {p.name}
-                        <ExternalLink aria-hidden className="size-3.5 text-fg-3" />
-                        <span className="sr-only">(si apre in una nuova scheda)</span>
-                      </a>
-                    ) : (
-                      <span className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2">
-                        <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
-                        {p.name}
-                      </span>
-                    )}
+                    <a
+                      href={destination}
+                      className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
+                    >
+                      <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
+                      {progress?.providerId === p.id ? "Continua a guardare" : `Dove guardarlo · ${p.name}`}
+                    </a>
                   </li>
                 );
               })}
