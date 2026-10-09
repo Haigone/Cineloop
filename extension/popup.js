@@ -258,7 +258,7 @@ async function togglePermission(provider) {
     if (streaming) {
       const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
       await chrome.permissions.remove({ origins });
-    } else if (directory && resolved?.origin) {
+    } else if (resolved?.origin) {
       // A changed origin is detected from the watch tab. Chrome requires an
       // explicit user gesture to grant this new host before reading the player.
       await chrome.permissions.request({ origins: [`${resolved.origin}/*`] });
