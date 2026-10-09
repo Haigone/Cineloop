@@ -385,15 +385,20 @@ async function recognise(repo: Repository, presence: Presence, parentId: string 
 async function matchLabel(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
   if (!presence.label) return null;
 
-  const key = searchKey(presence.label);
-  const local = await repo.searchTitles(presence.label, 5);
-  // With a season and episode it is a series: never a film of the same name.
-  const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null || t.type !== "movie");
+  // Anime services often publish each season as a separate entry. A player
+  // label such as "Frieren: Beyond Journey's End 2" should first resolve the
+  // base series title, then use the trailing number as a season hint if valid.
+  const seasonSuffix = /(?:\\s+|[:：]\\s*)(?:season\\s*)?(\\d{1,2})\\s*$/i.exec(presence.label);
+  const baseLabel = seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label;
+  const key = searchKey(baseLabel);
+  const local = await repo.searchTitles(baseLabel, 8);
+  // With an episode number it is a series: never a film of the same name.
+  const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null || presence.episode !== null || t.type !== "movie");
   let hit = local.find(fits);
   if (!hit && getCatalog().complete) {
-    // The whole catalogue, preferring what is actually on the service it is playing on.
+    // Search the base title first: season suffixes are not part of the catalogue title.
     const remote = await getCatalog()
-      .findByName(presence.label, { series: presence.season !== null || presence.episode !== null, provider: presence.providerId })
+      .findByName(baseLabel, { series: presence.season !== null || presence.episode !== null || Boolean(seasonSuffix), provider: presence.providerId })
       .catch(() => null);
     hit = remote ? (await canonical(repo, [remote]))[0] : undefined;
     if (hit) {
@@ -403,6 +408,12 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
     }
   }
   if (!hit) return null;
+  // Only trust the suffix as a season when the matched catalogue entry has it.
+  // Otherwise leave season unknown so the extension asks the user explicitly.
+  if (seasonSuffix && hit.type !== "movie") {
+    const hintedSeason = Number(seasonSuffix[1]);
+    if (hit.seasons.some((season) => season.number === hintedSeason)) presence.season = hintedSeason;
+  }
   await repo.saveProviderLink({ providerId: presence.providerId, externalId: presence.externalId, titleId: hit.id, userId: presence.userId });
   // The show page the user came from may be stale: only teach it when nothing is known about it yet.
   if (parentId && hit.type !== "movie" && !(await repo.findProviderLink(presence.providerId, [parentId]))) {
