@@ -155,7 +155,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
           </Panel>
         </RevealItem>
         {view.party.friends.length > 0 && (
-          <RevealItem className="order-6">
+          <RevealItem className="order-7">
             <Panel title="Serata insieme" titleId="party-teaser">
               <PartyTeaser friends={view.party.friends} compatibleCount={view.party.compatibleCount} />
             </Panel>
