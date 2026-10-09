@@ -300,21 +300,21 @@ async function renderGrant() {
   }
   const btn = $("sc-grant-btn");
   btn.hidden = false;
-  if (!(await hasDirectoryAccess())) {
-    $("sc-grant-status").textContent =
-      "Il sito cambia indirizzo di continuo: CineLoop trova quello attuale dal pulsante StreamingCommunity di streaming-community.how.";
-    btn.textContent = "Consenti su streaming-community.how";
-    btn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await renderGrant();
-    };
-    return;
-  }
   const resolved = await getResolved();
   if (resolved?.origin && !(await hasStreamingAccess())) {
-    $("sc-grant-status").textContent = "Ho trovato il dominio attuale. Consentilo una volta: se cambia, te lo chiederò di nuovo qui.";
+    $("sc-grant-status").textContent = "Ho rilevato il dominio dalla scheda che hai aperto. Consentilo una volta per leggere titolo, episodio e avanzamento.";
     btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
     btn.onclick = async () => {
       if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`] })) await render();
+    };
+    return;
+  }
+  if (!(await hasDirectoryAccess())) {
+    $("sc-grant-status").textContent =
+      "Per aggiornare il dominio dalla directory streaming-community.how, consenti l'accesso alla directory.";
+    btn.textContent = "Consenti su streaming-community.how";
+    btn.onclick = async () => {
+      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await renderGrant();
     };
     return;
   }
