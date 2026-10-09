@@ -65,7 +65,7 @@ export class StreamingCommunityAdapter extends ObservationAdapter {
         url.username ||
         url.password ||
         !/^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host) ||
-        !/^\/titles?\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)
+        !/^(?:\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)|\/titles?\/\d{1,9}(?:[-/?#]|$))/i.test(url.pathname)
       ) return null;
       url.hash = "";
       return url.toString();
