@@ -65,12 +65,12 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
 
   // Anime pages always offer an Anime Unity shortcut. If playback has already
   // been observed, the progress entry instead opens the exact saved page.
-  const providerIds = [...new Set([...title.providers, "netflix" as const, ...(title.type === "anime" ? ["animeunity" as const] : [])])];
+  const providerIds = [...new Set([...title.providers, ...(title.type === "anime" ? ["animeunity" as const] : [])])];
   return {
     title,
     entry: library.find((e) => e.titleId === id) ?? null,
     wishlisted: wishlist.some((w) => w.titleId === id),
-    watchChoices: (sectionOf(title) === "anime" ? (["netflix", "animeunity"] as const) : (["netflix"] as const)).map((pid) => {
+    watchChoices: sectionOf(title) === "anime" ? (["netflix", "animeunity"] as const).map((pid) => {
       const p = getProvider(pid)!;
       return { id: pid, name: p.name, tint: p.tint, url: providerSearchUrl(pid, title.title)! };
     }) : [],
