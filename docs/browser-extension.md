@@ -30,7 +30,7 @@ Non fa alcuna richiesta a Netflix: parla solo con il server CineLoop scelto dall
 ## Come funziona
 
 1. In Impostazioni l'utente genera un **codice monouso** (8 caratteri, valido 10 minuti, salvato solo come hash).
-2. Nel pannello dell'estensione inserisce l'indirizzo del sito e il codice. `POST /api/extension/pair` restituisce un **token del dispositivo**, casuale e revocabile da Impostazioni (anche questo salvato solo come hash). Le credenziali Netflix non sono mai coinvolte.
+2. Nel pannello l’indirizzo di CineLoop è già impostato su `https://cineloop-one.vercel.app`: basta inserire il codice (l’indirizzo resta modificabile). `POST /api/extension/pair` restituisce un **token del dispositivo**, casuale e revocabile da Impostazioni (anche questo salvato solo come hash). Le credenziali Netflix non sono mai coinvolte.
 3. Con una scheda `/watch/{id}` aperta, il service worker invia ogni minuto una `SyncObservation` a `POST /api/extension/observe`:
 
 ```ts
@@ -76,7 +76,8 @@ Finché l'estensione non è sul Chrome Web Store:
 
 1. Impostazioni > Estensione Netflix > scarica `cineloop-extension.zip` e decomprimilo.
 2. Apri `chrome://extensions`, attiva "Modalità sviluppatore", scegli "Carica estensione non pacchettizzata" e seleziona la cartella `cineloop-extension`.
-3. Apri l'estensione, inserisci indirizzo e codice, poi "Consenti su netflix.com".
+3. Apri l’estensione, inserisci il codice e premi Collega. L’indirizzo precompilato è `https://cineloop-one.vercel.app`.
+4. Puoi attivare o disattivare Netflix, AnimeUnity e StreamingCommunity dalla sezione **Servizi collegati** del pannello; il consenso di un sito non nasconde più gli altri.
 
 Per aggiornarla basta sostituire la cartella e premere "Ricarica" in `chrome://extensions`.
 

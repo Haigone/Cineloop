@@ -18,7 +18,7 @@
       <p class="muted">Su CineLoop apri Impostazioni, Estensione Netflix, e genera un codice.</p>
       <form id="pair-form">
         <label for="server">Indirizzo del sito</label>
-        <input id="server" name="server" type="url" inputmode="url" placeholder="https://il-tuo-cineloop.it" required autocomplete="url" />
+        <input id="server" name="server" type="url" inputmode="url" placeholder="https://cineloop-one.vercel.app" required autocomplete="url" />
         <label for="code">Codice</label>
         <input id="code" name="code" placeholder="K7QM-3XPA" required autocomplete="one-time-code" spellcheck="false" />
         <button type="submit" class="primary">Collega</button>
@@ -98,7 +98,7 @@
             </details>
           </div>
           <div id="season-ask" hidden>
-            <p class="small">Netflix non mostra la stagione: quale stai guardando?</p>
+            <p id="season-ask-help" class="small">Il player non indica chiaramente la stagione: quale stai guardando?</p>
             <div id="season-choices" class="seasons" role="group" aria-label="Stagione"></div>
           </div>
           <button id="change-btn" type="button" class="quiet link" hidden>Non è questo?</button>
@@ -153,6 +153,15 @@
           <p id="party-error" class="error" role="alert" hidden></p>
         </details>
       </div>
+
+      <details id="provider-settings" class="card">
+        <summary>Servizi collegati</summary>
+        <p class="muted small">Puoi attivare o disattivare ogni sito anche dopo il primo consenso.</p>
+        <div class="row"><span>Netflix</span><button id="manage-netflix" type="button"></button></div>
+        <div class="row"><span>AnimeUnity</span><button id="manage-au" type="button"></button></div>
+        <div class="row"><span>StreamingCommunity</span><button id="manage-sc" type="button"></button></div>
+        <p id="manage-sc-status" class="muted small"></p>
+      </details>
 
       <footer>
         <button id="pause-btn"></button>

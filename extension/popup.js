@@ -4,6 +4,7 @@ import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess 
 import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
 
 const $ = (id) => document.getElementById(id);
+const DEFAULT_SERVER = "https://cineloop-one.vercel.app";
 /** True while the user is correcting a title that was recognised wrongly. */
 let changing = false;
 const show = (id, visible) => ($(id).hidden = !visible);
@@ -13,7 +14,7 @@ async function render() {
   $("who").textContent = user?.displayName ?? "";
   if (!token) {
     showOnly("pair");
-    if (server) $("server").value = server;
+    $("server").value = server || DEFAULT_SERVER;
     return;
   }
   const netflixOk = await hasNetflixAccess();
@@ -25,6 +26,7 @@ async function render() {
     return;
   }
   showOnly("main");
+  await renderProviderPermissions();
   $("pause-btn").textContent = paused ? "Riprendi" : "Metti in pausa";
 
   // Ask the worker for a fresh heartbeat so the popup shows the live state.
@@ -71,11 +73,17 @@ async function render() {
 
 /** A series episode without its season: ask once, later episodes follow on. */
 function renderSeasonAsk(w) {
-  const ask = Boolean(w.title && w.episode && !w.season && w.seasons?.length > 1);
+  const suffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(w.label ?? "");
+  const hintedSeason = suffix ? Number(suffix[1]) : null;
+  const seasons = [...new Set([...(w.seasons ?? []), ...(hintedSeason ? [hintedSeason] : [])])].sort((a, b) => a - b);
+  const ask = Boolean(w.title && w.episode && !w.season && (seasons.length > 1 || hintedSeason));
   show("season-ask", ask);
   if (!ask) return;
+  $("season-ask-help").textContent = hintedSeason && !w.seasons?.includes(hintedSeason)
+    ? `Il nome del player suggerisce la stagione ${hintedSeason}, ma il catalogo non la conferma. È quella che stai guardando?`
+    : "Il player non indica chiaramente la stagione: quale stai guardando?";
   $("season-choices").replaceChildren(
-    ...w.seasons.map((n) => {
+    ...seasons.map((n) => {
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = `S${n}`;
@@ -207,6 +215,51 @@ $("visible").addEventListener("change", async () => {
   }
   await render();
 });
+
+
+/** Provider permissions remain manageable after the first site is enabled. */
+async function renderProviderPermissions() {
+  const netflix = await hasNetflixAccess();
+  const anime = await hasAnimeAccess();
+  const directory = await hasDirectoryAccess();
+  const streaming = await hasStreamingAccess();
+  const resolved = await getResolved();
+  const sc = directory || streaming;
+  const setButton = (id, active, label) => {
+    $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
+    $(id).setAttribute("aria-pressed", String(active));
+  };
+  setButton("manage-netflix", netflix, "Netflix");
+  setButton("manage-au", anime, "AnimeUnity");
+  setButton("manage-sc", sc, "StreamingCommunity");
+  $("manage-sc-status").textContent = sc
+    ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
+    : "Disattivato. Puoi attivarlo quando vuoi.";
+}
+
+async function togglePermission(provider) {
+  if (provider === "netflix") {
+    if (await hasNetflixAccess()) await chrome.permissions.remove({ origins: [NETFLIX_ORIGIN] });
+    else await chrome.permissions.request({ origins: [NETFLIX_ORIGIN] });
+  } else if (provider === "animeunity") {
+    if (await hasAnimeAccess()) await chrome.permissions.remove({ origins: AU_ORIGINS });
+    else await chrome.permissions.request({ origins: AU_ORIGINS });
+  } else {
+    const resolved = await getResolved();
+    const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
+    if (await hasDirectoryAccess() || await hasStreamingAccess()) {
+      await chrome.permissions.remove({ origins });
+    } else {
+      const granted = await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
+      if (granted) await renderGrant();
+    }
+  }
+  await render();
+}
+
+for (const [id, provider] of [["manage-netflix", "netflix"], ["manage-au", "animeunity"], ["manage-sc", "streamingcommunity"]]) {
+  $(id).addEventListener("click", () => togglePermission(provider).catch(() => render()));
+}
 
 function showOnly(id) {
   for (const s of ["pair", "grant", "main"]) show(s, s === id);

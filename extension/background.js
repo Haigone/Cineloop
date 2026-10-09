@@ -38,6 +38,19 @@ chrome.permissions.onAdded.addListener(() => {
   enableAnimePage();
   enableScPage();
 });
+chrome.permissions.onRemoved.addListener(() => {
+  disableUnauthorizedScripts();
+});
+
+async function disableUnauthorizedScripts() {
+  const removals = [];
+  if (!(await hasNetflixAccess())) removals.push("player-title");
+  if (!(await hasAnimeAccess())) removals.push("au-page");
+  if (!(await hasStreamingAccess())) removals.push("sc-page");
+  if (removals.length) {
+    await chrome.scripting.unregisterContentScripts({ ids: removals }).catch(() => {});
+  }
+}
 
 const PLAYER_SCRIPT = "player-title";
 const SC_SCRIPT = "sc-page";
