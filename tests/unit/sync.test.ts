@@ -118,3 +118,19 @@ describe("extension sync", () => {
     await repo.updatePreferences("u_luca", { shareActivity: true });
   });
 });
+
+describe("films read from the player", () => {
+  it("recognises a film with no episode and records its progress", async () => {
+    await repo.clearPresence("u_marco");
+    const { ep } = ids();
+    const status = await handleObservation("u_marco", watch(ep, { hints: { title: "Interstellar", progress: 0.37 } }));
+    expect(status.watching?.title?.id).toBe("interstellar");
+    const entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
+    expect(entry?.status).toBe("watching");
+  });
+
+  it("treats typographic and plain apostrophes alike", async () => {
+    const { searchKey } = await import("@/lib/text");
+    expect(searchKey("Il 7 E l’8")).toBe(searchKey("Il 7 e l'8"));
+  });
+});

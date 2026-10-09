@@ -5,7 +5,7 @@ import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
-import { searchKey } from "@/lib/text";
+import { plainQuotes, searchKey } from "@/lib/text";
 import { italianDay } from "@/lib/dates";
 import { finishesTitle } from "@/domain/library";
 import { getRepository, type Repository } from "@/server/data";
@@ -392,7 +392,7 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
-  const baseLabel = seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label;
+  const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 8);
   // With an episode number it is a series: never a film of the same name.
