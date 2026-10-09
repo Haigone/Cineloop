@@ -79,6 +79,27 @@ export function streamingCommunityResumeUrl(titleId: string, sourceUrl: string |
   }
 }
 
+/** Build the CineLoop placeholder URL for resuming a previously observed StreamingCommunity title. */
+export function streamingCommunityResumeUrl(titleId: string, sourceUrl: string | null, fraction: number, runtimeMinutes: number, season: number | null, episode: number | null): string | null {
+  if (!sourceUrl) return null;
+  try {
+    const source = new URL(sourceUrl);
+    const host = source.hostname.toLowerCase().replace(/^www\./, "");
+    if (source.protocol !== "https:" || !/^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host)) return null;
+    const match = /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+    if (!match) return null;
+    const params = new URLSearchParams({
+      provider: "streamingcommunity", watching: "true", id: match[1]!, titleId: match[1]!,
+      minute: String(Math.max(0, Math.floor(fraction * runtimeMinutes))),
+    });
+    const episodeId = source.searchParams.get("e");
+    if (episodeId && /^\d{1,12}$/.test(episodeId)) { params.set("e", episodeId); params.set("episodeId", episodeId); }
+    if (season !== null) params.set("season", String(season));
+    if (episode !== null) params.set("episode", String(episode));
+    return \`https://cineloop.freedev.app/title/\${encodeURIComponent(titleId)}?\${params.toString()}\`;
+  } catch { return null; }
+}
+
 /** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
 export function animeUnityResumeUrl(value: string, fraction: number): string {
   try {
