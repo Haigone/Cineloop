@@ -26,12 +26,14 @@ chrome.runtime.onInstalled.addListener(() => {
   enablePlayerTitle();
   enableAnimePage();
   enableScPage();
+  rememberOpenTabs();
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
   enablePlayerTitle();
   enableAnimePage();
   enableScPage();
+  rememberOpenTabs();
 });
 chrome.permissions.onAdded.addListener(() => {
   enablePlayerTitle();
@@ -41,6 +43,12 @@ chrome.permissions.onAdded.addListener(() => {
 chrome.permissions.onRemoved.addListener(() => {
   disableUnauthorizedScripts();
 });
+
+/** Detect a valid SC watch tab already open when the extension starts. */
+async function rememberOpenTabs() {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(tabs.map((tab) => remember(tab).catch(() => {})));
+}
 
 async function disableUnauthorizedScripts() {
   const removals = [];
