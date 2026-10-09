@@ -187,7 +187,7 @@ async function playerTitle(tabId, m) {
   if (typeof m.watchId !== "string" || typeof m.title !== "string") return;
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
-  const episodeId = typeof m.episodeId === "string" && /^\\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
+  const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
   const changed = await updateTab(tabId, (entry) => {
     const was = entry.player;
     entry.player = {
