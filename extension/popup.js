@@ -73,7 +73,7 @@ async function render() {
 
 /** A series episode without its season: ask once, later episodes follow on. */
 function renderSeasonAsk(w) {
-  const suffix = /(?:\\s+|[:：]\\s*)(?:season\\s*)?(\\d{1,2})\\s*$/i.exec(w.label ?? "");
+  const suffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(w.label ?? "");
   const hintedSeason = suffix ? Number(suffix[1]) : null;
   const seasons = [...new Set([...(w.seasons ?? []), ...(hintedSeason ? [hintedSeason] : [])])].sort((a, b) => a - b);
   const ask = Boolean(w.title && w.episode && !w.season && (seasons.length > 1 || hintedSeason));
