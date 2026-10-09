@@ -73,11 +73,17 @@ async function render() {
 
 /** A series episode without its season: ask once, later episodes follow on. */
 function renderSeasonAsk(w) {
-  const ask = Boolean(w.title && w.episode && !w.season && w.seasons?.length > 1);
+  const suffix = /(?:\\s+|[:：]\\s*)(?:season\\s*)?(\\d{1,2})\\s*$/i.exec(w.label ?? "");
+  const hintedSeason = suffix ? Number(suffix[1]) : null;
+  const seasons = [...new Set([...(w.seasons ?? []), ...(hintedSeason ? [hintedSeason] : [])])].sort((a, b) => a - b);
+  const ask = Boolean(w.title && w.episode && !w.season && (seasons.length > 1 || hintedSeason));
   show("season-ask", ask);
   if (!ask) return;
+  $("season-ask-help").textContent = hintedSeason && !w.seasons?.includes(hintedSeason)
+    ? `Il nome del player suggerisce la stagione ${hintedSeason}, ma il catalogo non la conferma. È quella che stai guardando?`
+    : "Il player non indica chiaramente la stagione: quale stai guardando?";
   $("season-choices").replaceChildren(
-    ...w.seasons.map((n) => {
+    ...seasons.map((n) => {
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = `S${n}`;
