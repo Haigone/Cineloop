@@ -1,24 +1,23 @@
-import type { ProviderCapabilities, CurrentContent, SyncObservation, Content } from "../types";
+import type { ProviderCapabilities, CurrentContent, SyncObservation, Content, AdapterWatchProgress, AdapterContext } from "../types";
 import { ObservationAdapter } from "./base";
 
+const AU_HOST = "animeunity.so";
+
 /**
- * Anime Unity page-link adapter.
- *
- * Consumes only an HTTPS page URL already supplied to CineLoop by an
- * explicitly enabled observation source. It never fetches the site, inspects
- * page markup, extracts media URLs, or controls a player.
+ * Anime Unity adapter for page URLs and progress already observed by the
+ * user's CineLoop extension. It does not fetch the site or inspect media URLs.
  */
 export class AnimeUnityAdapter extends ObservationAdapter {
   readonly id = "animeunity" as const;
   readonly capabilities: ProviderCapabilities = {
     detectCurrentContent: true,
     deepLinks: true,
-    progress: false,
+    progress: true,
   };
 
   protected parse(obs: SyncObservation): CurrentContent | null {
     const url = this.parsePageUrl(obs.url);
-    if (!url) return null;
+    if (!url || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(new URL(url).pathname)) return null;
 
     const fromPage = obs.hints?.title?.trim() ||
       obs.documentTitle.replace(/\s*[-|–]\s*anime\s*unity.*$/i, "").trim();
@@ -42,6 +41,14 @@ export class AnimeUnityAdapter extends ObservationAdapter {
     };
   }
 
+  override async getWatchProgress(ctx: AdapterContext): Promise<AdapterWatchProgress | null> {
+    const content = await this.getCurrentContent(ctx);
+    if (!content) return null;
+    const raw = ctx.latestObservation?.hints?.progress;
+    const fraction = typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : null;
+    return { content, fraction, updatedAt: content.detectedAt };
+  }
+
   override getContentUrl(content: Content): string | null {
     if (content.providerId !== this.id || !content.externalId) return null;
     return this.parsePageUrl(content.externalId);
@@ -50,14 +57,16 @@ export class AnimeUnityAdapter extends ObservationAdapter {
   private parsePageUrl(value: string): string | null {
     try {
       const url = new URL(value);
-      // Require HTTPS and an actual "animeunity" domain label. This rejects
-      // path-only and hostname lookalikes such as animeunity.evil.example.
+      const host = url.hostname.toLowerCase();
       if (
         url.protocol !== "https:" ||
-        !url.hostname.toLowerCase().split(".").includes("animeunity") ||
+        !(host === AU_HOST || host.endsWith(`.${AU_HOST}`)) ||
         url.username ||
         url.password
       ) return null;
+      // This is a page URL, not a media URL. Drop the one-shot resume hint so
+      // it is never persisted as part of the user's canonical page address.
+      url.searchParams.delete("cineloopResume");
       return url.toString();
     } catch {
       return null;
