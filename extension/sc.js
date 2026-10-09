@@ -40,7 +40,7 @@ export async function hasStreamingAccess() {
  */
 export async function resolveStreamingUrl({ force = false } = {}) {
   const cached = await getResolved();
-  if (!force && cached) return cached.origin;
+  if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.origin;
   if (!(await hasDirectoryAccess())) return cached?.origin ?? null;
   try {
     const res = await fetch(DIRECTORY_ORIGIN + "/", { credentials: "omit", redirect: "follow" });
