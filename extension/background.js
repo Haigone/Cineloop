@@ -1,41 +1,55 @@
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
+import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
+import { auWatchId, hasAnimeAccess, isAnimeUrl } from "./au.js";
 
 /*
  * CineLoop background worker.
  *
- * While a Netflix /watch tab is open it sends a heartbeat to CineLoop once a
- * minute with that tab's URL and title, plus what is playing as the player
- * names it (show, season, episode), read by player-title.js. That is all it
- * reads: no cookies, no other page content, no other sites (the only host
- * permission it can hold is www.netflix.com, granted by the user from the popup).
+ * Mentre e' aperta una scheda di riproduzione di Netflix o di
+ * StreamingCommunity, manda un heartbeat a CineLoop una volta al minuto con
+ * l'URL e il titolo di quella scheda, piu' cio' che sta riproducendo il
+ * player (serie, stagione, episodio), letto da player-title.js / sc-page.js.
+ * Legge solo questo: niente cookie, niente altro contenuto delle pagine,
+ * nessun altro sito. StreamingCommunity cambia dominio di continuo: il link
+ * aggiornato viene letto dal pulsante "StreamingCommunity" di
+ * https://www.streaming-community.how/ (sc.js), dopo che l'utente ha
+ * concesso quei siti dal popup.
  */
 
 const HEARTBEAT = "heartbeat";
-/** A paused player is silent; after this long without sound we stop reporting. */
+/** Un player in pausa e' silenzioso; dopo cosi' tempo senza audio smette di segnalare. */
 const SILENT_LIMIT_MS = 10 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
   enablePlayerTitle();
+  enableAnimePage();
+  enableScPage();
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
   enablePlayerTitle();
+  enableAnimePage();
+  enableScPage();
 });
-chrome.permissions.onAdded.addListener(() => enablePlayerTitle());
+chrome.permissions.onAdded.addListener(() => {
+  enablePlayerTitle();
+  enableAnimePage();
+  enableScPage();
+});
 
 const PLAYER_SCRIPT = "player-title";
+const SC_SCRIPT = "sc-page";
+const AU_SCRIPT = "au-page";
 const PAGE_SCRIPTS = ["player-title.js", "party-sync.js"];
 
 /**
- * Once the user has granted netflix.com, have player-title.js run on its
- * pages (and in tabs already open), so the show and episode are recognised
- * without asking.
+ * Una volta concesso netflix.com, fa girare player-title.js sulle sue pagine
+ * (anche nelle schede gia' aperte), cosi' serie ed episodio vengono riconosciuti.
  */
 async function enablePlayerTitle() {
   if (!(await hasNetflixAccess())) return;
-  // Re-register every time, so an update that adds a script takes effect.
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [PLAYER_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [PLAYER_SCRIPT] });
   await chrome.scripting.registerContentScripts([
@@ -45,6 +59,39 @@ async function enablePlayerTitle() {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: PAGE_SCRIPTS }).catch(() => {});
   }
 }
+
+/**
+ * Sul dominio StreamingCommunity risolto fa girare sc-page.js, che legge
+ * serie, stagione, episodio e avanzamento del video.
+ */
+async function enableScPage() {
+  const resolved = await getResolved();
+  if (!resolved?.origin) return;
+  if (!(await hasStreamingAccess())) return;
+  const match = `${resolved.origin}/*`;
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
+  if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
+  await chrome.scripting.registerContentScripts([
+    { id: SC_SCRIPT, matches: [match], js: ["sc-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+  ]);
+  for (const tab of await chrome.tabs.query({ url: match })) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["sc-page.js"] }).catch(() => {});
+  }
+}
+
+/** Su animeunity.so fa girare au-page.js: titolo, episodio e avanzamento del video. */
+async function enableAnimePage() {
+  if (!(await hasAnimeAccess())) return;
+  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
+  if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
+  await chrome.scripting.registerContentScripts([
+    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["au-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+  ]);
+  for (const tab of await chrome.tabs.query({ url: "https://www.animeunity.so/*" })) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["au-page.js"] }).catch(() => {});
+  }
+}
+
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
 
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
@@ -54,13 +101,26 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   }
 });
 chrome.tabs.onRemoved.addListener(() => tick());
-chrome.storage.onChanged.addListener((changes) => {
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.scResolved) enableScPage();
   if (changes.paused || changes.token) tick();
 });
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type === "tick") {
     tick().then(reply, () => reply(null));
+    return true;
+  }
+  if (message?.type === "resolve-sc") {
+    resolveStreamingUrl({ force: Boolean(message.force) }).then(reply, () => reply(null));
+    return true;
+  }
+  if (message?.type === "sc-origin") {
+    getResolved().then((r) => reply(r?.origin ?? null), () => reply(null));
+    return true;
+  }
+  if (message?.type === "manual-progress") {
+    manualProgress(message).then((ok) => reply(ok), () => reply(false));
     return true;
   }
   if (message?.type === "player-title" && sender.tab?.id) {
@@ -79,8 +139,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 
 /**
- * Changes one tab's entry. Updates run one at a time, so the player's report
- * and a tab event arriving together cannot overwrite each other.
+ * Cambia la voce di una scheda. Gli aggiornamenti avvengono uno alla volta,
+ * cosi' il resoconto del player e un evento della scheda non si sovrascrivono.
  */
 let tabsQueue = Promise.resolve();
 function updateTab(tabId, change) {
@@ -96,17 +156,20 @@ function updateTab(tabId, change) {
   return run;
 }
 
-/** Per tab: the last show id seen before playback, and when it last made sound. */
+/** Per scheda: l'ultimo id serie visto prima della riproduzione e l'ultimo audio. */
 async function remember(tab) {
   if (!tab?.id || !tab.url) return;
+  const onNetflix = Boolean(watchId(tab.url) || browseId(tab.url));
+  const onAnime = isAnimeUrl(tab.url);
+  const onStreaming = await isStreamingUrl(tab.url);
+  if (!onNetflix && !onAnime && !onStreaming) return;
   await updateTab(tab.id, (entry) => {
-    // The show page the user came from; any other Netflix page means it no longer applies.
-    if (!watchId(tab.url)) entry.parentId = browseId(tab.url);
+    if (onNetflix && !watchId(tab.url)) entry.parentId = browseId(tab.url);
     if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
   });
 }
 
-/** What the player says is on screen, kept per tab until the next episode. */
+/** Cio' che il player dice essere sullo schermo, per scheda, finche' non cambia episodio. */
 async function playerTitle(tabId, m) {
   if (typeof m.watchId !== "string" || typeof m.title !== "string") return;
   const season = Number.isInteger(m.season) ? m.season : null;
@@ -126,9 +189,31 @@ async function playerTitle(tabId, m) {
   if (changed) await tick();
 }
 
-/** Hints for the server from the player, when they belong to the episode in the URL. */
-function playerHints(player, url) {
-  if (!player || player.watchId !== watchId(url)) return {};
+/** Aggiornamento manuale di stagione, episodio e posizione, dal popup. */
+async function manualProgress(m) {
+  const found = await current();
+  if (!found || !found.tab?.id) return false;
+  const season = Number.isInteger(m.season) ? m.season : null;
+  const episode = Number.isInteger(m.episode) ? m.episode : null;
+  const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 100 ? m.progress / 100 : null;
+  if (season === null && episode === null && progress === null) return false;
+  await updateTab(found.tab.id, (entry) => {
+    const was = entry.player ?? { watchId: "", title: "" };
+    entry.player = {
+      ...was,
+      ...(season !== null ? { season } : {}),
+      ...(episode !== null ? { episode } : {}),
+      ...(progress !== null ? { progress } : {}),
+      at: Date.now(),
+    };
+  });
+  await tick();
+  return true;
+}
+
+/** Suggerimenti dal player, quando appartengono all'episodio dell'URL. */
+function playerHints(player, id) {
+  if (!player || player.watchId !== id) return {};
   return {
     ...(player.title ? { title: player.title } : {}),
     ...(player.season !== null ? { season: player.season } : {}),
@@ -137,13 +222,13 @@ function playerHints(player, url) {
   };
 }
 
-/** Outside a room, ask the server at most this often whether one has started. */
+/** Fuori da una stanza, chiedi al server al massimo ogni tanto se ne e' partita una. */
 const SOLO_CHECK_MS = 10_000;
 let soloCheckedAt = 0;
 
 /**
- * Forwards the player's report to the room (watch together) and returns the
- * room's state for the page to apply. Only while CineLoop is active and not paused.
+ * Inoltra il resoconto del player alla stanza (guarda insieme) e ne restituisce
+ * lo stato, per la pagina. Solo mentre CineLoop e' attivo e non in pausa.
  */
 async function partyReport(m) {
   const { token, paused } = await getSettings();
@@ -157,32 +242,74 @@ async function partyReport(m) {
   return { party };
 }
 
-/** Returned by current() when the playback tab has been silent too long (paused and left). */
+/** Restituito da current() quando la scheda di riproduzione e' ferma da troppo (pausa e abbandono). */
 const SILENT = { tab: { url: "" }, parentId: null };
 
 async function netflixOpen() {
   return (await chrome.tabs.query({ url: "https://www.netflix.com/*" })).length > 0;
 }
 
-/** The Netflix playback tab to report, preferring the focused one. */
+/** C'e' almeno una scheda aperta su AnimeUnity? */
+async function animeOpen() {
+  if (!(await hasAnimeAccess())) return false;
+  return (await chrome.tabs.query({ url: "https://www.animeunity.so/*" })).length > 0;
+}
+
+/** C'e' almeno una scheda aperta sul dominio StreamingCommunity risolto? */
+async function streamingOpen() {
+  return (await streamingTabs()).length > 0;
+}
+
+async function streamingTabs() {
+  if (!(await hasStreamingAccess())) return [];
+  const resolved = await getResolved();
+  if (!resolved?.origin) return [];
+  try {
+    return await chrome.tabs.query({ url: `${resolved.origin}/*` });
+  } catch {
+    return [];
+  }
+}
+
+/** La scheda di riproduzione tra i provider attivi, preferendo quella attiva. */
 async function current() {
-  if (!(await hasNetflixAccess())) return null;
-  const tabs = await chrome.tabs.query({ url: "https://www.netflix.com/watch/*" });
+  if (await hasAnimeAccess()) {
+    const tabs = (await chrome.tabs.query({ url: "https://www.animeunity.so/*" })).filter((t) => auWatchId(t.url ?? ""));
+    if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
+  }
+  if (await hasNetflixAccess()) {
+    const tabs = await chrome.tabs.query({ url: "https://www.netflix.com/watch/*" });
+    if (tabs.length > 0) return pickPlaying(tabs, watchId);
+  }
+  return streamingCurrent();
+}
+
+/** La scheda StreamingCommunity con la pagina di un titolo, se c'e'. */
+async function streamingCurrent() {
+  const tabs = (await streamingTabs()).filter((t) => scWatchId(t.url ?? ""));
   if (tabs.length === 0) return null;
+  return pickPlaying(tabs, scWatchId);
+}
+
+/** Sceglie la scheda attiva (o la piu' recente) e verifica che non sia ferma da troppo. */
+async function pickPlaying(tabs, idOf) {
   const { tabs: seen = {} } = await chrome.storage.session.get("tabs");
   const tab = tabs.find((t) => t.active) ?? tabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
   const info = seen[tab.id] ?? {};
   if (!tab.audible && info.audibleAt && Date.now() - info.audibleAt > SILENT_LIMIT_MS) return SILENT;
-  return { tab, parentId: info.parentId ?? null, player: info.player ?? null };
+  return { tab, parentId: info.parentId ?? null, player: info.player ?? null, id: idOf(tab.url ?? "") };
 }
 
 let running = null;
 
-/** Sends one heartbeat, or ends the session when nothing is playing. */
+/** Manda un heartbeat, oppure chiude la sessione quando non c'e' nulla in riproduzione. */
 async function tick() {
-  // Coalesce bursts of tab events into one request.
+  // Riduce a una richiesta i picchi di eventi delle schede.
   running ??= (async () => {
     try {
+      // Tieni il dominio StreamingCommunity fresco (sc.js lo mette in cache per ore).
+      if (await hasDirectoryAccess()) resolveStreamingUrl().catch(() => {});
+
       const { token, paused } = await getSettings();
       if (!token) {
         await setLive(false);
@@ -191,11 +318,12 @@ async function tick() {
       const found = paused ? null : await current();
       const { live = false } = await chrome.storage.session.get("live");
 
-      if (!found || !watchId(found.tab.url)) {
-        // Back on Netflix's catalogue between episodes: a short break keeps the
-        // session (and any friends with you); the server lets it lapse after a
-        // few minutes without heartbeats.
-        if (!paused && found !== SILENT && (await netflixOpen())) {
+      const id = found && found !== SILENT ? found.id ?? watchId(found.tab.url) : null;
+      if (!found || !id) {
+        // Di nuovo nel catalogo tra un episodio e l'altro: una pausa breve tiene
+        // la sessione (e gli amici con te); il server la lascia scadere dopo
+        // qualche minuto senza heartbeat.
+        if (!paused && found !== SILENT && ((await netflixOpen()) || (await animeOpen()) || (await streamingOpen()))) {
           await chrome.action.setBadgeText({ text: "" });
           return null;
         }
@@ -206,11 +334,16 @@ async function tick() {
       }
 
       await remember(found.tab);
-      const hints = { ...playerHints(found.player, found.tab.url), ...(found.parentId ? { parentId: found.parentId } : {}) };
+      const providerId = /^https:\/\/www\.netflix\.com\//.test(found.tab.url)
+        ? "netflix"
+        : /^https:\/\/www\.animeunity\.so\//.test(found.tab.url)
+          ? "animeunity"
+          : "streamingcommunity";
+      const hints = { ...playerHints(found.player, id), ...(found.parentId ? { parentId: found.parentId } : {}) };
       const status = await api("/api/extension/observe", {
         method: "POST",
         body: {
-          providerId: "netflix",
+          providerId,
           url: found.tab.url,
           documentTitle: found.tab.title ?? "",
           ...(Object.keys(hints).length ? { hints } : {}),

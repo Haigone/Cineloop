@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "CineLoop",
   "short_name": "CineLoop",
-  "version": "0.3.3",
-  "description": "Aggiorna CineLoop mentre guardi Netflix e fa sapere ai tuoi amici cosa stai guardando, così possono unirsi.",
+  "version": "0.5.0",
+  "description": "Aggiorna CineLoop mentre guardi Netflix, AnimeUnity o StreamingCommunity: rileva serie, episodio e punto raggiunto.",
   "minimum_chrome_version": "120",
   "icons": {
     "16": "icons/16.png",
@@ -29,6 +29,8 @@
     "scripting"
   ],
   "optional_host_permissions": [
-    "https://www.netflix.com/*"
+    "https://www.netflix.com/*",
+    "https://www.animeunity.so/*",
+    "https://www.streaming-community.how/*"
   ]
 }

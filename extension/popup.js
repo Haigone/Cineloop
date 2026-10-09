@@ -1,5 +1,7 @@
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
+import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
+import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
 
 const $ = (id) => document.getElementById(id);
 /** True while the user is correcting a title that was recognised wrongly. */
@@ -14,7 +16,14 @@ async function render() {
     if (server) $("server").value = server;
     return;
   }
-  if (!(await hasNetflixAccess())) return showOnly("grant");
+  const netflixOk = await hasNetflixAccess();
+  const animeOk = await hasAnimeAccess();
+  const streamingOk = await hasStreamingAccess();
+  if (!netflixOk && !animeOk && !streamingOk) {
+    showOnly("grant");
+    await renderGrant();
+    return;
+  }
   showOnly("main");
   $("pause-btn").textContent = paused ? "Riprendi" : "Metti in pausa";
 
@@ -26,7 +35,7 @@ async function render() {
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
   const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
-  renderList(statusNow?.list ?? []);
+  await renderList(statusNow?.list ?? []);
   await renderTogether(statusNow, w);
   if (!w) return;
 
@@ -35,7 +44,20 @@ async function render() {
     ? `Il player dice “${w.label}”, ma non l’ho trovato nel catalogo con questo nome. Sceglilo una volta: per le prossime puntate lo riconosco da solo.`
     : "Non riesco a leggerlo dal player. Sceglilo una volta: per le prossime puntate lo riconosco da solo.";
   const ep = w.season && w.episode ? `S${w.season}E${w.episode}` : "";
-  $("watching-meta").textContent = [w.title?.year, ep, "su Netflix"].filter(Boolean).join(" · ");
+  const otherProvider = w.provider === "streamingcommunity" || w.providerId === "streamingcommunity"
+    ? "streamingcommunity"
+    : w.provider === "animeunity" || w.providerId === "animeunity" ? "animeunity" : null;
+  const providerLabel = otherProvider === "streamingcommunity" ? "su StreamingCommunity" : otherProvider === "animeunity" ? "su AnimeUnity" : "su Netflix";
+  $("watching-meta").textContent = [w.title?.year, ep, providerLabel].filter(Boolean).join(" · ");
+  show("sc-actions", otherProvider !== null);
+  if (otherProvider === "streamingcommunity") {
+    const origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
+    $("sc-search-hint").textContent = origin
+      ? `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su ${new URL(origin).hostname}.`
+      : "Dominio attuale non ancora risolto: usami dalla schermata di attivazione.";
+  } else if (otherProvider === "animeunity") {
+    $("sc-search-hint").textContent = `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su animeunity.so.`;
+  }
   $("player-read").textContent = await playerReading();
   renderSeasonAsk(w);
   show("change-btn", Boolean(w.title) && !changing);
@@ -84,9 +106,10 @@ async function playerReading() {
   return ["Letto dal player:", [player.title || "titolo non indicato", ep, seen].filter(Boolean).join(" · ")].join(" ");
 }
 
-/** In progress (with the episode) and wishlist; each opens a Netflix search for it. */
-function renderList(items) {
+/** In progress (with the episode) and wishlist; each opens a search for it on its provider. */
+async function renderList(items) {
   show("my-list", items.length > 0);
+  const scOrigin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
   const rows = [];
   let section = null;
   for (const item of items) {
@@ -99,7 +122,11 @@ function renderList(items) {
     }
     const li = document.createElement("li");
     const a = document.createElement("a");
-    a.href = `https://www.netflix.com/search?q=${encodeURIComponent(item.title)}`;
+    a.href = item.provider === "streamingcommunity" && scOrigin
+      ? `${scOrigin}/search?q=${encodeURIComponent(item.title)}`
+      : item.provider === "animeunity"
+        ? `${AU_SEARCH}${encodeURIComponent(item.title)}`
+        : `https://www.netflix.com/search?q=${encodeURIComponent(item.title)}`;
     a.target = "_blank";
     const name = document.createElement("span");
     name.className = "name";
@@ -183,6 +210,55 @@ $("visible").addEventListener("change", async () => {
 
 function showOnly(id) {
   for (const s of ["pair", "grant", "main"]) show(s, s === id);
+}
+
+/**
+ * Il pulsante StreamingCommunity della schermata di attivazione cambia passo:
+ * prima chiede il permesso per la directory (streaming-community.how), poi per
+ * il dominio attuale trovato sul suo pulsante "StreamingCommunity", poi permette
+ * di forzare una nuova risoluzione.
+ */
+async function renderGrant() {
+  const auBtn = $("au-grant-btn");
+  auBtn.hidden = false;
+  if (await hasAnimeAccess()) {
+    auBtn.textContent = "AnimeUnity attivo ✓";
+    auBtn.disabled = true;
+  } else {
+    auBtn.textContent = "Consenti su animeunity.so";
+    auBtn.onclick = async () => {
+      if (await chrome.permissions.request({ origins: AU_ORIGINS })) await renderGrant();
+    };
+  }
+  const btn = $("sc-grant-btn");
+  btn.hidden = false;
+  if (!(await hasDirectoryAccess())) {
+    $("sc-grant-status").textContent =
+      "Il sito cambia indirizzo di continuo: CineLoop trova quello attuale dal pulsante StreamingCommunity di streaming-community.how.";
+    btn.textContent = "Consenti su streaming-community.how";
+    btn.onclick = async () => {
+      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await renderGrant();
+    };
+    return;
+  }
+  const resolved = await getResolved();
+  if (resolved?.origin && !(await hasStreamingAccess())) {
+    $("sc-grant-status").textContent = "Ho trovato il dominio attuale. Consentilo una volta: se cambia, te lo chiederò di nuovo qui.";
+    btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
+    btn.onclick = async () => {
+      if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`] })) await render();
+    };
+    return;
+  }
+  btn.textContent = "Trova il link attuale di StreamingCommunity";
+  btn.onclick = async () => {
+    btn.disabled = true;
+    $("sc-grant-status").textContent = "Cerco il dominio attuale…";
+    const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
+    btn.disabled = false;
+    if (origin) await render();
+    else $("sc-grant-status").textContent = "Non trovo il pulsante StreamingCommunity: riprova tra poco.";
+  };
 }
 
 function renderChoices(list, titles) {
@@ -301,4 +377,34 @@ $("unpair-btn").addEventListener("click", async () => {
   await render();
 });
 
+$("grant-skip").addEventListener("click", () => render());
+
+$("sc-open-btn").addEventListener("click", async () => {
+  const meta = $("watching-meta").textContent;
+  if (meta.includes("AnimeUnity")) {
+    // Dominio fisso: apri direttamente la ricerca del titolo.
+    const title = $("watching-title").textContent;
+    chrome.tabs.create({ url: `${AU_SEARCH}${encodeURIComponent(title)}` });
+    return;
+  }
+  // StreamingCommunity: apre il dominio attuale; se non e' risolto, lo risolve prima.
+  let origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
+  origin ??= await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
+  if (origin) chrome.tabs.create({ url: origin });
+});
+
+$("manual-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const num = (id) => {
+    const v = $(id).value.trim();
+    return v === "" ? null : Math.round(Number(v));
+  };
+  const ok = await chrome.runtime
+    .sendMessage({ type: "manual-progress", season: num("manual-season"), episode: num("manual-episode"), progress: num("manual-progress") })
+    .catch(() => false);
+  show("manual-ok", Boolean(ok));
+  if (ok) await render();
+});
+
 render();
+

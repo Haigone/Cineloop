@@ -26,14 +26,36 @@
       </form>
     </section>
 
-    <!-- Paired, Netflix access not granted -->
+    <!-- Paired, site access not granted yet -->
     <section id="grant" hidden>
-      <h1>Attiva su Netflix</h1>
+      <h1>Attiva il monitoraggio</h1>
       <p class="muted">
-        CineLoop legge l’indirizzo delle schede di netflix.com e, nel player, il titolo e l’episodio in riproduzione; quando guardi con
-        un amico mette in play o in pausa il tuo video insieme al suo. Nient’altro: niente password né cookie, e nessun altro sito.
+        CineLoop legge l’indirizzo delle schede dei siti che attivi e, nel player, il titolo e l’episodio in riproduzione. Nient’altro:
+        niente password né cookie, e nessun altro sito.
       </p>
-      <button id="grant-btn" class="primary">Consenti su netflix.com</button>
+
+      <div class="card">
+        <p class="title">Netflix</p>
+        <p class="muted small">Rileva film e serie su netflix.com; con un amico mette in play o in pausa il tuo video insieme al suo.</p>
+        <button id="grant-btn" class="primary">Consenti su netflix.com</button>
+      </div>
+
+      <div class="card">
+        <p class="title">AnimeUnity</p>
+        <p class="muted small">Rileva anime, episodio e punto raggiunto su animeunity.so (dominio fisso, una volta sola).</p>
+        <button id="au-grant-btn" class="primary">Consenti su animeunity.so</button>
+      </div>
+
+      <div class="card">
+        <p class="title">StreamingCommunity</p>
+        <p id="sc-grant-status" class="muted small">
+          Il sito cambia indirizzo di continuo: CineLoop trova quello attuale dal pulsante StreamingCommunity di
+          streaming-community.how e te lo chiede qui.
+        </p>
+        <button id="sc-grant-btn" class="primary" hidden></button>
+      </div>
+
+      <button id="grant-skip" class="quiet link">Vai al pannello principale</button>
     </section>
 
     <!-- Paired and active -->
@@ -48,7 +70,7 @@
       <div id="panel-now" role="tabpanel" aria-labelledby="tab-now">
         <div id="idle" class="card" hidden>
           <p class="title">Niente in riproduzione</p>
-          <p class="muted">Avvia un film o un episodio su Netflix: CineLoop aggiorna la tua libreria con stagione ed episodio.</p>
+          <p class="muted">Avvia un film o un episodio su Netflix o su StreamingCommunity: CineLoop aggiorna la tua libreria con stagione ed episodio.</p>
         </div>
 
         <div id="paused-card" class="card" hidden>
@@ -61,6 +83,20 @@
           <p id="watching-title" class="title"></p>
           <p id="watching-meta" class="muted"></p>
           <p id="player-read" class="muted small"></p>
+          <div id="sc-actions" class="sc-actions" hidden>
+            <button id="sc-open-btn" type="button">Apri su StreamingCommunity</button>
+            <p id="sc-search-hint" class="muted small"></p>
+            <details class="manual">
+              <summary>Aggiorna a mano episodio e posizione</summary>
+              <form id="manual-form" class="manual-grid">
+                <label>Stagione <input id="manual-season" type="number" min="1" max="99" step="1" /></label>
+                <label>Episodio <input id="manual-episode" type="number" min="1" max="999" step="1" /></label>
+                <label>% vista <input id="manual-progress" type="number" min="0" max="100" step="1" /></label>
+                <button type="submit" class="primary">Salva</button>
+              </form>
+              <p id="manual-ok" class="muted small" hidden>Salvato: il prossimo heartbeat lo manda a CineLoop.</p>
+            </details>
+          </div>
           <div id="season-ask" hidden>
             <p class="small">Netflix non mostra la stagione: quale stai guardando?</p>
             <div id="season-choices" class="seasons" role="group" aria-label="Stagione"></div>

@@ -77,3 +77,11 @@ details[open] summary { margin-bottom: 4px; }
 }
 .seasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .seasons button { height: 28px; min-width: 40px; padding: 0 10px; }
+
+.sc-actions { display: grid; gap: 6px; margin-top: 4px; }
+.sc-actions > button { justify-self: start; }
+.manual summary { cursor: pointer; color: var(--fg-2); font-size: 12px; }
+.manual-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: end; margin-top: 6px; }
+.manual-grid label { display: grid; gap: 2px; font-size: 11px; }
+.manual-grid input { height: 30px; }
+.manual-grid button { height: 30px; }
