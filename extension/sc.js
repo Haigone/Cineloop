@@ -36,10 +36,10 @@ export async function hasStreamingAccess() {
 export function streamingOriginFromWatchUrl(value) {
   try {
     const url = new URL(value);
-    const host = url.hostname.toLowerCase().replace(/^www\\./, "");
-    const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host);
-    const validPath = /^\\/(?:[a-z]{2}\\/)?watch\\/\\d{1,9}(?:\\/|$)/i.test(url.pathname) ||
-      /^\\/titles?\\/\\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+    const validPath = /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)/i.test(url.pathname) ||
+      /^\/titles?\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
     if (url.protocol !== "https:" || url.username || url.password || url.origin === DIRECTORY_ORIGIN || !validHost || !validPath) return null;
     return url.origin;
   } catch {
