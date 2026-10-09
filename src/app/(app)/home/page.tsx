@@ -18,6 +18,7 @@ import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
 import { reasonLabel } from "@/components/home/tonight";
 import { WeekStats } from "@/components/home/week-stats";
+import { RecentlyWatched } from "@/components/home/recently-watched";
 import { TonightQueue } from "@/components/home/tonight-queue";
 import { RatePrompt } from "@/components/home/rate-prompt";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
@@ -146,6 +147,11 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
         <RevealItem className="order-5">
           <Panel title="Questa settimana" titleId="week-stats">
             <WeekStats stats={view.week} />
+          </Panel>
+        </RevealItem>
+        <RevealItem className="order-6">
+          <Panel title="Visti di recente" titleId="recently-watched" action={<Link href="/library" className="rounded-sm text-xs text-fg-2 hover:text-fg">Libreria</Link>}>
+            <RecentlyWatched items={view.recentlyWatched} />
           </Panel>
         </RevealItem>
         {view.party.friends.length > 0 && (
