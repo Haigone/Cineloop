@@ -8,10 +8,10 @@ CineLoop non riproduce contenuti, non usa le credenziali dell'utente presso i pr
 |---|---|---|---|
 | Netflix | Rilevamento tramite estensione | "Ora in visione", libreria e tempo aggiornati dall'estensione dell'utente; link "Continua su Netflix" | Estensione CineLoop (URL e titolo della scheda); in futuro anche l'import del CSV "Attività di visione" |
 | Prime Video, Disney+, Apple TV+, NOW, Crunchyroll | In arrivo | Link alla homepage del servizio | Da studiare caso per caso (API ufficiali, export dei dati, partnership) |
-| Anime Unity | Non supportato | Nulla: adapter stub | Nessuno |
+| Anime Unity | Disponibile tramite estensione CineLoop | Rileva titolo, episodio e frazione del video; salva il progresso e riapre la pagina al punto registrato | Permesso host opzionale, concesso dall'utente nel popup |
 | Streaming Community | Non supportato | Nulla: adapter stub | Nessuno |
 
-Nessun provider è segnato `available`, e un test (`tests/unit/providers.test.ts`) lo verifica: lo stato cambia solo quando esiste un canale di sincronizzazione verificato.
+Anime Unity è segnato `available` perché l'estensione esistente invia già osservazioni dal dominio autorizzato; il supporto è coperto da test unitari. Streaming Community resta `not-supported`.
 
 ## Netflix
 
@@ -52,12 +52,21 @@ Da TMDB, aggiornati al massimo una volta al giorno: per le serie viste o in cors
 
 ## Anime Unity e Streaming Community
 
-**Fatti verificati**
+### Anime Unity
 
-- Streaming Community è descritto dalla stampa italiana come sito pirata, oscurato a ripetizione. La Guardia di Finanza reindirizza i visitatori a una pagina di avviso e ha annunciato sanzioni agli utenti ([Sky TG24, maggio 2025](https://tg24.sky.it/tecnologia/2025/05/20/streaming-community-lotta-pirateria); [Punto Informatico](https://www.punto-informatico.it/oscurata-principale-community-streaming-illegale-italia-utenti-rischio-multa/)).
-- Per Anime Unity non ho trovato fonti autorevoli su provvedimenti specifici. Non risultano però licenze dai detentori dei diritti, un'API pubblica o termini che consentano l'accesso di terze parti, e il dominio cambia spesso. Gli stessi titoli sono distribuiti legalmente da Crunchyroll, Netflix e Prime Video.
+L'estensione CineLoop ha già un permesso host opzionale per `https://www.animeunity.so/*` e uno script dedicato alla pagina. Dopo che l'utente concede il permesso dal popup, il server riconosce le osservazioni Anime Unity e registra titolo, episodio e frazione del video quando disponibili.
 
-**Decisione**: integrazione **non consentita**. Entrambi gli adapter (`AnimeUnityAdapter`, `StreamingCommunityAdapter`) sono stub documentati: nessun rilevamento, nessun link e nessuna homepage memorizzata. Lo stato è `not-supported` e nelle impostazioni non si possono segnare come servizi usati. I titoli restano tracciabili a mano, come qualsiasi altro.
+- Le osservazioni sono accettate solo per pagine HTTPS del dominio `animeunity.so` (o suoi sottodomini) nel percorso `/anime/{id}`.
+- Il progresso usa la frazione del video fornita dall'estensione; non si tenta di leggere player cross-origin o estrarre URL multimediali.
+- La libreria salva l'URL della pagina osservata. Il comando "Continua" aggiunge un parametro temporaneo con la frazione salvata; lo script Anime Unity prova a riposizionare il video quando i metadati sono pronti e poi rimuove il parametro dall'URL.
+- Le pagine anime di CineLoop includono un collegamento alla homepage di Anime Unity. Se è stato salvato un progresso, "Continua" preferisce la pagina esatta registrata.
+- La sorgente dei metadati del catalogo resta TMDB/il catalogo locale configurato: l'attivazione del provider non rende il catalogo anime esaustivo né fa scraping del sito.
+
+Il ripristino della posizione dipende dal fatto che il player consenta la ricerca temporale e che la pagina salvata apra lo stesso episodio. Se Anime Unity cambia la struttura del sito o il player non espone un elemento video accessibile, il ripristino può non funzionare.
+
+### Streaming Community
+
+Resta non supportato: l'adapter è uno stub, non rileva la riproduzione e non genera link. Questa modifica non tocca il relativo adapter o il codice dedicato dell'estensione.
 
 ## Cosa CineLoop non farà, per nessun provider
 

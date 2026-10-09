@@ -1,11 +1,9 @@
 // CineLoop: cosa sta guardando questa scheda di AnimeUnity.
 //
 // Gira solo su www.animeunity.so, dopo che l'utente ha concesso quel sito
-// all'estensione. Sulla pagina di un anime (/anime/{id}-slug) legge il nome
-// (h1 della scheda), l'episodio selezionato nella lista e quanto e' avanzato
-// il video. Il player di AnimeUnity e' nella pagina stessa, quindi il
-// progresso e' sempre leggibile. Nient'altro viene letto, nulla viene
-// modificato, nessuna richiesta parte: il risultato va al background worker.
+// all'estensione. Legge titolo, episodio e avanzamento del video. Il parametro
+// cineloopResume è un'indicazione di ripresa generata da CineLoop: viene
+// applicata al video visibile una sola volta, quando i metadati sono pronti.
 (() => {
   const alive = () => Boolean(globalThis.chrome?.runtime?.id);
   if (typeof globalThis.__cineloopAuPage === "function" && globalThis.__cineloopAuPage()) return;
@@ -14,6 +12,12 @@
 
   const EPISODE_WORD = /(?:^|\b)(?:Ep\.?|Episodio|Episode)\s*(\d{1,4})\b/i;
   const titleIdNow = () => /\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+  const params = new URLSearchParams(location.search);
+  const requestedResume = Number(params.get("cineloopResume"));
+  const resumeFraction = params.has("cineloopResume") && Number.isFinite(requestedResume)
+    ? Math.min(1, Math.max(0, requestedResume))
+    : null;
+  let resumeApplied = false;
 
   /** L'anime che questa pagina sta mostrando, finche' non cambia pagina. */
   let known = { watchId: null, title: "", season: null, episode: null };
@@ -21,7 +25,6 @@
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
 
   function fromHeading() {
-    // La scheda anime ha un h1 con il titolo (a volte seguito da "Streaming" o simili).
     const h1 = document.querySelector("h1");
     if (!h1) return null;
     const text = clean(h1.textContent)
@@ -33,7 +36,6 @@
   }
 
   function fromTitleTag() {
-    // document.title e' tipo "One Piece Episodio 1080 Streaming ITA ... - AnimeUnity".
     const t = clean(document.title)
       .replace(/\s*[-|·]\s*anime\s*unity.*$/i, "")
       .replace(/\s*(streaming|download|sub\s*ita|ita)\s*.*$/i, "")
@@ -44,7 +46,6 @@
     return { title: t.slice(0, 200) };
   }
 
-  /** L'elemento dell'episodio attivo, se la lista lo evidenzia. */
   function activeEpisodeEl() {
     const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
     for (const el of document.querySelectorAll(sel)) {
@@ -55,7 +56,6 @@
   }
 
   function parseEpisodeFromDom() {
-    // I pulsanti episodio di AnimeUnity sono numeri puri ("1080") o "Episodio 1080".
     const candidates = [...document.querySelectorAll("[class*=episode i], [class*=episodio i], a, button, li, span")]
       .map((el) => clean(el.textContent))
       .filter((t) => t && t.length <= 30);
@@ -69,7 +69,6 @@
     return null;
   }
 
-  /** Il <video> piu' avanzato nel documento o negli iframe same-origin. */
   function findVideo(root = document, depth = 0) {
     if (depth > 2) return null;
     let best = null;
@@ -88,6 +87,21 @@
       }
     }
     return best;
+  }
+
+  function applyResume(video) {
+    if (resumeApplied || resumeFraction === null || !video) return;
+    if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+    try {
+      video.currentTime = Math.max(0, Math.min(video.duration - 1, video.duration * resumeFraction));
+      resumeApplied = true;
+      // Remove the one-shot hint so a refresh won't seek repeatedly.
+      const cleanUrl = new URL(location.href);
+      cleanUrl.searchParams.delete("cineloopResume");
+      history.replaceState(history.state, "", cleanUrl.toString());
+    } catch {
+      // The player may disallow seeking until it is ready; retry on next read.
+    }
   }
 
   function read() {
@@ -110,6 +124,7 @@
       if (guessed !== null) known.episode = guessed;
     }
     const video = findVideo();
+    applyResume(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
     const progress = duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
     const message = { type: "player-title", ...known, progress: progress === null ? null : Math.round(progress * 1000) / 1000 };

@@ -1,9 +1,7 @@
 import type { Provider, ProviderId } from "./types";
 
 /**
- * Static provider metadata. Integration status reflects what we have actually
- * verified (see docs/providers.md); nothing is marked `available` until a
- * legitimate, permitted sync mechanism exists.
+ * Static provider metadata. Status reflects implemented behaviour (see docs/providers.md).
  */
 export const PROVIDERS: Record<ProviderId, Provider> = {
   netflix: {
@@ -52,8 +50,8 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     id: "animeunity",
     name: "Anime Unity",
     tint: "#8c7cf0",
-    homepage: null,
-    integration: "not-supported",
+    homepage: "https://www.animeunity.so",
+    integration: "available",
   },
   streamingcommunity: {
     id: "streamingcommunity",
@@ -67,9 +65,8 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
 export const PROVIDER_LIST: Provider[] = Object.values(PROVIDERS);
 
 /**
- * Services Esplora can filter by ("what's included with my subscription in
- * Italy"). Availability comes from TMDB/JustWatch, which only tracks
- * official services.
+ * Services Esplora can filter by ("what's included with my subscription" in Italy).
+ * Availability comes from TMDB/JustWatch, which tracks official services only.
  */
 export const BROWSABLE_PROVIDERS: ProviderId[] = ["netflix", "prime-video", "disney-plus", "apple-tv", "now", "crunchyroll"];
 
