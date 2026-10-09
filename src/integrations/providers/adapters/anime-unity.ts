@@ -2,10 +2,11 @@ import type { ProviderCapabilities, CurrentContent, SyncObservation, Content, Ad
 import { ObservationAdapter } from "./base";
 
 const AU_HOST = "animeunity.so";
+const AU_HOME = "https://www.animeunity.so";
 
 /**
- * Anime Unity adapter for page URLs and progress already observed by the
- * user's CineLoop extension. It does not fetch the site or inspect media URLs.
+ * Anime Unity adapter for page URLs and playback progress observed by the
+ * user's extension. It does not fetch the site or inspect media URLs.
  */
 export class AnimeUnityAdapter extends ObservationAdapter {
   readonly id = "animeunity" as const;
@@ -50,7 +51,10 @@ export class AnimeUnityAdapter extends ObservationAdapter {
   }
 
   override getContentUrl(content: Content): string | null {
-    if (content.providerId !== this.id || !content.externalId) return null;
+    if (content.providerId !== this.id) return null;
+    // A catalogue title without a previously observed page still gets a useful
+    // provider link; saved progress uses the exact URL stored with that progress.
+    if (!content.externalId) return AU_HOME;
     return this.parsePageUrl(content.externalId);
   }
 
@@ -64,8 +68,6 @@ export class AnimeUnityAdapter extends ObservationAdapter {
         url.username ||
         url.password
       ) return null;
-      // This is a page URL, not a media URL. Drop the one-shot resume hint so
-      // it is never persisted as part of the user's canonical page address.
       url.searchParams.delete("cineloopResume");
       return url.toString();
     } catch {
