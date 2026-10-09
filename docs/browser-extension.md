@@ -12,7 +12,7 @@ Stato: **disponibile per Netflix, AnimeUnity e StreamingCommunity** (Chrome, Edg
 
 Per le schede dei servizi che hai autorizzato, e solo quelle:
 
-- l'indirizzo della pagina (es. `https://www.netflix.com/watch/80077368` oppure una pagina titolo StreamingCommunity `/titles/{id}`);
+- l'indirizzo della pagina (es. `https://www.netflix.com/watch/80077368`, una pagina StreamingCommunity `/titles/{id}` oppure `/it/watch/{id}?e={episodeId}`);
 - il titolo della scheda (spesso è solo "Netflix");
 - se la scheda sta riproducendo audio (dopo 10 minuti di silenzio l'estensione smette di segnalarti);
 - **cosa è in riproduzione, come lo nomina il player** (dalla versione 0.2.0, 8 ottobre 2026, su richiesta del proprietario del progetto): il nome della serie o del film e la riga "S4:E5". `player-title.js` legge solo due cose sulle pagine `/watch`: i metadati multimediali che la pagina passa al browser (gli stessi dei controlli multimediali del browser) e la riga del titolo del player (`[data-uia="video-title"]`). Così serie, stagione ed episodio si riconoscono senza chiedere nulla.
@@ -23,13 +23,13 @@ Dall'indirizzo delle pagine di catalogo (`?jbv=` o `/title/`) ricorda l'id della
 
 - Cookie, localStorage, token, header o richieste di rete.
 - Il resto della pagina: elenchi, "La mia lista", cronologia, profilo, il flusso video o i sottotitoli. Lo script non modifica la pagina, non comanda il player e non fa richieste; gira solo su www.netflix.com dopo che l'utente ha concesso il permesso.
-- Qualsiasi altro sito. I permessi host sono opzionali e richiesti dal pannello con un clic dell'utente: `https://www.netflix.com/*`, `https://www.animeunity.so/*`, la directory `https://www.streaming-community.how/*` e il dominio StreamingCommunity corrente risolto dal suo pulsante.
+- Non invia al server gli URL di altri siti. Per riconoscere un nuovo dominio dalla scheda aperta dall'utente, il permesso `tabs` rende disponibili i metadati URL delle schede; il codice li usa solo per riconoscere URL HTTPS con host StreamingCommunity e percorso di riproduzione valido. Leggere il contenuto della pagina richiede comunque il permesso host specifico, richiesto dal pannello con un clic.
 
 Non fa alcuna richiesta a Netflix: parla solo con il server CineLoop scelto dall'utente.
 
 ### StreamingCommunity
 
-Dopo il consenso alla directory `streaming-community.how`, l'estensione segue il pulsante “StreamingCommunity” anche se reindirizza a un altro dominio, poi chiede il permesso per il dominio finale. Lo script `sc-page.js` osserva le pagine titolo `/titles/{id}`: legge l'intestazione visibile, eventuali marcatori di stagione/episodio e la frazione del video solo quando il tag `video` è accessibile nello stesso documento o in un iframe same-origin. Non legge cookie, credenziali, richieste di rete o URL dei flussi. Se il player è cross-origin, il titolo può essere riconosciuto mentre episodio e posizione restano sconosciuti.
+Dopo il consenso alla directory `streaming-community.how`, l'estensione segue il pulsante “StreamingCommunity” anche se reindirizza a un altro dominio. Se l'utente apre direttamente una pagina di riproduzione su un host nuovo e valido, memorizza automaticamente quell'origine; il browser richiede comunque un clic dell'utente per autorizzare il nuovo host prima di leggere la pagina. Lo script `sc-page.js` osserva `/titles/{id}` e `/it/watch/{id}?e={episodeId}`: legge l'intestazione visibile, i marcatori di stagione/episodio, l'ID episodio nella query e la frazione del video se il tag `video` è accessibile nello stesso documento o in un iframe same-origin. L'URL completo e il progresso sono inviati al server CineLoop abbinato. Non legge cookie, credenziali, richieste di rete o URL dei flussi.
 
 ## Come funziona
 
@@ -42,7 +42,7 @@ interface SyncObservation {
   providerId: ProviderId;
   url: string;
   documentTitle: string;
-  hints?: { title?: string; season?: number; episode?: number; parentId?: string };
+  hints?: { title?: string; season?: number; episode?: number; episodeId?: string; progress?: number; parentId?: string };
   observedAt: string;
 }
 ```

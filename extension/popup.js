@@ -253,12 +253,20 @@ async function togglePermission(provider) {
     else await chrome.permissions.request({ origins: AU_ORIGINS });
   } else {
     const resolved = await getResolved();
-    const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
-    if (await hasDirectoryAccess() || await hasStreamingAccess()) {
+    const directory = await hasDirectoryAccess();
+    const streaming = await hasStreamingAccess();
+    if (streaming) {
+      const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
       await chrome.permissions.remove({ origins });
+    } else if (resolved?.origin) {
+      // A changed origin is detected from the watch tab. Chrome requires an
+      // explicit user gesture to grant this new host before reading the player.
+      await chrome.permissions.request({ origins: [`${resolved.origin}/*`] });
+    } else if (directory) {
+      const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
+      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`] });
     } else {
-      const granted = await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
-      if (granted) await renderGrant();
+      await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
     }
   }
   await render();
@@ -292,21 +300,21 @@ async function renderGrant() {
   }
   const btn = $("sc-grant-btn");
   btn.hidden = false;
-  if (!(await hasDirectoryAccess())) {
-    $("sc-grant-status").textContent =
-      "Il sito cambia indirizzo di continuo: CineLoop trova quello attuale dal pulsante StreamingCommunity di streaming-community.how.";
-    btn.textContent = "Consenti su streaming-community.how";
-    btn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await renderGrant();
-    };
-    return;
-  }
   const resolved = await getResolved();
   if (resolved?.origin && !(await hasStreamingAccess())) {
-    $("sc-grant-status").textContent = "Ho trovato il dominio attuale. Consentilo una volta: se cambia, te lo chiederò di nuovo qui.";
+    $("sc-grant-status").textContent = "Ho rilevato il dominio dalla scheda che hai aperto. Consentilo una volta per leggere titolo, episodio e avanzamento.";
     btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
     btn.onclick = async () => {
       if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`] })) await render();
+    };
+    return;
+  }
+  if (!(await hasDirectoryAccess())) {
+    $("sc-grant-status").textContent =
+      "Per aggiornare il dominio dalla directory streaming-community.how, consenti l'accesso alla directory.";
+    btn.textContent = "Consenti su streaming-community.how";
+    btn.onclick = async () => {
+      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await renderGrant();
     };
     return;
   }

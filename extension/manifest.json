@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CineLoop",
   "short_name": "CineLoop",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Aggiorna CineLoop mentre guardi Netflix, AnimeUnity o StreamingCommunity: rileva serie, episodio e punto raggiunto.",
   "minimum_chrome_version": "120",
   "icons": {
@@ -26,7 +26,8 @@
   "permissions": [
     "storage",
     "alarms",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "optional_host_permissions": [
     "https://www.netflix.com/*",

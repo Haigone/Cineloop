@@ -5,7 +5,7 @@ import { ObservationAdapter } from "./base";
  * Reads only the HTTPS title page and hints explicitly reported by CineLoop's
  * user-enabled extension. StreamingCommunity's host changes, so accept a
  * single-level hostname whose name identifies the service and require a
- * canonical /titles/{id} path. No provider requests are made here.
+ * /watch/{id} or /titles/{id} path. No provider requests are made here.
  */
 export class StreamingCommunityAdapter extends ObservationAdapter {
   readonly id = "streamingcommunity" as const;
@@ -65,7 +65,7 @@ export class StreamingCommunityAdapter extends ObservationAdapter {
         url.username ||
         url.password ||
         !/^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host) ||
-        !/^\/titles?\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)
+        !/^(?:\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)|\/titles?\/\d{1,9}(?:[-/?#]|$))/i.test(url.pathname)
       ) return null;
       url.hash = "";
       return url.toString();

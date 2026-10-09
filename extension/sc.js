@@ -32,6 +32,36 @@ export async function hasStreamingAccess() {
   }
 }
 
+/** Recognize the domain only from a watch URL the user has opened themselves. */
+export function streamingOriginFromWatchUrl(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+    const validPath = /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)/i.test(url.pathname) ||
+      /^\/titles?\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
+    if (url.protocol !== "https:" || url.username || url.password || url.origin === DIRECTORY_ORIGIN || host === "streaming-community.how" || !validHost || !validPath) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remember a changed origin observed in the user's own StreamingCommunity watch
+ * tab. This does not visit or crawl any replacement domain. Chrome still
+ * requires the user to grant host access before page contents can be read.
+ */
+export async function rememberObservedStreamingUrl(value) {
+  const origin = streamingOriginFromWatchUrl(value);
+  if (!origin) return null;
+  const current = await getResolved();
+  if (current?.origin !== origin) {
+    await chrome.storage.local.set({ [RESOLVED_KEY]: { origin, at: Date.now() } });
+  }
+  return origin;
+}
+
 /**
  * Apre la directory e segue il pulsante "StreamingCommunity". Senza permesso
  * per la directory, o se la directory e' irraggiungibile, torna l'ultimo
@@ -53,7 +83,8 @@ export async function resolveStreamingUrl({ force = false } = {}) {
       if (!/streaming\s*community/i.test(label)) continue;
       try {
         const target = new URL(m[1], res.url || DIRECTORY_ORIGIN);
-        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || !/streaming[-]?community/i.test(target.hostname)) continue;
+        const targetHost = target.hostname.toLowerCase().replace(/^www\./, "");
+        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || targetHost === "streaming-community.how" || !/streaming[-]?community/i.test(target.hostname)) continue;
 
         // The directory button may redirect to another host. Resolve that
         // redirect with a temporary inactive tab; fetch() would require the
@@ -84,7 +115,8 @@ export async function resolveStreamingUrl({ force = false } = {}) {
           if (tab.id !== undefined) await chrome.tabs.remove(tab.id).catch(() => {});
         }
         const final = new URL(finalUrl || target.href);
-        if (final.protocol !== "https:" || !/streaming[-]?community/i.test(final.hostname)) continue;
+        const finalHost = final.hostname.toLowerCase().replace(/^www\./, "");
+        if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming[-]?community/i.test(final.hostname)) continue;
         const resolved = { origin: final.origin, at: Date.now() };
         await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
         return resolved.origin;
@@ -100,8 +132,8 @@ export async function resolveStreamingUrl({ force = false } = {}) {
 
 /** L'id numerico della pagina titolo (/titles/{id}-slug), o null. */
 export function scWatchId(url) {
-  const m = /\/titles?\/(\d{1,9})(?:[-/?#]|$)/.exec(url || "");
-  if (m) return m[1];
+  const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(url || "");
+  if (m) return m[1] ?? m[2];
   try {
     const u = new URL(url || "");
     const id = u.searchParams.get("title_id") ?? u.searchParams.get("titleId") ?? u.searchParams.get("id");

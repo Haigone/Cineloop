@@ -1,6 +1,6 @@
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
-import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
+import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
 import { auWatchId, hasAnimeAccess, isAnimeUrl } from "./au.js";
 
 /*
@@ -174,7 +174,10 @@ async function remember(tab) {
   if (!tab?.id || !tab.url) return;
   const onNetflix = Boolean(watchId(tab.url) || browseId(tab.url));
   const onAnime = isAnimeUrl(tab.url);
-  const onStreaming = await isStreamingUrl(tab.url);
+  // If the user opened a watch URL on a new SC hostname, remember that origin.
+  // Content access still waits for the browser permission prompt.
+  const observedOrigin = await rememberObservedStreamingUrl(tab.url);
+  const onStreaming = Boolean(observedOrigin) || await isStreamingUrl(tab.url);
   if (!onNetflix && !onAnime && !onStreaming) return;
   await updateTab(tab.id, (entry) => {
     if (onNetflix && !watchId(tab.url)) entry.parentId = browseId(tab.url);
@@ -187,6 +190,7 @@ async function playerTitle(tabId, m) {
   if (typeof m.watchId !== "string" || typeof m.title !== "string") return;
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
+  const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
   const changed = await updateTab(tabId, (entry) => {
     const was = entry.player;
     entry.player = {
@@ -194,10 +198,11 @@ async function playerTitle(tabId, m) {
       title: m.title.slice(0, 200),
       season,
       episode,
+      episodeId,
       progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
       at: Date.now(),
     };
-    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.season !== season;
+    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
   });
   if (changed) await tick();
 }
@@ -231,6 +236,7 @@ function playerHints(player, id) {
     ...(player.title ? { title: player.title } : {}),
     ...(player.season !== null ? { season: player.season } : {}),
     ...(player.episode !== null ? { episode: player.episode } : {}),
+    ...(player.episodeId ? { episodeId: player.episodeId } : {}),
     ...(player.progress !== null && player.progress !== undefined ? { progress: player.progress } : {}),
   };
 }
