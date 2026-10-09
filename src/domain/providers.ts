@@ -58,7 +58,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     name: "Streaming Community",
     tint: "#5b8cf5",
     homepage: null,
-    integration: "not-supported",
+    integration: "available",
   },
 };
 
