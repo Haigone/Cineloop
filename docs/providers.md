@@ -11,7 +11,7 @@ CineLoop non riproduce contenuti, non usa le credenziali dell'utente presso i pr
 | Anime Unity | Disponibile tramite estensione CineLoop | Rileva titolo, episodio e frazione del video; salva il progresso e riapre la pagina al punto registrato | Permesso host opzionale, concesso dall'utente nel popup |
 | Streaming Community | Rilevamento tramite estensione | Titolo, episodio e progresso quando leggibili; salva il link della pagina osservata | Permesso host opzionale per la directory e il dominio corrente, concessi dall’utente |
 
-Anime Unity è segnato `available` perché l'estensione esistente invia già osservazioni dal dominio autorizzato; il supporto è coperto da test unitari. Streaming Community resta `not-supported`.
+Anime Unity e Streaming Community sono segnati `available` per il rilevamento tramite estensione attivata esplicitamente dall'utente; il matching del titolo può comunque richiedere una conferma manuale se il nome non coincide con il catalogo.
 
 ## Netflix
 
@@ -66,7 +66,12 @@ Il ripristino della posizione dipende dal fatto che il player consenta la ricerc
 
 ### Streaming Community
 
-Resta non supportato: l'adapter è uno stub, non rileva la riproduzione e non genera link. Questa modifica non tocca il relativo adapter o il codice dedicato dell'estensione.
+L'estensione ha un permesso opzionale per `https://www.streaming-community.how/*`, la directory indicata dall'utente, e chiede separatamente il permesso per il dominio di riproduzione che trova sul pulsante “StreamingCommunity”. Il dominio viene risolto dinamicamente e messo in cache; quando cambia, l'utente può autorizzare il nuovo dominio dal popup.
+
+- Sulle pagine HTTPS `/titles/{id}` lo script dedicato legge il titolo visibile, eventuali indicatori di stagione/episodio e la frazione del video solo se un elemento video è accessibile nello stesso documento o in un iframe same-origin.
+- L'adapter server accetta soltanto URL HTTPS con un hostname che identifica StreamingCommunity e un percorso canonico `/titles/{id}`. Non scarica pagine del provider e non estrae URL multimediali.
+- L'URL esatto osservato viene salvato come collegamento per “Continua”. Se il player è cross-origin o il sito cambia struttura, la posizione e/o l'episodio potrebbero non essere disponibili.
+- Se il nome letto non corrisponde al catalogo CineLoop, il popup chiede di confermare il titolo una volta; l'abbinamento viene riutilizzato nelle osservazioni successive.
 
 ## Cosa CineLoop non farà, per nessun provider
 
