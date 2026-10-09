@@ -174,7 +174,10 @@ async function remember(tab) {
   if (!tab?.id || !tab.url) return;
   const onNetflix = Boolean(watchId(tab.url) || browseId(tab.url));
   const onAnime = isAnimeUrl(tab.url);
-  // If the user opened a watch URL on a new SC hostname, remember that origin.\n  // Content access still waits for the browser permission prompt.\n  const observedOrigin = await rememberObservedStreamingUrl(tab.url);\n  const onStreaming = Boolean(observedOrigin) || await isStreamingUrl(tab.url);
+  // If the user opened a watch URL on a new SC hostname, remember that origin.
+  // Content access still waits for the browser permission prompt.
+  const observedOrigin = await rememberObservedStreamingUrl(tab.url);
+  const onStreaming = Boolean(observedOrigin) || await isStreamingUrl(tab.url);
   if (!onNetflix && !onAnime && !onStreaming) return;
   await updateTab(tab.id, (entry) => {
     if (onNetflix && !watchId(tab.url)) entry.parentId = browseId(tab.url);
