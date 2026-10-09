@@ -388,12 +388,12 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // Anime services often publish each season as a separate entry. A player
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
-  const seasonSuffix = /(?:\\s+|[:：]\\s*)(?:season\\s*)?(\\d{1,2})\\s*$/i.exec(presence.label);
+  const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
   const baseLabel = seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label;
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 8);
   // With an episode number it is a series: never a film of the same name.
-  const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null || presence.episode !== null || t.type !== "movie");
+  const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null && presence.episode === null && !seasonSuffix || t.type !== "movie");
   let hit = local.find(fits);
   if (!hit && getCatalog().complete) {
     // Search the base title first: season suffixes are not part of the catalogue title.
