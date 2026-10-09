@@ -62,9 +62,11 @@
     <section id="main" hidden>
       <div class="tabs" role="tablist" aria-label="Sezioni">
         <button id="tab-now" role="tab" aria-controls="panel-now" aria-selected="true">Sto guardando</button>
+        <button id="tab-list" role="tab" aria-controls="panel-list" aria-selected="false" tabindex="-1">Watchlist</button>
         <button id="tab-together" role="tab" aria-controls="panel-together" aria-selected="false" tabindex="-1">
           Guarda insieme <span id="together-dot" class="dot" aria-hidden="true" hidden></span>
         </button>
+        <button id="tab-import" role="tab" aria-controls="panel-import" aria-selected="false" tabindex="-1">Importa</button>
       </div>
 
       <div id="panel-now" role="tabpanel" aria-labelledby="tab-now">
@@ -113,9 +115,26 @@
           <ul id="results" class="choices" aria-live="polite"></ul>
         </div>
 
+      </div>
+
+      <div id="panel-list" role="tabpanel" aria-labelledby="tab-list" hidden>
         <div id="my-list" class="card" hidden>
-          <p class="title">La tua lista</p>
           <ul id="list-items" class="list"></ul>
+        </div>
+        <div id="list-empty" class="card" hidden>
+          <p class="title">La tua watchlist è vuota</p>
+          <p class="muted">Aggiungi titoli su CineLoop, oppure importa la tua lista di Netflix dalla scheda Importa.</p>
+        </div>
+      </div>
+
+      <div id="panel-import" role="tabpanel" aria-labelledby="tab-import" hidden>
+        <div class="card">
+          <p class="title">La mia lista di Netflix</p>
+          <p id="import-help" class="muted"></p>
+          <button id="import-open" type="button" hidden>Apri La mia lista su Netflix</button>
+          <button id="import-btn" type="button" class="primary" hidden></button>
+          <p id="import-status" class="muted small" role="status" hidden></p>
+          <ul id="import-missing" class="missing" hidden></ul>
         </div>
       </div>
 

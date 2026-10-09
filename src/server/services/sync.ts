@@ -165,7 +165,8 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
   const candidateIds = [...inProgress.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)].slice(0, 6);
   const listEntries = [
     ...inProgress.slice(0, 6).map((e) => ({ id: e.titleId, status: "watching" as const, season: e.progress?.season ?? null, episode: e.progress?.episode ?? null })),
-    ...wishlist.slice(0, 6).map((w) => ({ id: w.titleId, status: "wishlist" as const, season: null, episode: null })),
+    // The popup's Watchlist tab shows the whole wishlist, in the user's order.
+    ...wishlist.slice(0, 60).map((w) => ({ id: w.titleId, status: "wishlist" as const, season: null, episode: null })),
   ];
   const live = presence && isLive(presence, new Date()) ? presence : null;
   const titleIds = [...new Set([...candidateIds, ...listEntries.map((e) => e.id), ...(live?.titleId ? [live.titleId] : [])])];

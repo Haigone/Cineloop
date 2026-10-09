@@ -42,6 +42,14 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   </script>`;
   await ctx.route("https://www.netflix.com/**", (route) => {
     const url = route.request().url();
+    // "La mia lista": three cards, as Netflix links them.
+    if (url.includes("/browse/my-list")) {
+      const card = (id: string, name: string) => `<div class="title-card"><a href="/watch/${id}?tctx=0" aria-label="${name}"><img alt="${name}"></a></div>`;
+      return route.fulfill({
+        contentType: "text/html",
+        body: `<title>Netflix</title>${card("80114855", "Squid Game")}${card("80117715", "Mindhunter")}${card("81234567", "Un titolo che non esiste")}`,
+      });
+    }
     const body = `<title>Netflix</title>${[[named, player], [named2, player2], [named3, player3], [named4, player4]].find(([n]) => url.includes(n!))?.[1] ?? ""}${url.includes("/watch/") ? video : ""}`;
     return route.fulfill({ contentType: "text/html", body });
   });
@@ -171,6 +179,24 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await popup.reload();
   await popup.getByRole("tab", { name: "Sto guardando" }).click();
   await expect(popup.getByText("Niente in riproduzione")).toBeVisible();
+
+  // "La mia lista" on Netflix goes to the wishlist, from the Importa tab.
+  const list = await ctx.newPage();
+  await list.goto("https://www.netflix.com/browse/my-list");
+  await popup.reload();
+  await popup.getByRole("tab", { name: "Importa" }).click();
+  await popup.getByRole("button", { name: "Importa 3 titoli" }).click();
+  await expect(popup.getByRole("status")).toContainText("Aggiunti alla wishlist: 1.");
+  await expect(popup.getByRole("status")).toContainText("Già su CineLoop: 1.");
+  await expect(popup.getByRole("status")).toContainText("Non trovati nel catalogo: 1.");
+  await expect(popup.locator("#import-missing")).toContainText("Un titolo che non esiste");
+  // The test has polled a lot: the list may wait for the per-minute request budget.
+  await expect(async () => {
+    await popup.reload();
+    await popup.getByRole("tab", { name: "Watchlist" }).click();
+    await expect(popup.locator("#panel-list")).toContainText("Squid Game", { timeout: 2000 });
+  }).toPass({ timeout: 90_000, intervals: [5000] });
+  await list.close();
 
   await other.close();
   await ctx.close();

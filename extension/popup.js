@@ -37,7 +37,8 @@ async function render() {
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
   const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
-  await renderList(statusNow?.list ?? []);
+  // No answer from CineLoop: keep the list on screen rather than calling it empty.
+  if (statusNow) await renderList(statusNow.list ?? []);
   await renderTogether(statusNow, w);
   if (!w) return;
 
@@ -117,6 +118,7 @@ async function playerReading() {
 /** In progress (with the episode) and wishlist; each opens a search for it on its provider. */
 async function renderList(items) {
   show("my-list", items.length > 0);
+  show("list-empty", items.length === 0);
   const scOrigin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
   const rows = [];
   let section = null;
@@ -187,20 +189,25 @@ async function renderTogether(status, w) {
   );
 }
 
+const TABS = ["tab-now", "tab-list", "tab-together", "tab-import"];
+
 function selectTab(which) {
-  for (const [tab, panel] of [["tab-now", "panel-now"], ["tab-together", "panel-together"]]) {
+  if (!TABS.includes(which)) return;
+  for (const tab of TABS) {
     const on = tab === which;
     $(tab).setAttribute("aria-selected", String(on));
     $(tab).tabIndex = on ? 0 : -1;
-    $(panel).hidden = !on;
+    $(tab.replace("tab-", "panel-")).hidden = !on;
   }
   chrome.storage.session.set({ popupTab: which }).catch(() => {});
+  if (which === "tab-import") renderImport().catch(() => {});
 }
 
-for (const id of ["tab-now", "tab-together"]) $(id).addEventListener("click", () => selectTab(id));
+for (const id of TABS) $(id).addEventListener("click", () => selectTab(id));
 $("tab-now").parentElement.addEventListener("keydown", (e) => {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-  const next = document.activeElement?.id === "tab-now" ? "tab-together" : "tab-now";
+  const at = TABS.indexOf(document.activeElement?.id ?? "tab-now");
+  const next = TABS[(at + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
   selectTab(next);
   $(next).focus();
 });
@@ -459,5 +466,103 @@ $("manual-form").addEventListener("submit", async (e) => {
   if (ok) await render();
 });
 
-render();
+// Import "La mia lista" from Netflix -----------------------------------------
 
+const MY_LIST = "https://www.netflix.com/browse/my-list";
+
+/** A Netflix tab showing "La mia lista": the one in front, else any open one. */
+async function myListTab() {
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (active?.url?.startsWith(MY_LIST)) return active;
+  const open = await chrome.tabs.query({ url: `${MY_LIST}*` }).catch(() => []);
+  return open.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0] ?? null;
+}
+
+/**
+ * Runs in the "La mia lista" page the user has open: reads the name and id
+ * of each card already on screen. No requests to Netflix, no scrolling.
+ */
+function readMyList() {
+  const out = new Map();
+  for (const a of document.querySelectorAll('a[href*="/watch/"], a[href*="/title/"]')) {
+    const m = /\/(?:watch|title)\/(\d+)/.exec(a.getAttribute("href") || "");
+    if (!m || out.has(m[1])) continue;
+    const name = (
+      a.getAttribute("aria-label") ||
+      a.querySelector("img[alt]")?.getAttribute("alt") ||
+      a.querySelector(".fallback-text")?.textContent ||
+      ""
+    ).trim();
+    if (name) out.set(m[1], name);
+  }
+  return [...out].map(([id, title]) => ({ id, title }));
+}
+
+async function renderImport() {
+  if (!(await hasNetflixAccess())) {
+    $("import-help").textContent = "Attiva Netflix in “Servizi collegati” per importare la tua lista.";
+    show("import-open", false);
+    show("import-btn", false);
+    return;
+  }
+  const tab = await myListTab();
+  show("import-open", !tab);
+  show("import-btn", Boolean(tab));
+  if (!tab) {
+    $("import-help").textContent =
+      "Apri La mia lista su Netflix e scorri fino in fondo, così tutte le copertine sono caricate. Poi riapri questo pannello: i titoli finiscono nella tua wishlist di CineLoop.";
+    return;
+  }
+  const [{ result: items = [] } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readMyList }).catch(() => []);
+  $("import-help").textContent = items.length
+    ? `Vedo ${items.length} titoli nella pagina. Se la lista è più lunga, scorri fino in fondo e riapri questo pannello.`
+    : "Non vedo titoli nella pagina: aspetta che le copertine si carichino e riapri questo pannello.";
+  $("import-btn").textContent = items.length === 1 ? "Importa 1 titolo" : `Importa ${items.length} titoli`;
+  $("import-btn").disabled = items.length === 0;
+  $("import-btn").onclick = () => importItems(items);
+}
+
+/** Sends the list in small batches and reports what was added. */
+async function importItems(items) {
+  const btn = $("import-btn");
+  btn.disabled = true;
+  show("import-status", true);
+  show("import-missing", false);
+  const total = { added: 0, already: 0, notFound: [] };
+  try {
+    for (let i = 0; i < items.length; i += 20) {
+      $("import-status").textContent = `Importo… ${Math.min(i + 20, items.length)} di ${items.length}`;
+      const res = await api("/api/extension/import-list", { method: "POST", body: { items: items.slice(i, i + 20) } });
+      total.added += res.added.length;
+      total.already += res.already;
+      total.notFound.push(...res.notFound);
+    }
+    $("import-status").textContent = [
+      `Aggiunti alla wishlist: ${total.added}.`,
+      total.already ? `Già su CineLoop: ${total.already}.` : "",
+      total.notFound.length ? `Non trovati nel catalogo: ${total.notFound.length}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    $("import-missing").replaceChildren(
+      ...total.notFound.map((t) => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        return li;
+      }),
+    );
+    show("import-missing", total.notFound.length > 0);
+    await render();
+  } catch (err) {
+    $("import-status").textContent =
+      err instanceof ApiError && err.status === 429
+        ? "Troppe richieste in poco tempo: riprova tra un minuto. I titoli già importati non si duplicano."
+        : "Importazione interrotta: CineLoop non risponde. Riprova, i titoli già importati non si duplicano.";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$("import-open").addEventListener("click", () => chrome.tabs.create({ url: MY_LIST }));
+
+render();

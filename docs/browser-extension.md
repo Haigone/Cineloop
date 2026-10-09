@@ -5,7 +5,7 @@ Stato: **disponibile per Netflix, AnimeUnity e StreamingCommunity** (Chrome, Edg
 ## Cosa fa
 
 - **Aggiorna CineLoop mentre guardi.** Il titolo passa a "In corso" con il link per riprendere sul provider rilevato, sparisce dalla wishlist e il tempo di visione entra nelle statistiche.
-- **Ti mostra agli amici, se vuoi.** Il pannello ha due sezioni. In *Sto guardando* c'è cosa stai guardando (con stagione ed episodio) e la tua lista: in corso e wishlist. In *Guarda insieme* c'è l'interruttore **Visibile agli amici** (anche in Impostazioni > Privacy): se è attivo, nella loro dashboard compari in "I tuoi amici stanno guardando" con il pulsante **Guarda insieme**.
+- **Ti mostra agli amici, se vuoi.** Il pannello ha quattro sezioni. In *Sto guardando* c'è cosa stai guardando (con stagione ed episodio). In *Watchlist* c'è la tua lista: in corso e tutta la wishlist, nel tuo ordine. In *Importa* puoi portare su CineLoop *La mia lista* di Netflix (vedi sotto). In *Guarda insieme* c'è l'interruttore **Visibile agli amici** (anche in Impostazioni > Privacy): se è attivo, nella loro dashboard compari in "I tuoi amici stanno guardando" con il pulsante **Guarda insieme**.
 - **Guardare insieme** (dalla 0.3.0). Chi preme "Guarda insieme" apre lo stesso episodio dal proprio account Netflix. Finché siete nella stanza, `party-sync.js` riporta ogni 2 secondi posizione e play/pausa del video di ciascuno a `POST /api/extension/party`; un play o una pausa premuti da uno vengono applicati al video degli altri. La posizione non viene spostata (Netflix non lo permette da fuori del suo player): il pannello dice chi è avanti o indietro e di quanti secondi, e ci si allinea con le frecce del player. Chi preferisce un'estensione watch party esterna può ancora condividerne il link.
 
 ## Cosa legge
@@ -88,3 +88,8 @@ Per aggiornarla basta sostituire la cartella e premere "Ricarica" in `chrome://e
 ## Test
 
 `tests/e2e/extension.spec.ts` carica l'estensione vera in Chromium, la collega, simula le pagine di netflix.com (nessuna richiesta esce verso Netflix), conferma un titolo, verifica che la puntata successiva sia riconosciuta e che un amico possa unirsi. La logica pura è in `tests/unit/presence.test.ts`, il servizio in `tests/unit/sync.test.ts`.
+
+
+## Importare "La mia lista" di Netflix
+
+Dalla sezione *Importa* del pannello. L'utente apre netflix.com/browse/my-list e scorre fino in fondo; il pannello legge, solo su sua richiesta e solo in quella scheda, il nome e l'id delle copertine già presenti nella pagina (`chrome.scripting.executeScript`, permesso netflix.com già concesso). Nessuna richiesta a Netflix, nessuno scorrimento automatico, nessuna API interna. I titoli vanno a `POST /api/extension/import-list` a gruppi di 20: ognuno è riconosciuto dall'id Netflix già noto, poi per nome (preferendo quello disponibile su Netflix) e finisce in wishlist, se non è già in wishlist o in libreria. Il pannello mostra quanti sono stati aggiunti e quali non sono stati trovati nel catalogo.
