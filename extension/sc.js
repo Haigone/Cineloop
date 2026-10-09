@@ -130,8 +130,8 @@ export async function resolveStreamingUrl({ force = false } = {}) {
 
 /** L'id numerico della pagina titolo (/titles/{id}-slug), o null. */
 export function scWatchId(url) {
-  const m = /\/titles?\/(\d{1,9})(?:[-/?#]|$)/.exec(url || "");
-  if (m) return m[1];
+  const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(url || "");
+  if (m) return m[1] ?? m[2];
   try {
     const u = new URL(url || "");
     const id = u.searchParams.get("title_id") ?? u.searchParams.get("titleId") ?? u.searchParams.get("id");
