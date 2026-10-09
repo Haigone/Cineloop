@@ -11,6 +11,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { RatingStars } from "@/components/ui/rating-stars";
 import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
+import { WatchSourceChooser } from "@/components/title/watch-source-chooser";
 import { SuggestDialog } from "@/components/title/suggest-dialog";
 import { ProgressEditor } from "@/components/title/progress-editor";
 import { SeasonList } from "@/components/title/season-list";
@@ -37,7 +38,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
   const { id } = await params;
   const view = await getTitleView(id);
   if (!view) notFound();
-  const { title, entry, providers, friends } = view;
+  const { title, entry, providers, friends, watchChoices } = view;
 
   return (
     <article>
@@ -137,6 +138,14 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 </li>
               )}
             </ul>
+            {watchChoices.length > 0 && (
+              <WatchSourceChooser
+                titleId={title.id}
+                titleName={title.title}
+                choices={watchChoices}
+                currentProvider={entry?.progress?.providerId ?? null}
+              />
+            )}
             <p className="mt-2 text-xs text-fg-3">CineLoop non riproduce i contenuti: ti porta direttamente sulla piattaforma. Le offerte vengono da JustWatch tramite TMDB.</p>
           </section>
 
