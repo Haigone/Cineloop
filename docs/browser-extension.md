@@ -42,7 +42,7 @@ interface SyncObservation {
   providerId: ProviderId;
   url: string;
   documentTitle: string;
-  hints?: { title?: string; season?: number; episode?: number; parentId?: string };
+  hints?: { title?: string; season?: number; episode?: number; episodeId?: string; progress?: number; parentId?: string };
   observedAt: string;
 }
 ```
