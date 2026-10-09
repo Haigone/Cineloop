@@ -12,8 +12,9 @@ describe("provider registry", () => {
     for (const id of Object.keys(PROVIDERS) as ProviderId[]) expect(getAdapter(id).id).toBe(id);
   });
 
-  it("never marks an integration available without a verified sync path", () => {
-    for (const p of Object.values(PROVIDERS)) expect(p.integration).not.toBe("available");
+  it("marks Anime Unity available while leaving Streaming Community disabled", () => {
+    expect(PROVIDERS.animeunity).toMatchObject({ homepage: "https://www.animeunity.so", integration: "available" });
+    expect(PROVIDERS.streamingcommunity).toMatchObject({ homepage: null, integration: "not-supported" });
   });
 });
 
@@ -47,15 +48,48 @@ describe("Netflix adapter", () => {
   });
 });
 
-describe("unlicensed services", () => {
-  it.each(["animeunity", "streamingcommunity"] as const)("%s adapter does nothing and links nowhere", async (id) => {
-    const a = getAdapter(id);
-    expect(a.capabilities).toEqual({ detectCurrentContent: false, deepLinks: false, progress: false });
-    expect(await a.getCurrentContent(ctx({ ...netflixWatch, providerId: id }))).toBeNull();
-    const content = { providerId: id, externalId: "1", title: "x", type: null, season: null, episode: null, titleId: null };
-    expect(a.getContentUrl(content)).toBeNull();
+describe("Anime Unity adapter", () => {
+  const adapter = getAdapter("animeunity");
+  const observation: SyncObservation = {
+    providerId: "animeunity",
+    url: "https://www.animeunity.so/anime/123-example",
+    documentTitle: "Example Anime - Anime Unity",
+    hints: { title: "Example Anime", season: 1, episode: 4, progress: 0.42 },
+    observedAt: "2026-10-09T12:00:00Z",
+  };
+
+  it("detects the active anime page, episode and playback fraction", async () => {
+    const current = await adapter.getCurrentContent(ctx(observation));
+    expect(current).toMatchObject({ providerId: "animeunity", externalId: observation.url, url: observation.url, title: "Example Anime", type: "anime", season: 1, episode: 4 });
+    expect(await adapter.getWatchProgress(ctx(observation))).toMatchObject({ fraction: 0.42, content: { providerId: "animeunity", episode: 4 } });
+    expect(adapter.capabilities).toEqual({ detectCurrentContent: true, deepLinks: true, progress: true });
+  });
+
+  it("rejects non-Anime Unity pages and hostname lookalikes", async () => {
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "http://www.animeunity.so/anime/123-example" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://evil.example/animeunity/anime/123" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://animeunity.so.evil.test/anime/123" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://www.animeunity.so/search?q=x" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, providerId: "netflix" }))).toBeNull();
+  });
+
+  it("reopens only the stored HTTPS page URL", () => {
+    const content = { providerId: "animeunity" as const, externalId: observation.url, title: "Example Anime", type: "anime" as const, season: 1, episode: 4, titleId: null };
+    expect(resolveContinueUrl(content, null)).toBe(observation.url);
+    expect(adapter.getContentUrl({ ...content, externalId: "https://evil.example/" })).toBeNull();
+    expect(adapter.getContentUrl({ ...content, externalId: "javascript:alert(1)" })).toBeNull();
+  });
+});
+
+describe("Streaming Community", () => {
+  it("remains disabled and unchanged", async () => {
+    const adapter = getAdapter("streamingcommunity");
+    expect(adapter.capabilities).toEqual({ detectCurrentContent: false, deepLinks: false, progress: false });
+    expect(await adapter.getCurrentContent(ctx({ ...netflixWatch, providerId: "streamingcommunity" }))).toBeNull();
+    const content = { providerId: "streamingcommunity" as const, externalId: "1", title: "x", type: null, season: null, episode: null, titleId: null };
+    expect(adapter.getContentUrl(content)).toBeNull();
     expect(resolveContinueUrl(content, null)).toBeNull();
-    expect(PROVIDERS[id].homepage).toBeNull();
-    expect(PROVIDERS[id].integration).toBe("not-supported");
+    expect(PROVIDERS.streamingcommunity.homepage).toBeNull();
+    expect(PROVIDERS.streamingcommunity.integration).toBe("not-supported");
   });
 });
