@@ -115,6 +115,10 @@ export class MemoryRepository implements Repository {
 
   // Users -------------------------------------------------------------------
 
+  async listUsers() {
+    return [...this.users.values()];
+  }
+
   async getUserById(id: string) {
     return this.users.get(id) ?? null;
   }
