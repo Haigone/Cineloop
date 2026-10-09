@@ -2,7 +2,8 @@ import type { MediaType, Release, Title } from "@/domain/types";
 import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
-import type { CatalogService, DiscoverPage, DiscoverQuery, NamePreference } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "./types";
+import { franchiseKey } from "@/domain/franchise";
 
 /**
  * Example announcements so the demo can show "new season" rows. The dates are
@@ -33,6 +34,21 @@ export class SeedCatalog implements CatalogService {
 
   async getTitle(id: string): Promise<Title | null> {
     return this.titles.get(id) ?? null;
+  }
+
+  async related(title: Title, limit: number): Promise<Title[]> {
+    const series = title.type === "movie" && title.partOf ? this.titles.get(title.partOf) : undefined;
+    const key = franchiseKey(series?.title ?? title.title);
+    return [...this.titles.values()]
+      .filter((t) => t.id !== title.id && (t.type === "anime" || (t.type === "movie" && t.partOf)) && franchiseKey(t.title) === key)
+      .slice(0, limit);
+  }
+
+  async episodes(id: string, season: number): Promise<EpisodeInfo[] | null> {
+    const title = this.titles.get(id);
+    const count = title && title.type !== "movie" ? title.seasons.find((s) => s.number === season)?.episodeCount : undefined;
+    if (!count) return null;
+    return Array.from({ length: count }, (_, i) => ({ number: i + 1, name: null, airDate: null, runtimeMinutes: null }));
   }
 
   async trending(limit: number): Promise<Title[]> {

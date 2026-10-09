@@ -1,6 +1,6 @@
 import "server-only";
 import { PROVIDERS } from "@/domain/providers";
-import type { MediaType, Title } from "@/domain/types";
+import { sectionOf, type MediaType, type Title } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { sectionBackground } from "./dashboard";
@@ -26,7 +26,7 @@ export async function getSettingsView() {
   ]);
   const owned = await repo.getTitlesByIds([...new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)])]);
   const backgrounds: BackgroundChoice[] = (["movie", "series", "anime"] as const).map((category) => {
-    const inSection = new Map(owned.filter((t) => t.type === category).map((t) => [t.id, t]));
+    const inSection = new Map(owned.filter((t) => sectionOf(t) === category).map((t) => [t.id, t]));
     return {
       category,
       chosen: preferences.homeBackgrounds[category] ?? null,

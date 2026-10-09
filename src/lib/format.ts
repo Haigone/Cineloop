@@ -44,7 +44,7 @@ export const MEDIA_TYPE_LABEL: Record<MediaType, string> = {
 };
 
 export function titleMeta(t: Title): string {
-  const parts: string[] = [MEDIA_TYPE_LABEL[t.type], String(t.year)];
+  const parts: string[] = [t.type === "movie" && t.partOf ? "Film anime" : MEDIA_TYPE_LABEL[t.type], String(t.year)];
   if (t.type === "movie") parts.push(formatDuration(t.runtimeMinutes));
   else parts.push(t.seasons.length === 1 ? "1 stagione" : `${t.seasons.length} stagioni`);
   return parts.join(" · ");

@@ -2,6 +2,8 @@ import "server-only";
 import type { MediaType, Title, User } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getRepository } from "@/server/data";
+import { withoutSeriesFilms } from "@/domain/franchise";
+import { cacheTitles } from "./explore";
 
 export interface SearchResults {
   titles: { id: string; title: string; year: number; type: MediaType; palette: readonly [string, string, string] }[];
@@ -37,13 +39,16 @@ export async function search(viewer: User, query: string): Promise<SearchResults
  */
 async function withRemote(local: Title[], q: string, limit: number): Promise<Title[]> {
   const catalog = getCatalog();
-  if (catalog.name === "demo" || local.length >= limit) return local;
+  if (catalog.name === "demo") return withoutSeriesFilms(local);
   try {
-    const remote = (await catalog.search(q, limit)).filter((t) => !local.some((l) => l.id === t.id));
-    if (remote.length) await getRepository().upsertTitles(remote);
-    return [...local, ...remote].slice(0, limit);
+    const found = await catalog.search(q, limit);
+    if (found.length) await cacheTitles(getRepository(), found);
+    // The catalogue's copy is fresher (it knows which films come from a series); one row per title.
+    const fresh = new Map(found.map((t) => [t.id, t]));
+    const merged = [...local.map((t) => fresh.get(t.id) ?? t), ...found.filter((t) => !local.some((l) => l.id === t.id))];
+    return withoutSeriesFilms(merged).slice(0, limit);
   } catch (err) {
     console.error("catalog search failed", err);
-    return local;
+    return withoutSeriesFilms(local);
   }
 }

@@ -8,6 +8,8 @@ import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
+import { getCatalog } from "@/integrations/catalog";
+import type { EpisodeInfo } from "@/integrations/catalog/types";
 
 /**
  * Mutations for the viewer's own library and wishlist. Each action resolves
@@ -115,6 +117,16 @@ export async function loadSeasons(id: string): Promise<SeasonSummary[]> {
   const parsed = titleId.safeParse(id);
   const title = parsed.success ? await cacheRemoteTitle(parsed.data) : null;
   return title && title.type !== "movie" ? title.seasons : [];
+}
+
+/** A season's episodes for the title page, from the catalogue. */
+export async function loadEpisodes(id: string, season: number): Promise<EpisodeInfo[] | null> {
+  await getCurrentUser();
+  const parsed = titleId.safeParse(id);
+  if (!parsed.success || !Number.isInteger(season) || season < 0 || season > 200) return null;
+  return getCatalog()
+    .episodes(parsed.data, season)
+    .catch(() => null);
 }
 
 const manualProgressSchema = z.object({

@@ -2,7 +2,8 @@ import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/type
 import { addDays } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
 import { searchKey } from "@/lib/text";
-import type { CatalogService, DiscoverPage, DiscoverQuery, NamePreference } from "./types";
+import { franchiseHead, franchiseKey, franchiseNames, withoutSeriesFilms } from "@/domain/franchise";
+import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "./types";
 
 /**
  * TMDB (themoviedb.org) catalog, via its official public API v3.
@@ -104,7 +105,23 @@ interface TmdbItem {
   last_episode_to_air?: TmdbEpisodeRef | null;
   next_episode_to_air?: TmdbEpisodeRef | null;
   /** Present when requested with append_to_response=watch/providers. */
-  "watch/providers"?: { results?: Record<string, { flatrate?: { provider_id: number }[] }> };
+  "watch/providers"?: { results?: Record<string, WatchOffers> };
+  /** Film details: the saga it is part of ("Bleach - Collezione"). */
+  belongs_to_collection?: { name?: string } | null;
+}
+
+/** One country's offers (JustWatch data through TMDB). */
+interface WatchOffers {
+  flatrate?: { provider_id: number }[];
+  free?: { provider_id: number }[];
+  ads?: { provider_id: number }[];
+}
+
+/** The known services a title is included on in Italy: by subscription, free or with ads. */
+function servicesIn(results: Record<string, WatchOffers> | undefined): ProviderId[] {
+  const it = results?.[REGION];
+  const ids = [...(it?.flatrate ?? []), ...(it?.free ?? []), ...(it?.ads ?? [])].map((p) => PROVIDER_BY_TMDB.get(p.provider_id));
+  return [...new Set(ids.filter((p): p is ProviderId => Boolean(p)))];
 }
 
 interface TmdbList {
@@ -126,8 +143,87 @@ export class TmdbCatalog implements CatalogService {
   async search(query: string, limit: number): Promise<Title[]> {
     const q = query.trim();
     if (!q) return [];
-    const data = await this.list(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false`);
-    return mapItems(data, limit);
+    const items = (await this.list(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false`)).filter(
+      (i) => i.media_type === "movie" || i.media_type === "tv",
+    );
+    const titles = await this.withSeries(mapItems(items, limit + 10), items);
+    // A film from an anime series found along with that series sits on the series' page instead.
+    return withoutSeriesFilms(titles).slice(0, limit);
+  }
+
+  /** Marks the anime films among `titles` with the series they come from. */
+  private async withSeries(titles: Title[], items: TmdbItem[]): Promise<Title[]> {
+    const byId = new Map(items.map((i) => [`tmdb-${i.media_type}-${i.id}`, i]));
+    return Promise.all(
+      titles.map(async (t) => {
+        const item = byId.get(t.id);
+        if (t.type !== "movie" || !item || !isAnime(item)) return t;
+        return { ...t, partOf: await this.seriesOf(item) };
+      }),
+    );
+  }
+
+  private seriesCache = new Map<string, Promise<string | null>>();
+
+  /**
+   * The anime series a film comes from, or null for a film of its own: a
+   * Japanese animated series named like the film's title before its subtitle,
+   * or like its saga ("Demon Slayer - Il treno Mugen" → "Demon Slayer").
+   */
+  async seriesOf(film: TmdbItem): Promise<string | null> {
+    if (!isAnime(film)) return null;
+    for (const name of franchiseNames([film.title, film.original_title], film.belongs_to_collection?.name)) {
+      const key = searchKey(name);
+      let pending = this.seriesCache.get(key);
+      if (!pending) {
+        pending = this.list(`/search/tv?query=${encodeURIComponent(name)}&include_adult=false`).then((shows) => {
+          const hit = shows.find(
+            (s) => (s.original_language ?? "ja") === "ja" && (s.genre_ids ?? []).includes(16) && [s.name, s.original_name].some((n) => n && searchKey(n) === key),
+          );
+          return hit ? `tmdb-tv-${hit.id}` : null;
+        });
+        this.seriesCache.set(key, pending);
+      }
+      const found = await pending;
+      if (found) return found;
+    }
+    return null;
+  }
+
+  async related(title: Title, limit: number): Promise<Title[]> {
+    const own = parseId(title.id);
+    if (!own) return [];
+    const name = title.type === "movie" && title.partOf ? ((await this.getTitle(title.partOf))?.title ?? title.title) : title.title;
+    const key = franchiseKey(name);
+    if (!key) return [];
+    const items = (await this.list(`/search/multi?query=${encodeURIComponent(franchiseHead(name))}&include_adult=false`)).filter(
+      (i) => (i.media_type === "movie" || i.media_type === "tv") && `tmdb-${i.media_type}-${i.id}` !== title.id,
+    );
+    // Same franchise: a series of that name (other parts of it) or a film from that series.
+    const same = items.filter((i) => isAnime(i) && [i.title, i.name, i.original_title, i.original_name].some((n) => n && franchiseKey(n) === key));
+    const titles = await this.withSeries(mapItems(same, limit * 2), same);
+    return titles
+      .filter((t) => t.type !== "movie" || t.partOf)
+      .sort((a, b) => Number(a.type === "movie") - Number(b.type === "movie") || a.year - b.year)
+      .slice(0, limit);
+  }
+
+  async episodes(id: string, season: number): Promise<EpisodeInfo[] | null> {
+    const parsed = parseId(id);
+    if (!parsed || parsed.kind !== "tv") return null;
+    try {
+      const data = await this.get<{ episodes?: { episode_number: number; name?: string; air_date?: string | null; runtime?: number | null }[] }>(
+        `/tv/${parsed.tmdbId}/season/${season}?`,
+      );
+      return (data.episodes ?? []).map((e) => ({
+        number: e.episode_number,
+        name: e.name && !/^(episodio|episode)\s*\d+$/i.test(e.name.trim()) ? e.name.trim() : null,
+        airDate: e.air_date || null,
+        runtimeMinutes: e.runtime ?? null,
+      }));
+    } catch {
+      return null;
+    }
   }
 
   async getTitle(id: string): Promise<Title | null> {
@@ -136,8 +232,8 @@ export class TmdbCatalog implements CatalogService {
     try {
       const details = await this.get<TmdbItem>(`/${parsed.kind}/${parsed.tmdbId}?append_to_response=watch/providers`);
       const title = toTitle(parsed.kind, details);
-      const flatrate = details["watch/providers"]?.results?.[REGION]?.flatrate ?? [];
-      const providers = [...new Set(flatrate.map((p) => PROVIDER_BY_TMDB.get(p.provider_id)).filter((p): p is ProviderId => Boolean(p)))];
+      const providers = servicesIn(details["watch/providers"]?.results);
+      if (title.type === "movie") return { ...title, providers, partOf: await this.seriesOf(details) };
       return { ...title, providers };
     } catch {
       return null;
@@ -313,8 +409,8 @@ export class TmdbCatalog implements CatalogService {
     const checks = await Promise.all(
       items.map(async (i) => {
         try {
-          const data = await this.get<{ results?: Record<string, { flatrate?: { provider_id: number }[] }> }>(`/${i.media_type}/${i.id}/watch/providers?`);
-          return (data.results?.[REGION]?.flatrate ?? []).some((p) => p.provider_id === id);
+          const data = await this.get<{ results?: Record<string, WatchOffers> }>(`/${i.media_type}/${i.id}/watch/providers?`);
+          return servicesIn(data.results).includes(provider);
         } catch {
           return false;
         }

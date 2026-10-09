@@ -57,6 +57,13 @@
       "when": 1791547780771,
       "tag": "0007_home_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791549212190,
+      "tag": "0008_anime_films",
+      "breakpoints": true
     }
   ]
 }

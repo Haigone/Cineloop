@@ -2,12 +2,13 @@ import "server-only";
 import { italianDay } from "@/lib/dates";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import type { LibraryItem } from "@/domain/library";
-import type { LibraryEntry, PublicUser, RatingValue, Title, WatchStatus } from "@/domain/types";
+import { sectionOf, type LibraryEntry, type PublicUser, type RatingValue, type Title, type WatchStatus } from "@/domain/types";
+import { getCatalog } from "@/integrations/catalog";
 import { getProvider } from "@/domain/providers";
 import { getAdapter } from "@/integrations/providers/registry";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
-import { ensureTitle } from "./explore";
+import { cacheTitles, ensureTitle } from "./explore";
 import { loadFriendBundles } from "./shared";
 
 export interface LibraryView {
@@ -37,6 +38,10 @@ export interface TitleView {
   friends: { user: PublicUser; status: WatchStatus | "wishlist"; rating: RatingValue | null }[];
   /** Every friend, for "Consiglia a un amico". */
   allFriends: PublicUser[];
+  /** All the offers in Italy, rentals included (JustWatch through TMDB), when the catalogue has the title. */
+  offersUrl: string | null;
+  /** For an anime: its other series and the films made from it. */
+  related: Title[];
 }
 
 /** Returns null when the title does not exist (the page renders not-found). */
@@ -46,11 +51,15 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
   // Catalog titles are fetched and cached on first view.
   const title = await ensureTitle(id);
   if (!title) return null;
-  const [library, wishlist, friends] = await Promise.all([
+  const [library, wishlist, friends, related] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
+    sectionOf(title) === "anime" ? getCatalog().related(title, 12).catch(() => []) : Promise.resolve([]),
   ]);
+  // Cached so their cards open like any other title.
+  if (related.length) await cacheTitles(repo, related);
+  const tmdb = /^tmdb-(movie|tv)-(\d+)$/.exec(title.id);
 
   const friendRows: TitleView["friends"] = [];
   for (const f of friends) {
@@ -74,5 +83,7 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     }),
     friends: friendRows,
     allFriends: friends.map((f) => f.user),
+    offersUrl: tmdb ? `https://www.themoviedb.org/${tmdb[1]}/${tmdb[2]}/watch?locale=IT` : null,
+    related,
   };
 }

@@ -48,3 +48,11 @@ test("a series finished before a new season shows in Novità, not in what you ar
   await expect(page.getByRole("region", { name: "Narcos" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Novità: serie con stagioni nuove" }).getByRole("link", { name: "Narcos" })).toBeVisible();
 });
+
+test("a series page lists its seasons and episodes, with where you are", async ({ page }) => {
+  await signIn(page, "/title/frieren");
+  const seasons = page.getByRole("region", { name: "Stagioni ed episodi" });
+  await seasons.getByRole("button", { name: /Stagione 1/ }).click();
+  await expect(seasons.getByText("Episodio 1", { exact: true })).toBeVisible();
+  await expect(seasons.getByRole("listitem").filter({ hasText: "Sei qui" }).last()).toContainText("Episodio 18");
+});

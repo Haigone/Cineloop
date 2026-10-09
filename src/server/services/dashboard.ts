@@ -1,7 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { isLive } from "@/domain/presence";
-import type { ActivityEvent, LibraryEntry, MediaType, PublicUser, Title, UserPreferences } from "@/domain/types";
+import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
@@ -73,7 +73,7 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   const allTitles = await repo.listTitles();
   const titles = new Map(allTitles.map((t) => [t.id, t]));
   // Everything about titles below stays within the section.
-  const inSection = new Map(allTitles.filter((t) => t.type === category).map((t) => [t.id, t]));
+  const inSection = new Map(allTitles.filter((t) => sectionOf(t) === category).map((t) => [t.id, t]));
 
   // What the extension says is playing right now comes first; then the last one opened.
   const liveTitleId = presence && isLive(presence, now) ? presence.titleId : null;

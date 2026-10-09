@@ -554,7 +554,7 @@ function toTitle(r: typeof schema.titles.$inferSelect): Title {
     providers: r.providers,
   };
   return r.type === "movie"
-    ? { ...base, type: "movie", runtimeMinutes: r.runtimeMinutes ?? 0 }
+    ? { ...base, type: "movie", runtimeMinutes: r.runtimeMinutes ?? 0, ...(r.partOf === null ? {} : { partOf: r.partOf || null }) }
     : { ...base, type: r.type, seasons: r.seasons ?? [], episodeRuntimeMinutes: r.episodeRuntimeMinutes ?? 0 };
 }
 
@@ -573,6 +573,8 @@ export function titleToRow(t: Title): typeof schema.titles.$inferInsert {
     palette: [...t.artwork.palette] as [string, string, string],
     providers: t.providers,
     runtimeMinutes: t.type === "movie" ? t.runtimeMinutes : null,
+    // "" records "checked: a film of its own"; null means not checked yet.
+    partOf: t.type === "movie" ? (t.partOf === undefined ? null : (t.partOf ?? "")) : null,
     episodeRuntimeMinutes: t.type === "movie" ? null : t.episodeRuntimeMinutes,
     seasons: t.type === "movie" ? null : t.seasons,
   };

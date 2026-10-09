@@ -67,6 +67,8 @@ interface BaseTitle {
 export interface Movie extends BaseTitle {
   type: "movie";
   runtimeMinutes: number;
+  /** For a film that belongs to an anime series (Bleach, Demon Slayer): that series' id. */
+  partOf?: string | null;
 }
 
 export interface SeasonSummary {
@@ -85,6 +87,11 @@ export interface Series extends BaseTitle {
 }
 
 export type Title = Movie | Series;
+
+/** Where a title lives in CineLoop: a film made from an anime series is with the anime. */
+export function sectionOf(title: Title): MediaType {
+  return title.type === "movie" && title.partOf ? "anime" : title.type;
+}
 
 /** Something coming out: a film, a new series, or a new season of one. */
 export interface Release {

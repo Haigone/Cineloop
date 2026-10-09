@@ -20,6 +20,15 @@ export interface NamePreference {
   provider: ProviderId;
 }
 
+/** One episode of a season, as the catalogue lists it. */
+export interface EpisodeInfo {
+  number: number;
+  /** Its own title, when the catalogue has one (not just "Episodio 3"). */
+  name: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+}
+
 export interface DiscoverPage {
   titles: Title[];
   /** True when the source has another page after this one. */
@@ -59,6 +68,13 @@ export interface CatalogService {
    */
   findByName(name: string, prefer: NamePreference): Promise<Title | null>;
   nextSeasons(series: readonly Title[], today: string): Promise<Release[]>;
+  /**
+   * Other entries of the same anime franchise: its other series (a final part
+   * listed on its own) and the films made from it. Empty for anything else.
+   */
+  related(title: Title, limit: number): Promise<Title[]>;
+  /** A season's episodes, or null when the source does not list them. */
+  episodes(id: string, season: number): Promise<EpisodeInfo[] | null>;
   /** Films and new series coming out after `today`, soonest first. */
   upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]>;
 }

@@ -29,6 +29,8 @@ export const titles = pgTable(
     runtimeMinutes: integer("runtime_minutes"),
     episodeRuntimeMinutes: integer("episode_runtime_minutes"),
     seasons: jsonb("seasons").$type<SeasonSummary[]>(),
+    /** A film from an anime series: the series' id; "" for a film of its own; null when not checked yet. */
+    partOf: text("part_of"),
   },
   (t) => [index("titles_search_key_idx").on(t.searchKey)],
 );

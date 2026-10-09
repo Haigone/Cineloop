@@ -13,6 +13,9 @@ import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
 import { SuggestDialog } from "@/components/title/suggest-dialog";
 import { ProgressEditor } from "@/components/title/progress-editor";
+import { SeasonList } from "@/components/title/season-list";
+import { Rail } from "@/components/media/rail";
+import { TitleCard } from "@/components/media/title-card";
 
 export const metadata: Metadata = { title: "Titolo" };
 
@@ -75,10 +78,27 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             )}
           </section>
 
+          {title.type !== "movie" && title.seasons.length > 0 && (
+            <section aria-labelledby="seasons-h">
+              <h2 id="seasons-h" className="mb-3 text-[15px] font-semibold">
+                Stagioni ed episodi
+              </h2>
+              <SeasonList
+                titleId={title.id}
+                seasons={title.seasons}
+                at={entry?.progress ? { season: entry.progress.season, episode: entry.progress.episode } : null}
+                seenThrough={entry?.status === "completed" ? (entry.seenThrough ?? null) : null}
+              />
+            </section>
+          )}
+
           <section aria-labelledby="where-h">
             <h2 id="where-h" className="text-[15px] font-semibold">
               Dove guardarlo
             </h2>
+            {providers.length === 0 && (
+              <p className="mt-1 text-sm text-fg-2">Non risulta incluso in nessun abbonamento in Italia.</p>
+            )}
             <ul className="mt-3 flex flex-wrap gap-2">
               {providers.map((p) => (
                 <li key={p.id}>
@@ -102,9 +122,36 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                   )}
                 </li>
               ))}
+              {view.offersUrl && (
+                <li>
+                  <a
+                    href={view.offersUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 transition-colors hover:bg-white/[0.05] hover:text-fg"
+                  >
+                    Tutte le offerte, anche a noleggio
+                    <ExternalLink aria-hidden className="size-3.5 text-fg-3" />
+                    <span className="sr-only">(si apre in una nuova scheda)</span>
+                  </a>
+                </li>
+              )}
             </ul>
-            <p className="mt-2 text-xs text-fg-3">CineLoop non riproduce i contenuti: ti porta direttamente sulla piattaforma.</p>
+            <p className="mt-2 text-xs text-fg-3">CineLoop non riproduce i contenuti: ti porta direttamente sulla piattaforma. Le offerte vengono da JustWatch tramite TMDB.</p>
           </section>
+
+          {view.related.length > 0 && (
+            <section aria-labelledby="related-h">
+              <h2 id="related-h" className="mb-3 text-[15px] font-semibold">
+                {title.type === "movie" ? "La serie e gli altri film" : "Altre parti e film collegati"}
+              </h2>
+              <Rail label="Anime collegati">
+                {view.related.map((t) => (
+                  <TitleCard key={t.id} title={t} size="sm" meta={titleMeta(t)} />
+                ))}
+              </Rail>
+            </section>
+          )}
 
           {friends.length > 0 && (
             <section aria-labelledby="friends-h">

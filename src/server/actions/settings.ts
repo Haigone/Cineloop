@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { PROVIDERS } from "@/domain/providers";
-import type { ProviderId } from "@/domain/types";
+import { sectionOf, type ProviderId } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { currentSessionHash } from "@/server/auth/session";
@@ -121,7 +121,7 @@ export async function setHomeBackground(category: string, titleId: string | null
     const repo = getRepository();
     if (parsedId.data) {
       const [title] = await repo.getTitlesByIds([parsedId.data]);
-      if (!title || title.type !== parsedCategory.data) return { ok: false, error: "Scegli un titolo di questa sezione." };
+      if (!title || sectionOf(title) !== parsedCategory.data) return { ok: false, error: "Scegli un titolo di questa sezione." };
     }
     const { homeBackgrounds } = await repo.getPreferences(viewer.id);
     const next = { ...homeBackgrounds };

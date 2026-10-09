@@ -1,4 +1,4 @@
-import type { LibraryEntry, MediaType, SeasonSummary, Title, WatchProgress, WatchStatus } from "./types";
+import { sectionOf, type LibraryEntry, type MediaType, type SeasonSummary, type Title, type WatchProgress, type WatchStatus } from "./types";
 
 export type LibraryTypeFilter = "all" | MediaType;
 /** No "planned": what to watch next lives in the wishlist. */
@@ -19,7 +19,7 @@ export const STATUS_LABEL: Record<WatchStatus, string> = {
 
 export function filterLibrary(items: LibraryItem[], type: LibraryTypeFilter, status: LibraryStatusFilter): LibraryItem[] {
   return items.filter(
-    (i) => (type === "all" || i.title.type === type) && (status === "all" || i.entry.status === status),
+    (i) => (type === "all" || sectionOf(i.title) === type) && (status === "all" || i.entry.status === status),
   );
 }
 

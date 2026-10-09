@@ -13,6 +13,7 @@ import {
   type LibraryStatusFilter,
   type LibraryTypeFilter,
 } from "@/domain/library";
+import { sectionOf } from "@/domain/types";
 import { episodeLabel, percent } from "@/lib/format";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -66,7 +67,7 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
   }
 
   const byType = useMemo(() => filterLibrary(items, "all", status), [items, status]);
-  const typeCounts = countBy(byType, (i) => i.title.type);
+  const typeCounts = countBy(byType, (i) => sectionOf(i.title));
   const statusCounts = countBy(filterLibrary(items, type, "all"), (i) => i.entry.status);
   const shown = useMemo(() => sortLibrary(filterLibrary(items, type, status), sort), [items, type, status, sort]);
 
