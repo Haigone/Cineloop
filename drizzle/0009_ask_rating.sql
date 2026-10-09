@@ -1,0 +1,1 @@
+ALTER TABLE "library_entries" ADD COLUMN "ask_rating" boolean DEFAULT false NOT NULL;

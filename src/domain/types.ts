@@ -165,6 +165,8 @@ export interface LibraryEntry {
    * season that has aired since is "Novità".
    */
   seenThrough?: number | null;
+  /** Just finished (the last episode, or the film to the end): Home asks for a rating. */
+  askRating?: boolean;
 }
 
 export interface WishlistItem {

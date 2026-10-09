@@ -58,6 +58,10 @@ export interface Repository {
   setLibraryStatus(userId: string, titleId: string, status: WatchStatus): Promise<void>;
   /** Marks a series as seen up to the end of a season (status "completed", no progress). */
   markSeenThrough(userId: string, titleId: string, season: number): Promise<void>;
+  /** Watched to the end: seen, up to `seenThrough` for a series, and a rating to ask for if there is none. */
+  markFinished(userId: string, titleId: string, seenThrough: number | null): Promise<void>;
+  /** Stops asking for a rating ("Non ora"). */
+  dismissRatingPrompt(userId: string, titleId: string): Promise<void>;
   setRating(userId: string, titleId: string, value: RatingValue | null): Promise<void>;
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;

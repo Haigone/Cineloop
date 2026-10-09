@@ -37,6 +37,8 @@ export interface HomeView {
   wishlistIds: string[];
   /** The wishlist's titles in the user's order of priority. */
   wishlist: Title[];
+  /** Just finished by watching to the end and not rated yet, most recent first. */
+  toRate: Title[];
   /** "Novità": finished series with a new season out. */
   newSeasons: NewSeasonItem[];
 }
@@ -131,6 +133,11 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     },
     wishlistIds: wishlist.map((w) => w.titleId),
     wishlist: wishlist.map((w) => inSection.get(w.titleId)).filter((t): t is Title => Boolean(t)),
+    toRate: library
+      .filter((e) => e.askRating && e.rating === null && titles.has(e.titleId))
+      .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
+      .slice(0, 3)
+      .map((e) => titles.get(e.titleId)!),
     newSeasons: category === "movie" ? [] : await listNewSeasons(repo, library.filter((e) => inSection.has(e.titleId)), inSection, italianDay(now)),
   };
 }

@@ -74,6 +74,8 @@ export const libraryEntries = pgTable(
     rating: smallint("rating"),
     progress: jsonb("progress").$type<WatchProgress>(),
     seenThrough: smallint("seen_through"),
+    /** Finished by watching to the end and not rated yet: Home asks for a rating. */
+    askRating: boolean("ask_rating").notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.userId, t.titleId] }), check("rating_range", sql`${t.rating} is null or ${t.rating} between 1 and 10`)],
 );

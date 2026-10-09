@@ -6,6 +6,8 @@ import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
 import { searchKey } from "@/lib/text";
+import { italianDay } from "@/lib/dates";
+import { finishesTitle } from "@/domain/library";
 import { getRepository, type Repository } from "@/server/data";
 import { cacheTitles, canonical, ensureTitle } from "./explore";
 import { toPublicUser } from "./shared";
@@ -481,6 +483,17 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
   const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
+  if (title) {
+    const today = italianDay();
+    const at = { season: presence.season, episode: presence.episode, fraction: next };
+    // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
+    if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today) && (fraction === null || fraction >= 0.5)) return;
+    if (finishesTitle(title, at, today)) {
+      await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
+      await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });
+      return;
+    }
+  }
   const unchanged = entry?.status === "watching" && sameEpisode && Math.abs(prev!.fraction - next) < 0.01 && prev!.url === presence.url;
   if (unchanged) return;
   await repo.saveProgress(presence.userId, {

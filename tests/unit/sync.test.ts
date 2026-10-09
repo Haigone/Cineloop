@@ -59,6 +59,26 @@ describe("extension sync", () => {
     expect(latest).toMatchObject({ kind: "watching", titleId: fresh });
   });
 
+  it("the end of the last episode marks the series seen and asks for a rating; the credits keep it so", async () => {
+    // Adolescence: one season of 4 episodes.
+    const { ep } = ids();
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 3, progress: 0.95 } }));
+    expect((await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence")?.status).toBe("watching");
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.5 } }));
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.93 } }));
+    let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
+    expect(entry).toMatchObject({ status: "completed", seenThrough: 1, askRating: true, progress: null });
+    const [latest] = await repo.listActivity(["u_marco"], 1);
+    expect(latest).toMatchObject({ kind: "completed", titleId: "adolescence" });
+
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.98 } }));
+    entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
+    expect(entry?.status).toBe("completed");
+
+    await repo.setRating("u_marco", "adolescence", 8);
+    expect((await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence")?.askRating).toBe(false);
+  });
+
   it("leaving a non-playback page ends the session", async () => {
     const { ep } = ids();
     await handleObservation("u_marco", watch(ep));

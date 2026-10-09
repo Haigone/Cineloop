@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { ActivityKind, RatingValue, SeasonSummary } from "@/domain/types";
-import { airedSeasons } from "@/domain/library";
+import { airedSeasons, finishesTitle } from "@/domain/library";
 import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
@@ -111,6 +111,14 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
   }, "Non siamo riusciti a salvare il voto.");
 }
 
+/** "Non ora" on Home's rating prompt. */
+export async function dismissRatingPrompt(id: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  if (!parsedId.success) return { ok: false, error: "Richiesta non valida." };
+  return run(() => getRepository().dismissRatingPrompt(user.id, parsedId.data), "Non siamo riusciti a salvare la scelta.");
+}
+
 /** A series' seasons from the catalogue, fetched now if they were not known yet. */
 export async function loadSeasons(id: string): Promise<SeasonSummary[]> {
   await getCurrentUser();
@@ -175,6 +183,15 @@ export async function saveManualProgress(
     }
   }
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
+  // At the end of the last episode (or of the film): seen, and Home asks for a rating.
+  if (runtime > 1 && finishesTitle(title, { season, episode, fraction: minute / runtime }, italianDay())) {
+    return run(async () => {
+      const repo = getRepository();
+      await repo.markFinished(user.id, title.id, season);
+      await repo.removeFromWishlist(user.id, title.id);
+      await record(user.id, "completed", title.id);
+    }, "Non siamo riusciti a salvare dove sei arrivato.");
+  }
   return run(async () => {
     const repo = getRepository();
     const prev = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id)?.progress ?? null;

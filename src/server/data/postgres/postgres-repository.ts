@@ -172,6 +172,26 @@ export class PostgresRepository implements Repository {
       .onConflictDoUpdate({ target: [schema.libraryEntries.userId, schema.libraryEntries.titleId], set });
   }
 
+  async markFinished(userId: string, titleId: string, seenThrough: number | null) {
+    const now = new Date();
+    const set = { status: "completed" as const, progress: null, seenThrough, lastWatchedAt: now };
+    await this.db
+      .insert(schema.libraryEntries)
+      .values({ userId, titleId, addedAt: now, askRating: true, ...set })
+      .onConflictDoUpdate({
+        target: [schema.libraryEntries.userId, schema.libraryEntries.titleId],
+        // Already rated (a rewatch): no need to ask again.
+        set: { ...set, askRating: sql`${schema.libraryEntries.rating} is null` },
+      });
+  }
+
+  async dismissRatingPrompt(userId: string, titleId: string) {
+    await this.db
+      .update(schema.libraryEntries)
+      .set({ askRating: false })
+      .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+  }
+
   async setRating(userId: string, titleId: string, value: RatingValue | null) {
     if (value === null) {
       await this.db
@@ -184,7 +204,7 @@ export class PostgresRepository implements Repository {
     await this.db
       .insert(schema.libraryEntries)
       .values({ userId, titleId, status: "completed", addedAt: now, lastWatchedAt: now, rating: value })
-      .onConflictDoUpdate({ target: [schema.libraryEntries.userId, schema.libraryEntries.titleId], set: { rating: value } });
+      .onConflictDoUpdate({ target: [schema.libraryEntries.userId, schema.libraryEntries.titleId], set: { rating: value, askRating: false } });
   }
 
   async saveProgress(userId: string, progress: WatchProgress) {
@@ -598,6 +618,7 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     rating: r.rating as RatingValue | null,
     progress: r.progress,
     seenThrough: r.seenThrough,
+    askRating: r.askRating,
   };
 }
 

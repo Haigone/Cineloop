@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryEntry, Title } from "@/domain/types";
-import { airedSeasons, newSeasons } from "@/domain/library";
+import { airedSeasons, finishesTitle, newSeasons } from "@/domain/library";
 
 const series = {
   id: "tmdb-tv-94605",
@@ -40,5 +40,15 @@ describe("Novità", () => {
     expect(newSeasons(entry({ seenThrough: 2 }), series, "2026-10-09")).toEqual([]);
     expect(newSeasons(entry({ status: "watching" }), series, "2026-10-09")).toEqual([]);
     expect(newSeasons(entry({ seenThrough: null }), series, "2026-10-09")).toEqual([]);
+  });
+});
+
+describe("finishing a title", () => {
+  it("is the end of the last aired episode, or nearly the end of a film", () => {
+    const today = "2026-10-09";
+    expect(finishesTitle(series, { season: 2, episode: 9, fraction: 0.92 }, today)).toBe(true);
+    expect(finishesTitle(series, { season: 2, episode: 9, fraction: 0.5 }, today)).toBe(false);
+    expect(finishesTitle(series, { season: 1, episode: 9, fraction: 1 }, today)).toBe(false);
+    expect(finishesTitle({ type: "movie" } as Title, { season: null, episode: null, fraction: 0.9 }, today)).toBe(true);
   });
 });

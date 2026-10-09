@@ -214,10 +214,24 @@ export class MemoryRepository implements Repository {
     else this.library.push({ userId, titleId, status: "completed", addedAt: now, lastWatchedAt: now, rating: null, progress: null, seenThrough: season });
   }
 
+  async markFinished(userId: string, titleId: string, seenThrough: number | null) {
+    const now = new Date().toISOString();
+    const entry = this.findEntry(userId, titleId);
+    const set = { status: "completed" as const, progress: null, seenThrough, lastWatchedAt: now };
+    if (entry) Object.assign(entry, set, { askRating: entry.rating === null });
+    else this.library.push({ userId, titleId, addedAt: now, rating: null, askRating: true, ...set });
+  }
+
+  async dismissRatingPrompt(userId: string, titleId: string) {
+    const entry = this.findEntry(userId, titleId);
+    if (entry) entry.askRating = false;
+  }
+
   async setRating(userId: string, titleId: string, value: RatingValue | null) {
     const entry = this.findEntry(userId, titleId);
     if (entry) {
       entry.rating = value;
+      if (value !== null) entry.askRating = false;
     } else if (value !== null) {
       this.library.push({
         userId,

@@ -68,3 +68,18 @@ export function newSeasons(entry: LibraryEntry, title: Title, today: string): Se
   if (entry.status !== "completed" || entry.seenThrough == null) return [];
   return airedSeasons(title, today).filter((s) => s.number > entry.seenThrough!);
 }
+
+/** How far into the last episode (or the film) counts as finished: the credits may be skipped. */
+export const FINISHED_AT = 0.9;
+
+/**
+ * True when this point is the end of the title: a film nearly to the end, or
+ * the last episode out of a series' last season out. With no season list,
+ * a series cannot be known to be over.
+ */
+export function finishesTitle(title: Title, at: { season: number | null; episode: number | null; fraction: number }, today: string): boolean {
+  if (at.fraction < FINISHED_AT) return false;
+  if (title.type === "movie") return true;
+  const last = airedSeasons(title, today).at(-1);
+  return Boolean(last && at.season === last.number && at.episode === last.episodeCount);
+}

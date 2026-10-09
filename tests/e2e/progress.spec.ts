@@ -56,3 +56,23 @@ test("a series page lists its seasons and episodes, with where you are", async (
   await expect(seasons.getByText("Episodio 1", { exact: true })).toBeVisible();
   await expect(seasons.getByRole("listitem").filter({ hasText: "Sei qui" }).last()).toContainText("Episodio 18");
 });
+
+test("finishing the last episode marks the series seen and Home asks for a rating", async ({ page }) => {
+  await signIn(page, "/title/adolescence");
+  await page.getByRole("button", { name: "A che punto sei?" }).click();
+  const dialog = page.getByRole("dialog", { name: "A che punto sei?" });
+  await dialog.getByLabel("Episodio").selectOption("4");
+  await dialog.getByLabel("Minuto").fill("60");
+  await dialog.getByRole("button", { name: "Salva" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("Vista fino alla stagione 1.")).toBeVisible();
+
+  await page.goto("/home");
+  const prompt = page.getByRole("region", { name: "Vota Adolescence" });
+  await expect(prompt.getByText(/Hai finito la serie/)).toBeVisible();
+  await prompt.getByRole("radio", { name: "4 su 5" }).check({ force: true });
+  await expect(page.getByText("Voto a Adolescence salvato")).toBeVisible();
+  await expect(prompt).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Vota Adolescence" })).toHaveCount(0);
+});
