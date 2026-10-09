@@ -30,9 +30,9 @@ Con `DATABASE_URL` impostato l'app usa PostgreSQL. Anche `npm run build` applica
 
 Imposta `TMDB_READ_TOKEN` (il "token di accesso in lettura" API di [TMDB](https://www.themoviedb.org/settings/api)). Senza, Esplora e la ricerca usano il piccolo catalogo demo; con TMDB hai tutto il catalogo: ricerca, filtri per genere e tipo, tendenze e consigli "Per te" basati sui titoli che hai votato. I titoli trovati vengono salvati in cache, così si possono aggiungere alle liste. Quando è attivo, l'app mostra l'attribuzione richiesta da TMDB.
 
-## Estensione Netflix
+## Estensione browser
 
-`extension/` contiene l'estensione per Chrome e browser simili: aggiorna la libreria mentre guardi Netflix, mostra agli amici cosa stai guardando e permette loro di unirsi. `npm run build` la impacchetta in `public/cineloop-extension.zip`, scaricabile da Impostazioni. Dettagli e garanzie su cosa legge in [docs/browser-extension.md](docs/browser-extension.md).
+`extension/` contiene l'estensione per Chrome e browser simili: aggiorna la libreria mentre guardi Netflix, AnimeUnity o StreamingCommunity quando la pagina espone titolo e progresso, mostra agli amici cosa stai guardando e permette loro di unirsi. `npm run build` la impacchetta in `public/cineloop-extension.zip`, scaricabile da Impostazioni. Dettagli e garanzie su cosa legge in [docs/browser-extension.md](docs/browser-extension.md).
 
 ## Script
 
