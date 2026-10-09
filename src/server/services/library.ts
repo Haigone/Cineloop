@@ -6,6 +6,7 @@ import { sectionOf, type LibraryEntry, type PublicUser, type RatingValue, type T
 import { getCatalog } from "@/integrations/catalog";
 import { getProvider } from "@/domain/providers";
 import { getAdapter } from "@/integrations/providers/registry";
+import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { cacheTitles, ensureTitle } from "./explore";
@@ -34,6 +35,7 @@ export interface TitleView {
   entry: LibraryEntry | null;
   wishlisted: boolean;
   providers: { id: string; name: string; tint: string; url: string | null }[];
+  watchChoices: { id: "netflix" | "animeunity"; name: string; tint: string; url: string }[];
   friends: { user: PublicUser; status: WatchStatus | "wishlist"; rating: RatingValue | null }[];
   allFriends: PublicUser[];
   offersUrl: string | null;
@@ -68,13 +70,19 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     title,
     entry: library.find((e) => e.titleId === id) ?? null,
     wishlisted: wishlist.some((w) => w.titleId === id),
+    watchChoices: sectionOf(title) === "anime" ? (["netflix", "animeunity"] as const).map((pid) => {
+      const p = getProvider(pid)!;
+      return { id: pid, name: p.name, tint: p.tint, url: providerSearchUrl(pid, title.title)! };
+    }) : [],
     providers: providerIds.map((pid) => {
       const p = getProvider(pid)!;
       return {
         id: p.id,
         name: p.name,
         tint: p.tint,
-        url: getAdapter(pid).getContentUrl({ providerId: pid, externalId: null, title: title.title, type: title.type, season: null, episode: null, titleId: id }),
+        url: pid === "animeunity" || pid === "netflix"
+          ? providerSearchUrl(pid, title.title)
+          : getAdapter(pid).getContentUrl({ providerId: pid, externalId: null, title: title.title, type: title.type, season: null, episode: null, titleId: id }),
       };
     }),
     friends: friendRows,

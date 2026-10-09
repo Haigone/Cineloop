@@ -82,3 +82,12 @@ Resta non supportato: l'adapter è uno stub, non rileva la riproduzione e non ge
 2. Registra un adapter in `src/integrations/providers/registry.ts`. Parti da `HomepageAdapter`, oppure da `DisabledAdapter` se non c'è un dominio ufficiale.
 3. Documenta qui la verifica (API, termini, export dei dati) prima di attivare qualsiasi capacità.
 4. Cambia lo stato in `available` solo quando la sincronizzazione legittima funziona ed è coperta da test.
+
+## Scelta manuale del servizio nella scheda titolo
+
+Per i titoli della sezione anime, la scheda mostra "Da dove lo stai guardando?" con scelte manuali Netflix e Anime Unity. La scelta salva il provider e un link di ricerca nella posizione di progresso della libreria, senza inventare stagione o episodio se non sono ancora noti. Quando l'estensione osserva una riproduzione reale, il normale flusso di sincronizzazione sostituisce il link di ricerca con l'URL preciso della pagina e aggiorna provider, episodio e avanzamento.
+
+- Netflix apre la ricerca del titolo su Netflix.
+- Anime Unity apre la ricerca del titolo nel percorso `/filter?search=...`, non la homepage.
+- Un link di ricerca non riceve il parametro di ripresa del video. Il seek viene aggiunto soltanto a una pagina Anime Unity `/anime/{id}` già osservata.
+- La scelta manuale è un aiuto temporaneo; la rilevazione dell'estensione resta la fonte più precisa per la pagina, l'episodio e il progresso.
