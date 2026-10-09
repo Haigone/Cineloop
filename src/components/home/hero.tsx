@@ -80,8 +80,8 @@ export function Hero({ item }: { item: ContinueItem }) {
         <div className="mt-6 flex flex-wrap gap-3">
           {continueUrl && continueOnSite ? (
             // No service known for this title: its page says where it streams.
-            <ButtonLink href={continueUrl} size="lg" icon={<MapPin aria-hidden className="size-4" />}>
-              Dove guardarlo
+            <ButtonLink href={continueUrl} size="lg" icon={progress.providerId === "streamingcommunity" ? <Play aria-hidden className="size-4" fill="currentColor" /> : <MapPin aria-hidden className="size-4" />}>
+              {progress.providerId === "streamingcommunity" ? "Continua a guardare" : "Dove guardarlo"}
             </ButtonLink>
           ) : continueUrl ? (
             <ButtonAnchor href={continueUrl} size="lg" icon={<Play aria-hidden className="size-4" fill="currentColor" />}>
