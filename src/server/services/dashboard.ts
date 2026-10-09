@@ -20,6 +20,15 @@ export interface FriendActivityItem {
   live: boolean;
 }
 
+export interface RecentWatchItem {
+  title: Title;
+  status: "watching" | "completed";
+  watchedAt: string | null;
+  season: number | null;
+  episode: number | null;
+  fraction: number | null;
+}
+
 export interface HomeView {
   viewer: PublicUser;
   /** The section shown: Home holds only films, only series or only anime. */
@@ -28,6 +37,7 @@ export interface HomeView {
   background: Title | null;
   nowWatching: ContinueItem | null;
   continueWatching: ContinueItem[];
+  recentlyWatched: RecentWatchItem[];
   /** Friends watching right now through the extension; they can be joined. */
   liveFriends: LiveFriend[];
   friendsActivity: FriendActivityItem[];
@@ -90,6 +100,13 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     .filter((x): x is ContinueItem => x !== null)
     .map((item) => (item.title.id === liveTitleId ? { ...item, live: true } : item));
 
+  const recentlyWatched: RecentWatchItem[] = library
+    .filter((entry) => (entry.status === "watching" || entry.status === "completed") && inSection.has(entry.titleId) && (entry.lastWatchedAt || entry.progress))
+    .sort((a, b) => Date.parse(b.lastWatchedAt ?? b.progress?.updatedAt ?? "") - Date.parse(a.lastWatchedAt ?? a.progress?.updatedAt ?? ""))
+    .slice(0, 8)
+    .map((entry) => ({ title: titles.get(entry.titleId)!, status: entry.status as "watching" | "completed", watchedAt: entry.lastWatchedAt ?? entry.progress?.updatedAt ?? null, season: entry.progress?.season ?? null, episode: entry.progress?.episode ?? null, fraction: entry.progress?.fraction ?? (entry.status === "completed" ? 1 : null) }))
+    .filter((item) => Boolean(item.title));
+
   // One line per friend: what they are watching now, else their latest action.
   const byUser = new Map(friends.map((f) => [f.user.id, f.user]));
   const latestPerFriend = new Map<string, ActivityEvent>();
@@ -123,6 +140,7 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     background: sectionBackground(prefs, category, library, inSection),
     nowWatching: continueWatching[0] ?? null,
     continueWatching: continueWatching.slice(1),
+    recentlyWatched,
     liveFriends,
     friendsActivity,
     week: computeWeeklyStats({ now, events, library, wishlist, titles }),
