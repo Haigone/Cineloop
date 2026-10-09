@@ -10,9 +10,9 @@ Stato: **disponibile per Netflix, AnimeUnity e StreamingCommunity** (Chrome, Edg
 
 ## Cosa legge
 
-Per la scheda Netflix in cui stai guardando, e solo quella:
+Per le schede dei servizi che hai autorizzato, e solo quelle:
 
-- l'indirizzo della pagina (es. `https://www.netflix.com/watch/80077368`);
+- l'indirizzo della pagina (es. `https://www.netflix.com/watch/80077368` oppure una pagina titolo StreamingCommunity `/titles/{id}`);
 - il titolo della scheda (spesso è solo "Netflix");
 - se la scheda sta riproducendo audio (dopo 10 minuti di silenzio l'estensione smette di segnalarti);
 - **cosa è in riproduzione, come lo nomina il player** (dalla versione 0.2.0, 8 ottobre 2026, su richiesta del proprietario del progetto): il nome della serie o del film e la riga "S4:E5". `player-title.js` legge solo due cose sulle pagine `/watch`: i metadati multimediali che la pagina passa al browser (gli stessi dei controlli multimediali del browser) e la riga del titolo del player (`[data-uia="video-title"]`). Così serie, stagione ed episodio si riconoscono senza chiedere nulla.
@@ -23,9 +23,13 @@ Dall'indirizzo delle pagine di catalogo (`?jbv=` o `/title/`) ricorda l'id della
 
 - Cookie, localStorage, token, header o richieste di rete.
 - Il resto della pagina: elenchi, "La mia lista", cronologia, profilo, il flusso video o i sottotitoli. Lo script non modifica la pagina, non comanda il player e non fa richieste; gira solo su www.netflix.com dopo che l'utente ha concesso il permesso.
-- Qualsiasi altro sito. L'unico permesso host possibile è `https://www.netflix.com/*`, opzionale, richiesto dal pannello con un clic dell'utente.
+- Qualsiasi altro sito. I permessi host sono opzionali e richiesti dal pannello con un clic dell'utente: `https://www.netflix.com/*`, `https://www.animeunity.so/*`, la directory `https://www.streaming-community.how/*` e il dominio StreamingCommunity corrente risolto dal suo pulsante.
 
 Non fa alcuna richiesta a Netflix: parla solo con il server CineLoop scelto dall'utente.
+
+### StreamingCommunity
+
+Dopo il consenso alla directory `streaming-community.how`, l'estensione segue il pulsante “StreamingCommunity” anche se reindirizza a un altro dominio, poi chiede il permesso per il dominio finale. Lo script `sc-page.js` osserva le pagine titolo `/titles/{id}`: legge l'intestazione visibile, eventuali marcatori di stagione/episodio e la frazione del video solo quando il tag `video` è accessibile nello stesso documento o in un iframe same-origin. Non legge cookie, credenziali, richieste di rete o URL dei flussi. Se il player è cross-origin, il titolo può essere riconosciuto mentre episodio e posizione restano sconosciuti.
 
 ## Come funziona
 
@@ -74,7 +78,7 @@ Tutte le chiamate usano `Authorization: Bearer <token>`. CORS è aperto solo all
 
 Finché l'estensione non è sul Chrome Web Store:
 
-1. Impostazioni > Estensione Netflix > scarica `cineloop-extension.zip` e decomprimilo.
+1. Impostazioni > Estensione browser > scarica `cineloop-extension.zip` e decomprimilo.
 2. Apri `chrome://extensions`, attiva "Modalità sviluppatore", scegli "Carica estensione non pacchettizzata" e seleziona la cartella `cineloop-extension`.
 3. Apri l’estensione, inserisci il codice e premi Collega. L’indirizzo precompilato è `https://cineloop-one.vercel.app`.
 4. Puoi attivare o disattivare Netflix, AnimeUnity e StreamingCommunity dalla sezione **Servizi collegati** del pannello; il consenso di un sito non nasconde più gli altri. Per StreamingCommunity l’estensione segue il pulsante della directory anche attraverso il reindirizzamento al dominio finale, poi chiede il permesso per quel dominio.
