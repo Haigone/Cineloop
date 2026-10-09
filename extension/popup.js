@@ -58,7 +58,7 @@ async function render() {
       ? `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su ${new URL(origin).hostname}.`
       : "Dominio attuale non ancora risolto: usami dalla schermata di attivazione.";
   } else if (otherProvider === "animeunity") {
-    $("sc-search-hint").textContent = `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su animeunity.so.`;
+    $("sc-search-hint").textContent = `Si apre l’archivio AnimeUnity: cerca “${w.title ? w.title.title : (w.label ?? "")}” lì, perché il sito usa pagine anime con ID invece di /search?q=…`;
   }
   $("player-read").textContent = await playerReading();
   renderSeasonAsk(w);
