@@ -1,0 +1,22 @@
+name: Anime release notifications
+
+on:
+  schedule:
+    # 23:00 UTC is midnight in Italy during winter; GitHub schedules use UTC.
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CineLoop release sync
+        env:
+          CINELOOP_URL: ${{ secrets.CINELOOP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$CINELOOP_URL" || (echo "Missing CINELOOP_URL secret" && exit 1)
+          test -n "$CRON_SECRET" || (echo "Missing CRON_SECRET secret" && exit 1)
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CINELOOP_URL/api/cron/anime-releases"
