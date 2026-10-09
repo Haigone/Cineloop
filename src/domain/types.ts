@@ -239,6 +239,10 @@ export interface UserPreferences {
   reduceMotion: boolean;
   /** Services the user pays for. Used to favour titles they can actually watch; nothing is synced. */
   subscriptions: ProviderId[];
+  /** The Home section opened last: Home opens on it next time. */
+  homeCategory: MediaType;
+  /** Title chosen as each Home section's background; otherwise the last one watched there. */
+  homeBackgrounds: Partial<Record<MediaType, string>>;
 }
 
 /**

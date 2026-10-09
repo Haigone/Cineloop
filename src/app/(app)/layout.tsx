@@ -14,7 +14,8 @@ import { getRepository } from "@/server/data";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
-    <div className="min-h-dvh">
+    // `isolate`: a page backdrop (z-index below 0) paints over the page colour, under everything else.
+    <div className="isolate min-h-dvh">
       <a
         href="#main"
         className="sr-only z-[100] rounded-md bg-surface-2 px-4 py-2 text-sm focus:not-sr-only focus:fixed focus:top-3 focus:left-3"

@@ -499,6 +499,8 @@ export function defaultPreferences(userId: string): UserPreferences {
     notifySuggestions: true,
     reduceMotion: false,
     subscriptions: [],
+    homeCategory: "series",
+    homeBackgrounds: {},
   };
 }
 

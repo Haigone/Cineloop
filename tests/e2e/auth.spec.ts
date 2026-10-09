@@ -32,7 +32,7 @@ test("the demo button signs in without typing", async ({ page }) => {
   await expect(page).toHaveURL(/\/home$/);
   // Nothing is playing in the demo, so the hero is the last title opened.
   await expect(page.getByText("L’ultimo che hai aperto")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Stranger Things" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Stranger Things" })).toBeVisible();
 });
 
 test("a new account starts by picking Netflix series it liked", async ({ page }) => {

@@ -57,6 +57,42 @@ test("reorder the wishlist from Home, by dragging and with the arrows", async ({
   expect((await names()).slice(0, 3)).toEqual(after.slice(0, 3));
   await page.goto("/wishlist");
   const list = page.getByRole("list", { name: "Wishlist, in ordine di priorità" });
-  await expect(list.getByRole("listitem").first()).toContainText(after[0]!);
-  await expect(list.getByRole("listitem").nth(1)).toContainText(after[1]!);
+  // The full wishlist mixes sections: Home's series keep their order among the rest.
+  await expect(list.getByRole("listitem").nth(2)).toBeVisible();
+  const all = await list.getByRole("listitem").allInnerTexts();
+  const at = (name: string) => all.findIndex((t) => t.includes(name));
+  expect(at(after[0]!)).toBeGreaterThanOrEqual(0);
+  expect(at(after[0]!)).toBeLessThan(at(after[1]!));
+  expect(at(after[1]!)).toBeLessThan(at(after[2]!));
+});
+
+test("Home has a section each for films, series and anime, and reopens on the last one", async ({ page }) => {
+  await signIn(page, "/home");
+  const tabs = page.getByRole("navigation", { name: "Sezioni della Home" });
+  await expect(tabs.getByRole("link", { name: "Serie TV" })).toHaveAttribute("aria-current", "page");
+  const queue = page.getByRole("list", { name: "Wishlist, in ordine di priorità" });
+  await expect(queue.getByText("Dune - Parte due")).toHaveCount(0);
+
+  await tabs.getByRole("link", { name: "Film" }).click();
+  await expect(page).toHaveURL(/\/home\?c=film/);
+  await expect(queue.getByRole("heading", { name: "Dune - Parte due" })).toBeVisible();
+  await expect(queue.getByText(/Serie ·/)).toHaveCount(0);
+
+  // Opening Home again lands on Film.
+  await page.goto("/home");
+  await expect(tabs.getByRole("link", { name: "Film" })).toHaveAttribute("aria-current", "page");
+
+  // A background of your own, saved in Impostazioni.
+  await page.goto("/settings#sfondi");
+  await page.getByLabel("Sfondo Film").selectOption({ label: "Interstellar" });
+  await expect(page.getByText("Sfondo di Film salvato")).toBeVisible();
+  await page.goto("/home");
+  await expect(page.getByRole("link", { name: "Sfondo: Interstellar" })).toBeVisible();
+
+  // Back to the default for the other tests.
+  await page.goto("/settings#sfondi");
+  await page.getByLabel("Sfondo Film").selectOption("");
+  await expect(page.getByText("Sfondo di Film salvato")).toBeVisible();
+  await page.goto("/home?c=serie");
+  await expect(tabs.getByRole("link", { name: "Serie TV" })).toHaveAttribute("aria-current", "page");
 });

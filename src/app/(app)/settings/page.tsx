@@ -6,6 +6,7 @@ import { getSettingsView } from "@/server/services/settings";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
+import { BackgroundPicker } from "@/components/settings/background-picker";
 import { ExtensionSettings } from "@/components/settings/extension-settings";
 import { PasswordForm } from "@/components/settings/password-form";
 import { PreferenceSwitch } from "@/components/settings/preference-switch";
@@ -22,6 +23,7 @@ const SECTIONS = [
   { id: "notifiche", label: "Notifiche" },
   { id: "servizi", label: "I tuoi servizi" },
   { id: "estensione", label: "Estensione Netflix" },
+  { id: "sfondi", label: "Sfondi della Home" },
   { id: "accessibilita", label: "Aspetto e accessibilità" },
 ] as const;
 
@@ -69,7 +71,7 @@ function Section({ id, title, description, children }: { id: string; title: stri
 }
 
 async function SettingsContent() {
-  const { user, preferences: p, providers, devices } = await getSettingsView();
+  const { user, preferences: p, providers, devices, backgrounds } = await getSettingsView();
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <Section id="profilo" title="Profilo" description="Come ti vedono gli amici su CineLoop.">
@@ -138,6 +140,14 @@ async function SettingsContent() {
         description="Mentre guardi Netflix, CineLoop aggiorna da solo la libreria e mostra agli amici cosa stai guardando, così possono unirsi a te."
       >
         <ExtensionSettings devices={devices} />
+      </Section>
+
+      <Section
+        id="sfondi"
+        title="Sfondi della Home"
+        description="Ogni sezione della Home ha come sfondo il tuo titolo preferito. Se non ne scegli uno, usa l'ultimo che hai visto in quella sezione."
+      >
+        <BackgroundPicker choices={backgrounds} />
       </Section>
 
       <Section id="accessibilita" title="Aspetto e accessibilità">

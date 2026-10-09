@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { MediaType } from "@/domain/types";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Clapperboard, Users } from "lucide-react";
@@ -19,38 +20,48 @@ import { reasonLabel } from "@/components/home/tonight";
 import { WeekStats } from "@/components/home/week-stats";
 import { TonightQueue } from "@/components/home/tonight-queue";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
+import { HOME_SECTIONS, HomeSectionTabs, SectionBackdrop, sectionFromSlug } from "@/components/home/home-sections";
 
 export const metadata: Metadata = { title: "Home" };
 
-export default function HomePage() {
+export default function HomePage({ searchParams }: PageProps<"/home">) {
   return (
     <Suspense fallback={<HomeSkeleton />}>
-      <HomeContent />
+      <HomeContent searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function HomeContent() {
-  const view = await getHomeView();
+const EMPTY: Record<MediaType, { hero: string; wishlist: string }> = {
+  movie: { hero: "Nessun film in corso.", wishlist: "Aggiungi film alla wishlist e qui troverai cosa guardare stasera." },
+  series: { hero: "Nessuna serie in corso.", wishlist: "Aggiungi serie alla wishlist e qui troverai cosa guardare stasera." },
+  anime: { hero: "Nessun anime in corso.", wishlist: "Aggiungi anime alla wishlist e qui troverai cosa guardare stasera." },
+};
+
+async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">["searchParams"] }) {
+  const params = await searchParams;
+  const view = await getHomeView(sectionFromSlug(params.c));
   const wishlistIds = new Set(view.wishlistIds);
+  const section = HOME_SECTIONS.find((s) => s.type === view.category)!;
 
   return (
-    <Reveal className="grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_320px]">
+    <>
+    {view.background && <SectionBackdrop title={view.background} />}
+    <h1 className="sr-only">Home: {section.label}</h1>
+    <HomeSectionTabs current={view.category} background={view.background} />
+    <Reveal key={view.category} className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       {/* Main column. `contents` below xl lets the side panels interleave by priority on small screens. */}
       <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-10">
         <RevealItem className="order-1">
           {view.nowWatching ? (
             <Hero item={view.nowWatching} />
           ) : (
-            <section aria-labelledby="hero-empty" className="rounded-xl border border-line bg-surface">
-              <h1 id="hero-empty" className="sr-only">
-                Home
-              </h1>
+            <section aria-label={EMPTY[view.category].hero} className="rounded-xl border border-line bg-surface/80 backdrop-blur-md">
               <EmptyState
                 className="border-0"
                 icon={<Clapperboard />}
-                title="Il tuo viaggio cinematografico inizia qui."
-                description="Cerca un titolo e segnalo come “In corso”: lo ritroverai qui, pronto da riprendere."
+                title={EMPTY[view.category].hero}
+                description="Cerca un titolo e segnalo come “In corso”, oppure usa “A che punto sei?”: lo ritroverai qui, pronto da riprendere."
                 action={<ButtonLink href="/library">Apri la libreria</ButtonLink>}
               />
             </section>
@@ -73,7 +84,7 @@ async function HomeContent() {
         <RevealItem as="section" className="order-4 min-w-0">
           <SectionHeader
             title="Da vedere stasera"
-            description="La tua wishlist in ordine di priorità: trascina le copertine per cambiarlo. Dopo, le idee dei tuoi amici."
+            description={`La tua wishlist di ${section.label === "Serie TV" ? "serie TV" : section.label.toLowerCase()} in ordine di priorità: trascina le copertine per cambiarlo. Dopo, le idee dei tuoi amici.`}
             href="/wishlist"
             hrefLabel="Apri wishlist"
           />
@@ -91,7 +102,7 @@ async function HomeContent() {
               compact
               icon={<Clapperboard />}
               title="La tua prossima ossessione potrebbe iniziare qui."
-              description="Aggiungi titoli alla wishlist e qui troverai cosa guardare stasera."
+              description={EMPTY[view.category].wishlist}
             />
           )}
         </RevealItem>
@@ -140,5 +151,6 @@ async function HomeContent() {
         )}
       </div>
     </Reveal>
+    </>
   );
 }

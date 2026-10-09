@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -191,6 +191,8 @@ export const preferences = pgTable("preferences", {
   notifySuggestions: boolean("notify_suggestions").notNull().default(true),
   reduceMotion: boolean("reduce_motion").notNull().default(false),
   subscriptions: text("subscriptions").array().$type<ProviderId[]>().notNull().default(sql`'{}'::text[]`),
+  homeCategory: text("home_category").$type<MediaType>().notNull().default("series"),
+  homeBackgrounds: jsonb("home_backgrounds").$type<Partial<Record<MediaType, string>>>().notNull().default({}),
 });
 
 /** One-time codes that pair the browser extension with an account. Stored hashed. */

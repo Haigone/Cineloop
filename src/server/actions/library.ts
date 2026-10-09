@@ -55,7 +55,15 @@ export async function reorderWishlist(orderedIds: string[]): Promise<ActionResul
   const user = await getCurrentUser();
   const parsed = z.array(titleId).max(500).safeParse(orderedIds);
   if (!parsed.success) return { ok: false, error: "Ordine non valido." };
-  return run(() => getRepository().reorderWishlist(user.id, parsed.data), "Non siamo riusciti a salvare il nuovo ordine.");
+  return run(async () => {
+    const repo = getRepository();
+    // Home reorders one section at a time: its titles swap among the places they hold, the rest stay put.
+    const full = (await repo.listWishlist(user.id)).map((w) => w.titleId);
+    const moved = new Set(parsed.data);
+    const queue = [...moved].filter((id) => full.includes(id));
+    const merged = full.map((id) => (moved.has(id) ? queue.shift()! : id));
+    await repo.reorderWishlist(user.id, merged);
+  }, "Non siamo riusciti a salvare il nuovo ordine.");
 }
 
 const statusSchema = z.enum(["watching", "completed", "planned", "dropped"]);

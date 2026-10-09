@@ -75,6 +75,8 @@ describe("filterNotifications", () => {
     notifySuggestions: false,
     reduceMotion: false,
     subscriptions: [],
+    homeCategory: "series",
+    homeBackgrounds: {},
   };
   it("hides muted kinds but always keeps system messages", () => {
     const list = [n("1", "friend-activity"), n("2", "watch-party"), n("3", "suggestion"), n("4", "system")];

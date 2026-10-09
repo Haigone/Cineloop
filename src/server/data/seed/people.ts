@@ -305,6 +305,8 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
     notifySuggestions: true,
     reduceMotion: false,
     subscriptions: u.id === "u_marco" ? ["netflix", "prime-video", "disney-plus", "crunchyroll"] : [],
+    homeCategory: "series",
+    homeBackgrounds: {},
   }));
 
   return { users, friendships, library, wishlist, watchEvents, activity, notifications, preferences };

@@ -53,9 +53,9 @@ export function Hero({ item }: { item: ContinueItem }) {
           </span>
           {live ? "Ora in visione" : "L’ultimo che hai aperto"}
         </p>
-        <h1 id="hero-title" className="mt-3 text-[34px] leading-[1.02] font-semibold tracking-[-0.035em] text-fg [text-wrap:balance] sm:text-[44px] xl:text-[52px]">
+        <h2 id="hero-title" className="mt-3 text-[34px] leading-[1.02] font-semibold tracking-[-0.035em] text-fg [text-wrap:balance] sm:text-[44px] xl:text-[52px]">
           {title.title}
-        </h1>
+        </h2>
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-2">
           <ProviderBadge id={progress.providerId} />
           {ep && <span className="text-fg">{ep}</span>}

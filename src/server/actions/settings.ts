@@ -108,3 +108,30 @@ export async function updatePreferences(patch: PreferencesPatch): Promise<Action
     return { ok: false, error: "Non siamo riusciti a salvare l'impostazione. Riprova." };
   }
 }
+
+const mediaType = z.enum(["movie", "series", "anime"]);
+
+/** The title behind a Home section, or null to use the last one watched there. */
+export async function setHomeBackground(category: string, titleId: string | null): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  const parsedCategory = mediaType.safeParse(category);
+  const parsedId = z.string().min(1).max(64).nullable().safeParse(titleId);
+  if (!parsedCategory.success || !parsedId.success) return { ok: false, error: "Sfondo non valido." };
+  try {
+    const repo = getRepository();
+    if (parsedId.data) {
+      const [title] = await repo.getTitlesByIds([parsedId.data]);
+      if (!title || title.type !== parsedCategory.data) return { ok: false, error: "Scegli un titolo di questa sezione." };
+    }
+    const { homeBackgrounds } = await repo.getPreferences(viewer.id);
+    const next = { ...homeBackgrounds };
+    if (parsedId.data) next[parsedCategory.data] = parsedId.data;
+    else delete next[parsedCategory.data];
+    await repo.updatePreferences(viewer.id, { homeBackgrounds: next });
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("setHomeBackground failed", err);
+    return { ok: false, error: "Non siamo riusciti a salvare lo sfondo. Riprova." };
+  }
+}
