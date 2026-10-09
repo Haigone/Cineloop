@@ -23,13 +23,14 @@
   let lastSent = "";
 
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
+  const cleanTitle = (s) => clean(s).replace(/^watch\s+/i, "").trim();
   const isMarker = (t) => SEASON_EPISODE.test(t) || EPISODE_ONLY.test(t);
 
   function fromHeading() {
     // Le pagine titolo di StreamingCommunity hanno un h1 con il nome del titolo.
     const h1 = document.querySelector("h1");
     if (!h1) return null;
-    const text = clean(h1.textContent).replace(/\s*(streaming|stream)\s*ita.*$/i, "").trim();
+    const text = cleanTitle(h1.textContent).replace(/\s*(streaming|stream)\s*ita.*$/i, "").trim();
     if (!text || isMarker(text)) return null;
     const inline = SEASON_EPISODE.exec(text) ?? /\s(?:E|Ep\.?|Episodio|Episode)\s*\d{1,4}\b/i.exec(text);
     const title = inline && inline.index > 0 ? text.slice(0, inline.index).trim() : text;
@@ -38,7 +39,7 @@
 
   function fromTitleTag() {
     // document.title e' tipo "Breaking Bad S1E1 - StreamingCommunity".
-    const t = clean(document.title).replace(/\s*[-|·]\s*(streaming\s*community.*|streaming.*)$/i, "").trim();
+    const t = cleanTitle(document.title).replace(/\s*[-|·]\s*(streaming\s*community.*|streaming.*)$/i, "").trim();
     if (!t) return null;
     const both = SEASON_EPISODE.exec(t);
     if (both) return { title: t.slice(0, both.index).trim() || t, season: Number(both[1]), episode: Number(both[2]) };

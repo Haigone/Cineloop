@@ -50,6 +50,26 @@ export interface ContinueItem {
   seasonEpisodes: number | null;
 }
 
+/** Build a CineLoop-only resume placeholder from the user's observed player URL. */
+export function streamingCommunityResumeUrl(titleId: string, sourceUrl: string | null, fraction: number, runtimeMinutes: number, season: number | null, episode: number | null): string | null {
+  if (!sourceUrl) return null;
+  try {
+    const source = new URL(sourceUrl);
+    const host = source.hostname.toLowerCase().replace(/^www\./, "");
+    if (source.protocol !== "https:" || !/^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host)) return null;
+    const match = /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+    if (!match) return null;
+    const params = new URLSearchParams({
+      provider: "streamingcommunity", watching: "true", id: match[1]!, titleId: match[1]!,
+      minute: String(Math.max(0, Math.floor(fraction * runtimeMinutes))),
+    });
+    const episodeId = source.searchParams.get("e");
+    if (episodeId && /^\d{1,12}$/.test(episodeId)) { params.set("e", episodeId); params.set("episodeId", episodeId); }
+    if (season !== null) params.set("season", String(season));
+    if (episode !== null) params.set("episode", String(episode));
+    return `https://cineloop.freedev.app/title/${encodeURIComponent(titleId)}?${params.toString()}`;
+  } catch { return null; }
+}
 /** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
 export function animeUnityResumeUrl(value: string, fraction: number): string {
   try {
@@ -82,9 +102,19 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
         entry.progress.providerId === providerId ? entry.progress.url : null,
       )
     : null;
-  const providerUrl = resolvedUrl && providerId === "animeunity" && entry.progress.providerId === "animeunity"
+  const streamingCommunityUrl = entry.progress.providerId === "streamingcommunity"
+    ? streamingCommunityResumeUrl(
+        title.id,
+        entry.progress.url,
+        entry.progress.fraction,
+        title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes,
+        entry.progress.season,
+        entry.progress.episode,
+      )
+    : null;
+  const providerUrl = streamingCommunityUrl ?? (resolvedUrl && providerId === "animeunity" && entry.progress.providerId === "animeunity"
     ? animeUnityResumeUrl(resolvedUrl, entry.progress.fraction)
-    : resolvedUrl;
+    : resolvedUrl);
   const continueUrl = providerUrl ?? `/title/${title.id}`;
   const season = title.type === "movie" ? undefined : title.seasons.find((s) => s.number === entry.progress!.season);
   return {
@@ -92,7 +122,7 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
     progress: entry.progress,
     providerName: providerUrl ? (provider?.name ?? null) : null,
     continueUrl,
-    continueOnSite: !providerUrl,
+    continueOnSite: Boolean(streamingCommunityUrl) || !providerUrl,
     live: false,
     seriesFraction: seriesProgress(title, entry.progress),
     seasonEpisodes: season?.episodeCount ?? null,
