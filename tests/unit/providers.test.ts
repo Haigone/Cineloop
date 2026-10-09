@@ -108,6 +108,12 @@ describe("Streaming Community", () => {
     expect(adapter.capabilities).toEqual({ detectCurrentContent: true, deepLinks: true, progress: true });
   });
 
+  it("removes the generic Watch prefix from player titles", async () => {
+    const current = await adapter.getCurrentContent(ctx({ ...observation, documentTitle: "Watch I Soprano - StreamingCommunity", hints: { title: "Watch I Soprano", season: 4, episode: 6 } }));
+    expect(current?.title).toBe("I Soprano");
+    expect(current).toMatchObject({ season: 4, episode: 6 });
+  });
+
   it("rejects insecure, unrelated and non-title URLs", async () => {
     expect(await adapter.getCurrentContent(ctx({ ...observation, url: "http://streamingcommunityz.jetzt/titles/123-x" }))).toBeNull();
     expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://evil.example/titles/123-x" }))).toBeNull();
