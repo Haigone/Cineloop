@@ -4,10 +4,9 @@ import { ObservationAdapter } from "./base";
 /**
  * Anime Unity page-link adapter.
  *
- * It only accepts a user-visible HTTPS page URL from an observation already
- * supplied to CineLoop. It does not fetch Anime Unity, inspect page contents,
- * discover media files, or interact with a player. Keeping the full page URL
- * lets "Continue" reopen the same page when that URL was saved as progress.
+ * Consumes only an HTTPS page URL already supplied to CineLoop by an
+ * explicitly enabled observation source. It never fetches the site, inspects
+ * page markup, extracts media URLs, or controls a player.
  */
 export class AnimeUnityAdapter extends ObservationAdapter {
   readonly id = "animeunity" as const;
@@ -18,21 +17,8 @@ export class AnimeUnityAdapter extends ObservationAdapter {
   };
 
   protected parse(obs: SyncObservation): CurrentContent | null {
-    let url: URL;
-    try {
-      url = new URL(obs.url);
-    } catch {
-      return null;
-    }
-
-    // Restrict links to HTTPS hosts whose domain labels identify Anime Unity.
-    // This rejects lookalike paths such as evil.example/animeunity.
-    if (
-      url.protocol !== "https:" ||
-      !url.hostname.split(".").some((label) => label.toLowerCase().includes("animeunity"))
-    ) {
-      return null;
-    }
+    const url = this.parsePageUrl(obs.url);
+    if (!url) return null;
 
     const fromPage = obs.hints?.title?.trim() ||
       obs.documentTitle.replace(/\s*[-|–]\s*anime\s*unity.*$/i, "").trim();
@@ -45,30 +31,36 @@ export class AnimeUnityAdapter extends ObservationAdapter {
 
     return {
       providerId: this.id,
-      // Preserve the page URL as the provider reference so Continue can reopen
-      // the exact user-visible page. No media/stream URL is extracted.
-      externalId: url.toString(),
+      externalId: url,
       title: fromPage,
       type: "anime",
       season,
       episode,
       titleId: null,
-      url: url.toString(),
+      url,
       detectedAt: obs.observedAt,
     };
   }
 
   override getContentUrl(content: Content): string | null {
     if (content.providerId !== this.id || !content.externalId) return null;
+    return this.parsePageUrl(content.externalId);
+  }
+
+  private parsePageUrl(value: string): string | null {
     try {
-      const url = new URL(content.externalId);
+      const url = new URL(value);
+      // Require HTTPS and an actual "animeunity" domain label. This rejects
+      // path-only and hostname lookalikes such as animeunity.evil.example.
       if (
-        url.protocol === "https:" &&
-        url.hostname.split(".").some((label) => label.toLowerCase().includes("animeunity"))
-      ) return url.toString();
+        url.protocol !== "https:" ||
+        !url.hostname.toLowerCase().split(".").includes("animeunity") ||
+        url.username ||
+        url.password
+      ) return null;
+      return url.toString();
     } catch {
-      // Invalid or missing saved page URL.
+      return null;
     }
-    return null;
   }
 }
