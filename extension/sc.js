@@ -40,7 +40,7 @@ export function streamingOriginFromWatchUrl(value) {
     const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
     const validPath = /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)/i.test(url.pathname) ||
       /^\/titles?\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
-    if (url.protocol !== "https:" || url.username || url.password || url.origin === DIRECTORY_ORIGIN || !validHost || !validPath) return null;
+    if (url.protocol !== "https:" || url.username || url.password || url.origin === DIRECTORY_ORIGIN || host === "streaming-community.how" || !validHost || !validPath) return null;
     return url.origin;
   } catch {
     return null;
@@ -83,7 +83,8 @@ export async function resolveStreamingUrl({ force = false } = {}) {
       if (!/streaming\s*community/i.test(label)) continue;
       try {
         const target = new URL(m[1], res.url || DIRECTORY_ORIGIN);
-        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || !/streaming[-]?community/i.test(target.hostname)) continue;
+        const targetHost = target.hostname.toLowerCase().replace(/^www\\./, "");
+        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || targetHost === "streaming-community.how" || !/streaming[-]?community/i.test(target.hostname)) continue;
 
         // The directory button may redirect to another host. Resolve that
         // redirect with a temporary inactive tab; fetch() would require the
@@ -114,7 +115,8 @@ export async function resolveStreamingUrl({ force = false } = {}) {
           if (tab.id !== undefined) await chrome.tabs.remove(tab.id).catch(() => {});
         }
         const final = new URL(finalUrl || target.href);
-        if (final.protocol !== "https:" || !/streaming[-]?community/i.test(final.hostname)) continue;
+        const finalHost = final.hostname.toLowerCase().replace(/^www\\./, "");
+        if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming[-]?community/i.test(final.hostname)) continue;
         const resolved = { origin: final.origin, at: Date.now() };
         await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
         return resolved.origin;
