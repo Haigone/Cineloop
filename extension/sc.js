@@ -83,7 +83,7 @@ export async function resolveStreamingUrl({ force = false } = {}) {
       if (!/streaming\s*community/i.test(label)) continue;
       try {
         const target = new URL(m[1], res.url || DIRECTORY_ORIGIN);
-        const targetHost = target.hostname.toLowerCase().replace(/^www\\./, "");
+        const targetHost = target.hostname.toLowerCase().replace(/^www\./, "");
         if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || targetHost === "streaming-community.how" || !/streaming[-]?community/i.test(target.hostname)) continue;
 
         // The directory button may redirect to another host. Resolve that
@@ -115,7 +115,7 @@ export async function resolveStreamingUrl({ force = false } = {}) {
           if (tab.id !== undefined) await chrome.tabs.remove(tab.id).catch(() => {});
         }
         const final = new URL(finalUrl || target.href);
-        const finalHost = final.hostname.toLowerCase().replace(/^www\\./, "");
+        const finalHost = final.hostname.toLowerCase().replace(/^www\./, "");
         if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming[-]?community/i.test(final.hostname)) continue;
         const resolved = { origin: final.origin, at: Date.now() };
         await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
