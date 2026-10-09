@@ -117,7 +117,7 @@ export async function setSeason(userId: string, season: number): Promise<Extensi
   const presence = await repo.getPresence(userId);
   if (!presence?.titleId || !isLive(presence, new Date())) return null;
   const [title] = await repo.getTitlesByIds([presence.titleId]);
-  if (!title || title.type === "movie" || !title.seasons.some((x) => x.number === season)) return null;
+  if (!title || title.type === "movie" || !Number.isInteger(season) || season < 1 || season > 200) return null;
   presence.season = season;
   await syncProgress(repo, presence, null);
   await repo.savePresence(presence);
