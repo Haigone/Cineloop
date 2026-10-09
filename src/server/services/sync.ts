@@ -421,11 +421,11 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
     }
   }
   if (!hit) return null;
-  // Only trust the suffix as a season when the matched catalogue entry has it.
-  // Otherwise leave season unknown so the extension asks the user explicitly.
+  // A trailing number in the player title is an explicit season hint (for example,
+  // "Frieren: Beyond Journey's End 2"). Prefer it over inferSeason's single-season
+  // default: catalogues can lag behind a newly released season or omit its metadata.
   if (seasonSuffix && hit.type !== "movie") {
-    const hintedSeason = Number(seasonSuffix[1]);
-    if (hit.seasons.some((season) => season.number === hintedSeason)) presence.season = hintedSeason;
+    presence.season = Number(seasonSuffix[1]);
   }
   await repo.saveProviderLink({ providerId: presence.providerId, externalId: presence.externalId, titleId: hit.id, userId: presence.userId });
   // The show page the user came from may be stale: only teach it when nothing is known about it yet.
