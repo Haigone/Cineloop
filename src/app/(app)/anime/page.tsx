@@ -8,7 +8,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 
 export const metadata: Metadata = { title: "Anime" };
 
-async function AnimeLibraryContent({ searchParams }: PageProps<"/anime">) {
+async function AnimeLibraryContent({ searchParams }: Pick<PageProps<"/anime">, "searchParams">) {
   // cacheComponents is enabled: explicitly defer AniDB access to the request.
   await connection();
   const params = await searchParams;
