@@ -43,6 +43,8 @@ export interface Repository {
   upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void>;
   /** Synchronizes a completed or restarted AniDB work across all paths for a user. */
   setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean): Promise<void>;
+  /** Adds a completed episode to every included path for this AniDB work; idempotent. */
+  markAnimeWatchPathEpisode(userId: string, animeId: string, episodeKey: string): Promise<void>;
 
   // Users & credentials
   listUsers(): Promise<User[]>;
