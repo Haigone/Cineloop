@@ -46,27 +46,68 @@
     return { title: t.slice(0, 200) };
   }
 
+  // Related titles include dubbed ITA copies. Episode markers must belong to
+  // the current AnimeUnity numeric ID, not a linked related series.
+  function belongsToCurrentAnime(el) {
+    const id = titleIdNow();
+    const link = el.closest?.("a[href]") ?? el.querySelector?.("a[href]");
+    if (!id || !link) return Boolean(id);
+    try {
+      const path = new URL(link.href, location.href).pathname;
+      return new RegExp("^/anime/" + id + "(?:[-/]|$)").test(path);
+    } catch {
+      return false;
+    }
+  }
+
+  function currentEpisodeLink() {
+    const match = /\/anime\/\d{1,9}[-/][^/]+\/(\d{1,9})(?:\/|$)/.exec(location.pathname);
+    if (!match) return null;
+    const currentPath = location.pathname.replace(/\/+$/, "");
+    for (const link of document.querySelectorAll("a[href]")) {
+      try {
+        if (new URL(link.href, location.href).pathname.replace(/\/+$/, "") === currentPath) return link;
+      } catch {
+        // Ignore malformed links.
+      }
+    }
+    return null;
+  }
+
+  function episodeNumberFromElement(el) {
+    if (!el) return null;
+    const text = clean(el.textContent);
+    const named = EPISODE_WORD.exec(text);
+    if (named) return Number(named[1]);
+    return /^\d{1,4}$/.test(text) ? Number(text) : null;
+  }
+
   function activeEpisodeEl() {
+    // Prefer the link for the exact episode ID in the current URL.
+    const exact = currentEpisodeLink();
+    if (episodeNumberFromElement(exact) !== null) return exact;
     const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
     for (const el of document.querySelectorAll(sel)) {
-      const t = clean(el.textContent);
-      if (EPISODE_WORD.test(t) || /^\d{1,4}$/.test(t)) return el;
+      if (!belongsToCurrentAnime(el)) continue;
+      if (episodeNumberFromElement(el) !== null) return el;
     }
     return null;
   }
 
   function parseEpisodeFromDom() {
-    const candidates = [...document.querySelectorAll("[class*=episode i], [class*=episodio i], a, button, li, span")]
-      .map((el) => clean(el.textContent))
-      .filter((t) => t && t.length <= 30);
-    for (const t of candidates) {
-      const m = EPISODE_WORD.exec(t);
-      if (m) return Number(m[1]);
-    }
-    for (const t of candidates) {
-      if (/^\d{1,4}$/.test(t)) return Number(t);
-    }
-    return null;
+    // Never fall back to the first numbered link in the list: that is usually
+    // episode 1, and related ITA titles can appear before the current episode.
+    return episodeNumberFromElement(currentEpisodeLink());
+  }
+
+  function partSeasonFromPage() {
+    const text = (location.pathname + " " + known.title + " " + document.title).toLowerCase();
+    if (/the[-_\s]+blood[-_\s]+warfare|blood[-_\s]+warfare/.test(text)) return 1;
+    if (/the[-_\s]+separation|\bseparation\b/.test(text)) return 2;
+    if (/the[-_\s]+conflict|\bconflict\b/.test(text)) return 3;
+    if (/the[-_\s]+calamity|\bcalamity\b/.test(text)) return 4;
+    const numbered = /(?:season|stagione|part|parte|cour)\s*[-:]?\s*([1-9]\d?)/i.exec(text);
+    return numbered ? Number(numbered[1]) : null;
   }
 
   function findVideo(root = document, depth = 0) {
@@ -114,6 +155,7 @@
       if (found.title && !known.title) known.title = found.title;
       if (found.episode !== undefined && found.episode !== null && known.episode === null) known.episode = found.episode;
     }
+    if (known.season === null) known.season = partSeasonFromPage();
     const active = activeEpisodeEl();
     if (active) {
       const t = clean(active.textContent);
