@@ -84,7 +84,7 @@ const FILLER_LIST_SLUGS: Record<string, string> = {
   "one punch man": "one-punch-man",
 };
 
-function fillerListUrlFor(title: string): string | null {
+export function fillerListUrlFor(title: string): string | null {
   const key = title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, " ").trim();
   const slug = FILLER_LIST_SLUGS[key];
@@ -171,7 +171,23 @@ let lastAnnRequestAt = 0;
 
 function xmlAttribute(tag: string, attribute: string): string | null {
   const match = new RegExp(`\\b${attribute}="([^"]*)"`).exec(tag);
-  return match?.[1]?.replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">") ?? null;
+  return match?.[1]?.replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&apos;", "'") ?? null;
+}
+
+/** Parse the subset of ANN XML we display; exported so malformed feeds can be regression-tested. */
+export function parseAnnXml(id: number, xml: string): AnnEnrichment | null {
+  const tag = /<anime\b[^>]*>/i.exec(xml)?.[0];
+  if (!tag || /<error\b/i.test(xml)) return null;
+  const episodeCount = [...xml.matchAll(/<episode\b[^>]*>/gi)].length;
+  const pictureTag = [...xml.matchAll(/<info\b[^>]*type="Picture"[^>]*>/gi)][0]?.[0];
+  return {
+    id,
+    title: xmlAttribute(tag, "name"),
+    format: xmlAttribute(tag, "type"),
+    episodeCount: episodeCount || null,
+    pictureUrl: pictureTag ? xmlAttribute(pictureTag, "src") : null,
+    url: `https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${id}`,
+  };
 }
 
 /** ANN Encyclopedia XML enrichment, cached and rate-limited to avoid burst requests. */
@@ -191,19 +207,8 @@ export async function getAnnAnime(id: number): Promise<AnnEnrichment | null> {
       next: { revalidate: 3_600 },
     });
     if (!response.ok) return null;
-    const xml = await response.text();
-    const tag = /<anime\b[^>]*>/i.exec(xml)?.[0];
-    if (!tag || xml.includes("<error")) return null;
-    const episodeCount = [...xml.matchAll(/<episode\b[^>]*>/gi)].length;
-    const pictureTag = [...xml.matchAll(/<info\b[^>]*type="Picture"[^>]*>/gi)][0]?.[0];
-    const result: AnnEnrichment = {
-      id,
-      title: xmlAttribute(tag, "name"),
-      format: xmlAttribute(tag, "type"),
-      episodeCount: episodeCount || null,
-      pictureUrl: pictureTag ? xmlAttribute(pictureTag, "src") : null,
-      url: `https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${id}`,
-    };
+    const result = parseAnnXml(id, await response.text());
+    if (!result) return null;
     cache.set(key, { value: result, expires: Date.now() + 60 * 60_000 });
     return result;
   } catch {
