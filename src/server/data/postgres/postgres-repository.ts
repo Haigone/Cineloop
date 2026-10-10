@@ -85,6 +85,7 @@ export class PostgresRepository implements Repository {
   async upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void> {
     await this.db.insert(schema.animeWatchPath).values({
       ...entry,
+      watchedEpisodes: entry.watchedEpisodes ?? [],
       updatedAt: new Date(entry.updatedAt),
     }).onConflictDoUpdate({
       target: [schema.animeWatchPath.userId, schema.animeWatchPath.rootId, schema.animeWatchPath.animeId],
