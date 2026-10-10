@@ -3,6 +3,7 @@ import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type {
   ActivityEvent,
+  AnimeWatchPathEntry,
   AppNotification,
   ChartEntry,
   ExtensionDevice,
@@ -72,6 +73,27 @@ export class PostgresRepository implements Repository {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
+  }
+
+  async listAnimeWatchPath(userId: string, rootId: string): Promise<AnimeWatchPathEntry[]> {
+    const rows = await this.db.select().from(schema.animeWatchPath).where(
+      and(eq(schema.animeWatchPath.userId, userId), eq(schema.animeWatchPath.rootId, rootId)),
+    );
+    return rows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }));
+  }
+
+  async upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void> {
+    await this.db.insert(schema.animeWatchPath).values({
+      ...entry,
+      updatedAt: new Date(entry.updatedAt),
+    }).onConflictDoUpdate({
+      target: [schema.animeWatchPath.userId, schema.animeWatchPath.rootId, schema.animeWatchPath.animeId],
+      set: {
+        included: entry.included,
+        watched: entry.watched,
+        updatedAt: new Date(entry.updatedAt),
+      },
+    });
   }
 
   // Users -------------------------------------------------------------------
