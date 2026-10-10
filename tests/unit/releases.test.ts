@@ -107,7 +107,7 @@ describe("upcoming releases", () => {
       if (url.includes("/discover/movie")) return { results: [{ id: 10, title: "Film", release_date: "2026-10-20" }] };
       if (url.includes("/discover/tv")) return { results: [{ id: 20, name: "Serie", first_air_date: "2026-10-15" }] };
       if (url.includes("/release_dates"))
-        return { results: [{ iso_3166_1: "IT", release_dates: [{ type: 1, release_date: "2026-09-01T00:00:00.000Z" }, { type: 3, release_date: "2026-10-30T00:00:00.000Z" }] }] };
+        return { results: [{ iso_3166_1: "IT", release_dates: [{ type: 3, release_date: "2026-09-01T00:00:00.000Z" }, { type: 3, release_date: "2026-10-30T00:00:00.000Z" }] }] };
       return {};
     });
     const out = await tmdb.upcoming("all", TODAY, 10);
@@ -115,6 +115,35 @@ describe("upcoming releases", () => {
       ["Serie", "2026-10-15"],
       ["Film", "2026-10-30"],
     ]);
+  });
+
+  it("paginates upcoming releases and chooses a future Italian date instead of an old re-release date", async () => {
+    const { tmdb, fetcher } = tmdbWith((url) => {
+      if (url.includes("/discover/movie")) {
+        const page = new URL(url).searchParams.get("page");
+        return {
+          total_pages: 2,
+          results: page === "2"
+            ? [{ id: 11, title: "Secondo film", release_date: "2026-10-21" }]
+            : [{ id: 10, title: "Primo film", release_date: "2026-10-20" }],
+        };
+      }
+      if (url.includes("/discover/tv")) return { total_pages: 1, results: [] };
+      if (url.includes("/movie/10/release_dates")) return { results: [{ iso_3166_1: "IT", release_dates: [
+        { type: 3, release_date: "2026-09-01T00:00:00.000Z" },
+        { type: 3, release_date: "2026-10-30T00:00:00.000Z" },
+      ] }] };
+      if (url.includes("/movie/11/release_dates")) return { results: [{ iso_3166_1: "IT", release_dates: [
+        { type: 3, release_date: "2026-10-31T00:00:00.000Z" },
+      ] }] };
+      return {};
+    });
+    const out = await tmdb.upcoming("movie", TODAY, 10);
+    expect(out.map((r) => [r.title.title, r.date])).toEqual([
+      ["Primo film", "2026-10-30"],
+      ["Secondo film", "2026-10-31"],
+    ]);
+    expect(fetcher.mock.calls.some((call) => new URL(String(call[0])).searchParams.get("page") === "2")).toBe(true);
   });
 });
 
