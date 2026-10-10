@@ -85,7 +85,7 @@ const FILLER_LIST_SLUGS: Record<string, string> = {
 };
 
 function fillerListUrlFor(title: string): string | null {
-  const key = title.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+  const key = title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .replace(/[^a-z0-9]+/g, " ").trim();
   const slug = FILLER_LIST_SLUGS[key];
   return slug ? `https://www.animefillerlist.com/shows/${slug}` : null;
@@ -150,7 +150,7 @@ export interface AnnEnrichment {
 let lastAnnRequestAt = 0;
 
 function xmlAttribute(tag: string, attribute: string): string | null {
-  const match = new RegExp(`\\\\b${attribute}="([^"]*)"`).exec(tag);
+  const match = new RegExp(`\\b${attribute}="([^"]*)"`).exec(tag);
   return match?.[1]?.replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">") ?? null;
 }
 
@@ -172,10 +172,10 @@ export async function getAnnAnime(id: number): Promise<AnnEnrichment | null> {
     });
     if (!response.ok) return null;
     const xml = await response.text();
-    const tag = /<anime\\b[^>]*>/i.exec(xml)?.[0];
+    const tag = /<anime\b[^>]*>/i.exec(xml)?.[0];
     if (!tag || xml.includes("<error")) return null;
-    const episodeCount = [...xml.matchAll(/<episode\\b[^>]*>/gi)].length;
-    const pictureTag = [...xml.matchAll(/<info\\b[^>]*type="Picture"[^>]*>/gi)][0]?.[0];
+    const episodeCount = [...xml.matchAll(/<episode\b[^>]*>/gi)].length;
+    const pictureTag = [...xml.matchAll(/<info\b[^>]*type="Picture"[^>]*>/gi)][0]?.[0];
     const result: AnnEnrichment = {
       id,
       title: xmlAttribute(tag, "name"),
