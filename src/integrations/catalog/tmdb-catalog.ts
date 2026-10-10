@@ -305,37 +305,41 @@ export class TmdbCatalog implements CatalogService {
     const to = addDays(today, 180);
     const wantMovies = type === "all" || type === "movie";
     const wantTv = type !== "movie";
+    // Query by date, not popularity: popularity-first page 1 misses many real
+    // releases because a handful of blockbusters occupy the entire first page.
     const [movies, shows] = await Promise.all([
       wantMovies
-        ? this.list(
+        ? this.listPages(
             `/discover/movie?${new URLSearchParams({
               include_adult: "false",
-              sort_by: "popularity.desc",
+              sort_by: "primary_release_date.asc",
               region: REGION,
               // Cinema (limited or wide) and streaming premieres in Italy.
               with_release_type: "2|3|4",
               "release_date.gte": from,
               "release_date.lte": to,
             })}`,
+            5,
           )
         : Promise.resolve([]),
       wantTv
-        ? this.list(
+        ? this.listPages(
             `/discover/tv?${new URLSearchParams({
               include_adult: "false",
-              sort_by: "popularity.desc",
+              sort_by: "first_air_date.asc",
               "first_air_date.gte": from,
               "first_air_date.lte": to,
               ...(type === "anime" ? { with_original_language: "ja", with_genres: "16" } : {}),
             })}`,
+            5,
           )
         : Promise.resolve([]),
     ]);
 
-    // The list's release_date is the worldwide premiere; ask for the Italian one.
+    // Check enough films to replace records without a confirmed future Italian date.
     const films = await Promise.all(
-      movies.slice(0, limit).map(async (item) => {
-        const date = (await this.italianReleaseDate(item.id)) ?? item.release_date ?? null;
+      movies.slice(0, Math.max(limit * 3, limit)).map(async (item) => {
+        const date = (await this.italianReleaseDate(item.id, from, to)) ?? item.release_date ?? null;
         return { title: toTitle("movie", item), date, season: null };
       }),
     );
@@ -345,22 +349,41 @@ export class TmdbCatalog implements CatalogService {
 
     const all: Release[] = [...films, ...series];
     return all
-      .filter((r) => Boolean(r.title.title && r.date && r.date > today))
+      .filter((r) => Boolean(r.title.title && r.date && r.date >= from && r.date <= to))
       .sort((a, b) => a.date!.localeCompare(b.date!))
       .slice(0, limit);
   }
 
-  private async italianReleaseDate(movieId: number): Promise<string | null> {
+  /** Fetch several discover pages so less-popular, but genuinely upcoming, titles are not omitted. */
+  private async listPages(path: string, maxPages: number): Promise<TmdbItem[]> {
+    const [endpoint, query = ""] = path.split("?");
+    const params = new URLSearchParams(query);
+    params.set("page", "1");
+    const first = await this.listPage(`${endpoint}?${params}`);
+    const total = Math.min(Math.max(1, first.total_pages ?? 1), maxPages);
+    if (total === 1) return first.results ?? [];
+    const rest = await Promise.all(
+      Array.from({ length: total - 1 }, async (_, index) => {
+        const next = new URLSearchParams(params);
+        next.set("page", String(index + 2));
+        return (await this.listPage(`${endpoint}?${next}`)).results ?? [];
+      }),
+    );
+    return [...(first.results ?? []), ...rest.flat()];
+  }
+
+  private async italianReleaseDate(movieId: number, from: string, to: string): Promise<string | null> {
     try {
       const data = await this.get<{ results?: { iso_3166_1: string; release_dates: { release_date: string; type: number }[] }[] }>(
         `/movie/${movieId}/release_dates?`,
       );
       const dates = data.results?.find((r) => r.iso_3166_1 === REGION)?.release_dates ?? [];
-      const first = dates
+      const future = dates
         .filter((d) => d.type >= 2 && d.type <= 4)
         .map((d) => d.release_date.slice(0, 10))
+        .filter((date) => date >= from && date <= to)
         .sort()[0];
-      return first ?? null;
+      return future ?? null;
     } catch {
       return null;
     }
