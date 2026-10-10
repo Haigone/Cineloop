@@ -44,6 +44,9 @@ export interface ExtensionStatus {
 
 const brief = (t: Title) => ({ id: t.id, title: t.title, year: t.year });
 
+/** Only share reusable provider IDs for an explicitly supported, authorized provider. */
+const canShareProviderTitleLinks = (providerId: Presence["providerId"]) => providerId === "netflix";
+
 export async function handleObservation(userId: string, obs: SyncObservation): Promise<ExtensionStatus> {
   const repo = getRepository();
   const content = await getAdapter(obs.providerId).getCurrentContent({ userId, latestObservation: obs });
@@ -106,9 +109,13 @@ export async function confirmTitle(userId: string, titleId: string, parentId: st
   const title = await ensureTitle(titleId);
   if (!title) return null;
 
-  // Series episodes have their own ids; the show id covers the episodes not seen yet.
-  const ids = [presence.externalId, ...(parentId && title.type !== "movie" ? [parentId] : [])];
-  for (const externalId of ids) await repo.saveProviderLink({ providerId: presence.providerId, externalId, titleId, userId });
+  // Shared ID mappings are limited to supported authorized providers. For other
+  // providers, the exact observed URL remains in this user's playback progress.
+  if (canShareProviderTitleLinks(presence.providerId)) {
+    // Series episodes have their own ids; the show id covers unseen episodes.
+    const ids = [presence.externalId, ...(parentId && title.type !== "movie" ? [parentId] : [])];
+    for (const externalId of ids) await repo.saveProviderLink({ providerId: presence.providerId, externalId, titleId, userId });
+  }
 
   const changed = presence.titleId !== titleId;
   presence.titleId = titleId;
@@ -385,11 +392,15 @@ export async function joinFriend(viewer: PublicUser, hostId: string): Promise<Jo
  * show page the user came from can be out of date; the player is not).
  */
 async function recognise(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
-  const linked = await repo.findProviderLink(presence.providerId, [presence.externalId]);
-  if (linked) return linked;
-  const named = presence.label ? await matchLabel(repo, presence, parentId) : null;
-  if (named) return named;
-  return parentId ? repo.findProviderLink(presence.providerId, [parentId]) : null;
+  if (canShareProviderTitleLinks(presence.providerId)) {
+    const linked = await repo.findProviderLink(presence.providerId, [presence.externalId]);
+    if (linked) return linked;
+    if (parentId) {
+      const parentLink = await repo.findProviderLink(presence.providerId, [parentId]);
+      if (parentLink) return parentLink;
+    }
+  }
+  return presence.label ? matchLabel(repo, presence, parentId) : null;
 }
 
 async function matchLabel(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
@@ -444,10 +455,12 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   if (seasonSuffix && hit.type !== "movie") {
     presence.season = Number(seasonSuffix[1]);
   }
-  await repo.saveProviderLink({ providerId: presence.providerId, externalId: presence.externalId, titleId: hit.id, userId: presence.userId });
-  // The show page the user came from may be stale: only teach it when nothing is known about it yet.
-  if (parentId && hit.type !== "movie" && !(await repo.findProviderLink(presence.providerId, [parentId]))) {
-    await repo.saveProviderLink({ providerId: presence.providerId, externalId: parentId, titleId: hit.id, userId: presence.userId });
+  if (canShareProviderTitleLinks(presence.providerId)) {
+    await repo.saveProviderLink({ providerId: presence.providerId, externalId: presence.externalId, titleId: hit.id, userId: presence.userId });
+    // The show page the user came from may be stale: only teach it when nothing is known yet.
+    if (parentId && hit.type !== "movie" && !(await repo.findProviderLink(presence.providerId, [parentId]))) {
+      await repo.saveProviderLink({ providerId: presence.providerId, externalId: parentId, titleId: hit.id, userId: presence.userId });
+    }
   }
   return hit.id;
 }
