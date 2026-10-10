@@ -20,6 +20,7 @@ function bleachRoutes(url: string) {
   if (url.includes("/search/tv")) return { results: url.includes("query=Bleach&") ? [BLEACH, TYBW] : [] };
   if (url.includes("/search/multi")) return { results: [BLEACH, MEMORIES, LIVE, HELL, TYBW, SPIRITED] };
   if (url.includes("/movie/21708?")) return { ...MEMORIES, genres: [{ id: 16 }], belongs_to_collection: { name: "Bleach - Collezione" } };
+  if (url.includes("/movie/1669841?")) return { id: 1669841, media_type: "movie", title: "Bleach: Thousand-Year Blood War", original_title: "BLEACH 千年血戦篇", release_date: "2025-01-01", ...anime, genres: [{ id: 16 }], belongs_to_collection: null };
   if (url.includes("/movie/129?")) return { ...SPIRITED, genres: [{ id: 16 }], belongs_to_collection: null };
   if (url.includes("/tv/30984/season/1")) return { episodes: [{ episode_number: 1, name: "Il giorno in cui diventai uno Shinigami", air_date: "2004-10-05" }, { episode_number: 2, name: "Episodio 2" }] };
   return {};
@@ -29,6 +30,13 @@ describe("anime films and franchises", () => {
   it("reads a film's series from its name or saga", () => {
     expect(franchiseNames(["Demon Slayer - Il treno Mugen", "劇場版「鬼滅の刃」無限列車編"])).toContain("Demon Slayer");
     expect(franchiseNames(["Jujutsu Kaisen 0"], "Jujutsu Kaisen - Collezione")).toContain("Jujutsu Kaisen");
+  });
+
+  it("links the Bleach special TMDB movie id to the original Bleach series", async () => {
+    const { tmdb } = tmdbWith(bleachRoutes);
+    const film = await tmdb.getTitle("tmdb-movie-1669841");
+    expect(film).toMatchObject({ type: "movie", partOf: "tmdb-tv-30984" });
+    expect(sectionOf(film!)).toBe("anime");
   });
 
   it("links an anime film to its series and leaves a film of its own alone", async () => {
