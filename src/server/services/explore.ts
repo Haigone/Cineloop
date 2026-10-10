@@ -172,7 +172,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
     favourite ? catalog.similarTo([favourite], 30) : Promise.resolve([]),
     liked.length < TASTE_TARGET ? catalog.discover({ type, genre: null, sort: "popular" }, 40).then((p) => p.titles) : Promise.resolve([]),
     catalog.nextSeasons(followed.filter((t) => t.type !== "movie" && ofType(t)).slice(0, 20), today).catch(() => []),
-    catalog.upcoming(type, today, 20).catch(() => []),
+    catalog.upcoming(type, today, 60).catch(() => []),
   ]);
 
   // What friends rated highly or put on their own wishlist.
