@@ -4,9 +4,11 @@ import { getCatalog } from "@/integrations/catalog";
 import { getRepository } from "@/server/data";
 import { withoutSeriesFilms } from "@/domain/franchise";
 import { cacheTitles } from "./explore";
+import { searchAniDbAnime } from "@/integrations/catalog/anidb-first";
 
 export interface SearchResults {
   titles: { id: string; title: string; year: number; type: MediaType; posterUrl: string | null; palette: readonly [string, string, string] }[];
+  anime: { id: string; anidbId: number; title: string; year: number | null; format: string | null; posterUrl: string | null }[];
   people: { id: string; username: string; displayName: string; isFriend: boolean }[];
 }
 
@@ -16,17 +18,19 @@ export interface SearchResults {
  */
 export async function search(viewer: User, query: string): Promise<SearchResults> {
   const q = query.trim().slice(0, 80);
-  if (q.length < 2) return { titles: [], people: [] };
+  if (q.length < 2) return { titles: [], anime: [], people: [] };
   const repo = getRepository();
-  const [local, people, friends] = await Promise.all([
+  const [local, people, friends, anime] = await Promise.all([
     repo.searchTitles(q, 6),
     repo.searchUsers(q, 4),
     repo.listFriends(viewer.id),
+    searchAniDbAnime(q, 5),
   ]);
-  const titles = await withRemote(local, q, 6);
+  const titles = (await withRemote(local.filter((title) => title.type !== "anime"), q, 6)).filter((title) => title.type !== "anime");
   const friendIds = new Set(friends.map((f) => f.user.id));
   return {
     titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, posterUrl: t.artwork.posterUrl, palette: t.artwork.palette })),
+    anime: anime.map((item) => ({ id: item.id, anidbId: item.anidbId, title: item.title, year: item.year, format: item.format, posterUrl: item.posterUrl })),
     people: people
       .filter((p) => p.id !== viewer.id)
       .map((p) => ({ id: p.id, username: p.username, displayName: p.displayName, isFriend: friendIds.has(p.id) })),
