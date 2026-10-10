@@ -210,7 +210,12 @@ async function playerTitle(tabId, m) {
       progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
       at: Date.now(),
     };
-    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    // AnimeUnity reports progress independently of episode changes. Forward a
+    // fresh observation at least every 12 seconds so the server can persist it.
+    const progressChanged = typeof m.progress === "number" &&
+      (typeof was?.progress !== "number" || Math.abs(was.progress - m.progress) >= 0.005);
+    return identityChanged || progressChanged || Date.now() - (was?.at ?? 0) >= 12_000;
   });
   if (changed) await tick();
 }
