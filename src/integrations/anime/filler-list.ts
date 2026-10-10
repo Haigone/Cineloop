@@ -14,14 +14,21 @@ export function fillerSlug(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** The episode numbers a show page lists as pure filler ("Mixed Canon/Filler" episodes are kept). */
+const text = (html: string) => html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * The episode numbers a show page lists as pure filler ("Mixed Canon/Filler" episodes are kept).
+ * A row counts when its class list has a "filler" class of its own or its Type cell says "Filler".
+ */
 export function parseFillerEpisodes(html: string): number[] {
   const out: number[] = [];
-  for (const row of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const body = row[1]!;
-    const number = /<td[^>]*class="[^"]*\bNumber\b[^"]*"[^>]*>\s*(\d+)\s*<\/td>/i.exec(body)?.[1];
-    const type = /<td[^>]*class="[^"]*\bType\b[^"]*"[^>]*>\s*([^<]*?)\s*<\/td>/i.exec(body)?.[1];
-    if (number && type && type.toLowerCase() === "filler") out.push(Number(number));
+  for (const row of html.matchAll(/<tr\b([^>]*)>([\s\S]*?)<\/tr>/gi)) {
+    const classes = (/class\s*=\s*["']([^"']*)["']/i.exec(row[1]!)?.[1] ?? "").toLowerCase().split(/\s+/);
+    const cell = (name: string) => new RegExp(`<td[^>]*class\\s*=\\s*["'][^"']*\\b${name}\\b[^"']*["'][^>]*>([\\s\\S]*?)</td>`, "i").exec(row[2]!)?.[1];
+    const number = /^\d+$/.exec(text(cell("Number") ?? ""))?.[0];
+    if (!number) continue;
+    const type = text(cell("Type") ?? "").toLowerCase();
+    if (classes.includes("filler") || type === "filler") out.push(Number(number));
   }
   return out;
 }

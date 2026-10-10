@@ -44,20 +44,42 @@ const GENRES: Record<string, Genre> = {
   thriller: "Thriller",
 };
 
-/** The entries linked to the starting ones that belong to the same franchise, fetched in rounds. */
+/**
+ * The entries of one franchise: everything linked to the starting ones, in
+ * either direction. ANN often records a link on the newer entry only (a sequel
+ * says "prequel: Bleach" while Bleach says nothing), so entries already in hand
+ * (`known`, e.g. from a title search) count when they point at a member.
+ */
 export async function collectEntries(seeds: readonly string[], ann: AnnClient, known: readonly AnimeEntry[] = []): Promise<Map<string, AnimeEntry>> {
-  const byId = new Map(known.map((e) => [e.id, e]));
-  const tried = new Set(byId.keys());
-  const linked = () =>
-    [...byId.values()].flatMap((e) => e.related.filter((r) => FRANCHISE_RELATIONS.has(r.rel)).map((r) => r.id));
-  let frontier = [...new Set([...seeds, ...linked()])].filter((id) => !tried.has(id));
-  for (let round = 0; round < MAX_ROUNDS && frontier.length > 0 && byId.size < MAX_ENTRIES; round++) {
-    const batch = frontier.slice(0, MAX_ENTRIES - byId.size);
-    batch.forEach((id) => tried.add(id));
-    for (const e of await ann.byIds(batch)) byId.set(e.id, e);
-    frontier = [...new Set(linked())].filter((id) => !tried.has(id));
+  const all = new Map(known.map((e) => [e.id, e]));
+  const asked = new Set(all.keys());
+  const linksOf = (e: AnimeEntry) => e.related.filter((r) => FRANCHISE_RELATIONS.has(r.rel)).map((r) => r.id);
+  const members = () => {
+    const out = new Set<string>(seeds.filter((id) => all.has(id)));
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const e of all.values()) {
+        if (out.has(e.id)) {
+          for (const id of linksOf(e)) if (all.has(id) && !out.has(id)) (out.add(id), (grew = true));
+        } else if (linksOf(e).some((id) => out.has(id))) {
+          out.add(e.id);
+          grew = true;
+        }
+      }
+    }
+    return out;
+  };
+
+  let current = members();
+  for (let round = 0; round <= MAX_ROUNDS; round++) {
+    const want = [...new Set([...seeds, ...[...current].flatMap((id) => linksOf(all.get(id)!))])].filter((id) => !asked.has(id));
+    if (want.length === 0 || all.size >= MAX_ENTRIES) break;
+    const batch = want.slice(0, MAX_ENTRIES - all.size);
+    batch.forEach((id) => asked.add(id));
+    for (const e of await ann.byIds(batch)) all.set(e.id, e);
+    current = members();
   }
-  return byId;
+  return new Map([...current].map((id) => [id, all.get(id)!]));
 }
 
 const orderKey = (e: AnimeEntry) => e.start ?? "9999";

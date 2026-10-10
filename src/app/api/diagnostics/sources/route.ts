@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOptionalUser } from "@/server/auth/current-user";
 import { getCatalog } from "@/integrations/catalog";
-import { parseAnimeList } from "@/integrations/anime/ann";
-import { parseFillerEpisodes } from "@/integrations/anime/filler-list";
+import { AnnClient, parseAnimeList } from "@/integrations/anime/ann";
+import { buildFranchise, collectEntries } from "@/integrations/anime/franchise";
+import { FillerList, parseFillerEpisodes } from "@/integrations/anime/filler-list";
 import { italianDay } from "@/lib/dates";
 
 /** What one source answered: enough to see why it is not working, never any content or secrets. */
@@ -25,7 +26,9 @@ async function probe(url: string, read: (body: string) => unknown) {
  * Signed-in users only. Checks, from the server, that the anime sources and the
  * release list answer as CineLoop expects: open /api/diagnostics/sources while logged in.
  */
-export async function GET() {
+export const maxDuration = 60;
+
+export async function GET(request: Request) {
   if (!(await getOptionalUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const catalog = getCatalog();
   const today = italianDay();
@@ -33,15 +36,40 @@ export async function GET() {
   const [annSearch, annById, filler] = await Promise.all([
     probe("https://cdn.animenewsnetwork.com/encyclopedia/api.xml?title=~bleach", (b) => {
       const list = parseAnimeList(b);
-      return { entries: list.length, first: list.slice(0, 5).map((e) => [e.id, e.type, e.name, e.start, e.episodes, e.related.length]) };
+      return { entries: list.length, all: list.slice(0, 15).map((e) => [e.id, e.type, e.name, e.start, e.episodes, e.related.map((r) => `${r.rel}:${r.id}`)]) };
     }),
     probe("https://cdn.animenewsnetwork.com/encyclopedia/api.xml?anime=4658", (b) => {
       const list = parseAnimeList(b);
       return { entries: list.length, related: list[0]?.related ?? [] };
     }),
-    probe("https://www.animefillerlist.com/shows/bleach", (b) => ({ fillerEpisodes: parseFillerEpisodes(b).length })),
+    probe("https://www.animefillerlist.com/shows/bleach", (b) => ({
+      fillerEpisodes: parseFillerEpisodes(b).length,
+      rows: (b.match(/<tr\b/gi) ?? []).length,
+      // The first two table rows as the page writes them, to see which markup the parser must read.
+      sample: [...b.matchAll(/<tr\b[\s\S]*?<\/tr>/gi)].slice(0, 3).map((m) => m[0].replace(/\s+/g, " ").slice(0, 500)),
+    })),
   ]);
+  // End to end: the franchise the way the site builds it from one entry (?seed=25066), when asked for.
+  const seed = new URL(request.url).searchParams.get("seed");
+  let franchise: unknown = undefined;
+  if (seed && /^\d{1,8}$/.test(seed)) {
+    try {
+      const ann = new AnnClient();
+      const root = (await ann.byIds([seed]))[0];
+      const known = root ? [root, ...(await ann.search(root.name))] : [];
+      const built = await buildFranchise(await collectEntries([seed], ann, known), new FillerList());
+      franchise = built && {
+        id: built.title.id,
+        title: built.title.title,
+        seasons: built.title.seasons,
+        order: built.title.watchOrder?.map((p) => [p.kind, p.name, p.year, p.episodes, p.canon, p.filler?.length ?? 0]),
+      };
+    } catch (err) {
+      franchise = { error: String(err) };
+    }
+  }
   return NextResponse.json({
+    franchise,
     catalogue: { name: catalog.name, complete: catalog.complete, tmdbTokenSet: Boolean(process.env.TMDB_READ_TOKEN), animeSources: process.env.ANIME_SOURCES !== "off" },
     today,
     upcoming: Array.isArray(upcoming)

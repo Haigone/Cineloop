@@ -39,7 +39,7 @@ export class AnimeFirstCatalog implements CatalogService {
   private franchise(annId: string, known: readonly AnimeEntry[] = []): Promise<Franchise | null> {
     const hit = this.memo.get(annId);
     if (hit && Date.now() - hit.at < MEMO_MS) return hit.value;
-    const value = collectEntries([annId], this.ann, known)
+    const value = this.gather(annId, known)
       .then((entries) => buildFranchise(entries, this.fillers))
       .catch((err) => {
         console.error("building an anime franchise failed", err);
@@ -54,6 +54,20 @@ export class AnimeFirstCatalog implements CatalogService {
     return value;
   }
 
+  /**
+   * The franchise's entries. A sequel may link back to its prequel while the prequel does not link
+   * forward, so entries that share the name are looked up too and linked from their side.
+   */
+  private async gather(annId: string, known: readonly AnimeEntry[]): Promise<Map<string, AnimeEntry>> {
+    let have = [...known];
+    if (have.length < 2) {
+      const root = have.find((e) => e.id === annId) ?? (await this.ann.byIds([annId]))[0];
+      if (!root) return new Map();
+      have = [root, ...(await this.ann.search(root.name))];
+    }
+    return collectEntries([annId], this.ann, have);
+  }
+
   async search(query: string, limit: number): Promise<Title[]> {
     const found = await this.base.search(query, limit);
     if (!found.some(isAnimeish)) return found;
@@ -65,7 +79,7 @@ export class AnimeFirstCatalog implements CatalogService {
     for (const seed of seeds) {
       if (franchises.length >= MAX_FRANCHISES) break;
       if (franchises.some((f) => f.entries.has(seed.id))) continue;
-      const f = await this.franchise(seed.id, entries.filter((e) => e.id === seed.id));
+      const f = await this.franchise(seed.id, entries);
       if (f && !franchises.some((x) => x.title.id === f.title.id)) franchises.push(f);
     }
     if (franchises.length === 0) return found;

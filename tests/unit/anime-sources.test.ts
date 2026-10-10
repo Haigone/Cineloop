@@ -77,6 +77,31 @@ describe("reading the sources", () => {
   });
 });
 
+describe("links recorded on one side only", () => {
+  // As on ANN in practice: the sequel names its prequel, the prequel names no sequel.
+  const OLD = entry(4658, "TV", "Bleach", `<info type="Number of episodes">366</info><info type="Vintage">2004-10-05</info><related-next rel="adapted from" id="4199"/>`);
+  const NEW = entry(25066, "TV", "Bleach: Thousand-Year Blood War", `<info type="Number of episodes">13</info><info type="Vintage">2022-10-10</info><related-prev rel="prequel" id="4658"/>`);
+  const NEXT = entry(26771, "TV", "Bleach: Thousand-Year Blood War - The Separation", `<info type="Number of episodes">13</info><info type="Vintage">2023-07-08</info><related-prev rel="prequel" id="25066"/>`);
+  const ann = `<ann>${OLD}${NEW}${NEXT}</ann>`;
+
+  it("still gathers the whole franchise, whether it is opened or searched", async () => {
+    const { cat } = catalog([tmdbBleach], { ann });
+    const title = (await cat.getTitle("anime-ann-4658")) as Series;
+    expect(title.seasons.map((x) => x.episodeCount)).toEqual([366, 13, 13]);
+    const found = await cat.search("bleach", 5);
+    expect(found.map((t) => t.id)).toEqual(["anime-ann-4658"]);
+    expect((found[0] as Series).seasons).toHaveLength(3);
+  });
+
+  it("reads filler rows whose Type is wrapped in markup or only given by the row class", () => {
+    const html = `<tr class="odd filler"><td class="Number"> 70 </td><td class="Type"><span>Filler</span></td></tr>
+      <tr class="even mixed_canon/filler"><td class="Number">71</td><td class="Type">Mixed Canon/Filler</td></tr>
+      <tr class="odd"><td class="Number">72</td><td class="Type"><b>Filler</b></td></tr>
+      <tr class="even manga_canon"><td class="Number">73</td><td class="Type">Manga Canon</td></tr>`;
+    expect(parseFillerEpisodes(html)).toEqual([70, 72]);
+  });
+});
+
 describe("anime come from the anime sources first", () => {
   it("gathers a franchise into one title with its watching order", async () => {
     const { cat } = catalog([tmdbBleach, tmdbFilm]);
