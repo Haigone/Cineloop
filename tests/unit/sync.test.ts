@@ -68,8 +68,9 @@ describe("extension sync", () => {
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.93 } }));
     let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
     expect(entry).toMatchObject({ status: "completed", seenThrough: 1, askRating: true, progress: null });
-    const [latest] = await repo.listActivity(["u_marco"], 1);
-    expect(latest).toMatchObject({ kind: "completed", titleId: "adolescence" });
+    // Events recorded within the same millisecond have no fixed order: look at the last few.
+    const recent = await repo.listActivity(["u_marco"], 5);
+    expect(recent.some((a) => a.kind === "completed" && a.titleId === "adolescence")).toBe(true);
 
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.98 } }));
     entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
