@@ -141,7 +141,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               )}
               <ul className="mt-3 flex flex-wrap gap-2">
                 {providers.length === 0 && (
-                  // Fallback destination when no catalogue provider is available: open the StreamingCommunity test Worker.
+                  // Generic fallback destination when no catalogue provider is available.
                   <li>
                     <a
                       href={siteWatchUrl(
@@ -156,11 +156,11 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={`Apri il Worker di test per ${title.title}`}
+                      aria-label={`Guarda ${title.title} in streaming`}
                       className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                     >
                       <span aria-hidden className="size-2 rounded-full bg-fg-3" />
-                      Dove guardarlo · StreamingCommunity
+                      Guarda in streaming
                       <ExternalLink aria-hidden className="size-3.5 text-fg-3" />
                     </a>
                   </li>
@@ -183,7 +183,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                         href={destination}
                         target={p.id === "streamingcommunity" ? "_blank" : undefined}
                         rel={p.id === "streamingcommunity" ? "noopener noreferrer" : undefined}
-                        aria-label={p.id === "streamingcommunity" ? `Apri il Worker di test per ${title.title}` : undefined}
+                        aria-label={p.id === "streamingcommunity" ? `Guarda ${title.title} in streaming` : undefined}
                         className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                       >
                         <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
