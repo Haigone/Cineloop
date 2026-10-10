@@ -5,7 +5,8 @@ import { saveAnimeWatchPath } from "@/server/actions/anime";
 import { useToast } from "@/components/ui/toast";
 
 type Node = { id: string; title: string; relation: string; url: string; episodeCount: number | null; watchable: boolean };
-type Choice = { include: boolean; role: "required" | "optional" | "skipped"; watched: boolean };
+type Role = "required" | "optional" | "skipped";
+type Choice = { include: boolean; role: Role; watched: boolean };
 type SavedPlan = Record<string, Choice>;
 
 const RELATION_LABEL: Record<string, string> = {
@@ -38,12 +39,13 @@ export function AnimeWatchPath({
     const units = (node: Node) => Math.max(1, node.episodeCount ?? 1);
     const total = included.reduce((sum, node) => sum + units(node), 0);
     const watched = included.filter((node) => plan[node.id]?.watched).reduce((sum, node) => sum + units(node), 0);
-    return { included: total, watched, remaining: total - watched };
+    return { total, watched, remaining: total - watched };
   }, [nodes, plan]);
 
   async function update(id: string, patch: Partial<Choice>) {
     const current = plan[id] ?? { include: true, role: "required" as const, watched: false };
-    const next = { ...current, ...patch, include: (patch.role ?? current.role) !== "skipped" };
+    const role = patch.role ?? current.role;
+    const next = { ...current, ...patch, role, include: role !== "skipped" };
     if (!next.include) next.watched = false;
     setPlan((previous) => ({ ...previous, [id]: next }));
     const result = await saveAnimeWatchPath(rootId, id, next.role, next.watched);
@@ -61,7 +63,7 @@ export function AnimeWatchPath({
           <p className="mt-1 text-sm text-fg-2">Imposta cosa è obbligatorio, facoltativo o da saltare; segna le opere completate.</p>
         </div>
         <p aria-live="polite" className="text-sm tabular-nums text-fg-2">
-          {progress.watched}/{progress.included} episodi-equivalenti visti · {progress.remaining} da vedere
+          {progress.watched}/{progress.total} episodi-equivalenti visti · {progress.remaining} da vedere
         </p>
       </div>
       <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
@@ -69,20 +71,23 @@ export function AnimeWatchPath({
           const choice = plan[node.id] ?? { include: true, role: "required" as const, watched: false };
           return (
             <li key={node.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
-              <label className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <span className="min-w-0 flex-1">
-                <span className="min-w-0">
                   <span className={`block text-sm font-medium ${choice.include ? "" : "text-fg-3 line-through"}`}>{node.title}</span>
-                  <span className="block text-xs text-fg-3">{RELATION_LABEL[node.relation] ?? node.relation.replaceAll("_", " ")}{node.episodeCount ? ` · ${node.episodeCount} episodi` : ""}</span>
+                  <span className="block text-xs text-fg-3">
+                    {RELATION_LABEL[node.relation] ?? node.relation.replaceAll("_", " ")}
+                    {node.episodeCount ? ` · ${node.episodeCount} episodi` : ""}
+                    {!node.watchable ? " · Non conteggiato nel progresso" : ""}
+                  </span>
                 </span>
-              </label>
+              </div>
               <label className="flex items-center gap-2 text-xs text-fg-2">
                 <span className="sr-only">Tipo di percorso per {node.title}</span>
                 <select
                   aria-label={`Tipo di percorso per ${node.title}`}
                   value={choice.role}
                   disabled={!node.watchable}
-                  onChange={(event) => void update(node.id, { role: event.target.value as Choice["role"] })}
+                  onChange={(event) => void update(node.id, { role: event.target.value as Role })}
                   className="h-8 rounded-md border border-line bg-surface px-2 text-xs disabled:opacity-50"
                 >
                   <option value="required">Obbligatorio</option>
@@ -104,7 +109,9 @@ export function AnimeWatchPath({
           );
         })}
       </ul>
-      <p className="text-xs leading-relaxed text-fg-3">Le scelte vengono salvate nel tuo account CineLoop. Il conteggio considera solo opere guardabili incluse nel percorso; le serie pesano per il numero di episodi noto e film/episodi singoli valgono almeno un’unità.</p>
+      <p className="text-xs leading-relaxed text-fg-3">
+        Le scelte vengono salvate nel tuo account CineLoop. Il conteggio considera solo opere guardabili incluse nel percorso; le serie pesano per il numero di episodi noto e film o episodi singoli valgono almeno un’unità.
+      </p>
     </section>
   );
 }
