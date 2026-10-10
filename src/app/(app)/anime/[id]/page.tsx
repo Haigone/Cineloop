@@ -27,7 +27,7 @@ const relationLabel: Record<string, string> = {
 async function AnimeDetailContent({ params }: PageProps<"/anime/[id]">) {
   // cacheComponents is enabled: user, database, and AniDB data are request-time.
   await connection();
-  const { id: rawId = await params;
+  const { id: rawId } = await params;
   const anidbId = Number(rawId);
   if (!Number.isSafeInteger(anidbId) || anidbId < 1) notFound();
 
