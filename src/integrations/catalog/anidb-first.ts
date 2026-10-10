@@ -45,7 +45,7 @@ export interface AnimeIdentity {
   annIds: number[];
   tmdbIds: { id: number; type: "tv" | "movie" }[];
   relations: { id: string; type: string }[];
-  fillerListUrl: string;
+  fillerListUrl: string | null;
   anidbUrl: string;
 }
 
@@ -67,6 +67,30 @@ async function cachedJson<T>(key: string, url: string): Promise<T> {
   return value;
 }
 
+const FILLER_LIST_SLUGS: Record<string, string> = {
+  "attack on titan": "attack-on-titan",
+  "bleach": "bleach",
+  "black clover": "black-clover",
+  "boruto naruto next generations": "boruto-naruto-next-generations",
+  "demon slayer kimetsu no yaiba": "demon-slayer-kimetsu-no-yaiba",
+  "dragon ball z": "dragon-ball-z",
+  "fairy tail": "fairy-tail",
+  "hunter x hunter": "hunter-x-hunter-2011",
+  "jujutsu kaisen": "jujutsu-kaisen",
+  "my hero academia": "my-hero-academia",
+  "naruto": "naruto",
+  "naruto shippuden": "naruto-shippuden",
+  "one piece": "one-piece",
+  "one punch man": "one-punch-man",
+};
+
+function fillerListUrlFor(title: string): string | null {
+  const key = title.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ").trim();
+  const slug = FILLER_LIST_SLUGS[key];
+  return slug ? `https://www.animefillerlist.com/shows/${slug}` : null;
+}
+
 function toIdentity(record: AniDbRecord): AnimeIdentity {
   return {
     id: `anidb-${record.anidb_id}`,
@@ -80,7 +104,7 @@ function toIdentity(record: AniDbRecord): AnimeIdentity {
     annIds: record.ann_ids ?? [],
     tmdbIds: record.tmdb_ids ?? [],
     relations: (record.relatedanime ?? []).map((relation) => ({ id: `anidb-${relation.anidb_id}`, type: relation.type })),
-    fillerListUrl: `https://www.animefillerlist.com/shows/${encodeURIComponent((record.title_english || record.title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))}`,
+    fillerListUrl: fillerListUrlFor(record.title_english || record.title || ""),
     anidbUrl: `https://anidb.net/anime/${record.anidb_id}`,
   };
 }
