@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { Compass, SearchX } from "lucide-react";
 import { GENRES } from "@/domain/genres";
 import { BROWSABLE_PROVIDERS, PROVIDERS } from "@/domain/providers";
@@ -51,6 +52,7 @@ async function Filters({ searchParams }: { searchParams: PageProps<"/explore">["
 
 async function Results({ searchParams }: { searchParams: PageProps<"/explore">["searchParams"] }) {
   const filters = await parseFilters(searchParams);
+  if (filters.type === "anime") redirect(filters.q ? `/anime?q=${encodeURIComponent(filters.q)}` : "/anime");
   // Searching, or narrowing by genre/order/page, is browsing: just the results.
   const browsing =
     filters.q.length >= 2 || filters.genre !== null || filters.provider !== null || filters.sort !== "popular" || filters.page > 1;
@@ -69,9 +71,10 @@ async function Results({ searchParams }: { searchParams: PageProps<"/explore">["
 
 async function BrowseResults({ filters, bare = false }: { filters: Filters; bare?: boolean }) {
   const view = await getExploreView(filters);
+  const titles = view.titles.filter((title) => title.type !== "anime");
   const wishlistIds = new Set(view.wishlistIds);
 
-  if (view.titles.length === 0) {
+  if (titles.length === 0) {
     return (
       <div className="mt-8">
         <EmptyState
@@ -115,7 +118,7 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
         ) : (
           <h2 className="sr-only">Risultati</h2>
         ))}
-      <TitleGrid titles={view.titles} wishlistIds={wishlistIds} label="Risultati della ricerca" />
+      <TitleGrid titles={titles} wishlistIds={wishlistIds} label="Risultati della ricerca" />
       {(view.hasMore || filters.page > 1) && (
         <nav aria-label="Pagine dei risultati" className="mt-10 flex items-center justify-center gap-4 text-sm">
           {filters.page > 1 && (
