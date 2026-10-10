@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus, AnimeWatchPathRole } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -207,6 +207,7 @@ export const animeWatchPath = pgTable(
     rootId: text("root_id").notNull(),
     animeId: text("anime_id").notNull(),
     included: boolean("included").notNull().default(true),
+    role: text("role").$type<AnimeWatchPathRole>().notNull().default("required"),
     watched: boolean("watched").notNull().default(false),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
