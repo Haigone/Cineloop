@@ -101,7 +101,7 @@ Per i titoli della sezione anime, la scheda mostra "Da dove lo stai guardando?" 
 
 Anime go to the anime sources first; TMDB answers only when they have nothing (`ANIME_SOURCES=off` turns them off).
 
-- **Anime News Network** (Encyclopedia API, the public XML feed): the franchise. Search by title, then entries linked by prequel / sequel / side story / summary are followed (never adaptations or remakes). One title per franchise, TV entries as seasons, films / OVAs / specials as parts of its **Ordine di visione** (release order). Calls are at least a second apart and cached for a week.
+- **Anime News Network** (Encyclopedia API, the public XML feed): the franchise. Search by title, then entries linked by prequel / sequel / side story / summary are followed (never adaptations, remakes or the loose "related" links; ANN words them "sequel" / "sequel of", "side story" / "side story of"). One title per franchise, TV entries as seasons, films / OVAs / specials as parts of its **Ordine di visione** (release order). Calls are at least a second apart and cached for a week.
 - **Anime Filler List**: no API, so its public show page is read, one page per long-running show (26+ episodes), cached for a month. Only episodes it lists as pure "Filler" are skipped by default.
 - **AniDB**: not connected. Its HTTP API cannot search by name (only through a daily dump file) and needs a client registered on anidb.net.
 - Default choice per part: known non-canon (recaps) and OVAs / specials are off, everything else is on; the user switches parts and "Guarda anche i filler" on the title page. What is off does not count for progress, "finished" or "Novità".
