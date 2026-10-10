@@ -71,7 +71,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
   )?.progress ?? null;
   const animeUnityLink = observedAnimeUnityProgress?.url
     ? animeUnityResumeUrl(observedAnimeUnityProgress.url, observedAnimeUnityProgress.fraction)
-    : providerSearchUrl("animeunity", anime.title");
+    : providerSearchUrl("animeunity", anime.title);
   const annId = anime.annIds[0] ?? null;
   const ann = annId ? await getAnnAnime(annId) : null;
 
