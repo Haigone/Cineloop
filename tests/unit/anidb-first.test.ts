@@ -67,14 +67,16 @@ describe("AniDB anime enrichment helpers", () => {
     }
   });
 
-  it("syncs watched status to every included path but leaves skipped works untouched", async () => {
+  it("syncs watched status and episode progress without touching skipped works", async () => {
     const repository = new MemoryRepository();
     const now = new Date().toISOString();
     await repository.upsertAnimeWatchPath({ userId: "u_marco", rootId: "anidb-90000001", animeId: "anidb-90000002", included: true, role: "required", watched: false, updatedAt: now });
     await repository.upsertAnimeWatchPath({ userId: "u_marco", rootId: "anidb-90000003", animeId: "anidb-90000002", included: false, role: "skipped", watched: false, updatedAt: now });
+    await repository.markAnimeWatchPathEpisode("u_marco", "anidb-90000002", "S1E2");
+    await repository.markAnimeWatchPathEpisode("u_marco", "anidb-90000002", "S1E2");
     await repository.setAnimeWatchPathWatched("u_marco", "anidb-90000002", true);
-    await expect(repository.listAnimeWatchPath("u_marco", "anidb-90000001")).resolves.toMatchObject([{ watched: true, role: "required" }]);
-    await expect(repository.listAnimeWatchPath("u_marco", "anidb-90000003")).resolves.toMatchObject([{ watched: false, role: "skipped" }]);
+    await expect(repository.listAnimeWatchPath("u_marco", "anidb-90000001")).resolves.toMatchObject([{ watched: true, watchedEpisodes: ["S1E2"], role: "required" }]);
+    await expect(repository.listAnimeWatchPath("u_marco", "anidb-90000003")).resolves.toMatchObject([{ watched: false, watchedEpisodes: [], role: "skipped" }]);
   });
 
   it("only creates AnimeFillerList links for explicitly mapped titles", () => {
