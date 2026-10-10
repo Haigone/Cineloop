@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { fillerListUrlFor, getAniDbAnimeForTmdb, parseAnnXml } from "@/integrations/catalog/anidb-first";
+import { fillerListUrlFor, getAniDbAnimeForTmdb, parseAnnXml, searchAniDbAnime } from "@/integrations/catalog/anidb-first";
 import { MemoryRepository } from "@/server/data/memory-repository";
 
 describe("AniDB anime enrichment helpers", () => {
@@ -21,6 +21,32 @@ describe("AniDB anime enrichment helpers", () => {
   it("returns null for ANN error payloads instead of inventing metadata", () => {
     expect(parseAnnXml(42, '<error>Not found</error>')).toBeNull();
     expect(parseAnnXml(42, '<response/>')).toBeNull();
+  });
+
+  it("finds AniDB works by mapped-service synonyms", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/map/anidb")) {
+        return new Response(JSON.stringify([
+          { anidb_id: 708, title: "Crayon Shin-chan", synonyms: ["Shin Chan"], year: 1992 },
+          { anidb_id: 23, title: "Cowboy Bebop", synonyms: ["Space Cowboy"], year: 1998 },
+        ]), { status: 200 });
+      }
+      if (url.endsWith("/api/anidb/708")) {
+        return new Response(JSON.stringify({
+          anidb_id: 708, title: "Crayon Shin-chan", title_english: "Crayon Shin-chan",
+          synonyms: ["Crayon Shinchan"], startyear: 1992, episodecount: 1200,
+        }), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }));
+    try {
+      await expect(searchAniDbAnime("shin chan")).resolves.toMatchObject([
+        { id: "anidb-708", title: "Crayon Shin-chan" },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("resolves AniDB identity through a typed TMDB cross-reference", async () => {
