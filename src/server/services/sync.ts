@@ -531,8 +531,6 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
 
 /** Keep AniDB watch-path checkmarks aligned with completion from a mapped player title. */
 async function syncAnimeWatchPath(repo: Repository, presence: Presence, title: Title, watched: boolean): Promise<void> {
-  const isAnime = title.type === "anime" || (title.type === "movie" && Boolean(title.partOf));
-  if (!isAnime) return;
   const match = /^tmdb-(tv|movie)-(\d+)$/.exec(title.id);
   if (!match) return;
   const anime = await getAniDbAnimeForTmdb(Number(match[2]), match[1] === "tv" ? "tv" : "movie");
