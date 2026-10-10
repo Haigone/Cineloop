@@ -1,4 +1,5 @@
 import type { Genre, Series } from "@/domain/types";
+import { searchKey } from "@/lib/text";
 
 type Fetch = typeof fetch;
 
@@ -14,6 +15,7 @@ export interface AniListAnime {
   title?: { romaji?: string | null; english?: string | null; native?: string | null };
   startDate?: { year?: number | null; month?: number | null; day?: number | null };
   episodes?: number | null;
+  nextAiringEpisode?: { airingAt: number; episode: number } | null;
   duration?: number | null;
   description?: string | null;
   coverImage?: { extraLarge?: string | null; large?: string | null };
@@ -87,6 +89,21 @@ export class AniListClient {
     return this.page(`status: RELEASING, sort: TRENDING_DESC`);
   }
 
+  /** The series of this name that is airing now, with the date of its next episode (null when none is). */
+  async airingNow(name: string): Promise<AniListAnime | null> {
+    const data = await this.query<{ Page?: { media?: AniListAnime[] } }>(
+      `query ($search: String) { Page(page: 1, perPage: 8) { media(search: $search, type: ANIME, status: RELEASING, format_in: [TV, ONA]) { ${FIELDS} nextAiringEpisode { airingAt episode } } } }`,
+      { search: name },
+    );
+    const key = searchKey(name);
+    return (
+      (data?.Page?.media ?? []).find((a) => a.nextAiringEpisode && alNames(a).some((n) => {
+        const k = searchKey(n);
+        return k === key || k.startsWith(key) || key.startsWith(k);
+      })) ?? null
+    );
+  }
+
   async byId(id: string): Promise<AniListAnime | null> {
     const data = await this.query<{ Media?: AniListAnime }>(`query { Media(id: ${Number(id)}, type: ANIME) { ${FIELDS} } }`);
     return data?.Media ?? null;
@@ -99,13 +116,13 @@ export class AniListClient {
     return data?.Page?.media ?? [];
   }
 
-  private async query<T>(query: string): Promise<T | null> {
+  private async query<T>(query: string, variables?: Record<string, unknown>): Promise<T | null> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await this.fetcher(API, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({ query, variables }),
           signal: AbortSignal.timeout(12000),
           next: { revalidate: 6 * HOUR },
         } as RequestInit);

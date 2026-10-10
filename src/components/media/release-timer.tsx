@@ -48,10 +48,10 @@ function useNow(): number | null {
  * the day count (the same on the server and the client), then ticks every
  * minute once mounted.
  */
-export function ReleaseTimer({ date, season, className }: { date: string | null; season?: number | null; className?: string }) {
+export function ReleaseTimer({ date, season, episode, className }: { date: string | null; season?: number | null; episode?: number | null; className?: string }) {
   const now = useNow();
 
-  const label = season ? `Stagione ${season}` : "Esce";
+  const label = episode ? (season ? `S${season}E${episode}` : `Episodio ${episode}`) : season ? `Stagione ${season}` : "Esce";
   const box = cn("inline-flex items-center gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs", className);
   if (!date) {
     return (

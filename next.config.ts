@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "cdn.myanimelist.net", pathname: "/images/**" },
       { protocol: "https", hostname: "www.animenewsnetwork.com" },
       { protocol: "https", hostname: "cdn.animenewsnetwork.com" },
+      { protocol: "https", hostname: "**.anilist.co" },
     ],
   },
   turbopack: {

@@ -125,6 +125,8 @@ export interface Release {
   date: string | null;
   /** For a series that is coming back, the new season's number. */
   season: number | null;
+  /** For a series airing now, one episode a week: the next episode's number. */
+  episode?: number | null;
   /** On a streaming service, only in cinemas, or in the anime season calendar (platform unknown). Unset when it does not matter (a followed series). */
   venue?: "streaming" | "cinema" | "seasonal";
 }

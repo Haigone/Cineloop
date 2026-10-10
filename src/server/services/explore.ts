@@ -256,7 +256,7 @@ export function releaseCard(r: Release, today: string): ReleaseCard {
     title: r.title,
     date: r.date,
     badge: r.date ? countdownLabel(r.date, today) : "Annunciata",
-    meta: r.season ? `Stagione ${r.season} · ${when}` : r.date ? `Dal ${when}` : when,
+    meta: r.episode ? `${r.season ? `S${r.season}E${r.episode}` : `Episodio ${r.episode}`} · ${when}` : r.season ? `Stagione ${r.season} · ${when}` : r.date ? `Dal ${when}` : when,
   };
 }
 
@@ -269,7 +269,7 @@ async function canonicalReleases(repo: Repository, list: Release[]): Promise<Rel
 async function notifyReleases(repo: Repository, userId: string, releases: Release[]) {
   const existing = new Set((await repo.listNotifications(userId)).map((n) => n.message));
   for (const r of releases) {
-    const message = r.season ? `Esce oggi la stagione ${r.season} di ${r.title.title}.` : `Esce oggi ${r.title.title}.`;
+    const message = r.episode ? `Oggi esce l’episodio ${r.episode} di ${r.title.title}.` : r.season ? `Esce oggi la stagione ${r.season} di ${r.title.title}.` : `Esce oggi ${r.title.title}.`;
     if (existing.has(message)) continue;
     await repo.createNotification({ userId, kind: "system", message, href: `/title/${r.title.id}`, at: new Date().toISOString() });
   }

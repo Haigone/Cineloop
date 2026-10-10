@@ -18,7 +18,7 @@ export function AwaitingList({ items }: { items: { title: Title; release: Awaite
             <Link href={`/title/${title.id}`} className="block truncate rounded-sm text-sm font-medium hover:underline hover:underline-offset-4">
               {title.title}
             </Link>
-            <ReleaseTimer className="mt-1.5" date={release.date} season={release.season} />
+            <ReleaseTimer className="mt-1.5" date={release.date} season={release.season} episode={release.episode} />
           </div>
         </li>
       ))}

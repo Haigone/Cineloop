@@ -111,4 +111,16 @@ describe("Jikan / MyAnimeList seasonal", () => {
     expect((await c.getTitle("anime-al-8"))?.title).toBe("Fresh 8");
     expect(await c.nextSeasons([{ id: "anime-al-8" } as Title], TODAY)).toMatchObject([{ date: "2027-01-09", season: 1 }]);
   });
+
+  it("tells when the next episode of an anime airing weekly comes out", async () => {
+    const airing = rec2(9, { status: "RELEASING", title: { english: "Black Clover", romaji: "Black Clover" }, nextAiringEpisode: { airingAt: Date.parse("2026-10-14T17:00:00Z") / 1000, episode: 5 } });
+    const c = cat(jikan([]), [], al([airing]));
+    const [r] = await c.nextSeasons([{ id: "tmdb-tv-1", type: "anime", title: "Black Clover", seasons: [] } as unknown as Title], TODAY);
+    expect(r).toMatchObject({ date: "2026-10-14", episode: 5, season: null });
+  });
+
+  it("ignores a series of the same name that is not the one airing", async () => {
+    const c = cat(jikan([]), [], al([rec2(10, { status: "RELEASING", title: { english: "Other Show" }, nextAiringEpisode: { airingAt: 1_800_000_000, episode: 2 } })]));
+    expect(await c.nextSeasons([{ id: "tmdb-tv-1", type: "anime", title: "Black Clover", seasons: [] } as unknown as Title], TODAY)).toEqual([]);
+  });
 });

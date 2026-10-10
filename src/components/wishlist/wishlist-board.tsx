@@ -337,7 +337,7 @@ function RowBody({
           ))}
           {social && <span className={cn("text-xs", row.suggestedBy ? "text-violet" : "text-fg-3")}>{social}</span>}
         </div>
-        {row.release && <ReleaseTimer className="mt-1.5" date={row.release.date} season={row.release.season} />}
+        {row.release && <ReleaseTimer className="mt-1.5" date={row.release.date} season={row.release.season} episode={row.release.episode} />}
       </div>
       {title.communityRating != null && (
         <span className="hidden w-12 text-right text-sm tabular text-fg-2 sm:block" aria-label={`Voto community ${title.communityRating} su 10`}>

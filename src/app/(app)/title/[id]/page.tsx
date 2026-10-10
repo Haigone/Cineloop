@@ -97,7 +97,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             <p className="text-[13px] text-fg-2">{titleMeta(title)}</p>
             <h1 className="mt-2 text-[32px] leading-[1.05] font-semibold tracking-[-0.03em] [text-wrap:balance] sm:text-[44px]">{title.title}</h1>
             <p className="mt-2 text-sm text-fg-2">{title.genres.join(", ")}</p>
-            {view.awaited && <ReleaseTimer className="mt-3" date={view.awaited.date} season={view.awaited.season} />}
+            {view.awaited && <ReleaseTimer className="mt-3" date={view.awaited.date} season={view.awaited.season} episode={view.awaited.episode} />}
           </div>
         </div>
       </div>

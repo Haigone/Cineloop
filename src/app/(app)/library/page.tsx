@@ -41,7 +41,7 @@ async function LibraryContent({ searchParams }: { searchParams: PageProps<"/libr
       )}
       {view.awaiting.length > 0 && (
         <section aria-labelledby="library-awaiting" className="mb-10">
-          <SectionHeader id="library-awaiting" title="In attesa" description="Serie che hai finito e che stanno per tornare: quanto manca alla nuova stagione." />
+          <SectionHeader id="library-awaiting" title="In attesa" description="Serie che hai finito e che stanno per tornare: quanto manca alla nuova stagione o al prossimo episodio." />
           <AwaitingList items={view.awaiting} />
         </section>
       )}

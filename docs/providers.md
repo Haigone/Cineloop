@@ -120,3 +120,5 @@ Anime go to the anime sources first; TMDB answers only when they have nothing (`
 Esplora's anime come from the TMDB catalogue plus two open calendars: MyAnimeList (Jikan) and AniList (GraphQL, no key). Both feed "Anime delle prossime stagioni"; AniList's most-watched airing series also fill the weekly top 10 for the Anime tab. Ids: `anime-mal-<id>`, `anime-al-<id>`. `/api/diagnostics/sources` reports `aniList` next to `myAnimeList`.
 
 An anime opened under its old TMDB id moves, for every profile, to its franchise card (`migrateAnimeTitle`), and the page follows.
+
+Weekly episodes: AniList's `nextAiringEpisode` tells when the next episode of an anime that is airing now comes out. `AnimeFirstCatalog.nextSeasons` returns it as a release with `episode` set, so the timer on the wishlist, in "In attesa" (finished series) and on the title page reads "S2E5" or "Episodio 5". Pictures: `next.config.ts` also allows `*.anilist.co` (AniList covers).

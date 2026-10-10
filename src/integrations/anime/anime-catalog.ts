@@ -1,6 +1,6 @@
 import type { MediaType, Release, Title } from "@/domain/types";
 import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "@/integrations/catalog/types";
-import { addDays } from "@/lib/dates";
+import { addDays, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
@@ -194,7 +194,27 @@ export class AnimeFirstCatalog implements CatalogService {
       ),
     ]);
     const some = (list: (Release | null)[]) => list.filter((r): r is Release => r !== null);
-    return [...base, ...some(own), ...some(announced), ...some(announcedAl)];
+    // A series that airs an episode a week is not "between seasons": say when the next episode comes.
+    const airing = await this.airingEpisodes(series.filter((t) => t.type === "anime" || isAnimeish(t)), today);
+    const others = [...base, ...some(own), ...some(announced), ...some(announcedAl)].filter((r) => !airing.has(r.title.id));
+    return [...others, ...airing.values()];
+  }
+
+  /** The next episode of every series in the list that is airing now, by the title's id. */
+  private async airingEpisodes(series: readonly Title[], today: string): Promise<Map<string, Release>> {
+    const found = await Promise.all(
+      series.map(async (t): Promise<[string, Release] | null> => {
+        const a = await this.anilist.airingNow(t.title);
+        const next = a?.nextAiringEpisode;
+        if (!a || !next) return null;
+        const date = italianDay(new Date(next.airingAt * 1000));
+        if (date < today) return null;
+        // In a franchise the airing series is its latest season.
+        const season = ANIME_ID.test(t.id) && t.type !== "movie" ? (t.seasons.filter((s) => !s.airDate || s.airDate <= today).at(-1)?.number ?? null) : null;
+        return [t.id, { title: t, date, season, episode: next.episode }];
+      }),
+    );
+    return new Map(found.filter((x): x is [string, Release] => x !== null));
   }
 
   async related(title: Title, limit: number): Promise<Title[]> {
