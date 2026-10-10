@@ -147,11 +147,25 @@ export async function searchAniDbAnime(query: string, limit = 12): Promise<Anime
   if (q.length < 2) return [];
   try {
     const ids = await cachedJson<{ anidb_id: number; title: string }[]>("anidb:ids", `${API}/anidb/ids`);
-    const candidates = ids
-      .filter((item) => item.title.toLocaleLowerCase().includes(q))
-      .slice(0, Math.min(20, Math.max(1, limit)));
+    const normalize = (value: string) => value.normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+    const normalizedQuery = normalize(q);
+    const titleMatches = ids.filter((item) => normalize(item.title).includes(normalizedQuery));
+    // Keep the metadata fan-out bounded, but inspect a small extra batch so English/native
+    // titles and AniDB synonyms can rank even when the canonical romaji title differs.
+    const candidates = [...new Map([
+      ...titleMatches.slice(0, Math.min(20, Math.max(1, limit * 2))),
+      ...ids.filter((item) => normalize(item.title).startsWith(normalizedQuery.slice(0, Math.min(3, normalizedQuery.length)))).slice(0, 30),
+    ].map((item) => [item.anidb_id, item])).values()].slice(0, 40);
     const records = await Promise.all(candidates.map((item) => getAniDbAnime(item.anidb_id)));
-    return records.filter((record): record is AnimeIdentity => record !== null).slice(0, limit);
+    return records
+      .filter((record): record is AnimeIdentity => record !== null)
+      .filter((record) => [record.title, ...record.alternateTitles].some((title) => normalize(title).includes(normalizedQuery)))
+      .sort((a, b) => {
+        const aExact = [a.title, ...a.alternateTitles].some((title) => normalize(title) === normalizedQuery) ? 0 : 1;
+        const bExact = [b.title, ...b.alternateTitles].some((title) => normalize(title) === normalizedQuery) ? 0 : 1;
+        return aExact - bExact || (a.year ?? 9999) - (b.year ?? 9999);
+      })
+      .slice(0, limit);
   } catch {
     return [];
   }
