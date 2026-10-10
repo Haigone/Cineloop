@@ -2,6 +2,8 @@ import "server-only";
 import type { PublicUser, Title, WishlistItem } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
+import { italianDay } from "@/lib/dates";
+import { awaitedReleases, type AwaitedRelease } from "./awaited";
 import { loadFriendBundles } from "./shared";
 
 export interface WishlistRow {
@@ -10,6 +12,8 @@ export interface WishlistRow {
   suggestedBy: PublicUser | null;
   /** Friends who also want to see it. */
   friendsWant: PublicUser[];
+  /** The season this series is waiting on, when it has not come out yet. */
+  release: AwaitedRelease | null;
 }
 
 export async function getWishlistView(): Promise<{ rows: WishlistRow[] }> {
@@ -18,6 +22,7 @@ export async function getWishlistView(): Promise<{ rows: WishlistRow[] }> {
   const [wishlist, friends] = await Promise.all([repo.listWishlist(viewer.id), loadFriendBundles(repo, viewer.id)]);
   const titles = new Map((await repo.getTitlesByIds(wishlist.map((w) => w.titleId))).map((t) => [t.id, t]));
   const byId = new Map(friends.map((f) => [f.user.id, f.user]));
+  const awaited = await awaitedReleases([...titles.values()], italianDay());
   return {
     rows: wishlist
       .filter((w) => titles.has(w.titleId))
@@ -25,6 +30,7 @@ export async function getWishlistView(): Promise<{ rows: WishlistRow[] }> {
         item,
         title: titles.get(item.titleId)!,
         suggestedBy: item.suggestedBy ? (byId.get(item.suggestedBy) ?? null) : null,
+        release: awaited.get(item.titleId) ?? null,
         friendsWant: friends.filter((f) => f.wishlist.some((w) => w.titleId === item.titleId)).map((f) => f.user),
       })),
   };

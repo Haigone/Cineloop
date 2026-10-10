@@ -218,9 +218,19 @@ async function ForYou({ type }: { type: Filters["type"] }) {
           <SectionHeader
             title="In uscita"
             id="shelf-upcoming"
-            description="Nei prossimi mesi, in sala e in streaming. Metti il cuore e ti avvisiamo quando esce."
+            description="Nei prossimi mesi, sulle piattaforme. Metti il cuore e ti avvisiamo quando esce."
           />
           <ReleaseRail label="In uscita" releases={view.upcoming} wishlistIds={wishlistIds} />
+        </RevealItem>
+      )}
+      {view.atCinema.length > 0 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="Prossimamente al cinema"
+            id="shelf-cinema"
+            description="Solo in sala, per ora: non sono su nessuna piattaforma."
+          />
+          <ReleaseRail label="Prossimamente al cinema" releases={view.atCinema} wishlistIds={wishlistIds} />
         </RevealItem>
       )}
       {view.shelves.length === 0 && view.picker.length === 0 && (

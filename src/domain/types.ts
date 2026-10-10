@@ -100,6 +100,8 @@ export interface Release {
   date: string | null;
   /** For a series that is coming back, the new season's number. */
   season: number | null;
+  /** On a streaming service, or only in cinemas. Unset when it does not matter (a followed series). */
+  venue?: "streaming" | "cinema";
 }
 
 export interface Episode {

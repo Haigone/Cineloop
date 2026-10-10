@@ -71,6 +71,8 @@ const PROVIDER_IDS: Partial<Record<ProviderId, number>> = {
 };
 const PROVIDER_BY_TMDB = new Map(Object.entries(PROVIDER_IDS).map(([id, n]) => [n, id as ProviderId]));
 const REGION = "IT";
+/** TMDB network ids: Netflix, Prime Video, Disney+, Apple TV+, Crunchyroll. */
+const STREAMING_NETWORKS = [213, 1024, 2739, 2552, 1112];
 
 interface TmdbEpisodeRef {
   air_date?: string | null;
@@ -303,20 +305,21 @@ export class TmdbCatalog implements CatalogService {
     const to = addDays(today, 180);
     const wantMovies = type === "all" || type === "movie";
     const wantTv = type !== "movie";
-    const [movies, shows] = await Promise.all([
-      wantMovies
-        ? this.list(
-            `/discover/movie?${new URLSearchParams({
-              include_adult: "false",
-              sort_by: "popularity.desc",
-              region: REGION,
-              // Cinema (limited or wide) and streaming premieres in Italy.
-              with_release_type: "2|3|4",
-              "release_date.gte": from,
-              "release_date.lte": to,
-            })}`,
-          )
-        : Promise.resolve([]),
+    const movieQuery = (releaseType: string) =>
+      this.list(
+        `/discover/movie?${new URLSearchParams({
+          include_adult: "false",
+          sort_by: "popularity.desc",
+          region: REGION,
+          with_release_type: releaseType,
+          "release_date.gte": from,
+          "release_date.lte": to,
+        })}`,
+      );
+    const [digital, theatrical, shows] = await Promise.all([
+      // Digital premieres (type 4) are what reaches streaming; theatrical ones (2, 3) are cinema only.
+      wantMovies ? movieQuery("4") : Promise.resolve([]),
+      wantMovies ? movieQuery("2|3") : Promise.resolve([]),
       wantTv
         ? this.list(
             `/discover/tv?${new URLSearchParams({
@@ -324,6 +327,9 @@ export class TmdbCatalog implements CatalogService {
               sort_by: "popularity.desc",
               "first_air_date.gte": from,
               "first_air_date.lte": to,
+              // Only series made for the services CineLoop covers: unreleased series have no
+              // watch-provider data yet, so the network that commissions them stands in.
+              with_networks: STREAMING_NETWORKS.join("|"),
               ...(type === "anime" ? { with_original_language: "ja", with_genres: "16" } : {}),
             })}`,
           )
@@ -331,21 +337,20 @@ export class TmdbCatalog implements CatalogService {
     ]);
 
     // The list's release_date is the worldwide premiere; ask for the Italian one.
-    const films = await Promise.all(
-      movies.slice(0, limit).map(async (item) => {
-        const date = (await this.italianReleaseDate(item.id)) ?? item.release_date ?? null;
-        return { title: toTitle("movie", item), date, season: null };
-      }),
-    );
-    const series = shows
-      .map((item) => ({ title: toTitle("tv", item), date: item.first_air_date || null, season: null }))
+    const dated = (item: TmdbItem, venue: "streaming" | "cinema") =>
+      this.italianReleaseDate(item.id).then((date): Release => ({ title: toTitle("movie", item), date: date ?? item.release_date ?? null, season: null, venue }));
+    const streamingIds = new Set(digital.map((i) => i.id));
+    const films = await Promise.all([
+      ...digital.slice(0, limit).map((i) => dated(i, "streaming")),
+      ...theatrical.filter((i) => !streamingIds.has(i.id)).slice(0, limit).map((i) => dated(i, "cinema")),
+    ]);
+    const series: Release[] = shows
+      .map((item) => ({ title: toTitle("tv", item), date: item.first_air_date || null, season: null, venue: "streaming" as const }))
       .filter((r) => r.title.title && (type === "all" || r.title.type === type));
 
-    const all: Release[] = [...films, ...series];
-    return all
-      .filter((r) => Boolean(r.title.title && r.date && r.date > today))
-      .sort((a, b) => a.date!.localeCompare(b.date!))
-      .slice(0, limit);
+    const upcoming = [...films, ...series].filter((r) => Boolean(r.title.title && r.date && r.date > today)).sort((a, b) => a.date!.localeCompare(b.date!));
+    // Streaming first: cinema-only releases are kept, but never crowd the limit out.
+    return [...upcoming.filter((r) => r.venue === "streaming").slice(0, limit), ...upcoming.filter((r) => r.venue === "cinema").slice(0, limit)];
   }
 
   private async italianReleaseDate(movieId: number): Promise<string | null> {

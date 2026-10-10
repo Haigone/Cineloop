@@ -9,6 +9,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { RatingStars } from "@/components/ui/rating-stars";
+import { ReleaseTimer } from "@/components/media/release-timer";
+import { italianDay } from "@/lib/dates";
 import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
 import { WatchSourceChooser } from "@/components/title/watch-source-chooser";
@@ -89,6 +91,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             <p className="text-[13px] text-fg-2">{titleMeta(title)}</p>
             <h1 className="mt-2 text-[32px] leading-[1.05] font-semibold tracking-[-0.03em] [text-wrap:balance] sm:text-[44px]">{title.title}</h1>
             <p className="mt-2 text-sm text-fg-2">{title.genres.join(", ")}</p>
+            {view.awaited && <ReleaseTimer className="mt-3" date={view.awaited.date} season={view.awaited.season} />}
           </div>
         </div>
       </div>
@@ -135,10 +138,23 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             <h2 id="where-h" className="text-[15px] font-semibold">
               {entry?.progress?.providerId === "streamingcommunity" ? "Continua a guardare" : "Dove guardarlo"}
             </h2>
-            {providers.length === 0 && (
+            {providers.length === 0 && !isOld(title) && (
               <p className="mt-1 text-sm text-fg-2">Non risulta incluso in nessun abbonamento in Italia.</p>
             )}
             <ul className="mt-3 flex flex-wrap gap-2">
+              {providers.length === 0 && isOld(title) && (
+                // Placeholder: out for a while and on no covered service, so it is probably online somewhere.
+                <li>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 opacity-80"
+                  >
+                    <span aria-hidden className="size-2 rounded-full bg-fg-3" />
+                    Dove guardarlo · Streaming
+                  </button>
+                </li>
+              )}
               {providers.map((p) => {
                 const progress = entry?.progress;
                 const destination = siteWatchUrl(
@@ -245,4 +261,9 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
       </div>
     </article>
   );
+}
+
+/** Out for at least a year: likely online somewhere even if no covered service lists it. */
+function isOld(title: { year: number }): boolean {
+  return title.year < Number(italianDay().slice(0, 4));
 }

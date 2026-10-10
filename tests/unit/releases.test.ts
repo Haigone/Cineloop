@@ -104,7 +104,7 @@ describe("browsing a service's catalogue", () => {
 describe("upcoming releases", () => {
   it("lists future films with their Italian date and new series, soonest first", async () => {
     const { tmdb } = tmdbWith((url) => {
-      if (url.includes("/discover/movie")) return { results: [{ id: 10, title: "Film", release_date: "2026-10-20" }] };
+      if (url.includes("/discover/movie") && url.includes("with_release_type=4")) return { results: [{ id: 10, title: "Film", release_date: "2026-10-20" }] };
       if (url.includes("/discover/tv")) return { results: [{ id: 20, name: "Serie", first_air_date: "2026-10-15" }] };
       if (url.includes("/release_dates"))
         return { results: [{ iso_3166_1: "IT", release_dates: [{ type: 1, release_date: "2026-09-01T00:00:00.000Z" }, { type: 3, release_date: "2026-10-30T00:00:00.000Z" }] }] };
@@ -115,6 +115,26 @@ describe("upcoming releases", () => {
       ["Serie", "2026-10-15"],
       ["Film", "2026-10-30"],
     ]);
+  });
+});
+
+describe("upcoming releases: streaming first, cinema last", () => {
+  it("asks for series on the covered services and files cinema-only films after streaming ones", async () => {
+    const urls: string[] = [];
+    const { tmdb } = tmdbWith((url) => {
+      urls.push(url);
+      if (url.includes("/discover/movie") && url.includes("with_release_type=4")) return { results: [{ id: 1, title: "Su piattaforma", release_date: "2026-12-01" }] };
+      if (url.includes("/discover/movie")) return { results: [{ id: 2, title: "In sala", release_date: "2026-10-12" }, { id: 1, title: "Su piattaforma", release_date: "2026-12-01" }] };
+      if (url.includes("/discover/tv")) return { results: [{ id: 3, name: "Serie Netflix", first_air_date: "2026-11-01" }] };
+      return {};
+    });
+    const out = await tmdb.upcoming("all", TODAY, 10);
+    expect(out.map((r) => [r.title.title, r.venue])).toEqual([
+      ["Serie Netflix", "streaming"],
+      ["Su piattaforma", "streaming"],
+      ["In sala", "cinema"],
+    ]);
+    expect(urls.find((u) => u.includes("/discover/tv"))).toMatch(/with_networks=213/);
   });
 });
 
@@ -171,5 +191,14 @@ describe("recognising what the player names", () => {
     expect(seasonFromLabel(jojo, "Le bizzarre avventure di JoJo: Steel Ball Run")).toBe(6);
     expect(seasonFromLabel(jojo, "STEEL BALL RUN - Le bizzarre avventure di JoJo")).toBe(6);
     expect(seasonFromLabel(jojo, "Le bizzarre avventure di JoJo")).toBeNull();
+  });
+});
+describe("release timer maths", () => {
+  it("finds Italian midnight in winter and summer time", async () => {
+    const { italianMidnight, remaining } = await import("@/components/media/release-timer");
+    expect(new Date(italianMidnight("2026-12-01")).toISOString()).toBe("2026-11-30T23:00:00.000Z");
+    expect(new Date(italianMidnight("2026-07-01")).toISOString()).toBe("2026-06-30T22:00:00.000Z");
+    expect(remaining((12 * 1440 + 4 * 60 + 20) * 60_000)).toBe("12g 4h 20m");
+    expect(remaining((4 * 60 + 5) * 60_000)).toBe("4h 5m");
   });
 });

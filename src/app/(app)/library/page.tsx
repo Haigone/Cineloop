@@ -5,6 +5,7 @@ import { getLibraryView } from "@/server/services/library";
 import { LibraryBrowser } from "@/components/library/library-browser";
 import { SectionHeader } from "@/components/ui/section-header";
 import { GridSkeleton } from "@/components/media/grid-skeleton";
+import { AwaitingList } from "@/components/library/awaiting-list";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
 
 export const metadata: Metadata = { title: "La mia libreria" };
@@ -36,6 +37,12 @@ async function LibraryContent({ searchParams }: { searchParams: PageProps<"/libr
         <section aria-labelledby="library-new-seasons" className="mb-10">
           <SectionHeader id="library-new-seasons" title="Novità" description="Serie che avevi finito e che hanno una stagione nuova. Aprile e scegli “A che punto sei?” quando ricominci." />
           <NewSeasonsRail items={view.newSeasons} wishlistIds={new Set(view.wishlistIds)} />
+        </section>
+      )}
+      {view.awaiting.length > 0 && (
+        <section aria-labelledby="library-awaiting" className="mb-10">
+          <SectionHeader id="library-awaiting" title="In attesa" description="Serie che hai finito e che stanno per tornare: quanto manca alla nuova stagione." />
+          <AwaitingList items={view.awaiting} />
         </section>
       )}
       <LibraryBrowser

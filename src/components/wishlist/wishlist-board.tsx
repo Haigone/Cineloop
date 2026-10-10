@@ -17,6 +17,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { KeyArt } from "@/components/media/key-art";
+import { ReleaseTimer } from "@/components/media/release-timer";
 import { AddTitleDialog } from "./add-title-dialog";
 
 type TypeFilter = "all" | MediaType;
@@ -336,6 +337,7 @@ function RowBody({
           ))}
           {social && <span className={cn("text-xs", row.suggestedBy ? "text-violet" : "text-fg-3")}>{social}</span>}
         </div>
+        {row.release && <ReleaseTimer className="mt-1.5" date={row.release.date} season={row.release.season} />}
       </div>
       {title.communityRating != null && (
         <span className="hidden w-12 text-right text-sm tabular text-fg-2 sm:block" aria-label={`Voto community ${title.communityRating} su 10`}>

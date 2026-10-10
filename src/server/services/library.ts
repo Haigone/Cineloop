@@ -1,5 +1,6 @@
 import "server-only";
 import { italianDay } from "@/lib/dates";
+import { awaitedReleases, type AwaitedRelease } from "./awaited";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import type { LibraryItem } from "@/domain/library";
 import { sectionOf, type LibraryEntry, type PublicUser, type RatingValue, type Title, type WatchStatus } from "@/domain/types";
@@ -16,6 +17,8 @@ export interface LibraryView {
   items: LibraryItem[];
   wishlistIds: string[];
   newSeasons: NewSeasonItem[];
+  /** Finished series waiting on a season that is not out yet, soonest first. */
+  awaiting: { title: Title; release: AwaitedRelease }[];
 }
 
 export async function getLibraryView(): Promise<LibraryView> {
@@ -23,7 +26,12 @@ export async function getLibraryView(): Promise<LibraryView> {
   const repo = getRepository();
   const [entries, wishlist] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id)]);
   const titles = new Map((await repo.getTitlesByIds(entries.map((e) => e.titleId))).map((t) => [t.id, t]));
+  const finished = entries.filter((e) => e.status === "completed" && titles.has(e.titleId)).map((e) => titles.get(e.titleId)!);
+  const awaited = await awaitedReleases(finished, italianDay());
   return {
+    awaiting: finished
+      .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
+      .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
     items: entries.filter((e) => e.status !== "planned" && titles.has(e.titleId)).map((entry) => ({ entry, title: titles.get(entry.titleId)! })),
     wishlistIds: wishlist.map((w) => w.titleId),
     newSeasons: await listNewSeasons(repo, entries, titles, italianDay()),
@@ -40,6 +48,8 @@ export interface TitleView {
   allFriends: PublicUser[];
   offersUrl: string | null;
   related: Title[];
+  /** The season this series is waiting on, when it has not come out yet. */
+  awaited: AwaitedRelease | null;
 }
 
 export async function getTitleView(id: string): Promise<TitleView | null> {
@@ -54,6 +64,7 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     sectionOf(title) === "anime" ? getCatalog().related(title, 12).catch(() => []) : Promise.resolve([]),
   ]);
   if (related.length) await cacheTitles(repo, related);
+  const awaited = title.type === "movie" ? null : ((await awaitedReleases([title], italianDay())).get(title.id) ?? null);
   const tmdb = /^tmdb-(movie|tv)-(\d+)$/.exec(title.id);
 
   const friendRows: TitleView["friends"] = [];
@@ -69,6 +80,7 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
   const providerIds = [...new Set([...title.providers, ...(title.type === "anime" ? ["animeunity" as const] : []), ...(hasStreamingCommunityProgress ? ["streamingcommunity" as const] : [])])];
   return {
     title,
+    awaited,
     entry: library.find((e) => e.titleId === id) ?? null,
     wishlisted: wishlist.some((w) => w.titleId === id),
     watchChoices: sectionOf(title) === "anime" ? (["netflix", "animeunity"] as const).map((pid) => {
