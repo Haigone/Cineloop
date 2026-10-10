@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const catalog = getCatalog();
   const today = italianDay();
   const upcoming = await catalog.upcoming("all", today, 20).catch((err) => ({ error: String(err) }));
-  const [annSearch, annById, filler] = await Promise.all([
+  const [annSearch, annById, filler, mal] = await Promise.all([
     probe("https://cdn.animenewsnetwork.com/encyclopedia/api.xml?title=~bleach", (b) => {
       const list = parseAnimeList(b);
       return { entries: list.length, all: list.slice(0, 15).map((e) => [e.id, e.type, e.name, e.start, e.episodes, e.related.map((r) => `${r.rel}:${r.id}`)]) };
@@ -48,6 +48,10 @@ export async function GET(request: Request) {
       // The first two table rows as the page writes them, to see which markup the parser must read.
       sample: [...b.matchAll(/<tr\b[\s\S]*?<\/tr>/gi)].slice(0, 3).map((m) => m[0].replace(/\s+/g, " ").slice(0, 500)),
     })),
+    probe("https://api.jikan.moe/v4/seasons/upcoming?sfw=true&limit=25", (b) => {
+      const data = (JSON.parse(b) as { data?: { mal_id: number; title?: string; type?: string; status?: string; aired?: { from?: string | null } }[] }).data ?? [];
+      return { records: data.length, sample: data.slice(0, 8).map((a) => [a.mal_id, a.title, a.type, a.status, a.aired?.from?.slice(0, 10) ?? null]) };
+    }),
   ]);
   // End to end: the franchise the way the site builds it from one entry (?seed=25066), when asked for.
   const params = new URL(request.url).searchParams;
@@ -93,8 +97,8 @@ export async function GET(request: Request) {
     catalogue: { name: catalog.name, complete: catalog.complete, tmdbTokenSet: Boolean(process.env.TMDB_READ_TOKEN), animeSources: process.env.ANIME_SOURCES !== "off" },
     today,
     upcoming: Array.isArray(upcoming)
-      ? { total: upcoming.length, streaming: upcoming.filter((r) => r.venue !== "cinema").length, cinema: upcoming.filter((r) => r.venue === "cinema").length }
+      ? { total: upcoming.length, streaming: upcoming.filter((r) => r.venue === "streaming").length, cinema: upcoming.filter((r) => r.venue === "cinema").length, seasonal: upcoming.filter((r) => r.venue === "seasonal").length }
       : upcoming,
-    sources: { annSearch, annById, fillerList: filler },
+    sources: { annSearch, annById, fillerList: filler, myAnimeList: mal },
   });
 }

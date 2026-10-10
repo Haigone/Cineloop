@@ -1,8 +1,10 @@
 import type { MediaType, Release, Title } from "@/domain/types";
 import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "@/integrations/catalog/types";
+import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
+import { JikanClient, MAL_ID, airDate, namesOf, toSeries } from "./jikan";
 import { ANIME_ID, buildFranchise, collectEntries, kindOf, type Franchise } from "./franchise";
 import type { AnimeEntry } from "./types";
 
@@ -47,6 +49,7 @@ export class AnimeFirstCatalog implements CatalogService {
     private base: CatalogService,
     private ann: AnnClient = new AnnClient(),
     private fillers: FillerList = new FillerList(),
+    private jikan: JikanClient = new JikanClient(),
   ) {
     this.name = `anime+${base.name}`;
     this.complete = base.complete;
@@ -106,6 +109,11 @@ export class AnimeFirstCatalog implements CatalogService {
   }
 
   async getTitle(id: string): Promise<Title | null> {
+    const mal = MAL_ID.exec(id);
+    if (mal) {
+      const record = await this.jikan.byId(mal[1]!);
+      return record ? toSeries(record) : null;
+    }
     const m = ANIME_ID.exec(id);
     if (!m) return this.base.getTitle(id);
     return (await this.franchise(m[1]!))?.title ?? null;
@@ -124,8 +132,9 @@ export class AnimeFirstCatalog implements CatalogService {
 
   async nextSeasons(series: readonly Title[], today: string): Promise<Release[]> {
     const ours = series.filter((t) => ANIME_ID.test(t.id));
-    const rest = series.filter((t) => !ANIME_ID.test(t.id));
-    const [base, own] = await Promise.all([
+    const calendar = series.filter((t) => MAL_ID.test(t.id));
+    const rest = series.filter((t) => !ANIME_ID.test(t.id) && !MAL_ID.test(t.id));
+    const [base, own, announced] = await Promise.all([
       this.base.nextSeasons(rest, today),
       Promise.all(
         ours.map(async (t): Promise<Release | null> => {
@@ -134,17 +143,28 @@ export class AnimeFirstCatalog implements CatalogService {
           return f && next ? { title: f.title, date: next.airDate!, season: next.number } : null;
         }),
       ),
+      // Announced in the season calendar and not out yet: its first season is the one to wait for.
+      Promise.all(
+        calendar.map(async (t): Promise<Release | null> => {
+          const record = await this.jikan.byId(MAL_ID.exec(t.id)![1]!);
+          const series = record && toSeries(record);
+          if (!record || !series || record.status !== "Not yet aired") return null;
+          const date = airDate(record);
+          return date && date <= today ? null : { title: series, date, season: 1 };
+        }),
+      ),
     ]);
-    return [...base, ...own.filter((r): r is Release => r !== null)];
+    return [...base, ...own.filter((r): r is Release => r !== null), ...announced.filter((r): r is Release => r !== null)];
   }
 
   async related(title: Title, limit: number): Promise<Title[]> {
     // The parts of an anime franchise are in its own watching order, not separate titles.
-    return ANIME_ID.test(title.id) ? [] : this.base.related(title, limit);
+    return ANIME_ID.test(title.id) || MAL_ID.test(title.id) ? [] : this.base.related(title, limit);
   }
 
   async episodes(id: string, season: number): Promise<EpisodeInfo[] | null> {
     const m = ANIME_ID.exec(id);
+    if (MAL_ID.test(id)) return null;
     if (!m) return this.base.episodes(id, season);
     const f = await this.franchise(m[1]!);
     const part = f?.title.watchOrder?.find((p) => p.kind === "season" && p.season === season);
@@ -172,8 +192,28 @@ export class AnimeFirstCatalog implements CatalogService {
   match(title: Title): Promise<Title | null> {
     return this.base.match(title);
   }
-  upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]> {
-    return this.base.upcoming(type, today, limit);
+  /**
+   * The catalogue's releases, plus anime of the coming seasons from MyAnimeList's calendar that the
+   * catalogue does not have (the platform is not known for those, so they are marked "seasonal").
+   */
+  async upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]> {
+    const base = await this.base.upcoming(type, today, limit);
+    if (type !== "all" && type !== "anime") return base;
+    const known = new Set(base.map((r) => searchKey(r.title.title)));
+    const horizon = addDays(today, 365);
+    const seasonal = (await this.jikan.upcoming())
+      .filter((a) => !namesOf(a).some((n) => known.has(searchKey(n))))
+      .flatMap((a): Release[] => {
+        const title = toSeries(a);
+        const date = airDate(a);
+        if (!title || (date !== null && (date <= today || date > horizon))) return [];
+        return [{ title, date, season: null, venue: "seasonal" }];
+      })
+      .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
+      // Announced without a date: a few, so they do not crowd the row.
+      .filter((r, i, all) => r.date !== null || all.filter((x, j) => x.date === null && j <= i).length <= 5)
+      .slice(0, limit);
+    return [...base, ...seasonal];
   }
 }
 

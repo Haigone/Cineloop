@@ -223,6 +223,16 @@ async function ForYou({ type }: { type: Filters["type"] }) {
           <ReleaseRail label="In uscita" releases={view.upcoming} wishlistIds={wishlistIds} />
         </RevealItem>
       )}
+      {view.seasonal.length > 0 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="Anime delle prossime stagioni"
+            id="shelf-seasonal"
+            description="Dal calendario di MyAnimeList. Non sappiamo ancora su quale piattaforma arrivano in Italia."
+          />
+          <ReleaseRail label="Anime delle prossime stagioni" releases={view.seasonal} wishlistIds={wishlistIds} />
+        </RevealItem>
+      )}
       {view.atCinema.length > 0 && (
         <RevealItem as="section">
           <SectionHeader

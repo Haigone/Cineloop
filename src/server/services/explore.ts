@@ -100,6 +100,8 @@ export interface ForYouView {
   comingBack: ReleaseCard[];
   /** Films and series coming out soon on the streaming services, for the chosen type. */
   upcoming: ReleaseCard[];
+  /** Anime of the coming seasons from MyAnimeList's calendar, on a platform we don't know yet. */
+  seasonal: ReleaseCard[];
   /** Films that will only be in cinemas: shown last, they are not what CineLoop is for. */
   atCinema: ReleaseCard[];
   /** False when release dates are examples (demo catalog). */
@@ -213,10 +215,11 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
   const comingUp = sortReleases(
     (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id)),
   );
-  const upcomingRow = comingUp.filter((r) => r.venue !== "cinema").map((r) => releaseCard(r, today));
+  const upcomingRow = comingUp.filter((r) => r.venue !== "cinema" && r.venue !== "seasonal").map((r) => releaseCard(r, today));
+  const seasonalRow = comingUp.filter((r) => r.venue === "seasonal").map((r) => releaseCard(r, today));
   const cinemaRow = comingUp.filter((r) => r.venue === "cinema").map((r) => releaseCard(r, today));
 
-  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker, ...upcomingRow.map((r) => r.title), ...cinemaRow.map((r) => r.title)]);
+  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker, ...upcomingRow.map((r) => r.title), ...seasonalRow.map((r) => r.title), ...cinemaRow.map((r) => r.title)]);
   // On the day something the viewer follows comes out, leave a notification.
   const wished = new Set(wishlist.map((w) => w.titleId));
   const outToday = [...returning, ...coming.filter((r) => wished.has(r.title.id))].filter((r) => r.date === today);
@@ -226,6 +229,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
     top,
     comingBack,
     upcoming: upcomingRow,
+    seasonal: seasonalRow,
     atCinema: cinemaRow,
     realDates: catalog.complete,
     topIsWeekly: catalog.complete,
