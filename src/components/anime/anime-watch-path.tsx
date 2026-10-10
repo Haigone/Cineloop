@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { saveAnimeWatchPath } from "@/server/actions/anime";
+import { useToast } from "@/components/ui/toast";
 
 type Node = { id: string; title: string; relation: string; url: string; episodeCount: number | null };
-
 type Choice = { include: boolean; watched: boolean };
 type SavedPlan = Record<string, Choice>;
 
@@ -20,29 +21,17 @@ const RELATION_LABEL: Record<string, string> = {
   other: "Correlato",
 };
 
-export function AnimeWatchPath({ rootId, nodes }: { rootId: string; nodes: Node[] }) {
-  const storageKey = `cineloop-anime-path-v1:${rootId}`;
-  const [plan, setPlan] = useState<SavedPlan>({});
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) setPlan(JSON.parse(raw) as SavedPlan);
-    } catch {
-      // Storage can be disabled; the checklist remains usable for this session.
-    }
-    setReady(true);
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(plan));
-    } catch {
-      // Keep the in-memory plan when storage is unavailable.
-    }
-  }, [plan, ready, storageKey]);
+export function AnimeWatchPath({
+  rootId,
+  nodes,
+  initialPlan,
+}: {
+  rootId: string;
+  nodes: Node[];
+  initialPlan: SavedPlan;
+}) {
+  const toast = useToast();
+  const [plan, setPlan] = useState<SavedPlan>(initialPlan);
 
   const progress = useMemo(() => {
     const included = nodes.filter((node) => plan[node.id]?.include ?? true);
@@ -50,13 +39,16 @@ export function AnimeWatchPath({ rootId, nodes }: { rootId: string; nodes: Node[
     return { included: included.length, watched, remaining: included.length - watched };
   }, [nodes, plan]);
 
-  function update(id: string, patch: Partial<Choice>) {
-    setPlan((previous) => {
-      const current = previous[id] ?? { include: true, watched: false };
-      const next = { ...current, ...patch };
-      if (!next.include) next.watched = false;
-      return { ...previous, [id]: next };
-    });
+  async function update(id: string, patch: Partial<Choice>) {
+    const current = plan[id] ?? { include: true, watched: false };
+    const next = { ...current, ...patch };
+    if (!next.include) next.watched = false;
+    setPlan((previous) => ({ ...previous, [id]: next }));
+    const result = await saveAnimeWatchPath(rootId, id, next.include, next.watched);
+    if (!result.ok) {
+      setPlan((previous) => ({ ...previous, [id]: current }));
+      toast.show(result.error, { tone: "error" });
+    }
   }
 
   return (
@@ -79,7 +71,7 @@ export function AnimeWatchPath({ rootId, nodes }: { rootId: string; nodes: Node[
                 <input
                   type="checkbox"
                   checked={choice.include}
-                  onChange={(event) => update(node.id, { include: event.target.checked })}
+                  onChange={(event) => void update(node.id, { include: event.target.checked })}
                   className="size-4 accent-current"
                 />
                 <span className="min-w-0">
@@ -92,7 +84,7 @@ export function AnimeWatchPath({ rootId, nodes }: { rootId: string; nodes: Node[
                   type="checkbox"
                   disabled={!choice.include}
                   checked={choice.watched}
-                  onChange={(event) => update(node.id, { watched: event.target.checked })}
+                  onChange={(event) => void update(node.id, { watched: event.target.checked })}
                   className="size-4 accent-current"
                 />
                 Visto
@@ -101,7 +93,7 @@ export function AnimeWatchPath({ rootId, nodes }: { rootId: string; nodes: Node[
           );
         })}
       </ul>
-      <p className="text-xs leading-relaxed text-fg-3">Queste selezioni sono salvate in questo browser. La sincronizzazione con il progresso del tuo account CineLoop e tra dispositivi è il passaggio successivo; per ora non modifica ancora il progresso ufficiale della libreria.</p>
+      <p className="text-xs leading-relaxed text-fg-3">Le scelte vengono salvate nel tuo account CineLoop e associate al percorso di questa opera. Il conteggio è personale e non include gli elementi esclusi.</p>
     </section>
   );
 }
