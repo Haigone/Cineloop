@@ -24,7 +24,7 @@ const relationLabel: Record<string, string> = {
   full_story: "Storia completa",
 };
 
-async function AnimeDetailContent({ params }: PageProps<"/anime/[id]">) {
+async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "params">) {
   // cacheComponents is enabled: user, database, and AniDB data are request-time.
   await connection();
   const { id: rawId } = await params;
