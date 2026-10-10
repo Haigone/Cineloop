@@ -49,7 +49,8 @@ export async function getExploreView(filters: ExploreFilters): Promise<ExploreVi
   if (searching) {
     // Search has no server-side paging here: ask for everything up to this page and slice.
     const all = await catalog.search(filters.q.trim(), PAGE_SIZE * filters.page + 1);
-    const matching = filters.provider ? all.filter((t) => t.providers.includes(filters.provider!)) : all;
+    const nonAnime = filters.type === "all" ? all.filter((title) => title.type !== "anime") : all;
+    const matching = filters.provider ? nonAnime.filter((t) => t.providers.includes(filters.provider!)) : nonAnime;
     found = matching.slice((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE);
     hasMore = matching.length > filters.page * PAGE_SIZE;
   } else {
@@ -58,7 +59,7 @@ export async function getExploreView(filters: ExploreFilters): Promise<ExploreVi
       { type: filters.type, genre: filters.genre, provider: filters.provider, sort: filters.sort, page: filters.page },
       filters.type === "all" ? PAGE_SIZE * 2 : PAGE_SIZE,
     );
-    found = page.titles;
+    found = filters.type === "all" ? page.titles.filter((title) => title.type !== "anime") : page.titles;
     hasMore = page.hasMore;
   }
 
@@ -134,7 +135,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
   ]);
   const knownTitles = await repo.getTitlesByIds([...new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)])]);
   const isKnown = knownMatcher(knownTitles);
-  const ofType = (t: Title) => type === "all" || t.type === type;
+  const ofType = (t: Title) => type === "all" ? t.type !== "anime" : t.type === type;
 
   // Seeds for "Per te": what the viewer watched recently, what is at the top
   // of their wishlist, and their favourites. Recommendations are things to
@@ -209,7 +210,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
 
   const comingBack = sortReleases(returning).map((r) => releaseCard(r, today));
   const upcomingRow = sortReleases(
-    (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id)),
+    (await canonicalReleases(repo, coming)).filter((r) => ofType(r.title) && (!isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id)),
   ).map((r) => releaseCard(r, today));
 
   await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker, ...upcomingRow.map((r) => r.title)]);
