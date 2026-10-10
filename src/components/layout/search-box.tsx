@@ -10,7 +10,7 @@ import { MEDIA_TYPE_LABEL } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
 
 type Option =
-  | { kind: "title"; id: string; href: string; label: string; meta: string; palette: readonly [string, string, string] }
+  | { kind: "title"; id: string; href: string; label: string; meta: string; posterUrl: string | null; palette: readonly [string, string, string] }
   | { kind: "person"; id: string; href: string; label: string; meta: string };
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -85,6 +85,7 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
         href: `/title/${t.id}`,
         label: t.title,
         meta: `${MEDIA_TYPE_LABEL[t.type]} · ${t.year}`,
+        posterUrl: t.posterUrl,
         palette: t.palette,
       })),
       ...results.people.map((p) => ({
@@ -209,8 +210,12 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
                       {opt.kind === "title" ? (
                         <span
                           aria-hidden
-                          className="h-9 w-6 shrink-0 rounded-[3px]"
-                          style={{ background: `linear-gradient(160deg, ${opt.palette[0]}, ${opt.palette[1]})` }}
+                          className="h-10 w-7 shrink-0 rounded-[3px] bg-cover bg-center"
+                          style={{
+                            backgroundImage: opt.posterUrl
+                              ? `url("${opt.posterUrl}")`
+                              : `linear-gradient(160deg, ${opt.palette[0]}, ${opt.palette[1]})`,
+                          }}
                         />
                       ) : (
                         <Avatar user={{ id: opt.id, displayName: opt.label, avatarUrl: null }} size="sm" decorative />
