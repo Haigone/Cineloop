@@ -108,6 +108,26 @@ export class PostgresRepository implements Repository {
       ));
   }
 
+  async markAnimeWatchPathEpisode(userId: string, animeId: string, episodeKey: string): Promise<void> {
+    const rows = await this.db.select().from(schema.animeWatchPath).where(and(
+      eq(schema.animeWatchPath.userId, userId),
+      eq(schema.animeWatchPath.animeId, animeId),
+      eq(schema.animeWatchPath.included, true),
+    ));
+    const now = new Date();
+    for (const row of rows) {
+      const watchedEpisodes = row.watchedEpisodes ?? [];
+      if (watchedEpisodes.includes(episodeKey)) continue;
+      await this.db.update(schema.animeWatchPath)
+        .set({ watchedEpisodes: [...watchedEpisodes, episodeKey], updatedAt: now })
+        .where(and(
+          eq(schema.animeWatchPath.userId, userId),
+          eq(schema.animeWatchPath.rootId, row.rootId),
+          eq(schema.animeWatchPath.animeId, animeId),
+        ));
+    }
+  }
+
   // Users -------------------------------------------------------------------
 
   async listUsers() {
