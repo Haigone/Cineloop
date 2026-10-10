@@ -309,12 +309,16 @@ export interface ExtensionDevice {
 }
 
 
+/** How a work participates in a personal anime watch path. */
+export type AnimeWatchPathRole = "required" | "optional" | "skipped";
+
 /** Per-user decision for an AniDB work in a particular anime watch path. */
 export interface AnimeWatchPathEntry {
   userId: string;
   rootId: string;
   animeId: string;
   included: boolean;
+  role: AnimeWatchPathRole;
   watched: boolean;
   updatedAt: string;
 }
