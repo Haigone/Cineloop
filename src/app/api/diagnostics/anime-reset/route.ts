@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getOptionalUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
-import { getCatalog } from "@/integrations/catalog";
-import { ANIME_ID } from "@/integrations/anime/franchise";
-import { searchKey } from "@/lib/text";
+import { franchiseFor } from "@/server/services/anime-migration";
 
 export const maxDuration = 60;
 
@@ -25,7 +23,6 @@ export async function GET(request: Request) {
   const apply = params.get("apply") === "1";
   const after = params.get("after") ?? "";
   const repo = getRepository();
-  const catalog = getCatalog();
 
   const todo = (await repo.listTitles())
     .filter((t) => t.type === "anime" && t.id.startsWith("tmdb-") && t.id > after)
@@ -42,12 +39,7 @@ export async function GET(request: Request) {
       break;
     }
     last = old.id;
-    const key = searchKey(old.title);
-    const hit = (await catalog.search(old.title, 6).catch(() => [])).find((t) => {
-      if (!ANIME_ID.test(t.id)) return false;
-      const k = searchKey(t.title);
-      return k === key || k.startsWith(key) || key.startsWith(k);
-    });
+    const hit = await franchiseFor(old);
     if (!hit) {
       unmatched.push(`${old.title} (${old.id})`);
       continue;

@@ -4,6 +4,7 @@ import { getCatalog } from "@/integrations/catalog";
 import { AnnClient, parseAnimeList } from "@/integrations/anime/ann";
 import { buildFranchise, collectEntries } from "@/integrations/anime/franchise";
 import { FillerList, parseFillerEpisodes } from "@/integrations/anime/filler-list";
+import { AniListClient } from "@/integrations/anime/anilist";
 import { italianDay } from "@/lib/dates";
 
 /** What one source answered: enough to see why it is not working, never any content or secrets. */
@@ -22,6 +23,18 @@ async function probe(url: string, read: (body: string) => unknown, timeoutMs = 8
   }
 }
 
+/** What AniList answers to the two questions Esplora asks it. */
+async function probeAniList() {
+  const started = Date.now();
+  try {
+    const client = new AniListClient();
+    const [upcoming, airing] = await Promise.all([client.upcoming(), client.trending()]);
+    return { ms: Date.now() - started, upcoming: upcoming.length, airing: airing.length, sample: upcoming.slice(0, 5).map((a) => [a.id, a.title?.english ?? a.title?.romaji, a.startDate]) };
+  } catch (err) {
+    return { error: String(err), ms: Date.now() - started };
+  }
+}
+
 /**
  * Signed-in users only. Checks, from the server, that the anime sources and the
  * release list answer as CineLoop expects: open /api/diagnostics/sources while logged in.
@@ -33,7 +46,7 @@ export async function GET(request: Request) {
   const catalog = getCatalog();
   const today = italianDay();
   const upcoming = await catalog.upcoming("all", today, 20).catch((err) => ({ error: String(err) }));
-  const [annSearch, annById, filler, mal] = await Promise.all([
+  const [annSearch, annById, filler, mal, anilist] = await Promise.all([
     probe("https://cdn.animenewsnetwork.com/encyclopedia/api.xml?title=~bleach", (b) => {
       const list = parseAnimeList(b);
       return { entries: list.length, all: list.slice(0, 15).map((e) => [e.id, e.type, e.name, e.start, e.episodes, e.related.map((r) => `${r.rel}:${r.id}`)]) };
@@ -52,6 +65,7 @@ export async function GET(request: Request) {
       const data = (JSON.parse(b) as { data?: { mal_id: number; title?: string; type?: string; status?: string; aired?: { from?: string | null } }[] }).data ?? [];
       return { records: data.length, sample: data.slice(0, 8).map((a) => [a.mal_id, a.title, a.type, a.status, a.aired?.from?.slice(0, 10) ?? null]) };
     }, 25000),
+    probeAniList(),
   ]);
   // End to end: the franchise the way the site builds it from one entry (?seed=25066), when asked for.
   const params = new URL(request.url).searchParams;
@@ -99,6 +113,6 @@ export async function GET(request: Request) {
     upcoming: Array.isArray(upcoming)
       ? { total: upcoming.length, streaming: upcoming.filter((r) => r.venue === "streaming").length, cinema: upcoming.filter((r) => r.venue === "cinema").length, seasonal: upcoming.filter((r) => r.venue === "seasonal").length }
       : upcoming,
-    sources: { annSearch, annById, fillerList: filler, myAnimeList: mal },
+    sources: { annSearch, annById, fillerList: filler, myAnimeList: mal, aniList: anilist },
   });
 }

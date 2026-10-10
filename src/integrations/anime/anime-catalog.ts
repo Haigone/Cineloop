@@ -4,6 +4,7 @@ import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
+import { AL_ID, AniListClient, alSeries, alDate, alNames } from "./anilist";
 import { JikanClient, MAL_ID, airDate, namesOf, toSeries } from "./jikan";
 import { ANIME_ID, buildFranchise, collectEntries, kindOf, type Franchise } from "./franchise";
 import type { AnimeEntry } from "./types";
@@ -50,6 +51,7 @@ export class AnimeFirstCatalog implements CatalogService {
     private ann: AnnClient = new AnnClient(),
     private fillers: FillerList = new FillerList(),
     private jikan: JikanClient = new JikanClient(),
+    private anilist: AniListClient = new AniListClient(),
   ) {
     this.name = `anime+${base.name}`;
     this.complete = base.complete;
@@ -136,6 +138,11 @@ export class AnimeFirstCatalog implements CatalogService {
       const record = await this.jikan.byId(mal[1]!);
       return record ? toSeries(record) : null;
     }
+    const al = AL_ID.exec(id);
+    if (al) {
+      const record = await this.anilist.byId(al[1]!);
+      return record ? alSeries(record) : null;
+    }
     const m = ANIME_ID.exec(id);
     if (!m) return this.base.getTitle(id);
     return (await this.franchise(m[1]!))?.title ?? null;
@@ -155,8 +162,9 @@ export class AnimeFirstCatalog implements CatalogService {
   async nextSeasons(series: readonly Title[], today: string): Promise<Release[]> {
     const ours = series.filter((t) => ANIME_ID.test(t.id));
     const calendar = series.filter((t) => MAL_ID.test(t.id));
-    const rest = series.filter((t) => !ANIME_ID.test(t.id) && !MAL_ID.test(t.id));
-    const [base, own, announced] = await Promise.all([
+    const listed = series.filter((t) => AL_ID.test(t.id));
+    const rest = series.filter((t) => !ANIME_ID.test(t.id) && !MAL_ID.test(t.id) && !AL_ID.test(t.id));
+    const [base, own, announced, announcedAl] = await Promise.all([
       this.base.nextSeasons(rest, today),
       Promise.all(
         ours.map(async (t): Promise<Release | null> => {
@@ -175,18 +183,28 @@ export class AnimeFirstCatalog implements CatalogService {
           return date && date <= today ? null : { title: series, date, season: 1 };
         }),
       ),
+      Promise.all(
+        listed.map(async (t): Promise<Release | null> => {
+          const record = await this.anilist.byId(AL_ID.exec(t.id)![1]!);
+          const series = record && alSeries(record);
+          if (!record || !series || record.status !== "NOT_YET_RELEASED") return null;
+          const date = alDate(record);
+          return date && date <= today ? null : { title: series, date, season: 1 };
+        }),
+      ),
     ]);
-    return [...base, ...own.filter((r): r is Release => r !== null), ...announced.filter((r): r is Release => r !== null)];
+    const some = (list: (Release | null)[]) => list.filter((r): r is Release => r !== null);
+    return [...base, ...some(own), ...some(announced), ...some(announcedAl)];
   }
 
   async related(title: Title, limit: number): Promise<Title[]> {
     // The parts of an anime franchise are in its own watching order, not separate titles.
-    return ANIME_ID.test(title.id) || MAL_ID.test(title.id) ? [] : this.base.related(title, limit);
+    return ANIME_ID.test(title.id) || MAL_ID.test(title.id) || AL_ID.test(title.id) ? [] : this.base.related(title, limit);
   }
 
   async episodes(id: string, season: number): Promise<EpisodeInfo[] | null> {
     const m = ANIME_ID.exec(id);
-    if (MAL_ID.test(id)) return null;
+    if (MAL_ID.test(id) || AL_ID.test(id)) return null;
     if (!m) return this.base.episodes(id, season);
     const f = await this.franchise(m[1]!);
     const part = f?.title.watchOrder?.find((p) => p.kind === "season" && p.season === season);
@@ -202,8 +220,15 @@ export class AnimeFirstCatalog implements CatalogService {
     }));
   }
 
-  trending(limit: number): Promise<Title[]> {
-    return this.base.trending(limit);
+  /** TMDB's week, plus the anime airing now that people watch most (TMDB barely lists them). */
+  async trending(limit: number): Promise<Title[]> {
+    const [base, airing] = await Promise.all([this.base.trending(limit), this.anilist.trending()]);
+    const known = new Set(base.map((t) => searchKey(t.title)));
+    const extra = airing
+      .filter((a) => !alNames(a).some((n) => known.has(searchKey(n))))
+      .map(alSeries)
+      .filter((t): t is NonNullable<typeof t> => t !== null);
+    return [...base, ...extra];
   }
   discover(query: DiscoverQuery, limit: number): Promise<DiscoverPage> {
     return this.base.discover(query, limit);
@@ -223,14 +248,17 @@ export class AnimeFirstCatalog implements CatalogService {
     if (type !== "all" && type !== "anime") return base;
     const known = new Set(base.map((r) => searchKey(r.title.title)));
     const horizon = addDays(today, 365);
-    const seasonal = (await this.jikan.upcoming())
-      .filter((a) => !namesOf(a).some((n) => known.has(searchKey(n))))
-      .flatMap((a): Release[] => {
-        const title = toSeries(a);
-        const date = airDate(a);
-        if (!title || (date !== null && (date <= today || date > horizon))) return [];
-        return [{ title, date, season: null, venue: "seasonal" }];
-      })
+    const [mal, listed] = await Promise.all([this.jikan.upcoming(), this.anilist.upcoming()]);
+    const within = (date: string | null) => date === null || (date > today && date <= horizon);
+    const calendar: Release[] = [];
+    const add = (names: string[], title: Title | null, date: string | null) => {
+      if (!title || !within(date) || names.some((n) => known.has(searchKey(n)))) return;
+      names.forEach((n) => known.add(searchKey(n)));
+      calendar.push({ title, date, season: null, venue: "seasonal" });
+    };
+    for (const a of mal) add(namesOf(a), toSeries(a), airDate(a));
+    for (const a of listed) add(alNames(a), alSeries(a), alDate(a));
+    const seasonal = calendar
       .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
       // Announced without a date: a few, so they do not crowd the row.
       .filter((r, i, all) => r.date !== null || all.filter((x, j) => x.date === null && j <= i).length <= 5)

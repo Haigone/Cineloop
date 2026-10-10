@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { migrateAnimeTitle } from "@/server/services/anime-migration";
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
 import { STATUS_LABEL } from "@/domain/library";
@@ -78,6 +79,9 @@ export default function TitlePage({ params }: PageProps<"/title/[id]">) {
 
 async function TitleContent({ params }: { params: PageProps<"/title/[id]">["params"] }) {
   const { id } = await params;
+  // An anime that still has its TMDB id moves to its franchise card (for everyone) and the page follows.
+  const moved = await migrateAnimeTitle(id);
+  if (moved) redirect(`/title/${moved}`);
   const view = await getTitleView(id);
   if (!view) notFound();
   const { title, entry, providers, friends, watchChoices } = view;
@@ -102,7 +106,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
         <div className="min-w-0 space-y-8">
           <p className="max-w-[68ch] text-[15px] leading-relaxed text-fg-2">{title.overview}</p>
 
-          <section aria-labelledby="progress-h" className="max-w-md">
+          <section aria-labelledby="progress-h" className="max-w-2xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="progress-h" className="text-[15px] font-semibold">
                 Dove sei arrivato
@@ -120,6 +124,76 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             ) : (
               <p className="mt-1 text-sm text-fg-2">Lo guardi fuori da Netflix? Segna qui il punto, lo ritrovi in Home su ogni dispositivo.</p>
             )}
+            <div aria-labelledby="where-h" role="group" className="mt-5 border-t border-line pt-4">
+              <h3 id="where-h" className="text-[15px] font-semibold">
+                {entry?.progress?.providerId === "streamingcommunity" ? "Continua a guardare" : "Dove guardarlo"}
+              </h3>
+              {providers.length === 0 && !isOld(title) && (
+                <p className="mt-1 text-sm text-fg-2">Non risulta incluso in nessun abbonamento in Italia.</p>
+              )}
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {providers.length === 0 && isOld(title) && (
+                  // Placeholder: out for a while and on no covered service, so it is probably online somewhere.
+                  <li>
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 opacity-80"
+                    >
+                      <span aria-hidden className="size-2 rounded-full bg-fg-3" />
+                      Dove guardarlo · Streaming
+                    </button>
+                  </li>
+                )}
+                {providers.map((p) => {
+                  const progress = entry?.progress;
+                  const destination = siteWatchUrl(
+                    title.id,
+                    title.title,
+                    p.id,
+                    progress?.providerId === "streamingcommunity" ? progress.url : null,
+                    progress?.fraction ?? 0,
+                    title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes,
+                    title.type === "movie" ? null : (progress?.season ?? null),
+                    title.type === "movie" ? null : (progress?.episode ?? null),
+                  );
+                  return (
+                    <li key={p.id}>
+                      <a
+                        href={destination}
+                        className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
+                      >
+                        <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
+                        {progress?.providerId === p.id ? "Continua a guardare" : `Dove guardarlo · ${p.name}`}
+                      </a>
+                    </li>
+                  );
+                })}
+                {view.offersUrl && (
+                  <li>
+                    <a
+                      href={view.offersUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 transition-colors hover:bg-white/[0.05] hover:text-fg"
+                    >
+                      Tutte le offerte, anche a noleggio
+                      <ExternalLink aria-hidden className="size-3.5 text-fg-3" />
+                      <span className="sr-only">(si apre in una nuova scheda)</span>
+                    </a>
+                  </li>
+                )}
+              </ul>
+              {watchChoices.length > 0 && (
+                <WatchSourceChooser
+                  titleId={title.id}
+                  titleName={title.title}
+                  choices={watchChoices}
+                  currentProvider={entry?.progress?.providerId ?? null}
+                />
+              )}
+              <p className="mt-2 text-xs text-fg-3">CineLoop non riproduce i contenuti: ti porta direttamente sulla piattaforma. Le offerte vengono da JustWatch tramite TMDB.</p>
+            </div>
           </section>
 
           {title.type !== "movie" && title.seasons.length > 0 && (
@@ -144,77 +218,6 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               <WatchOrder titleId={title.id} parts={title.watchOrder!} overrides={entry?.partOverrides} canChoose={Boolean(entry)} />
             </section>
           )}
-
-          <section aria-labelledby="where-h">
-            <h2 id="where-h" className="text-[15px] font-semibold">
-              {entry?.progress?.providerId === "streamingcommunity" ? "Continua a guardare" : "Dove guardarlo"}
-            </h2>
-            {providers.length === 0 && !isOld(title) && (
-              <p className="mt-1 text-sm text-fg-2">Non risulta incluso in nessun abbonamento in Italia.</p>
-            )}
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {providers.length === 0 && isOld(title) && (
-                // Placeholder: out for a while and on no covered service, so it is probably online somewhere.
-                <li>
-                  <button
-                    type="button"
-                    disabled
-                    className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 opacity-80"
-                  >
-                    <span aria-hidden className="size-2 rounded-full bg-fg-3" />
-                    Dove guardarlo · Streaming
-                  </button>
-                </li>
-              )}
-              {providers.map((p) => {
-                const progress = entry?.progress;
-                const destination = siteWatchUrl(
-                  title.id,
-                  title.title,
-                  p.id,
-                  progress?.providerId === "streamingcommunity" ? progress.url : null,
-                  progress?.fraction ?? 0,
-                  title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes,
-                  title.type === "movie" ? null : (progress?.season ?? null),
-                  title.type === "movie" ? null : (progress?.episode ?? null),
-                );
-                return (
-                  <li key={p.id}>
-                    <a
-                      href={destination}
-                      className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
-                    >
-                      <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
-                      {progress?.providerId === p.id ? "Continua a guardare" : `Dove guardarlo · ${p.name}`}
-                    </a>
-                  </li>
-                );
-              })}
-              {view.offersUrl && (
-                <li>
-                  <a
-                    href={view.offersUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 transition-colors hover:bg-white/[0.05] hover:text-fg"
-                  >
-                    Tutte le offerte, anche a noleggio
-                    <ExternalLink aria-hidden className="size-3.5 text-fg-3" />
-                    <span className="sr-only">(si apre in una nuova scheda)</span>
-                  </a>
-                </li>
-              )}
-            </ul>
-            {watchChoices.length > 0 && (
-              <WatchSourceChooser
-                titleId={title.id}
-                titleName={title.title}
-                choices={watchChoices}
-                currentProvider={entry?.progress?.providerId ?? null}
-              />
-            )}
-            <p className="mt-2 text-xs text-fg-3">CineLoop non riproduce i contenuti: ti porta direttamente sulla piattaforma. Le offerte vengono da JustWatch tramite TMDB.</p>
-          </section>
 
           {view.related.length > 0 && (
             <section aria-labelledby="related-h">

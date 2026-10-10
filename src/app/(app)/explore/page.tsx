@@ -46,7 +46,7 @@ export default function ExplorePage({ searchParams }: PageProps<"/explore">) {
 
 async function Filters({ searchParams }: { searchParams: PageProps<"/explore">["searchParams"] }) {
   const f = await parseFilters(searchParams);
-  return <ExploreFilters q={f.q} type={f.type} genre={f.genre ?? ""} provider={f.provider ?? ""} sort={f.sort} />;
+  return <ExploreFilters q={f.q} type={f.type} genre={f.genre ?? ""} provider={f.provider ?? ""} sort={f.sort} hideKnown={f.hideKnown} />;
 }
 
 async function Results({ searchParams }: { searchParams: PageProps<"/explore">["searchParams"] }) {
@@ -58,7 +58,7 @@ async function Results({ searchParams }: { searchParams: PageProps<"/explore">["
   // Otherwise the recommendations come first (for the chosen type), then the catalog.
   return (
     <>
-      <ForYou type={filters.type} />
+      <ForYou type={filters.type} hideKnown={filters.hideKnown} />
       <section aria-labelledby="catalog-h" className="mt-12">
         <SectionHeader as="h2" title={TYPE_PLURAL[filters.type]} id="catalog-h" description="Usa genere e ordine qui sopra per restringere." />
         <BrowseResults filters={filters} bare />
@@ -93,6 +93,7 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
   if (filters.genre) base.set("genre", filters.genre);
   if (filters.provider) base.set("on", filters.provider);
   if (filters.sort !== "popular") base.set("sort", filters.sort);
+  if (!filters.hideKnown) base.set("tutti", "1");
   const pageHref = (page: number) => {
     const p = new URLSearchParams(base);
     if (page > 1) p.set("page", String(page));
@@ -135,12 +136,13 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
   );
 }
 
-async function ForYou({ type }: { type: Filters["type"] }) {
-  const [view, netflix, community] = await Promise.all([getForYouView(type), getNetflixTop10(), getCommunityNetflixTop()]);
-  const ofType = (r: RankedTitle) => type === "all" || r.title.type === type;
+async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: boolean }) {
+  const [view, netflix, community] = await Promise.all([getForYouView(type, hideKnown), getNetflixTop10(), getCommunityNetflixTop()]);
+  const have = new Set([...view.wishlistIds, ...view.libraryIds]);
+  const ofType = (r: RankedTitle) => (type === "all" || r.title.type === type) && !(hideKnown && have.has(r.title.id));
   const netflixRows = netflix
     ? [
-        { id: "netflix-film", label: "Top 10 Netflix Italia: film", rows: type === "all" || type === "movie" ? netflix.films : [] },
+        { id: "netflix-film", label: "Top 10 Netflix Italia: film", rows: type === "all" || type === "movie" ? netflix.films.filter(ofType) : [] },
         { id: "netflix-tv", label: "Top 10 Netflix Italia: serie", rows: type === "movie" ? [] : netflix.tv.filter(ofType) },
       ].filter((c) => c.rows.length > 0)
     : [];
@@ -228,7 +230,7 @@ async function ForYou({ type }: { type: Filters["type"] }) {
           <SectionHeader
             title="Anime delle prossime stagioni"
             id="shelf-seasonal"
-            description="Dal calendario di MyAnimeList. Non sappiamo ancora su quale piattaforma arrivano in Italia."
+            description="Dai calendari di MyAnimeList e AniList. Non sappiamo ancora su quale piattaforma arrivano in Italia."
           />
           <ReleaseRail label="Anime delle prossime stagioni" releases={view.seasonal} wishlistIds={wishlistIds} />
         </RevealItem>
@@ -272,6 +274,7 @@ async function parseFilters(searchParams: PageProps<"/explore">["searchParams"])
     provider: (BROWSABLE_PROVIDERS as string[]).includes(on) ? (on as ProviderId) : null,
     sort: sort === "top" || sort === "recent" ? sort : "popular",
     page: Number.isFinite(page) && page > 1 ? Math.min(page, 50) : 1,
+    hideKnown: one(sp.tutti) !== "1",
   };
 }
 

@@ -6,7 +6,7 @@ import { withoutSeriesFilms } from "@/domain/franchise";
 import { cacheTitles } from "./explore";
 
 export interface SearchResults {
-  titles: { id: string; title: string; year: number; type: MediaType; palette: readonly [string, string, string] }[];
+  titles: { id: string; title: string; year: number; type: MediaType; palette: readonly [string, string, string]; posterUrl: string | null }[];
   people: { id: string; username: string; displayName: string; isFriend: boolean }[];
 }
 
@@ -26,7 +26,7 @@ export async function search(viewer: User, query: string): Promise<SearchResults
   const titles = await withRemote(local, q, 6);
   const friendIds = new Set(friends.map((f) => f.user.id));
   return {
-    titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, palette: t.artwork.palette })),
+    titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, palette: t.artwork.palette, posterUrl: t.artwork.posterUrl })),
     people: people
       .filter((p) => p.id !== viewer.id)
       .map((p) => ({ id: p.id, username: p.username, displayName: p.displayName, isFriend: friendIds.has(p.id) })),

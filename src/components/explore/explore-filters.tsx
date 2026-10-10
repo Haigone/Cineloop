@@ -7,6 +7,7 @@ import { GENRES } from "@/domain/genres";
 import { BROWSABLE_PROVIDERS, PROVIDERS } from "@/domain/providers";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 const TYPES = [
   { value: "all", label: "Tutto" },
@@ -25,7 +26,7 @@ const SORTS = [
  * Search and filters for Esplora. State lives in the URL, so results are
  * server-rendered, shareable and survive a reload; typing is debounced.
  */
-export function ExploreFilters({ q, type, genre, provider, sort }: { q: string; type: string; genre: string; provider: string; sort: string }) {
+export function ExploreFilters({ q, type, genre, provider, sort, hideKnown }: { q: string; type: string; genre: string; provider: string; sort: string; hideKnown: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -131,6 +132,12 @@ export function ExploreFilters({ q, type, genre, provider, sort }: { q: string; 
             </Select>
           )}
         </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <Switch checked={hideKnown} onChange={(on) => apply({ tutti: on ? "" : "1" })} labelledBy="hide-known-label" />
+        <span id="hide-known-label" className="text-sm text-fg-2">
+          Nascondi i titoli già visti o in wishlist
+        </span>
       </div>
     </div>
   );

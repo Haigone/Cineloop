@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Check, Plus, Search } from "lucide-react";
+import Image from "next/image";
 import type { SearchResults } from "@/server/services/search";
 import { setWishlisted } from "@/server/actions/library";
 import { MEDIA_TYPE_LABEL } from "@/lib/format";
@@ -62,7 +63,9 @@ export function AddTitleDialog({ open, onClose, existingIds }: { open: boolean; 
           const inList = existingIds.has(t.id) || added.has(t.id);
           return (
             <li key={t.id} className="flex items-center gap-3 border-b border-line py-2.5 last:border-0">
-              <span aria-hidden className="h-12 w-8 shrink-0 rounded-[3px]" style={{ background: `linear-gradient(160deg, ${t.palette[0]}, ${t.palette[1]})` }} />
+              <span aria-hidden className="relative h-12 w-8 shrink-0 overflow-hidden rounded-[3px]" style={{ background: `linear-gradient(160deg, ${t.palette[0]}, ${t.palette[1]})` }}>
+                {t.posterUrl && <Image src={t.posterUrl} alt="" fill sizes="32px" className="object-cover" />}
+              </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-fg">{t.title}</span>
                 <span className="block text-xs text-fg-3">

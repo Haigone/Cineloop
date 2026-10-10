@@ -20,6 +20,8 @@ export interface ExploreFilters {
   provider: ProviderId | null;
   sort: CatalogSort;
   page: number;
+  /** Leave out what the viewer has already seen or put on their wishlist (the default). */
+  hideKnown: boolean;
 }
 
 export interface ExploreView {
@@ -62,10 +64,11 @@ export async function getExploreView(filters: ExploreFilters): Promise<ExploreVi
     hasMore = page.hasMore;
   }
 
-  const titles = await canonical(repo, found);
-  await cacheTitles(repo, titles);
+  const canonicalTitles = await canonical(repo, found);
+  await cacheTitles(repo, canonicalTitles);
 
   const [wishlist, library] = await Promise.all([repo.listWishlist(viewer.id), repo.listLibrary(viewer.id)]);
+  const titles = filters.hideKnown ? withoutKnown(canonicalTitles, await repo.getTitlesByIds([...wishlist.map((w) => w.titleId), ...library.map((e) => e.titleId)])) : canonicalTitles;
   return {
     filters,
     titles,
@@ -126,7 +129,7 @@ export const TASTE_TARGET = 3;
  * from the viewer's own taste, then from friends. A new account gets a quick
  * "what did you like?" picker so "Per te" has something to start from.
  */
-export async function getForYouView(type: MediaType | "all" = "all"): Promise<ForYouView> {
+export async function getForYouView(type: MediaType | "all" = "all", hideKnown = true): Promise<ForYouView> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
   const catalog = getCatalog();
@@ -188,7 +191,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
 
   const fresh = (list: Title[], n: number) => list.filter((t) => ofType(t) && !isKnown(t)).slice(0, n);
   const [top, forYouRow, becauseRow, friendsRow, picker] = await Promise.all([
-    canonical(repo, trending.filter(ofType).slice(0, 10)),
+    canonical(repo, trending.filter((t) => ofType(t) && !(hideKnown && isKnown(t))).slice(0, 10)),
     canonical(repo, fresh(forYou, 20)),
     canonical(repo, fresh(becauseOf, 20)),
     Promise.resolve(fresh(friendTitles, 20)),
@@ -213,7 +216,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
 
   const comingBack = sortReleases(returning).map((r) => releaseCard(r, today));
   const comingUp = sortReleases(
-    (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id)),
+    (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || (!hideKnown && wishlist.some((w) => w.titleId === r.title.id))),
   );
   const upcomingRow = comingUp.filter((r) => r.venue !== "cinema" && r.venue !== "seasonal").map((r) => releaseCard(r, today));
   const seasonalRow = comingUp.filter((r) => r.venue === "seasonal").map((r) => releaseCard(r, today));
@@ -273,6 +276,12 @@ async function notifyReleases(repo: Repository, userId: string, releases: Releas
 }
 
 const identity = (t: Pick<Title, "title" | "year">) => `${searchKey(t.title)}|${t.year}`;
+
+/** The titles the viewer has not seen and has not put on their wishlist. */
+function withoutKnown(titles: Title[], known: readonly Title[]): Title[] {
+  const isKnown = knownMatcher(known);
+  return titles.filter((t) => !isKnown(t));
+}
 
 /** Recognises a title the viewer already has, even under another source's id. */
 function knownMatcher(known: readonly Title[]) {

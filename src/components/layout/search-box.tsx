@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { LoaderCircle, Search, X } from "lucide-react";
@@ -10,7 +11,7 @@ import { MEDIA_TYPE_LABEL } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
 
 type Option =
-  | { kind: "title"; id: string; href: string; label: string; meta: string; palette: readonly [string, string, string] }
+  | { kind: "title"; id: string; href: string; label: string; meta: string; palette: readonly [string, string, string]; posterUrl: string | null }
   | { kind: "person"; id: string; href: string; label: string; meta: string };
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -86,6 +87,7 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
         label: t.title,
         meta: `${MEDIA_TYPE_LABEL[t.type]} · ${t.year}`,
         palette: t.palette,
+        posterUrl: t.posterUrl,
       })),
       ...results.people.map((p) => ({
         kind: "person" as const,
@@ -209,9 +211,11 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
                       {opt.kind === "title" ? (
                         <span
                           aria-hidden
-                          className="h-9 w-6 shrink-0 rounded-[3px]"
+                          className="relative h-12 w-8 shrink-0 overflow-hidden rounded-[3px]"
                           style={{ background: `linear-gradient(160deg, ${opt.palette[0]}, ${opt.palette[1]})` }}
-                        />
+                        >
+                          {opt.posterUrl && <Image src={opt.posterUrl} alt="" fill sizes="32px" className="object-cover" />}
+                        </span>
                       ) : (
                         <Avatar user={{ id: opt.id, displayName: opt.label, avatarUrl: null }} size="sm" decorative />
                       )}

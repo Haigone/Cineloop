@@ -114,3 +114,9 @@ Anime go to the anime sources first; TMDB answers only when they have nothing (`
 ### Replacing TMDB anime with the franchise cards
 
 `/api/diagnostics/anime-reset` (signed in) swaps every `tmdb-*` anime title for the matching `anime-ann-*` card for all profiles: libraries, wishlists, activity, links and the films made from it follow. Without `?apply=1` it only lists what would change; titles with no clear match stay as they are; where a user already has the new card, theirs is kept. Long lists continue with the `next` link it returns.
+
+### Anime calendars and the weekly top
+
+Esplora's anime come from the TMDB catalogue plus two open calendars: MyAnimeList (Jikan) and AniList (GraphQL, no key). Both feed "Anime delle prossime stagioni"; AniList's most-watched airing series also fill the weekly top 10 for the Anime tab. Ids: `anime-mal-<id>`, `anime-al-<id>`. `/api/diagnostics/sources` reports `aniList` next to `myAnimeList`.
+
+An anime opened under its old TMDB id moves, for every profile, to its franchise card (`migrateAnimeTitle`), and the page follows.

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnimeFirstCatalog } from "@/integrations/anime/anime-catalog";
 import { JikanClient } from "@/integrations/anime/jikan";
+import { AniListClient } from "@/integrations/anime/anilist";
 import { AnnClient, parseAnimeList } from "@/integrations/anime/ann";
 import { FillerList, fillerSlug, parseEpisodeKinds, parseFillerEpisodes, quickListOf, toRanges } from "@/integrations/anime/filler-list";
 import { finishesTitle, newSeasons } from "@/domain/library";
@@ -60,7 +61,7 @@ function catalog(results: Title[], options: Parameters<typeof routed>[0] = {}) {
   // Tests must not wait a second between calls.
   (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
   vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
-  return { cat: new AnimeFirstCatalog(base(results), ann, new FillerList(fetcher), new JikanClient((async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch)), urls };
+  return { cat: new AnimeFirstCatalog(base(results), ann, new FillerList(fetcher), new JikanClient((async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch), new AniListClient((async () => new Response(JSON.stringify({ data: {} }), { status: 200 })) as unknown as typeof fetch)), urls };
 }
 
 describe("reading the sources", () => {
@@ -246,7 +247,7 @@ describe("filler quick list and artwork", () => {
     (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
     vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
     const mal = new JikanClient((async () => new Response(JSON.stringify({ data: [{ mal_id: 269, title: "Bleach", type: "TV", images: { jpg: { large_image_url: "https://cdn.myanimelist.net/images/anime/3/40451l.jpg" } } }] }), { status: 200 })) as unknown as typeof fetch);
-    const cat = new AnimeFirstCatalog(base([tmdbBleach]), ann, new FillerList(fetcher), mal);
+    const cat = new AnimeFirstCatalog(base([tmdbBleach]), ann, new FillerList(fetcher), mal, new AniListClient((async () => new Response(JSON.stringify({ data: {} }), { status: 200 })) as unknown as typeof fetch));
     const [b] = await cat.search("bleach", 5);
     expect(b!.artwork.posterUrl).toBe("https://cdn.myanimelist.net/images/anime/3/40451l.jpg");
   });
