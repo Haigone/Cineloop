@@ -230,6 +230,15 @@ export class MemoryRepository implements Repository {
     this.library = this.library.filter((e) => !(e.userId === userId && e.titleId === titleId));
   }
 
+  async setPartOverride(userId: string, titleId: string, key: string, included: boolean | null) {
+    const entry = this.library.find((e) => e.userId === userId && e.titleId === titleId);
+    if (!entry) return;
+    const next = { ...entry.partOverrides };
+    if (included === null) delete next[key];
+    else next[key] = included;
+    entry.partOverrides = next;
+  }
+
   async dismissRatingPrompt(userId: string, titleId: string) {
     const entry = this.findEntry(userId, titleId);
     if (entry) entry.askRating = false;

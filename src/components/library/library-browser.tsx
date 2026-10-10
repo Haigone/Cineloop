@@ -151,7 +151,7 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
           }
         />
       ) : (
-        <motion.ul layout className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(156px,1fr))]">
+        <motion.ul layout aria-label="Titoli in libreria" className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(156px,1fr))]">
           <AnimatePresence initial={false} mode="popLayout">
             {shown.map(({ entry, title }) => (
               <motion.li

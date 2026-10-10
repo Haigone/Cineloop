@@ -65,6 +65,8 @@ export interface Repository {
   markFinished(userId: string, titleId: string, seenThrough: number | null): Promise<void>;
   /** Stops asking for a rating ("Non ora"). */
   dismissRatingPrompt(userId: string, titleId: string): Promise<void>;
+  /** Includes or leaves out one part of an anime franchise (or "filler"); null goes back to the default. Needs a library entry. */
+  setPartOverride(userId: string, titleId: string, key: string, included: boolean | null): Promise<void>;
   setRating(userId: string, titleId: string, value: RatingValue | null): Promise<void>;
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;

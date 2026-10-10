@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -31,6 +31,8 @@ export const titles = pgTable(
     seasons: jsonb("seasons").$type<SeasonSummary[]>(),
     /** A film from an anime series: the series' id; "" for a film of its own; null when not checked yet. */
     partOf: text("part_of"),
+    /** An anime franchise in watching order (null for everything else). */
+    watchOrder: jsonb("watch_order").$type<WatchPart[]>(),
   },
   (t) => [index("titles_search_key_idx").on(t.searchKey)],
 );
@@ -76,6 +78,8 @@ export const libraryEntries = pgTable(
     seenThrough: smallint("seen_through"),
     /** Finished by watching to the end and not rated yet: Home asks for a rating. */
     askRating: boolean("ask_rating").notNull().default(false),
+    /** Parts of an anime franchise the user included or left out, by part key. */
+    partOverrides: jsonb("part_overrides").$type<Record<string, boolean>>().notNull().default({}),
   },
   (t) => [primaryKey({ columns: [t.userId, t.titleId] }), check("rating_range", sql`${t.rating} is null or ${t.rating} between 1 and 10`)],
 );

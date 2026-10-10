@@ -193,6 +193,21 @@ export class PostgresRepository implements Repository {
     await this.db.delete(schema.libraryEntries).where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
   }
 
+  async setPartOverride(userId: string, titleId: string, key: string, included: boolean | null) {
+    const [row] = await this.db
+      .select({ partOverrides: schema.libraryEntries.partOverrides })
+      .from(schema.libraryEntries)
+      .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+    if (!row) return;
+    const next = { ...row.partOverrides };
+    if (included === null) delete next[key];
+    else next[key] = included;
+    await this.db
+      .update(schema.libraryEntries)
+      .set({ partOverrides: next })
+      .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+  }
+
   async dismissRatingPrompt(userId: string, titleId: string) {
     await this.db
       .update(schema.libraryEntries)
@@ -583,7 +598,7 @@ function toTitle(r: typeof schema.titles.$inferSelect): Title {
   };
   return r.type === "movie"
     ? { ...base, type: "movie", runtimeMinutes: r.runtimeMinutes ?? 0, ...(r.partOf === null ? {} : { partOf: r.partOf || null }) }
-    : { ...base, type: r.type, seasons: r.seasons ?? [], episodeRuntimeMinutes: r.episodeRuntimeMinutes ?? 0 };
+    : { ...base, type: r.type, seasons: r.seasons ?? [], episodeRuntimeMinutes: r.episodeRuntimeMinutes ?? 0, ...(r.watchOrder ? { watchOrder: r.watchOrder } : {}) };
 }
 
 export function titleToRow(t: Title): typeof schema.titles.$inferInsert {
@@ -605,6 +620,7 @@ export function titleToRow(t: Title): typeof schema.titles.$inferInsert {
     partOf: t.type === "movie" ? (t.partOf === undefined ? null : (t.partOf ?? "")) : null,
     episodeRuntimeMinutes: t.type === "movie" ? null : t.episodeRuntimeMinutes,
     seasons: t.type === "movie" ? null : t.seasons,
+    watchOrder: t.type === "movie" ? null : (t.watchOrder ?? null),
   };
 }
 
@@ -627,6 +643,7 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     progress: r.progress,
     seenThrough: r.seenThrough,
     askRating: r.askRating,
+    partOverrides: r.partOverrides,
   };
 }
 

@@ -25,6 +25,11 @@ async function ensureTitle(id: string) {
   return Boolean(await cacheRemoteTitle(id));
 }
 
+/** The parts of an anime the viewer left in or out, for deciding when it is finished. */
+async function overridesFor(userId: string, id: string) {
+  return (await getRepository().listLibrary(userId)).find((e) => e.titleId === id)?.partOverrides;
+}
+
 /** Adds a line to the viewer's activity, which is what friends see on their dashboard. */
 async function record(userId: string, kind: ActivityKind, id: string, rating: RatingValue | null = null) {
   await getRepository().recordActivity({ userId, kind, titleId: id, at: new Date().toISOString(), season: null, episode: null, rating });
@@ -83,7 +88,7 @@ export async function setStatus(id: string, status: string): Promise<ActionResul
     // "Da vedere" no longer exists in the library: a plan goes to the wishlist.
     if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, parsedId.data);
     const title = await cacheRemoteTitle(parsedId.data);
-    const latest = title ? airedSeasons(title, italianDay()).at(-1) : undefined;
+    const latest = title ? airedSeasons(title, italianDay(), await overridesFor(user.id, parsedId.data)).at(-1) : undefined;
     // A series marked as seen is seen up to its latest season: a later one will be "Novità".
     if (parsedStatus.data === "completed" && latest) await repo.markSeenThrough(user.id, parsedId.data, latest.number);
     else await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
@@ -127,10 +132,25 @@ export async function finishTitle(id: string): Promise<ActionResult> {
   if (!title) return { ok: false, error: "Richiesta non valida." };
   return run(async () => {
     const repo = getRepository();
-    await repo.markFinished(user.id, title.id, title.type === "movie" ? null : (airedSeasons(title, italianDay()).at(-1)?.number ?? null));
+    await repo.markFinished(user.id, title.id, title.type === "movie" ? null : (airedSeasons(title, italianDay(), await overridesFor(user.id, title.id)).at(-1)?.number ?? null));
     await repo.removeFromWishlist(user.id, title.id);
     await record(user.id, "completed", title.id);
   }, "Non siamo riusciti a segnarlo come visto.");
+}
+
+const partKey = z.string().min(1).max(40).regex(/^(ann-\d+|filler)$/);
+
+/** Anime: include or leave out one part of the franchise (or "filler"); null goes back to the default. */
+export async function setPartIncluded(id: string, key: string, included: boolean | null): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  const parsedKey = partKey.safeParse(key);
+  if (!parsedId.success || !parsedKey.success) return { ok: false, error: "Richiesta non valida." };
+  return run(async () => {
+    const repo = getRepository();
+    if (!(await repo.listLibrary(user.id)).some((e) => e.titleId === parsedId.data)) throw new Error("not in library");
+    await repo.setPartOverride(user.id, parsedId.data, parsedKey.data, included);
+  }, "Non siamo riusciti a salvare la scelta.");
 }
 
 /** "Non ora" on Home's rating prompt. */
@@ -206,7 +226,7 @@ export async function saveManualProgress(
   }
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
   // At the end of the last episode (or of the film): seen, and Home asks for a rating.
-  if (runtime > 1 && finishesTitle(title, { season, episode, fraction: minute / runtime }, italianDay())) {
+  if (runtime > 1 && finishesTitle(title, { season, episode, fraction: minute / runtime }, italianDay(), await overridesFor(user.id, title.id))) {
     return run(async () => {
       const repo = getRepository();
       await repo.markFinished(user.id, title.id, season);

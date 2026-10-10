@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { CalendarClock } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { countdownLabel, daysBetween, italianDay } from "@/lib/dates";
@@ -24,18 +24,32 @@ export function remaining(ms: number): string {
   return d > 0 ? `${d}g ${h}h ${m}m` : `${h}h ${m}m`;
 }
 
+let tick = 0;
+function subscribe(onChange: () => void) {
+  const id = setInterval(() => {
+    tick = Date.now();
+    onChange();
+  }, 60_000);
+  tick = Date.now();
+  return () => clearInterval(id);
+}
+
+/** The time, null while rendering on the server and during hydration, then every minute. */
+function useNow(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => tick || (tick = Date.now()),
+    () => null,
+  );
+}
+
 /**
  * A small box with the time left until a series comes out. It first renders
  * the day count (the same on the server and the client), then ticks every
  * minute once mounted.
  */
 export function ReleaseTimer({ date, season, className }: { date: string | null; season?: number | null; className?: string }) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow();
 
   const label = season ? `Stagione ${season}` : "Esce";
   const box = cn("inline-flex items-center gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs", className);

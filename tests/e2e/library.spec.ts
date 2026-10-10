@@ -8,9 +8,12 @@ test("from the library, mark an in-progress title as seen or remove it", async (
   await grid.getByRole("button", { name: "Azioni per The Last of Us" }).click();
   await page.getByRole("button", { name: "Segna come vista" }).click();
   await expect(page.getByText("The Last of Us: segnato come visto")).toBeVisible();
-  await expect(grid.getByRole("link", { name: "The Last of Us" })).toHaveCount(0);
+  // It may still appear under "In attesa" (a new season is announced), but not in the filtered list.
+  await expect(page.getByRole("list", { name: "Titoli in libreria" }).getByRole("link", { name: "The Last of Us" })).toHaveCount(0);
   await page.goto("/library?filter=completed");
-  await expect(page.getByRole("main").getByRole("link", { name: "The Last of Us" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Titoli in libreria" }).getByRole("link", { name: "The Last of Us" })).toBeVisible();
+  // A finished series with a season on the way shows how long is left.
+  await expect(page.getByRole("region", { name: "In attesa" }).or(page.getByRole("list", { name: "Serie in attesa di nuove stagioni" })).first()).toBeVisible();
 
   await page.goto("/library?filter=watching");
   await grid.getByRole("button", { name: "Azioni per Scissione" }).click();

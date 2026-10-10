@@ -1,3 +1,4 @@
+import { lastWantedEpisode, plannedSeasons, type Overrides } from "./watch-order";
 import { sectionOf, type LibraryEntry, type MediaType, type SeasonSummary, type Title, type WatchProgress, type WatchStatus } from "./types";
 
 export type LibraryTypeFilter = "all" | MediaType;
@@ -55,9 +56,9 @@ export function seriesProgress(title: Title, progress: Pick<WatchProgress, "seas
 }
 
 /** Seasons out by `today` (an unknown air date counts as out, an empty season does not). */
-export function airedSeasons(title: Title, today: string): SeasonSummary[] {
+export function airedSeasons(title: Title, today: string, overrides?: Overrides): SeasonSummary[] {
   if (title.type === "movie") return [];
-  return title.seasons.filter((s) => s.episodeCount > 0 && (!s.airDate || s.airDate <= today));
+  return plannedSeasons(title, overrides).filter((s) => s.episodeCount > 0 && (!s.airDate || s.airDate <= today));
 }
 
 /**
@@ -66,7 +67,7 @@ export function airedSeasons(title: Title, today: string): SeasonSummary[] {
  */
 export function newSeasons(entry: LibraryEntry, title: Title, today: string): SeasonSummary[] {
   if (entry.status !== "completed" || entry.seenThrough == null) return [];
-  return airedSeasons(title, today).filter((s) => s.number > entry.seenThrough!);
+  return airedSeasons(title, today, entry.partOverrides).filter((s) => s.number > entry.seenThrough!);
 }
 
 /** How far into the last episode (or the film) counts as finished: the credits may be skipped. */
@@ -77,9 +78,15 @@ export const FINISHED_AT = 0.9;
  * the last episode out of a series' last season out. With no season list,
  * a series cannot be known to be over.
  */
-export function finishesTitle(title: Title, at: { season: number | null; episode: number | null; fraction: number }, today: string): boolean {
+export function finishesTitle(
+  title: Title,
+  at: { season: number | null; episode: number | null; fraction: number },
+  today: string,
+  overrides?: Overrides,
+): boolean {
   if (at.fraction < FINISHED_AT) return false;
   if (title.type === "movie") return true;
-  const last = airedSeasons(title, today).at(-1);
-  return Boolean(last && at.season === last.number && at.episode === last.episodeCount);
+  // Only the parts the user plans to watch count: an excluded last season, or trailing filler, does not hold it open.
+  const last = airedSeasons(title, today, overrides).at(-1);
+  return Boolean(last && at.season === last.number && at.episode !== null && at.episode >= lastWantedEpisode(title, last.number, overrides));
 }

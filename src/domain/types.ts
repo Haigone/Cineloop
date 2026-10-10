@@ -80,10 +80,28 @@ export interface SeasonSummary {
   airDate?: string;
 }
 
+/** One piece of an anime franchise: a season, a film, an OVA or a special. */
+export interface WatchPart {
+  /** Stable id of the part, e.g. "ann-4658". */
+  key: string;
+  kind: "season" | "movie" | "ova" | "special";
+  name: string;
+  year: number | null;
+  episodes: number | null;
+  /** False when it is known not to be canon (a recap, a filler film); null when no source says. */
+  canon: boolean | null;
+  /** For a season: its number in `seasons`. */
+  season?: number;
+  /** For a season: the episodes a source marks as filler. */
+  filler?: number[];
+}
+
 export interface Series extends BaseTitle {
   type: "series" | "anime";
   seasons: SeasonSummary[];
   episodeRuntimeMinutes: number;
+  /** For an anime from the anime sources: the whole franchise in watching order. */
+  watchOrder?: WatchPart[];
 }
 
 export type Title = Movie | Series;
@@ -169,6 +187,8 @@ export interface LibraryEntry {
   seenThrough?: number | null;
   /** Just finished (the last episode, or the film to the end): Home asks for a rating. */
   askRating?: boolean;
+  /** Anime: parts the user chose to include (true) or leave out (false), by part key; "filler" = watch filler episodes. */
+  partOverrides?: Record<string, boolean>;
 }
 
 export interface WishlistItem {

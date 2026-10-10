@@ -17,6 +17,7 @@ import { WatchSourceChooser } from "@/components/title/watch-source-chooser";
 import { SuggestDialog } from "@/components/title/suggest-dialog";
 import { ProgressEditor } from "@/components/title/progress-editor";
 import { SeasonList } from "@/components/title/season-list";
+import { WatchOrder } from "@/components/title/watch-order";
 import { Rail } from "@/components/media/rail";
 import { TitleCard } from "@/components/media/title-card";
 
@@ -131,6 +132,15 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 at={entry?.progress ? { season: entry.progress.season, episode: entry.progress.episode } : null}
                 seenThrough={entry?.status === "completed" ? (entry.seenThrough ?? null) : null}
               />
+            </section>
+          )}
+
+          {title.type !== "movie" && (title.watchOrder?.length ?? 0) > 1 && (
+            <section aria-labelledby="order-h">
+              <h2 id="order-h" className="mb-3 text-[15px] font-semibold">
+                Ordine di visione
+              </h2>
+              <WatchOrder titleId={title.id} parts={title.watchOrder!} overrides={entry?.partOverrides} canChoose={Boolean(entry)} />
             </section>
           )}
 

@@ -71,6 +71,13 @@
       "when": 1791556080507,
       "tag": "0009_ask_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791642214550,
+      "tag": "0010_anime_watch_order",
+      "breakpoints": true
     }
   ]
 }
