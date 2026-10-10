@@ -41,19 +41,23 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
     })),
   );
   const related = relatedRecords.filter((item): item is typeof item & { anime: NonNullable<typeof item.anime> } => item.anime !== null);
+  const isWatchable = (item: typeof anime) =>
+    !/(?:^|\\b)(?:music|music video|trailer|promotional video|commercial|pv|cm)(?:\\b|$)/i.test(item.format ?? "") &&
+    (item.episodeCount === null || item.episodeCount > 0);
   const watchNodes = [
-    { id: anime.id, title: anime.title, relation: "parent_story", url: anime.anidbUrl, episodeCount: anime.episodeCount },
+    { id: anime.id, title: anime.title, relation: "parent_story", url: anime.anidbUrl, episodeCount: anime.episodeCount, watchable: isWatchable(anime) },
     ...related.map(({ relation, anime: item }) => ({
       id: item.id,
       title: item.title,
       relation: relation.type,
       url: item.anidbUrl,
       episodeCount: item.episodeCount,
+      watchable: isWatchable(item),
     })),
   ];
   const user = await getCurrentUser();
   const savedPath = await getRepository().listAnimeWatchPath(user.id, anime.id);
-  const initialPlan = Object.fromEntries(savedPath.map((entry) => [entry.animeId, { include: entry.included, watched: entry.watched }]));
+  const initialPlan = Object.fromEntries(savedPath.map((entry) => [entry.animeId, { include: entry.included, role: entry.role ?? (entry.included ? "required" : "skipped"), watched: entry.watched }]));
   const animeUnitySearch = providerSearchUrl("animeunity", anime.title);
   const annId = anime.annIds[0] ?? null;
   const ann = annId ? await getAnnAnime(annId) : null;
