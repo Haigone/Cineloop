@@ -106,4 +106,4 @@ Anime go to the anime sources first; TMDB answers only when they have nothing (`
 - **AniDB**: not connected. Its HTTP API cannot search by name (only through a daily dump file) and needs a client registered on anidb.net.
 - Default choice per part: known non-canon (recaps) and OVAs / specials are off, everything else is on; the user switches parts and "Guarda anche i filler" on the title page. What is off does not count for progress, "finished" or "Novità".
 - None of the three services can be reached from the development sandbox: the parsers are tested on fixtures that follow the documented format, not on live answers.
-- Check page: signed in, open `/api/diagnostics/sources` (add `?seed=25066` to build one franchise end to end). It shows what ANN and Anime Filler List answer from the server, whether TMDB is active, and how many upcoming releases are found.
+- Check page: signed in, open `/api/diagnostics/sources` (add `?q=name` to run the site's search, or `?seed=25066` to build one franchise from an ANN id). It shows what ANN and Anime Filler List answer from the server, whether TMDB is active, and how many upcoming releases are found.

@@ -50,7 +50,26 @@ export async function GET(request: Request) {
     })),
   ]);
   // End to end: the franchise the way the site builds it from one entry (?seed=25066), when asked for.
-  const seed = new URL(request.url).searchParams.get("seed");
+  const params = new URL(request.url).searchParams;
+  // ?q=name runs the site's own search, so what comes back is what the search box would show.
+  const q = params.get("q")?.trim().slice(0, 80);
+  let search: unknown = undefined;
+  if (q && q.length >= 2) {
+    try {
+      const found = await catalog.search(q, 10);
+      search = found.map((t) => ({
+        id: t.id,
+        type: t.type,
+        title: t.title,
+        year: t.year,
+        seasons: t.type === "movie" ? undefined : t.seasons.map((s) => [s.number, s.episodeCount, s.name ?? null]),
+        order: t.type === "movie" ? undefined : t.watchOrder?.map((p) => [p.kind, p.name, p.year, p.episodes, p.canon, p.filler?.length ?? 0]),
+      }));
+    } catch (err) {
+      search = { error: String(err) };
+    }
+  }
+  const seed = params.get("seed");
   let franchise: unknown = undefined;
   if (seed && /^\d{1,8}$/.test(seed)) {
     try {
@@ -69,6 +88,7 @@ export async function GET(request: Request) {
     }
   }
   return NextResponse.json({
+    search,
     franchise,
     catalogue: { name: catalog.name, complete: catalog.complete, tmdbTokenSet: Boolean(process.env.TMDB_READ_TOKEN), animeSources: process.env.ANIME_SOURCES !== "off" },
     today,
