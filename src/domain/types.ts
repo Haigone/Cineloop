@@ -320,5 +320,7 @@ export interface AnimeWatchPathEntry {
   included: boolean;
   role: AnimeWatchPathRole;
   watched: boolean;
+  /** Completed episode keys (TMDB season/episode) when the crosswalk is unambiguous. */
+  watchedEpisodes?: string[];
   updatedAt: string;
 }
