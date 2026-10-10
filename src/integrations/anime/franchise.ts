@@ -96,7 +96,7 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
   if (!root) return null;
 
   const recapped = new Set(
-    sorted.filter((e) => e.related.some((r) => r.rel === "summary")).map((e) => e.id),
+    sorted.filter((e) => e.related.some((r) => r.rel === "summary" || r.rel === "summary of")).map((e) => e.id),
   );
   const fillerBy = new Map<string, number[]>();
   await Promise.all(

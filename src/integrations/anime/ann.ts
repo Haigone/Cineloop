@@ -9,8 +9,23 @@ const MIN_GAP_MS = 1100;
 const MAX_IDS = 50;
 const DAY = 86_400;
 
-/** Relations that keep an entry in the same franchise. Adaptations (manga), remakes and spin-offs are left out. */
-export const FRANCHISE_RELATIONS = new Set(["prequel", "sequel", "side story", "summary", "parent story", "full story"]);
+/**
+ * Relations that keep an entry in the same franchise, as ANN words them: "sequel" on the older entry,
+ * "sequel of" on the newer one, and the same for side stories and summaries. Adaptations (manga),
+ * remakes and the loose "related" links are left out.
+ */
+export const FRANCHISE_RELATIONS = new Set([
+  "prequel",
+  "prequel of",
+  "sequel",
+  "sequel of",
+  "side story",
+  "side story of",
+  "summary",
+  "summary of",
+  "parent story",
+  "full story",
+]);
 
 function text(node: XmlNode, type: string): string | null {
   const hit = node.children.find((c) => c.name === "info" && c.attrs.type === type);

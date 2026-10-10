@@ -77,6 +77,30 @@ describe("reading the sources", () => {
   });
 });
 
+describe("ANN's own wording of relations (Bleach as it answers today)", () => {
+  const e = (id: number, type: string, name: string, start: string, eps: number | null, rel: [string, number][]) =>
+    entry(id, type, name, `${eps ? `<info type="Number of episodes">${eps}</info>` : ""}<info type="Vintage">${start}</info>${rel.map(([r, i]) => `<related-next rel="${r}" id="${i}"/>`).join("")}`);
+  const ann = `<ann>${[
+    e(4240, "TV", "Bleach", "2004-10-05", 366, [["adapted from", 2468], ["related", 5440], ["side story", 6197], ["side story", 6600], ["sequel", 25066]]),
+    e(25066, "TV", "Bleach: Thousand-Year Blood War", "2022-10-10", 13, [["sequel of", 4240], ["sequel", 26771]]),
+    e(26771, "TV", "Bleach: Thousand-Year Blood War - The Separation", "2023-07-08", 13, [["sequel of", 25066]]),
+    e(6600, "movie", "Bleach the Movie: Memories of Nobody", "2006-12-16", null, [["side story of", 4240], ["sequel", 8369]]),
+    e(8369, "movie", "Bleach: The DiamondDust Rebellion", "2007-12-22", null, [["sequel of", 6600]]),
+    e(6197, "OAV", "Bleach: The Sealed Sword Frenzy", "2005", 1, [["side story of", 4240]]),
+    e(5440, "OAV", "Bleach: Memories in the Rain", "2004", 1, [["related to", 4240]]),
+  ].join("")}</ann>`;
+
+  it("gathers series, films and side stories, from the oldest entry or the newest, and leaves loose links out", async () => {
+    for (const id of ["4240", "26771"]) {
+      const { cat } = catalog([], { ann });
+      const title = (await cat.getTitle(`anime-ann-${id}`)) as Series;
+      expect(title.id).toBe("anime-ann-4240");
+      expect(title.seasons.map((x) => x.episodeCount)).toEqual([366, 13, 13]);
+      expect(title.watchOrder!.map((p) => p.key)).toEqual(["ann-4240", "ann-6197", "ann-6600", "ann-8369", "ann-25066", "ann-26771"]);
+    }
+  });
+});
+
 describe("links recorded on one side only", () => {
   // As on ANN in practice: the sequel names its prequel, the prequel names no sequel.
   const OLD = entry(4658, "TV", "Bleach", `<info type="Number of episodes">366</info><info type="Vintage">2004-10-05</info><related-next rel="adapted from" id="4199"/>`);
