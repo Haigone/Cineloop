@@ -45,7 +45,8 @@ export interface ExtensionStatus {
 const brief = (t: Title) => ({ id: t.id, title: t.title, year: t.year });
 
 /** Only share reusable provider IDs for an explicitly supported, authorized provider. */
-const canShareProviderTitleLinks = (providerId: Presence["providerId"]) => providerId === "netflix";
+const canShareProviderTitleLinks = (providerId: Presence["providerId"]) =>
+  providerId === "netflix" || providerId === "animeunity";
 
 export async function handleObservation(userId: string, obs: SyncObservation): Promise<ExtensionStatus> {
   const repo = getRepository();
