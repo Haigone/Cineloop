@@ -65,8 +65,9 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
 
   // Anime pages always offer an Anime Unity shortcut. If playback has already
   // been observed, the progress entry instead opens the exact saved page.
-  const hasStreamingCommunityProgress = sectionOf(title) !== "anime" && library.some((e) => e.titleId === id && e.progress?.providerId === "streamingcommunity");
-  const providerIds = [...new Set([...title.providers, ...(title.type === "anime" ? ["animeunity" as const] : []), ...(hasStreamingCommunityProgress ? ["streamingcommunity" as const] : [])])];
+  // Keep the experimental Streaming Community Worker shortcut available on every title,
+  // even before any user's extension has observed a provider-specific ID.
+  const providerIds = [...new Set([...title.providers, ...(title.type === "anime" ? ["animeunity" as const] : []), "streamingcommunity" as const])];
   return {
     title,
     entry: library.find((e) => e.titleId === id) ?? null,
