@@ -112,3 +112,57 @@ export async function searchAniDbAnime(query: string, limit = 12): Promise<Anime
     return [];
   }
 }
+
+
+export interface AnnEnrichment {
+  id: number;
+  title: string | null;
+  format: string | null;
+  episodeCount: number | null;
+  pictureUrl: string | null;
+  url: string;
+}
+
+let lastAnnRequestAt = 0;
+
+function xmlAttribute(tag: string, attribute: string): string | null {
+  const match = new RegExp(`\\\\b${attribute}="([^"]*)"`).exec(tag);
+  return match?.[1]?.replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">") ?? null;
+}
+
+/** ANN Encyclopedia XML enrichment, cached and rate-limited to avoid burst requests. */
+export async function getAnnAnime(id: number): Promise<AnnEnrichment | null> {
+  if (!Number.isSafeInteger(id) || id < 1) return null;
+  const key = `ann:${id}`;
+  const cached = cache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.value as AnnEnrichment | null;
+
+  try {
+    const wait = Math.max(0, 1_050 - (Date.now() - lastAnnRequestAt));
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastAnnRequestAt = Date.now();
+    const response = await fetch(`https://cdn.animenewsnetwork.com/encyclopedia/api.xml?anime=${id}`, {
+      headers: { accept: "application/xml,text/xml", "user-agent": "CineLoop/1.0 (anime metadata attribution)" },
+      signal: AbortSignal.timeout(8_000),
+      next: { revalidate: 3_600 },
+    });
+    if (!response.ok) return null;
+    const xml = await response.text();
+    const tag = /<anime\\b[^>]*>/i.exec(xml)?.[0];
+    if (!tag || xml.includes("<error")) return null;
+    const episodeCount = [...xml.matchAll(/<episode\\b[^>]*>/gi)].length;
+    const pictureTag = [...xml.matchAll(/<info\\b[^>]*type="Picture"[^>]*>/gi)][0]?.[0];
+    const result: AnnEnrichment = {
+      id,
+      title: xmlAttribute(tag, "name"),
+      format: xmlAttribute(tag, "type"),
+      episodeCount: episodeCount || null,
+      pictureUrl: pictureTag ? xmlAttribute(pictureTag, "src") : null,
+      url: `https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${id}`,
+    };
+    cache.set(key, { value: result, expires: Date.now() + 60 * 60_000 });
+    return result;
+  } catch {
+    return null;
+  }
+}
