@@ -163,7 +163,10 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                   <li key={p.id}>
                     <a
                       href={destination}
-                      className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
+                      target={p.id === "streamingcommunity" ? "_blank" : undefined}
+                      rel={p.id === "streamingcommunity" ? "noopener noreferrer" : undefined}
+                      aria-label={p.id === "streamingcommunity" ? `Apri il Worker di test per ${title.title}` : undefined}
+                      className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                     >
                       <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
                       {progress?.providerId === p.id ? "Continua a guardare" : `Dove guardarlo · ${p.name}`}
