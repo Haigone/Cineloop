@@ -16,4 +16,7 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           test -n "$CRON_SECRET" || (echo "Missing CRON_SECRET repository secret" && exit 1)
-          curl --fail --silent --show-error --retry 2 --retry-delay 5             --connect-timeout 15 --max-time 60             -H "Authorization: Bearer $CRON_SECRET"             "$CINELOOP_URL/api/cron/anime-releases"
+          curl --fail --silent --show-error --retry 2 --retry-delay 5 \
+            --connect-timeout 15 --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CINELOOP_URL/api/cron/anime-releases"
