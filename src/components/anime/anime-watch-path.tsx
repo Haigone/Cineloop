@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/toast";
 
 type Node = { id: string; title: string; relation: string; url: string; episodeCount: number | null; watchable: boolean };
 type Role = "required" | "optional" | "skipped";
-type Choice = { include: boolean; role: Role; watched: boolean };
+type Choice = { include: boolean; role: Role; watched: boolean; watchedEpisodes?: string[] };
 type SavedPlan = Record<string, Choice>;
 
 const RELATION_LABEL: Record<string, string> = {
@@ -38,7 +38,11 @@ export function AnimeWatchPath({
     const included = nodes.filter((node) => node.watchable && (plan[node.id]?.role ?? "required") !== "skipped");
     const units = (node: Node) => Math.max(1, node.episodeCount ?? 1);
     const total = included.reduce((sum, node) => sum + units(node), 0);
-    const watched = included.filter((node) => plan[node.id]?.watched).reduce((sum, node) => sum + units(node), 0);
+    const watched = included.reduce((sum, node) => {
+      const choice = plan[node.id];
+      const count = choice?.watched ? units(node) : Math.min(units(node), new Set(choice?.watchedEpisodes ?? []).size);
+      return sum + count;
+    }, 0);
     return { total, watched, remaining: total - watched };
   }, [nodes, plan]);
 
@@ -68,7 +72,7 @@ export function AnimeWatchPath({
       </div>
       <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
         {nodes.map((node) => {
-          const choice = plan[node.id] ?? { include: true, role: "required" as const, watched: false };
+          const choice = plan[node.id] ?? { include: true, role: "required" as const, watched: false, watchedEpisodes: [] };
           return (
             <li key={node.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
               <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -110,7 +114,7 @@ export function AnimeWatchPath({
         })}
       </ul>
       <p className="text-xs leading-relaxed text-fg-3">
-        Le scelte vengono salvate nel tuo account CineLoop. Il conteggio considera solo opere guardabili incluse nel percorso; le serie pesano per il numero di episodi noto e film o episodi singoli valgono almeno un’unità.
+        Le scelte vengono salvate nel tuo account CineLoop. Il progresso episodio per episodio si sincronizza quando il player segnala almeno il 90% di visione e il collegamento AniDB–TMDB è univoco; le mappature ambigue non vengono conteggiate per evitare duplicati.
       </p>
     </section>
   );
