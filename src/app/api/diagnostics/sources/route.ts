@@ -7,12 +7,12 @@ import { FillerList, parseFillerEpisodes } from "@/integrations/anime/filler-lis
 import { italianDay } from "@/lib/dates";
 
 /** What one source answered: enough to see why it is not working, never any content or secrets. */
-async function probe(url: string, read: (body: string) => unknown) {
+async function probe(url: string, read: (body: string) => unknown, timeoutMs = 8000) {
   const started = Date.now();
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "CineLoop/1.0 (personal watch tracker)" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
     const body = await res.text();
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     probe("https://api.jikan.moe/v4/seasons/upcoming?sfw=true&limit=25", (b) => {
       const data = (JSON.parse(b) as { data?: { mal_id: number; title?: string; type?: string; status?: string; aired?: { from?: string | null } }[] }).data ?? [];
       return { records: data.length, sample: data.slice(0, 8).map((a) => [a.mal_id, a.title, a.type, a.status, a.aired?.from?.slice(0, 10) ?? null]) };
-    }),
+    }, 25000),
   ]);
   // End to end: the franchise the way the site builds it from one entry (?seed=25066), when asked for.
   const params = new URL(request.url).searchParams;

@@ -94,16 +94,22 @@ export class JikanClient {
   }
 
   private async get<T>(path: string): Promise<T | null> {
-    try {
-      const res = await this.fetcher(`${API}${path}`, {
-        headers: { Accept: "application/json", "User-Agent": this.userAgent },
-        signal: AbortSignal.timeout(8000),
-        next: { revalidate: 6 * HOUR },
-      } as RequestInit);
-      return res.ok ? ((await res.json()) as T) : null;
-    } catch (err) {
-      console.error("Jikan request failed", err);
-      return null;
+    // Jikan is often slow and answers 429/5xx under load: wait longer, and ask once more on those.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await this.fetcher(`${API}${path}`, {
+          headers: { Accept: "application/json", "User-Agent": this.userAgent },
+          signal: AbortSignal.timeout(15000),
+          next: { revalidate: 6 * HOUR },
+        } as RequestInit);
+        if (res.ok) return (await res.json()) as T;
+        if (res.status !== 429 && res.status < 500) return null;
+        await new Promise((r) => setTimeout(r, 1000));
+      } catch (err) {
+        console.error("Jikan request failed", err);
+        return null;
+      }
     }
+    return null;
   }
 }
