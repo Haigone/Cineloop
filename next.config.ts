@@ -5,7 +5,15 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   // Posters and backdrops when the TMDB catalog is enabled.
-  images: { remotePatterns: [{ protocol: "https", hostname: "image.tmdb.org", pathname: "/t/p/**" }] },
+  // Anime from the anime sources bring their own pictures (MyAnimeList, Anime News Network).
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "image.tmdb.org", pathname: "/t/p/**" },
+      { protocol: "https", hostname: "cdn.myanimelist.net", pathname: "/images/**" },
+      { protocol: "https", hostname: "www.animenewsnetwork.com" },
+      { protocol: "https", hostname: "cdn.animenewsnetwork.com" },
+    ],
+  },
   turbopack: {
     rules: {
       "*.css": {

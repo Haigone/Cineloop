@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnimeFirstCatalog } from "@/integrations/anime/anime-catalog";
+import { JikanClient } from "@/integrations/anime/jikan";
 import { AnnClient, parseAnimeList } from "@/integrations/anime/ann";
-import { FillerList, fillerSlug, parseFillerEpisodes } from "@/integrations/anime/filler-list";
+import { FillerList, fillerSlug, parseEpisodeKinds, parseFillerEpisodes, quickListOf, toRanges } from "@/integrations/anime/filler-list";
 import { finishesTitle, newSeasons } from "@/domain/library";
 import { includedByDefault, isIncluded, plannedSeasons } from "@/domain/watch-order";
 import { getRepository } from "@/server/data";
@@ -59,7 +60,7 @@ function catalog(results: Title[], options: Parameters<typeof routed>[0] = {}) {
   // Tests must not wait a second between calls.
   (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
   vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
-  return { cat: new AnimeFirstCatalog(base(results), ann, new FillerList(fetcher)), urls };
+  return { cat: new AnimeFirstCatalog(base(results), ann, new FillerList(fetcher), new JikanClient((async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch)), urls };
 }
 
 describe("reading the sources", () => {
@@ -220,5 +221,33 @@ describe("choosing what to watch", () => {
     expect(await read()).toEqual({ "ann-4": false });
     await repo.setPartOverride("u_marco", title.id, "ann-4", null);
     expect(await read()).toEqual({});
+  });
+});
+
+describe("filler quick list and artwork", () => {
+  const PAGE = `<table>${["manga_canon:Manga Canon", "manga_canon:Manga Canon", "anime_canon:Anime Canon", "filler:Filler", "filler:Filler", "mixed_canon/filler:Mixed Canon/Filler", "manga_canon:Manga Canon"]
+    .map((r, i) => `<tr class="${r.split(":")[0]} odd"><td class="Number">${i + 1}</td><td class="Type"><span>${r.split(":")[1]}</span></td></tr>`)
+    .join("")}</table>`;
+
+  it("groups the episodes of each kind into ranges", () => {
+    expect(toRanges([1, 2, 3, 5, 7, 8])).toEqual([[1, 3], [5, 5], [7, 8]]);
+    expect(quickListOf(parseEpisodeKinds(PAGE))).toEqual({ mangaCanon: [[1, 2], [7, 7]], animeCanon: [[3, 3]], mixed: [[6, 6]], filler: [[4, 5]] });
+    expect(quickListOf(parseEpisodeKinds(PAGE), 4).filler).toEqual([[4, 4]]);
+  });
+
+  it("borrows TMDB's poster for a franchise it knows, else MyAnimeList's", async () => {
+    const withPoster = { ...tmdbBleach, artwork: { ...tmdbBleach.artwork, posterUrl: "https://image.tmdb.org/t/p/w500/x.jpg", backdropUrl: "https://image.tmdb.org/t/p/w1280/y.jpg" } } as Title;
+    const first = catalog([withPoster]);
+    const [a] = await first.cat.search("bleach", 5);
+    expect(a!.artwork.posterUrl).toBe("https://image.tmdb.org/t/p/w500/x.jpg");
+
+    const { fetcher } = routed();
+    const ann = new AnnClient(fetcher);
+    (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
+    const mal = new JikanClient((async () => new Response(JSON.stringify({ data: [{ mal_id: 269, title: "Bleach", type: "TV", images: { jpg: { large_image_url: "https://cdn.myanimelist.net/images/anime/3/40451l.jpg" } } }] }), { status: 200 })) as unknown as typeof fetch);
+    const cat = new AnimeFirstCatalog(base([tmdbBleach]), ann, new FillerList(fetcher), mal);
+    const [b] = await cat.search("bleach", 5);
+    expect(b!.artwork.posterUrl).toBe("https://cdn.myanimelist.net/images/anime/3/40451l.jpg");
   });
 });

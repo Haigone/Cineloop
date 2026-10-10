@@ -61,6 +61,7 @@ export class AnimeFirstCatalog implements CatalogService {
     if (hit && Date.now() - hit.at < MEMO_MS) return hit.value;
     const value = this.gather(annId, known)
       .then((entries) => buildFranchise(entries, this.fillers))
+      .then((f) => (f ? this.withArtwork(f) : f))
       .catch((err) => {
         console.error("building an anime franchise failed", err);
         return null;
@@ -72,6 +73,27 @@ export class AnimeFirstCatalog implements CatalogService {
       else for (const id of f.entries.keys()) this.memo.set(id, { at: Date.now(), value });
     });
     return value;
+  }
+
+  /**
+   * A picture for the franchise: TMDB's when it knows the show, else MyAnimeList's, else the one
+   * Anime News Network lists (often missing).
+   */
+  private async withArtwork(f: Franchise): Promise<Franchise> {
+    const name = f.title.title;
+    const key = searchKey(name);
+    const same = (n: string) => {
+      const k = searchKey(n);
+      return k === key || (k.length > 3 && key.length > 3 && (k.startsWith(key) || key.startsWith(k)));
+    };
+    const tmdb = await this.base.search(name, 5).then((r) => r.find((t) => t.type !== "movie" && same(t.title) && t.artwork.posterUrl), () => undefined);
+    if (tmdb) {
+      f.title.artwork = { ...f.title.artwork, posterUrl: tmdb.artwork.posterUrl, backdropUrl: tmdb.artwork.backdropUrl ?? f.title.artwork.backdropUrl };
+      return f;
+    }
+    const mal = (await this.jikan.search(name)).find((a) => namesOf(a).some(same) && (a.images?.jpg?.large_image_url || a.images?.jpg?.image_url));
+    if (mal) f.title.artwork = { ...f.title.artwork, posterUrl: mal.images!.jpg!.large_image_url || mal.images!.jpg!.image_url! };
+    return f;
   }
 
   /**

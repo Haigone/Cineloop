@@ -94,6 +94,13 @@ export interface WatchPart {
   season?: number;
   /** For a season: the episodes a source marks as filler. */
   filler?: number[];
+  /** For a season: every kind of episode as [first, last] runs (Anime Filler List's quick list). */
+  quickList?: {
+    mangaCanon: [number, number][];
+    animeCanon: [number, number][];
+    mixed: [number, number][];
+    filler: [number, number][];
+  };
 }
 
 export interface Series extends BaseTitle {

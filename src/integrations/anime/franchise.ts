@@ -1,6 +1,6 @@
 import type { Genre, SeasonSummary, Series, WatchPart } from "@/domain/types";
 import { FRANCHISE_RELATIONS, type AnnClient } from "./ann";
-import type { FillerList } from "./filler-list";
+import { quickListOf, type FillerList } from "./filler-list";
 import type { AnimeEntry } from "./types";
 
 /** At most this many entries and request rounds are followed from one starting point. */
@@ -98,14 +98,13 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
   const recapped = new Set(
     sorted.filter((e) => e.related.some((r) => r.rel === "summary" || r.rel === "summary of")).map((e) => e.id),
   );
-  const fillerBy = new Map<string, number[]>();
+  const fillerBy = new Map<string, WatchPart["quickList"]>();
   await Promise.all(
     seasonEntries
       .filter((e) => (e.episodes ?? 0) >= FILLER_MIN_EPISODES)
       .map(async (e) => {
-        const found = await fillers.fillerOf(e.name);
-        const max = e.episodes ?? Infinity;
-        if (found.length) fillerBy.set(e.id, found.filter((n) => n <= max));
+        const kinds = await fillers.kindsOf(e.name);
+        if (kinds.size) fillerBy.set(e.id, quickListOf(kinds, e.episodes ?? Infinity));
       }),
   );
 
@@ -123,8 +122,12 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
     };
     if (kind === "season") {
       part.season = ++season;
-      const filler = fillerBy.get(e.id);
-      if (filler?.length) part.filler = filler;
+      const quick = fillerBy.get(e.id);
+      if (quick) {
+        part.quickList = quick;
+        const filler = quick.filler.flatMap(([a, b]) => Array.from({ length: b - a + 1 }, (_, i) => a + i));
+        if (filler.length) part.filler = filler;
+      }
     }
     return part;
   });

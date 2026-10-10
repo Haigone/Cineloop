@@ -89,6 +89,12 @@ export class JikanClient {
     return data?.data ?? [];
   }
 
+  /** The best matches for a name, for borrowing a picture. */
+  async search(name: string): Promise<JikanAnime[]> {
+    const data = await this.get<{ data?: JikanAnime[] }>(`/anime?q=${encodeURIComponent(name)}&limit=5&sfw=true&order_by=popularity`);
+    return data?.data ?? [];
+  }
+
   async byId(id: string): Promise<JikanAnime | null> {
     return (await this.get<{ data?: JikanAnime }>(`/anime/${id}`))?.data ?? null;
   }

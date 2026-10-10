@@ -18,6 +18,7 @@ import { SuggestDialog } from "@/components/title/suggest-dialog";
 import { ProgressEditor } from "@/components/title/progress-editor";
 import { SeasonList } from "@/components/title/season-list";
 import { WatchOrder } from "@/components/title/watch-order";
+import { FillerGuide } from "@/components/title/filler-guide";
 import { Rail } from "@/components/media/rail";
 import { TitleCard } from "@/components/media/title-card";
 
@@ -262,6 +263,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
           <div className="mt-3">
             <SuggestDialog titleId={title.id} titleName={title.title} friends={view.allFriends} alreadyHave={friends.map((f) => f.user.id)} />
           </div>
+          {title.type !== "movie" && title.watchOrder && <FillerGuide parts={title.watchOrder} />}
           {title.communityRating && (
             <p className="mt-5 border-t border-line pt-4 text-[13px] text-fg-3">
               Voto della community: <span className="text-fg tabular">{title.communityRating.toLocaleString("it-IT")}</span>/10
