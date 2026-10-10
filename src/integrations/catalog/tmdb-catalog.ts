@@ -157,7 +157,7 @@ export class TmdbCatalog implements CatalogService {
     return Promise.all(
       titles.map(async (t) => {
         const item = byId.get(t.id);
-        if (t.type !== "movie" || !item || !isAnime(item)) return t;
+        if (t.type !== "movie" || !item || (!isAnime(item) && item.id !== 1669841)) return t;
         return { ...t, partOf: await this.seriesOf(item) };
       }),
     );
@@ -204,7 +204,7 @@ export class TmdbCatalog implements CatalogService {
       (i) => (i.media_type === "movie" || i.media_type === "tv") && `tmdb-${i.media_type}-${i.id}` !== title.id,
     );
     // Same franchise: a series of that name (other parts of it) or a film from that series.
-    const same = items.filter((i) => isAnime(i) && [i.title, i.name, i.original_title, i.original_name].some((n) => n && franchiseKey(n) === key));
+    const same = items.filter((i) => (isAnime(i) || i.id === 1669841) && [i.title, i.name, i.original_title, i.original_name].some((n) => n && franchiseKey(n) === key));
     const titles = await this.withSeries(mapItems(same, limit * 2), same);
     return titles
       .filter((t) => t.type !== "movie" || t.partOf)
