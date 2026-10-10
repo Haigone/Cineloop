@@ -126,6 +126,13 @@ export class MemoryRepository implements Repository {
     this.animeWatchPath.set(key, entry);
   }
 
+  async setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean) {
+    for (const [key, entry] of this.animeWatchPath) {
+      if (entry.userId !== userId || entry.animeId !== animeId || !entry.included) continue;
+      this.animeWatchPath.set(key, { ...entry, watched, updatedAt: new Date().toISOString() });
+    }
+  }
+
   // Users -------------------------------------------------------------------
 
   async listUsers() {
