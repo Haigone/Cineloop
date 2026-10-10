@@ -199,6 +199,23 @@ export const preferences = pgTable("preferences", {
   homeBackgrounds: jsonb("home_backgrounds").$type<Partial<Record<MediaType, string>>>().notNull().default({}),
 });
 
+/** User-selected AniDB works in a watch path; deliberately independent of TMDB title ids. */
+export const animeWatchPath = pgTable(
+  "anime_watch_path",
+  {
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    rootId: text("root_id").notNull(),
+    animeId: text("anime_id").notNull(),
+    included: boolean("included").notNull().default(true),
+    watched: boolean("watched").notNull().default(false),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.rootId, t.animeId] }),
+    index("anime_watch_path_user_root_idx").on(t.userId, t.rootId),
+  ],
+);
+
 /** One-time codes that pair the browser extension with an account. Stored hashed. */
 export const pairingCodes = pgTable("pairing_codes", {
   codeHash: text("code_hash").primaryKey(),
