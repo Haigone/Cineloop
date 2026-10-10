@@ -45,7 +45,7 @@ async function withRemote(local: Title[], q: string, limit: number): Promise<Tit
   const catalog = getCatalog();
   if (catalog.name === "demo") return withoutSeriesFilms(local);
   try {
-    const found = await catalog.search(q, limit);
+    const found = (await catalog.search(q, limit)).filter((title) => title.type !== "anime");
     if (found.length) await cacheTitles(getRepository(), found);
     // The catalogue's copy is fresher (it knows which films come from a series); one row per title.
     const fresh = new Map(found.map((t) => [t.id, t]));
