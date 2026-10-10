@@ -490,7 +490,12 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   }
   // A part named in the player's title ("JoJo: Stone Ocean") is that season,
   // even when the service numbers the part as a show of its own ("S1:E3").
-  const named = title ? seasonFromLabel(title, presence.label) : null;
+  const isAnimeUnityBleachCour = presence.providerId === "animeunity" &&
+    /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(presence.label ?? "");
+  // For AnimeUnity, the four TYBW cours are explicit seasons in CineLoop's
+  // watch order. Do not let TMDB's differently grouped season names collapse
+  // The Conflict back into the broader Thousand-Year Blood War season.
+  const named = title && !isAnimeUnityBleachCour ? seasonFromLabel(title, presence.label) : null;
   if (named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
