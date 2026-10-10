@@ -316,25 +316,27 @@ export class TmdbCatalog implements CatalogService {
           "release_date.lte": to,
         })}`,
       );
-    const [digital, theatrical, shows] = await Promise.all([
+    const tvQuery = (service: Record<string, string>) =>
+      this.list(
+        `/discover/tv?${new URLSearchParams({
+          include_adult: "false",
+          sort_by: "popularity.desc",
+          "first_air_date.gte": from,
+          "first_air_date.lte": to,
+          ...service,
+          ...(type === "anime" ? { with_original_language: "ja", with_genres: "16" } : {}),
+        })}`,
+      );
+    const [digital, theatrical, byNetwork, byProvider] = await Promise.all([
       // Digital premieres (type 4) are what reaches streaming; theatrical ones (2, 3) are cinema only.
       wantMovies ? movieQuery("4") : Promise.resolve([]),
       wantMovies ? movieQuery("2|3") : Promise.resolve([]),
-      wantTv
-        ? this.list(
-            `/discover/tv?${new URLSearchParams({
-              include_adult: "false",
-              sort_by: "popularity.desc",
-              "first_air_date.gte": from,
-              "first_air_date.lte": to,
-              // Only series made for the services CineLoop covers: unreleased series have no
-              // watch-provider data yet, so the network that commissions them stands in.
-              with_networks: STREAMING_NETWORKS.join("|"),
-              ...(type === "anime" ? { with_original_language: "ja", with_genres: "16" } : {}),
-            })}`,
-          )
-        : Promise.resolve([]),
+      // Only series made for the services CineLoop covers. An unreleased series often has no watch-provider
+      // data yet, so the network that commissions it counts too; either match is enough.
+      wantTv ? tvQuery({ with_networks: STREAMING_NETWORKS.join("|") }) : Promise.resolve([]),
+      wantTv ? tvQuery({ with_watch_providers: Object.values(PROVIDER_IDS).join("|"), watch_region: REGION }) : Promise.resolve([]),
     ]);
+    const shows = [...new Map([...byNetwork, ...byProvider].map((i) => [i.id, i])).values()];
 
     // The list's release_date is the worldwide premiere; ask for the Italian one.
     const dated = (item: TmdbItem, venue: "streaming" | "cinema") =>

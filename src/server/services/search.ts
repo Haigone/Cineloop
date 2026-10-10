@@ -45,7 +45,11 @@ async function withRemote(local: Title[], q: string, limit: number): Promise<Tit
     if (found.length) await cacheTitles(getRepository(), found);
     // The catalogue's copy is fresher (it knows which films come from a series); one row per title.
     const fresh = new Map(found.map((t) => [t.id, t]));
-    const merged = [...local.map((t) => fresh.get(t.id) ?? t), ...found.filter((t) => !local.some((l) => l.id === t.id))];
+    // A franchise from the anime sources stands for its series and films: the copies cached from TMDB
+    // on earlier searches (series, parts, films) would show it twice.
+    const folded = found.some((t) => t.id.startsWith("anime-ann-"));
+    const kept = folded ? local.filter((t) => t.type !== "anime" && !(t.type === "movie" && t.partOf)) : local;
+    const merged = [...found.filter((t) => t.id.startsWith("anime-ann-")), ...kept.map((t) => fresh.get(t.id) ?? t), ...found.filter((t) => !t.id.startsWith("anime-ann-") && !kept.some((l) => l.id === t.id))];
     return withoutSeriesFilms(merged).slice(0, limit);
   } catch (err) {
     console.error("catalog search failed", err);
