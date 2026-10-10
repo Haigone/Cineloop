@@ -110,3 +110,7 @@ Anime go to the anime sources first; TMDB answers only when they have nothing (`
 - Default choice per part: known non-canon (recaps) and OVAs / specials are off, everything else is on; the user switches parts and "Guarda anche i filler" on the title page. What is off does not count for progress, "finished" or "Novità".
 - None of the three services can be reached from the development sandbox: the parsers are tested on fixtures that follow the documented format, not on live answers.
 - Check page: signed in, open `/api/diagnostics/sources` (add `?q=name` to run the site's search, or `?seed=25066` to build one franchise from an ANN id). It shows what ANN and Anime Filler List answer from the server, whether TMDB is active, and how many upcoming releases are found.
+
+### Replacing TMDB anime with the franchise cards
+
+`/api/diagnostics/anime-reset` (signed in) swaps every `tmdb-*` anime title for the matching `anime-ann-*` card for all profiles: libraries, wishlists, activity, links and the films made from it follow. Without `?apply=1` it only lists what would change; titles with no clear match stay as they are; where a user already has the new card, theirs is kept. Long lists continue with the `next` link it returns.

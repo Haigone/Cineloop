@@ -230,6 +230,24 @@ export class MemoryRepository implements Repository {
     this.library = this.library.filter((e) => !(e.userId === userId && e.titleId === titleId));
   }
 
+  async replaceTitle(oldId: string, next: Title) {
+    this.titles.set(next.id, next);
+    let moved = 0;
+    let merged = 0;
+    for (const e of [...this.library]) {
+      if (e.titleId !== oldId) continue;
+      if (this.library.some((o) => o.userId === e.userId && o.titleId === next.id)) {
+        this.library.splice(this.library.indexOf(e), 1);
+        merged++;
+      } else {
+        e.titleId = next.id;
+        moved++;
+      }
+    }
+    this.titles.delete(oldId);
+    return { moved, merged };
+  }
+
   async setPartOverride(userId: string, titleId: string, key: string, included: boolean | null) {
     const entry = this.library.find((e) => e.userId === userId && e.titleId === titleId);
     if (!entry) return;

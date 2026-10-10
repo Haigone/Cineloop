@@ -193,6 +193,30 @@ export class PostgresRepository implements Repository {
     await this.db.delete(schema.libraryEntries).where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
   }
 
+  async replaceTitle(oldId: string, next: Title) {
+    return this.db.transaction(async (tx) => {
+      const row = titleToRow(next);
+      await tx.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
+      // Where the user already has the new title, theirs stays and the old entry goes.
+      const dup = (table: string) =>
+        sql`delete from ${sql.raw(table)} o where o.title_id = ${oldId} and exists (select 1 from ${sql.raw(table)} n where n.user_id = o.user_id and n.title_id = ${next.id})`;
+      await tx.execute(dup("wishlist_items"));
+      const mergedLibrary = await tx.execute(dup("library_entries"));
+      const merged = (mergedLibrary as unknown as { count?: number }).count ?? 0;
+      const moved = await tx.update(schema.libraryEntries).set({ titleId: next.id }).where(eq(schema.libraryEntries.titleId, oldId)).returning({ u: schema.libraryEntries.userId });
+      await tx.update(schema.wishlistItems).set({ titleId: next.id }).where(eq(schema.wishlistItems.titleId, oldId));
+      await tx.update(schema.watchEvents).set({ titleId: next.id }).where(eq(schema.watchEvents.titleId, oldId));
+      await tx.update(schema.activity).set({ titleId: next.id }).where(eq(schema.activity.titleId, oldId));
+      await tx.update(schema.providerTitleLinks).set({ titleId: next.id }).where(eq(schema.providerTitleLinks.titleId, oldId));
+      await tx.update(schema.presence).set({ titleId: next.id }).where(eq(schema.presence.titleId, oldId));
+      await tx.update(schema.watchParties).set({ pickedTitleId: next.id }).where(eq(schema.watchParties.pickedTitleId, oldId));
+      await tx.execute(sql`update watch_parties set candidate_title_ids = array_replace(candidate_title_ids, ${oldId}, ${next.id}) where ${oldId} = any(candidate_title_ids)`);
+      await tx.update(schema.titles).set({ partOf: next.id }).where(eq(schema.titles.partOf, oldId));
+      await tx.delete(schema.titles).where(eq(schema.titles.id, oldId));
+      return { moved: moved.length, merged };
+    });
+  }
+
   async setPartOverride(userId: string, titleId: string, key: string, included: boolean | null) {
     const [row] = await this.db
       .select({ partOverrides: schema.libraryEntries.partOverrides })

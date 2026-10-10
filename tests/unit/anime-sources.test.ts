@@ -250,4 +250,18 @@ describe("filler quick list and artwork", () => {
     const [b] = await cat.search("bleach", 5);
     expect(b!.artwork.posterUrl).toBe("https://cdn.myanimelist.net/images/anime/3/40451l.jpg");
   });
+
+  it("replaces a TMDB anime by the franchise, keeping the user's own entry when both exist", async () => {
+    const repo = getRepository();
+    const old = { ...tmdbBleach, id: "tmdb-tv-777" } as Title;
+    const next = { ...tmdbBleach, id: "anime-ann-777" } as Title;
+    await repo.upsertTitles([old]);
+    await repo.setLibraryStatus("u_marco", old.id, "watching");
+    const res = await repo.replaceTitle(old.id, next);
+    expect(res).toEqual({ moved: 1, merged: 0 });
+    const library = await repo.listLibrary("u_marco");
+    expect(library.some((e) => e.titleId === old.id)).toBe(false);
+    expect(library.find((e) => e.titleId === next.id)?.status).toBe("watching");
+    expect(await repo.getTitlesByIds([old.id])).toEqual([]);
+  });
 });

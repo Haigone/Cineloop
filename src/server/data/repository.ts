@@ -34,6 +34,12 @@ export interface Repository {
   listTitles(): Promise<Title[]>;
   getTitlesByIds(ids: readonly string[]): Promise<Title[]>;
   searchTitles(query: string, limit: number): Promise<Title[]>;
+  /**
+   * Replace a catalog title by another everywhere it is used (libraries, wishlists, activity,
+   * links, films made from it). Where a user already has the new one, theirs is kept.
+   * Returns how many users' entries moved and how many were merged into an existing one.
+   */
+  replaceTitle(oldId: string, next: Title): Promise<{ moved: number; merged: number }>;
   /** Insert or refresh titles fetched from a CatalogService. */
   upsertTitles(titles: readonly Title[]): Promise<void>;
 
