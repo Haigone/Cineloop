@@ -129,6 +129,34 @@ describe("films read from the player", () => {
     expect(entry?.status).toBe("watching");
   });
 
+  it("shares confirmed AnimeUnity title mappings", async () => {
+    await repo.clearPresence("u_marco");
+    const url = `https://www.animeunity.so/anime/987654321`;
+    await handleObservation("u_marco", {
+      providerId: "animeunity",
+      url,
+      documentTitle: "Anime Unity",
+      observedAt: new Date().toISOString(),
+      hints: { title: "Unmatched AnimeUnity Test Title" },
+    });
+    await confirmTitle("u_marco", "dark", null);
+    expect(await repo.findProviderLink("animeunity", [url])).toBe("dark");
+  });
+
+  it("does not share confirmed StreamingCommunity title mappings", async () => {
+    await repo.clearPresence("u_marco");
+    const url = `https://streamingcommunity.example/watch/987654321`;
+    await handleObservation("u_marco", {
+      providerId: "streamingcommunity",
+      url,
+      documentTitle: "Streaming Community",
+      observedAt: new Date().toISOString(),
+    });
+    await confirmTitle("u_marco", "dark", null);
+    expect(await repo.findProviderLink("streamingcommunity", [url])).toBeNull();
+    await repo.clearPresence("u_marco");
+  });
+
   it("treats typographic and plain apostrophes alike", async () => {
     const { searchKey } = await import("@/lib/text");
     expect(searchKey("Il 7 E l’8")).toBe(searchKey("Il 7 e l'8"));
