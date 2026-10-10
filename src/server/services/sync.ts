@@ -3,6 +3,7 @@ import { applyReport, driftBetween, IN_SYNC_SECONDS, type PlaybackReport } from 
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
+import { getAniDbAnimeForTmdb } from "@/integrations/catalog/anidb-first";
 import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
 import { plainQuotes, searchKey } from "@/lib/text";
@@ -454,6 +455,8 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
 /** First time a session is matched to a title: it goes to "In corso" (even if seen before) and friends see it. */
 async function startWatching(repo: Repository, presence: Presence, fraction: number | null = null): Promise<void> {
   const titleId = presence.titleId!;
+  const title = await ensureTitle(titleId);
+  if (title) await syncAnimeWatchPath(repo, presence, title, false);
   await syncProgress(repo, presence, fraction);
   await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
@@ -507,6 +510,7 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today) && (fraction === null || fraction >= 0.5)) return;
     if (finishesTitle(title, at, today)) {
+      await syncAnimeWatchPath(repo, presence, title, true);
       await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
       await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });
       return;
@@ -523,6 +527,16 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     url: presence.url,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/** Keep AniDB watch-path checkmarks aligned with completion from a mapped player title. */
+async function syncAnimeWatchPath(repo: Repository, presence: Presence, title: Title, watched: boolean): Promise<void> {
+  const isAnime = title.type === "anime" || (title.type === "movie" && Boolean(title.partOf));
+  if (!isAnime) return;
+  const match = /^tmdb-(tv|movie)-(\\d+)$/.exec(title.id);
+  if (!match) return;
+  const anime = await getAniDbAnimeForTmdb(Number(match[2]), match[1] === "tv" ? "tv" : "movie");
+  if (anime) await repo.setAnimeWatchPathWatched(presence.userId, anime.id, watched);
 }
 
 async function storeMinutes(repo: Repository, p: Presence, minutes: number, now: Date): Promise<void> {
