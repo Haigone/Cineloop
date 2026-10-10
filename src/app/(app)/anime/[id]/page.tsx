@@ -9,6 +9,7 @@ import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { AnimeWatchPath } from "@/components/anime/anime-watch-path";
 import { SectionHeader } from "@/components/ui/section-header";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { animeUnityResumeUrl } from "@/server/services/shared";
 import { getRepository } from "@/server/data";
 
 export const metadata: Metadata = { title: "Scheda anime" };
@@ -56,9 +57,21 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
     })),
   ];
   const user = await getCurrentUser();
-  const savedPath = await getRepository().listAnimeWatchPath(user.id, anime.id);
+  const repository = getRepository();
+  const [savedPath, library] = await Promise.all([
+    repository.listAnimeWatchPath(user.id, anime.id),
+    repository.listLibrary(user.id),
+  ]);
   const initialPlan = Object.fromEntries(savedPath.map((entry) => [entry.animeId, { include: entry.included, role: entry.role ?? (entry.included ? "required" : "skipped"), watched: entry.watched }]));
-  const animeUnitySearch = providerSearchUrl("animeunity", anime.title);
+  const tmdbTitleIds = new Set(anime.tmdbIds.map((item) => `tmdb-${item.type}-${item.id}`));
+  const observedAnimeUnityProgress = library.find((entry) =>
+    tmdbTitleIds.has(entry.titleId) &&
+    entry.progress?.providerId === "animeunity" &&
+    entry.progress.url?.startsWith("https://www.animeunity.so/"),
+  )?.progress ?? null;
+  const animeUnityLink = observedAnimeUnityProgress?.url
+    ? animeUnityResumeUrl(observedAnimeUnityProgress.url, observedAnimeUnityProgress.fraction)
+    : providerSearchUrl("animeunity", anime.title");
   const annId = anime.annIds[0] ?? null;
   const ann = annId ? await getAnnAnime(annId) : null;
 
@@ -78,7 +91,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
           <div className="mt-4 flex flex-wrap gap-2">
             <a href={anime.anidbUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">AniDB <ExternalLink aria-hidden className="size-3.5" /></a>
             {annId && <a href={ann?.url ?? `https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${annId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Anime News Network <ExternalLink aria-hidden className="size-3.5" /></a>}
-            {animeUnitySearch && <a href={animeUnitySearch} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Cerca su AnimeUnity <ExternalLink aria-hidden className="size-3.5" /></a>}
+            {animeUnityLink && <a href={animeUnityLink} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">{observedAnimeUnityProgress?.url ? "Riprendi su AnimeUnity" : "Cerca su AnimeUnity"} <ExternalLink aria-hidden className="size-3.5" /></a>}
             {anime.fillerListUrl && <a href={anime.fillerListUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Quick List filler <ExternalLink aria-hidden className="size-3.5" /></a>}
           </div>
           {ann && <p className="mt-3 text-xs text-fg-3">Dati ANN: {ann.title ?? anime.title}{ann.episodeCount ? ` · ${ann.episodeCount} episodi registrati` : ""}. <a className="underline" href={ann.url} target="_blank" rel="noreferrer">Fonte: Anime News Network</a>.</p>}
