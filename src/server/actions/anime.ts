@@ -10,12 +10,12 @@ const rootIdSchema = animeId;
 export async function saveAnimeWatchPath(
   rootId: string,
   workId: string,
-  included: boolean,
+  role: "required" | "optional" | "skipped",
   watched: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const root = rootIdSchema.safeParse(rootId);
   const work = animeId.safeParse(workId);
-  if (!root.success || !work.success || typeof included !== "boolean" || typeof watched !== "boolean") {
+  if (!root.success || !work.success || !["required", "optional", "skipped"].includes(role) || typeof watched !== "boolean") {
     return { ok: false, error: "Scelta del percorso non valida." };
   }
   const user = await getCurrentUser();
@@ -24,8 +24,9 @@ export async function saveAnimeWatchPath(
       userId: user.id,
       rootId: root.data,
       animeId: work.data,
-      included,
-      watched: included && watched,
+      included: role !== "skipped",
+      role,
+      watched: role !== "skipped" && watched,
       updatedAt: new Date().toISOString(),
     });
     return { ok: true };
