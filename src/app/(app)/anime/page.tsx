@@ -6,6 +6,9 @@ import { SectionHeader } from "@/components/ui/section-header";
 
 export const metadata: Metadata = { title: "Anime" };
 
+// AniDB/database access is request-time data; do not prerender this route.
+export const instant = false;
+
 export default async function AnimeLibraryPage({ searchParams }: PageProps<"/anime">) {
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
