@@ -41,6 +41,8 @@ export interface Repository {
   // Per-user anime watch path
   listAnimeWatchPath(userId: string, rootId: string): Promise<AnimeWatchPathEntry[]>;
   upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void>;
+  /** Synchronizes a completed or restarted AniDB work across all paths for a user. */
+  setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean): Promise<void>;
 
   // Users & credentials
   listUsers(): Promise<User[]>;
