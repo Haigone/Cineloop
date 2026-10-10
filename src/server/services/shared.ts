@@ -60,14 +60,23 @@ export function streamingCommunityResumeUrl(titleId: string, sourceUrl: string |
     const match = /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
     if (!match) return null;
     const params = new URLSearchParams({
-      provider: "streamingcommunity", watching: "true", id: match[1]!, titleId: match[1]!,
+      provider: "streamingcommunity",
+      watching: "true",
+      id: match[1]!,
+      titleId,
       minute: String(Math.max(0, Math.floor(fraction * runtimeMinutes))),
     });
     const episodeId = source.searchParams.get("e");
-    if (episodeId && /^\d{1,12}$/.test(episodeId)) { params.set("e", episodeId); params.set("episodeId", episodeId); }
+    if (episodeId && /^\d{1,12}$/.test(episodeId)) {
+      params.set("e", episodeId);
+      params.set("episodeId", episodeId);
+    }
     if (season !== null) params.set("season", String(season));
     if (episode !== null) params.set("episode", String(episode));
-    return `https://cineloop.freedev.app/title/${encodeURIComponent(titleId)}?${params.toString()}`;
+
+    // Experimental destination: send the observed provider ID to the placeholder Worker.
+    // The Worker receives diagnostics only; this URL never redirects to StreamingCommunity.
+    return `https://odd-tree-f5fa.turiscrocca.workers.dev/?${params.toString()}`;
   } catch { return null; }
 }
 /** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
