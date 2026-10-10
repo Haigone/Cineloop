@@ -77,8 +77,14 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     }
   } else if (!step.started) {
     // The player's name arrived after the session was matched (by the show page,
-    // which can be out of date): the player wins.
-    const named = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    // which can be out of date): the player wins. AnimeUnity lists each Bleach
+    // Thousand-Year Blood War cour as a related title, so re-check its canonical
+    // series mapping even when the label itself has not changed.
+    const isBleachCour = presence.providerId === "animeunity" &&
+      /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(presence.label ?? "");
+    const named = presence.label !== before?.label || isBleachCour
+      ? await matchLabel(repo, presence, null)
+      : null;
     if (named && named !== presence.titleId) {
       presence.titleId = named;
       await startWatching(repo, presence, fraction);
@@ -392,7 +398,14 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
-  const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  let baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  // AnimeUnity presents Bleach TYBW's four cours as separate related pages;
+  // they all belong to the existing Bleach series, not to four extra catalogue
+  // entries (or to the live-action Bleach film).
+  if (presence.providerId === "animeunity" &&
+      /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(baseLabel)) {
+    baseLabel = "Bleach";
+  }
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 8);
   // With an episode number it is a series: never a film of the same name.
