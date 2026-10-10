@@ -36,21 +36,29 @@ function siteWatchUrl(
   season: number | null,
   episode: number | null,
 ): string {
-  // For a known StreamingCommunity URL, mask only the domain and preserve its exact path/query.
-  if (providerId === "streamingcommunity" && sourceUrl) {
-    try {
-      const source = new URL(sourceUrl);
-      const host = source.hostname.toLowerCase().replace(/^www\./, "");
-      const isStreamingCommunity =
-        source.protocol === "https:" &&
-        /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host) &&
-        /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)/i.test(source.pathname);
-      if (isStreamingCommunity) {
-        return `https://cineloop.freedev.app${source.pathname}${source.search}`;
+  // The Worker is a placeholder destination for every title. Send a title query
+  // when no observed provider ID exists; otherwise pass the observed ID as diagnostics.
+  if (providerId === "streamingcommunity") {
+    const params = new URLSearchParams({ query: titleName });
+    params.set("provider", "streamingcommunity");
+    if (sourceUrl) {
+      try {
+        const source = new URL(sourceUrl);
+        const host = source.hostname.toLowerCase().replace(/^www\./, "");
+        const validHost = source.protocol === "https:" &&
+          /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+        const match = validHost && /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+        if (match) params.set("id", match[1]!);
+        const episodeId = source.searchParams.get("e");
+        if (episodeId && /^\d{1,12}$/.test(episodeId)) params.set("episodeId", episodeId);
+      } catch {
+        // Keep the title-only query when the saved URL is invalid.
       }
-    } catch {
-      // Fall through to the generic CineLoop title link.
     }
+    if (season !== null) params.set("season", String(season));
+    if (episode !== null) params.set("episode", String(episode));
+    params.set("minute", String(Math.max(0, Math.floor(fraction * runtimeMinutes))));
+    return `https://odd-tree-f5fa.turiscrocca.workers.dev/?${params.toString()}`;
   }
 
   const params = new URLSearchParams({
@@ -161,7 +169,10 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                     <li key={p.id}>
                       <a
                         href={destination}
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
+                        target={p.id === "streamingcommunity" ? "_blank" : undefined}
+                        rel={p.id === "streamingcommunity" ? "noopener noreferrer" : undefined}
+                        aria-label={p.id === "streamingcommunity" ? `Apri il Worker di test per ${title.title}` : undefined}
+                        className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                       >
                         <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
                         {progress?.providerId === p.id ? "Continua a guardare" : `Dove guardarlo · ${p.name}`}
