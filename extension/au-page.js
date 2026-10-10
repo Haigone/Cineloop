@@ -60,29 +60,44 @@
     }
   }
 
+  function currentEpisodeLink() {
+    const match = /\/anime\/\d{1,9}[-/][^/]+\/(\d{1,9})(?:\/|$)/.exec(location.pathname);
+    if (!match) return null;
+    const currentPath = location.pathname.replace(/\/+$/, "");
+    for (const link of document.querySelectorAll("a[href]")) {
+      try {
+        if (new URL(link.href, location.href).pathname.replace(/\/+$/, "") === currentPath) return link;
+      } catch {
+        // Ignore malformed links.
+      }
+    }
+    return null;
+  }
+
+  function episodeNumberFromElement(el) {
+    if (!el) return null;
+    const text = clean(el.textContent);
+    const named = EPISODE_WORD.exec(text);
+    if (named) return Number(named[1]);
+    return /^\d{1,4}$/.test(text) ? Number(text) : null;
+  }
+
   function activeEpisodeEl() {
+    // Prefer the link for the exact episode ID in the current URL.
+    const exact = currentEpisodeLink();
+    if (episodeNumberFromElement(exact) !== null) return exact;
     const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
     for (const el of document.querySelectorAll(sel)) {
       if (!belongsToCurrentAnime(el)) continue;
-      const t = clean(el.textContent);
-      if (EPISODE_WORD.test(t) || /^\d{1,4}$/.test(t)) return el;
+      if (episodeNumberFromElement(el) !== null) return el;
     }
     return null;
   }
 
   function parseEpisodeFromDom() {
-    const candidates = [...document.querySelectorAll("[class*=episode i], [class*=episodio i], a, button, li, span")]
-      .filter(belongsToCurrentAnime)
-      .map((el) => clean(el.textContent))
-      .filter((t) => t && t.length <= 30);
-    for (const t of candidates) {
-      const m = EPISODE_WORD.exec(t);
-      if (m) return Number(m[1]);
-    }
-    for (const t of candidates) {
-      if (/^\d{1,4}$/.test(t)) return Number(t);
-    }
-    return null;
+    // Never fall back to the first numbered link in the list: that is usually
+    // episode 1, and related ITA titles can appear before the current episode.
+    return episodeNumberFromElement(currentEpisodeLink());
   }
 
   function partSeasonFromPage() {
