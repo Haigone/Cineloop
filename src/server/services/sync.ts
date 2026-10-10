@@ -533,7 +533,7 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
 async function syncAnimeWatchPath(repo: Repository, presence: Presence, title: Title, watched: boolean): Promise<void> {
   const isAnime = title.type === "anime" || (title.type === "movie" && Boolean(title.partOf));
   if (!isAnime) return;
-  const match = /^tmdb-(tv|movie)-(\\d+)$/.exec(title.id);
+  const match = /^tmdb-(tv|movie)-(\d+)$/.exec(title.id);
   if (!match) return;
   const anime = await getAniDbAnimeForTmdb(Number(match[2]), match[1] === "tv" ? "tv" : "movie");
   if (anime) await repo.setAnimeWatchPathWatched(presence.userId, anime.id, watched);
