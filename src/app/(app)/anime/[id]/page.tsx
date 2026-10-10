@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { getAniDbAnime } from "@/integrations/catalog/anidb-first";
+import { getAniDbAnime, getAnnAnime } from "@/integrations/catalog/anidb-first";
 import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { AnimeWatchPath } from "@/components/anime/anime-watch-path";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -47,6 +47,7 @@ export default async function AnimeDetailPage({ params }: PageProps<"/anime/[id]
   ];
   const animeUnitySearch = providerSearchUrl("animeunity", anime.title);
   const annId = anime.annIds[0] ?? null;
+  const ann = annId ? await getAnnAnime(annId) : null;
 
   return (
     <div className="space-y-8">
@@ -63,10 +64,11 @@ export default async function AnimeDetailPage({ params }: PageProps<"/anime/[id]
           <p className="text-sm leading-relaxed text-fg-2">Scheda canonica AniDB. I titoli correlati sono mantenuti come opere distinte e organizzati secondo il tipo di relazione indicato dalla fonte.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a href={anime.anidbUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">AniDB <ExternalLink aria-hidden className="size-3.5" /></a>
-            {annId && <a href={`https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${annId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Anime News Network <ExternalLink aria-hidden className="size-3.5" /></a>}
+            {annId && <a href={ann?.url ?? `https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${annId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Anime News Network <ExternalLink aria-hidden className="size-3.5" /></a>}
             {animeUnitySearch && <a href={animeUnitySearch} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Cerca su AnimeUnity <ExternalLink aria-hidden className="size-3.5" /></a>}
             <a href={anime.fillerListUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-line-strong px-3 text-sm hover:bg-white/[0.05]">Quick List filler <ExternalLink aria-hidden className="size-3.5" /></a>
           </div>
+          {ann && <p className="mt-3 text-xs text-fg-3">Dati ANN: {ann.title ?? anime.title}{ann.episodeCount ? ` · ${ann.episodeCount} episodi registrati` : ""}. <a className="underline" href={ann.url} target="_blank" rel="noreferrer">Fonte: Anime News Network</a>.</p>}
           <p className="mt-3 text-xs text-fg-3">La ricerca AnimeUnity apre i risultati, non un episodio specifico. Il deep link esatto verrà usato quando è noto dalla riproduzione o da un’associazione verificata.</p>
         </div>
       </section>
