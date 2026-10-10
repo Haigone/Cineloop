@@ -307,3 +307,14 @@ export interface ExtensionDevice {
   createdAt: string;
   lastUsedAt: string | null;
 }
+
+
+/** Per-user decision for an AniDB work in a particular anime watch path. */
+export interface AnimeWatchPathEntry {
+  userId: string;
+  rootId: string;
+  animeId: string;
+  included: boolean;
+  watched: boolean;
+  updatedAt: string;
+}
