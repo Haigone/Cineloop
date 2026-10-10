@@ -507,6 +507,9 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   if (title) {
     const today = italianDay();
     const at = { season: presence.season, episode: presence.episode, fraction: next };
+    if (fraction !== null && fraction >= 0.9 && (!sameEpisode || (prev?.fraction ?? 0) < 0.9)) {
+      await syncAnimeWatchPathEpisode(repo, presence, title);
+    }
     // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today) && (fraction === null || fraction >= 0.5)) return;
     if (finishesTitle(title, at, today)) {
@@ -535,6 +538,19 @@ async function syncAnimeWatchPath(repo: Repository, presence: Presence, title: T
   if (!match) return;
   const anime = await getAniDbAnimeForTmdb(Number(match[2]), match[1] === "tv" ? "tv" : "movie");
   if (anime) await repo.setAnimeWatchPathWatched(presence.userId, anime.id, watched);
+}
+
+/** Records episode-level progress only when a TV crosswalk is unambiguous. */
+async function syncAnimeWatchPathEpisode(repo: Repository, presence: Presence, title: Title): Promise<void> {
+  const match = /^tmdb-tv-(\d+)$/.exec(title.id);
+  if (!match || !Number.isInteger(presence.season) || !Number.isInteger(presence.episode) ||
+      (presence.season ?? 0) < 1 || (presence.episode ?? 0) < 1) return;
+  const tmdbId = Number(match[1]);
+  const anime = await getAniDbAnimeForTmdb(tmdbId, "tv");
+  // Do not invent episode equivalences across multi-title/cour mappings (e.g. split cours).
+  if (!anime || anime.tmdbIds.length !== 1 ||
+      anime.tmdbIds[0].type !== "tv" || anime.tmdbIds[0].id !== tmdbId) return;
+  await repo.markAnimeWatchPathEpisode(presence.userId, anime.id, "S" + presence.season + "E" + presence.episode);
 }
 
 async function storeMinutes(repo: Repository, p: Presence, minutes: number, now: Date): Promise<void> {
