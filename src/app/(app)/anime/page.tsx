@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Search } from "lucide-react";
 import { searchAniDbAnime } from "@/integrations/catalog/anidb-first";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Anime" };
 // AniDB/database access is request-time data; do not prerender this route.
 export const instant = false;
 
-export default async function AnimeLibraryPage({ searchParams }: PageProps<"/anime">) {
+async function AnimeLibraryContent({ searchParams }: PageProps<"/anime">) {
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
   const results = query.length >= 2 ? await searchAniDbAnime(query, 16) : [];
@@ -74,5 +75,14 @@ export default async function AnimeLibraryPage({ searchParams }: PageProps<"/ani
         </section>
       )}
     </div>
+  );
+}
+
+
+export default function AnimeLibraryPage(props: PageProps<"/anime">) {
+  return (
+    <Suspense fallback={<div className="space-y-4"><div className="h-8 w-48 animate-pulse rounded bg-surface" /><div className="h-11 max-w-2xl animate-pulse rounded-lg bg-surface" /></div>}>
+      <AnimeLibraryContent searchParams={props.searchParams} />
+    </Suspense>
   );
 }
