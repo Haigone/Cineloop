@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -12,9 +13,6 @@ import { getRepository } from "@/server/data";
 
 export const metadata: Metadata = { title: "Scheda anime" };
 
-// AniDB/database access is request-time data; do not prerender this route.
-export const instant = false;
-
 const relationLabel: Record<string, string> = {
   sequel: "Sequel",
   prequel: "Prequel",
@@ -27,7 +25,9 @@ const relationLabel: Record<string, string> = {
 };
 
 async function AnimeDetailContent({ params }: PageProps<"/anime/[id]">) {
-  const { id: rawId } = await params;
+  // cacheComponents is enabled: user, database, and AniDB data are request-time.
+  await connection();
+  const { id: rawId = await params;
   const anidbId = Number(rawId);
   if (!Number.isSafeInteger(anidbId) || anidbId < 1) notFound();
 
