@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AnimeWatchPathEntry,
   AppNotification,
   ChartEntry,
   ExtensionDevice,
@@ -36,6 +37,10 @@ export interface Repository {
   searchTitles(query: string, limit: number): Promise<Title[]>;
   /** Insert or refresh titles fetched from a CatalogService. */
   upsertTitles(titles: readonly Title[]): Promise<void>;
+
+  // Per-user anime watch path
+  listAnimeWatchPath(userId: string, rootId: string): Promise<AnimeWatchPathEntry[]>;
+  upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void>;
 
   // Users & credentials
   listUsers(): Promise<User[]>;
