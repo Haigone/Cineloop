@@ -46,7 +46,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
     !/(?:^|\b)(?:music|music video|trailer|promotional video|commercial|pv|cm)(?:\b|$)/i.test(item.format ?? "") &&
     (item.episodeCount === null || item.episodeCount > 0);
   const watchNodes = [
-    { id: anime.id, title: anime.title, relation: "parent_story", url: anime.anidbUrl, episodeCount: anime.episodeCount, watchable: isWatchable(anime) },
+    { id: anime.id, title: anime.title, relation: "parent_story", url: anime.anidbUrl, episodeCount: anime.episodeCount, watchable: isWatchable(anime), tmdbIds: anime.tmdbIds },
     ...related.map(({ relation, anime: item }) => ({
       id: item.id,
       title: item.title,
@@ -54,6 +54,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
       url: item.anidbUrl,
       episodeCount: item.episodeCount,
       watchable: isWatchable(item),
+      tmdbIds: item.tmdbIds,
     })),
   ];
   const user = await getCurrentUser();
@@ -62,7 +63,32 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
     repository.listAnimeWatchPath(user.id, anime.id),
     repository.listLibrary(user.id),
   ]);
-  const initialPlan = Object.fromEntries(savedPath.map((entry) => [entry.animeId, { include: entry.included, role: entry.role ?? (entry.included ? "required" : "skipped"), watched: entry.watched }]));
+  const savedByAnimeId = new Map(savedPath.map((entry) => [entry.animeId, entry]));
+  const legacyChoices: Record<string, { include: boolean; role: "required"; watched: boolean }> = {};
+  // One-time, additive backfill: retain existing TMDB library rows and copy only
+  // an unambiguous completed status into the AniDB watch path. Never overwrite an
+  // explicit choice already saved in the new path.
+  await Promise.all(watchNodes.map(async (node) => {
+    if (savedByAnimeId.has(node.id)) return;
+    const tmdbIds = "tmdbIds" in node ? node.tmdbIds : [];
+    const legacy = library.filter((entry) => tmdbIds.some((item) => entry.titleId === `tmdb-${item.type}-${item.id}`));
+    if (!legacy.length) return;
+    const watched = legacy.some((entry) => entry.status === "completed");
+    legacyChoices[node.id] = { include: true, role: "required", watched };
+    await repository.upsertAnimeWatchPath({
+      userId: user.id,
+      rootId: anime.id,
+      animeId: node.id,
+      included: true,
+      role: "required",
+      watched,
+      updatedAt: new Date().toISOString(),
+    });
+  }));
+  const initialPlan = Object.fromEntries([
+    ...Object.entries(legacyChoices).map(([id, choice]) => [id, choice] as const),
+    ...savedPath.map((entry) => [entry.animeId, { include: entry.included, role: entry.role ?? (entry.included ? "required" : "skipped"), watched: entry.watched }] as const),
+  ]);
   const tmdbTitleIds = new Set(anime.tmdbIds.map((item) => `tmdb-${item.type}-${item.id}`));
   const observedAnimeUnityProgress = library.find((entry) =>
     tmdbTitleIds.has(entry.titleId) &&
