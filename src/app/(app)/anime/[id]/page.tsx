@@ -87,7 +87,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
   }));
   const initialPlan = Object.fromEntries([
     ...Object.entries(legacyChoices).map(([id, choice]) => [id, choice] as const),
-    ...savedPath.map((entry) => [entry.animeId, { include: entry.included, role: entry.role ?? (entry.included ? "required" : "skipped"), watched: entry.watched }] as const),
+    ...savedPath.map((entry) => [entry.animeId, { include: entry.included, role: entry.role ?? (entry.included ? "required" : "skipped"), watched: entry.watched, watchedEpisodes: entry.watchedEpisodes ?? [] }] as const),
   ]);
   const tmdbTitleIds = new Set(anime.tmdbIds.map((item) => `tmdb-${item.type}-${item.id}`));
   const observedAnimeUnityProgress = library.find((entry) =>
