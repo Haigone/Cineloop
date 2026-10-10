@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { fillerListUrlFor, parseAnnXml } from "@/integrations/catalog/anidb-first";
+import { fillerListUrlFor, getAniDbAnimeForTmdb, parseAnnXml } from "@/integrations/catalog/anidb-first";
+import { MemoryRepository } from "@/server/data/memory-repository";
 
 describe("AniDB anime enrichment helpers", () => {
   it("parses ANN XML attributes, episodes, and picture attribution", () => {
@@ -20,6 +21,34 @@ describe("AniDB anime enrichment helpers", () => {
   it("returns null for ANN error payloads instead of inventing metadata", () => {
     expect(parseAnnXml(42, '<error>Not found</error>')).toBeNull();
     expect(parseAnnXml(42, '<response/>')).toBeNull();
+  });
+
+  it("resolves AniDB identity through a typed TMDB cross-reference", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/map/tmdb/999999")) {
+        return new Response(JSON.stringify({ anidb_id: [999999], tmdb_id: [{ id: 999999, type: "tv" }] }), { status: 200 });
+      }
+      if (url.includes("/api/anidb/999999")) {
+        return new Response(JSON.stringify({ anidb_id: 999999, title: "Test Anime", title_english: "Test Anime", tmdb_ids: [{ id: 999999, type: "tv" }] }), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }));
+    try {
+      await expect(getAniDbAnimeForTmdb(999999, "tv")).resolves.toMatchObject({ id: "anidb-999999", title: "Test Anime" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("syncs watched status to every included path but leaves skipped works untouched", async () => {
+    const repository = new MemoryRepository();
+    const now = new Date().toISOString();
+    await repository.upsertAnimeWatchPath({ userId: "u_marco", rootId: "anidb-90000001", animeId: "anidb-90000002", included: true, role: "required", watched: false, updatedAt: now });
+    await repository.upsertAnimeWatchPath({ userId: "u_marco", rootId: "anidb-90000003", animeId: "anidb-90000002", included: false, role: "skipped", watched: false, updatedAt: now });
+    await repository.setAnimeWatchPathWatched("u_marco", "anidb-90000002", true);
+    await expect(repository.listAnimeWatchPath("u_marco", "anidb-90000001")).resolves.toMatchObject([{ watched: true, role: "required" }]);
+    await expect(repository.listAnimeWatchPath("u_marco", "anidb-90000003")).resolves.toMatchObject([{ watched: false, role: "skipped" }]);
   });
 
   it("only creates AnimeFillerList links for explicitly mapped titles", () => {

@@ -41,7 +41,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
       anime: await getAniDbAnime(Number(relation.id.replace(/^anidb-/, ""))),
     })),
   );
-  const related = relatedRecords.filter((item): item is typeof item & { anime: NonNullable<typeof item.anime> } => item.anime !== null);
+  const related = [...new Map(relatedRecords.filter((item): item is typeof item & { anime: NonNullable<typeof item.anime> } => item.anime !== null).map((item) => [item.anime.id, item] as const)).values()];
   const isWatchable = (item: typeof anime) =>
     !/(?:^|\b)(?:music|music video|trailer|promotional video|commercial|pv|cm)(?:\b|$)/i.test(item.format ?? "") &&
     (item.episodeCount === null || item.episodeCount > 0);
