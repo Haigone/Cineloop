@@ -121,6 +121,26 @@ export async function getAniDbAnime(id: number): Promise<AnimeIdentity | null> {
   }
 }
 
+/** Resolve the AniDB work associated with a TMDB id using AniMap's cross-service mapping. */
+export async function getAniDbAnimeForTmdb(tmdbId: number, type: "tv" | "movie"): Promise<AnimeIdentity | null> {
+  if (!Number.isSafeInteger(tmdbId) || tmdbId < 1) return null;
+  try {
+    type Mapping = { anidb_id?: number[]; tmdb_id?: { id: number; type: "tv" | "movie" }[] };
+    const value = await cachedJson<Mapping | Mapping[]>(`tmdb-map:${type}:${tmdbId}`, `${API}/map/tmdb/${tmdbId}`);
+    const records = Array.isArray(value) ? value : [value];
+    const ids = [...new Set(records
+      .filter((record) => record.tmdb_id?.some((item) => item.id === tmdbId && item.type === type))
+      .flatMap((record) => record.anidb_id ?? []))];
+    for (const id of ids) {
+      const anime = await getAniDbAnime(id);
+      if (anime) return anime;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Search the AniDB title index. A bounded index is cached; it is not fetched on each keystroke. */
 export async function searchAniDbAnime(query: string, limit = 12): Promise<AnimeIdentity[]> {
   const q = query.trim().toLocaleLowerCase();
