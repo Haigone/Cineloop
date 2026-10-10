@@ -11,6 +11,9 @@ import { getRepository } from "@/server/data";
 
 export const metadata: Metadata = { title: "Scheda anime" };
 
+// AniDB/database access is request-time data; do not prerender this route.
+export const instant = false;
+
 const relationLabel: Record<string, string> = {
   sequel: "Sequel",
   prequel: "Prequel",
