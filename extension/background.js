@@ -201,6 +201,13 @@ async function playerTitle(tabId, m) {
   const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
   const changed = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    const now = Date.now();
+    const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    // AnimeUnity reports progress independently of episode changes. Forward a
+    // fresh observation at least every 12 seconds so the server can persist it.
+    const progressChanged = typeof m.progress === "number" &&
+      (typeof was?.progress !== "number" || Math.abs(was.progress - m.progress) >= 0.005);
+    const shouldForward = identityChanged || progressChanged || now - (was?.lastForwardedAt ?? 0) >= 12_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
@@ -208,14 +215,10 @@ async function playerTitle(tabId, m) {
       episode,
       episodeId,
       progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
-      at: Date.now(),
+      at: now,
+      lastForwardedAt: shouldForward ? now : (was?.lastForwardedAt ?? now),
     };
-    const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
-    // AnimeUnity reports progress independently of episode changes. Forward a
-    // fresh observation at least every 12 seconds so the server can persist it.
-    const progressChanged = typeof m.progress === "number" &&
-      (typeof was?.progress !== "number" || Math.abs(was.progress - m.progress) >= 0.005);
-    return identityChanged || progressChanged || Date.now() - (was?.at ?? 0) >= 12_000;
+    return shouldForward;
   });
   if (changed) await tick();
 }
