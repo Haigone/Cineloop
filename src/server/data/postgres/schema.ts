@@ -209,6 +209,7 @@ export const animeWatchPath = pgTable(
     included: boolean("included").notNull().default(true),
     role: text("role").$type<AnimeWatchPathRole>().notNull().default("required"),
     watched: boolean("watched").notNull().default(false),
+    watchedEpisodes: jsonb("watched_episodes").$type<string[]>().notNull().default([]),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
   (t) => [
