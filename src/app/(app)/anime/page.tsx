@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Search } from "lucide-react";
@@ -7,10 +8,9 @@ import { SectionHeader } from "@/components/ui/section-header";
 
 export const metadata: Metadata = { title: "Anime" };
 
-// AniDB/database access is request-time data; do not prerender this route.
-export const instant = false;
-
 async function AnimeLibraryContent({ searchParams }: PageProps<"/anime">) {
+  // cacheComponents is enabled: explicitly defer AniDB access to the request.
+  await connection();
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
   const results = query.length >= 2 ? await searchAniDbAnime(query, 16) : [];
