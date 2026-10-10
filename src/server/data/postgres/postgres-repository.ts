@@ -97,6 +97,16 @@ export class PostgresRepository implements Repository {
     });
   }
 
+  async setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean): Promise<void> {
+    await this.db.update(schema.animeWatchPath)
+      .set({ watched, updatedAt: new Date() })
+      .where(and(
+        eq(schema.animeWatchPath.userId, userId),
+        eq(schema.animeWatchPath.animeId, animeId),
+        eq(schema.animeWatchPath.included, true),
+      ));
+  }
+
   // Users -------------------------------------------------------------------
 
   async listUsers() {
