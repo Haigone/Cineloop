@@ -369,7 +369,8 @@ export class TmdbCatalog implements CatalogService {
         return (await this.listPage(`${endpoint}?${next}`)).results ?? [];
       }),
     );
-    return [...(first.results ?? []), ...rest.flat()];
+    const combined = [...(first.results ?? []), ...rest.flat()];
+    return [...new Map(combined.map((item) => [item.id, item])).values()];
   }
 
   private async italianReleaseDate(movieId: number, from: string, to: string): Promise<string | null> {
