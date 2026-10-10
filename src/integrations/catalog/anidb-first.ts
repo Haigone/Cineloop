@@ -172,14 +172,10 @@ export async function searchAniDbAnime(query: string, limit = 12): Promise<Anime
     const ids = [...new Set(candidates.flatMap((item) => item.ids))]
       .slice(0, Math.min(40, Math.max(limit * 3, limit)));
     const records = await Promise.all(ids.map((id) => getAniDbAnime(id)));
+    // Keep the alias-index ranking: the matching synonym may be known by
+    // AniMap even when AniDB's own title payload omits that translation.
     return records
       .filter((record): record is AnimeIdentity => record !== null)
-      .filter((record) => [record.title, ...record.alternateTitles].some((title) => normalize(title).includes(normalizedQuery)))
-      .sort((a, b) => {
-        const exact = (item: AnimeIdentity) =>
-          [item.title, ...item.alternateTitles].some((title) => normalize(title) === normalizedQuery) ? 0 : 1;
-        return exact(a) - exact(b) || (a.year ?? 9999) - (b.year ?? 9999);
-      })
       .slice(0, limit);
   } catch {
     return [];
