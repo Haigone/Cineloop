@@ -140,17 +140,29 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 <p className="mt-1 text-sm text-fg-2">Non risulta incluso in nessun abbonamento in Italia.</p>
               )}
               <ul className="mt-3 flex flex-wrap gap-2">
-                {providers.length === 0 && isOld(title) && (
-                  // Placeholder: out for a while and on no covered service, so it is probably online somewhere.
+                {providers.length === 0 && (
+                  // Generic fallback destination when no catalogue provider is available.
                   <li>
-                    <button
-                      type="button"
-                      disabled
-                      className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md border border-line px-3 text-sm text-fg-2 opacity-80"
+                    <a
+                      href={siteWatchUrl(
+                        title.id,
+                        title.title,
+                        "streamingcommunity",
+                        entry?.progress?.providerId === "streamingcommunity" ? entry.progress.url : null,
+                        entry?.progress?.fraction ?? 0,
+                        title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes,
+                        title.type === "movie" ? null : (entry?.progress?.season ?? null),
+                        title.type === "movie" ? null : (entry?.progress?.episode ?? null),
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Guarda ${title.title} in streaming`}
+                      className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                     >
                       <span aria-hidden className="size-2 rounded-full bg-fg-3" />
-                      Dove guardarlo · Streaming
-                    </button>
+                      Guarda in streaming
+                      <ExternalLink aria-hidden className="size-3.5 text-fg-3" />
+                    </a>
                   </li>
                 )}
                 {providers.map((p) => {
@@ -171,7 +183,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                         href={destination}
                         target={p.id === "streamingcommunity" ? "_blank" : undefined}
                         rel={p.id === "streamingcommunity" ? "noopener noreferrer" : undefined}
-                        aria-label={p.id === "streamingcommunity" ? `Apri il Worker di test per ${title.title}` : undefined}
+                        aria-label={p.id === "streamingcommunity" ? `Guarda ${title.title} in streaming` : undefined}
                         className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                       >
                         <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
