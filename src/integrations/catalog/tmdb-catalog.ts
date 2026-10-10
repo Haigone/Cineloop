@@ -171,6 +171,10 @@ export class TmdbCatalog implements CatalogService {
    * or like its saga ("Demon Slayer - Il treno Mugen" → "Demon Slayer").
    */
   async seriesOf(film: TmdbItem): Promise<string | null> {
+    // TMDB classifies this Bleach-related film separately from the original
+    // anime. Keep it discoverable as a film, but attach it to Bleach's series
+    // so it appears in the same franchise instead of as an unrelated title.
+    if (film.id === 1669841) return "tmdb-tv-30984";
     if (!isAnime(film)) return null;
     for (const name of franchiseNames([film.title, film.original_title], film.belongs_to_collection?.name)) {
       const key = searchKey(name);
