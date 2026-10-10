@@ -77,8 +77,14 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     }
   } else if (!step.started) {
     // The player's name arrived after the session was matched (by the show page,
-    // which can be out of date): the player wins.
-    const named = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    // which can be out of date): the player wins. AnimeUnity lists each Bleach
+    // Thousand-Year Blood War cour as a related title, so re-check its canonical
+    // series mapping even when the label itself has not changed.
+    const isBleachCour = presence.providerId === "animeunity" &&
+      /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(presence.label ?? "");
+    const named = presence.label !== before?.label || isBleachCour
+      ? await matchLabel(repo, presence, null)
+      : null;
     if (named && named !== presence.titleId) {
       presence.titleId = named;
       await startWatching(repo, presence, fraction);
@@ -392,7 +398,14 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
-  const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  let baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  // AnimeUnity presents Bleach TYBW's four cours as separate related pages;
+  // they all belong to the existing Bleach series, not to four extra catalogue
+  // entries (or to the live-action Bleach film).
+  if (presence.providerId === "animeunity" &&
+      /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(baseLabel)) {
+    baseLabel = "Bleach";
+  }
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 8);
   // With an episode number it is a series: never a film of the same name.
@@ -477,7 +490,12 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   }
   // A part named in the player's title ("JoJo: Stone Ocean") is that season,
   // even when the service numbers the part as a show of its own ("S1:E3").
-  const named = title ? seasonFromLabel(title, presence.label) : null;
+  const isAnimeUnityBleachCour = presence.providerId === "animeunity" &&
+    /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(presence.label ?? "");
+  // For AnimeUnity, the four TYBW cours are explicit seasons in CineLoop's
+  // watch order. Do not let TMDB's differently grouped season names collapse
+  // The Conflict back into the broader Thousand-Year Blood War season.
+  const named = title && !isAnimeUnityBleachCour ? seasonFromLabel(title, presence.label) : null;
   if (named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
