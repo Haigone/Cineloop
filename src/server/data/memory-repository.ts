@@ -123,13 +123,23 @@ export class MemoryRepository implements Repository {
 
   async upsertAnimeWatchPath(entry: AnimeWatchPathEntry) {
     const key = JSON.stringify([entry.userId, entry.rootId, entry.animeId]);
-    this.animeWatchPath.set(key, entry);
+    const previous = this.animeWatchPath.get(key);
+    this.animeWatchPath.set(key, { ...entry, watchedEpisodes: entry.watchedEpisodes ?? previous?.watchedEpisodes ?? [] });
   }
 
   async setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean) {
     for (const [key, entry] of this.animeWatchPath) {
       if (entry.userId !== userId || entry.animeId !== animeId || !entry.included) continue;
       this.animeWatchPath.set(key, { ...entry, watched, updatedAt: new Date().toISOString() });
+    }
+  }
+
+  async markAnimeWatchPathEpisode(userId: string, animeId: string, episodeKey: string) {
+    for (const [key, entry] of this.animeWatchPath) {
+      if (entry.userId !== userId || entry.animeId !== animeId || !entry.included) continue;
+      const watchedEpisodes = entry.watchedEpisodes ?? [];
+      if (watchedEpisodes.includes(episodeKey)) continue;
+      this.animeWatchPath.set(key, { ...entry, watchedEpisodes: [...watchedEpisodes, episodeKey], updatedAt: new Date().toISOString() });
     }
   }
 
