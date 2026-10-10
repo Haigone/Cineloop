@@ -163,6 +163,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                   <li key={p.id}>
                     <a
                       href={destination}
+                      // Open the experimental Worker outside CineLoop so its response is visible.
                       target={p.id === "streamingcommunity" ? "_blank" : undefined}
                       rel={p.id === "streamingcommunity" ? "noopener noreferrer" : undefined}
                       aria-label={p.id === "streamingcommunity" ? `Apri il Worker di test per ${title.title}` : undefined}
