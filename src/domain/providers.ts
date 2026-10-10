@@ -57,7 +57,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     id: "streamingcommunity",
     name: "Streaming Community",
     tint: "#5b8cf5",
-    homepage: null,
+    homepage: "https://odd-tree-f5fa.turiscrocca.workers.dev/",
     integration: "available",
   },
 };
