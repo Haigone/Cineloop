@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { getAniDbAnime, getAnnAnime } from "@/integrations/catalog/anidb-first";
@@ -25,7 +26,7 @@ const relationLabel: Record<string, string> = {
   full_story: "Storia completa",
 };
 
-export default async function AnimeDetailPage({ params }: PageProps<"/anime/[id]">) {
+async function AnimeDetailContent({ params }: PageProps<"/anime/[id]">) {
   const { id: rawId } = await params;
   const anidbId = Number(rawId);
   if (!Number.isSafeInteger(anidbId) || anidbId < 1) notFound();
@@ -103,5 +104,14 @@ export default async function AnimeDetailPage({ params }: PageProps<"/anime/[id]
       </section>
       <p className="text-xs text-fg-3">Dati d’identità e relazioni forniti da AniDB tramite animap. Dati ANN: attribuzione e collegamento alla relativa voce quando disponibile. Immagini e dati restano soggetti alle condizioni delle rispettive fonti.</p>
     </div>
+  );
+}
+
+
+export default function AnimeDetailPage(props: PageProps<"/anime/[id]">) {
+  return (
+    <Suspense fallback={<div className="space-y-4"><div className="h-8 w-48 animate-pulse rounded bg-surface" /><div className="h-40 max-w-3xl animate-pulse rounded-xl bg-surface" /></div>}>
+      <AnimeDetailContent params={props.params} />
+    </Suspense>
   );
 }
