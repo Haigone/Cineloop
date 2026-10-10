@@ -13,6 +13,23 @@ const MAX_FRANCHISES = 3;
 
 const isAnimeish = (t: Title) => t.type === "anime";
 
+const FILLER_WORDS = new Set(["the", "movie", "film", "il", "la", "lo", "di", "del", "of", "a", "an"]);
+const words = (s: string) =>
+  searchKey(s)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w && !FILLER_WORDS.has(w));
+
+/** True when a film from the catalogue is one of the franchise's own films: same words, same year (give or take one). */
+export function isPartOf(film: Title, franchise: Franchise): boolean {
+  const a = words(film.title);
+  if (a.length === 0) return false;
+  return (franchise.title.watchOrder ?? []).some((p) => {
+    if (p.kind === "season" || p.year === null || Math.abs(p.year - film.year) > 1) return false;
+    const b = words(p.name);
+    return a.every((w) => b.includes(w)) || b.every((w) => a.includes(w));
+  });
+}
+
 /**
  * Anime come from Anime News Network (the franchise and its parts) and Anime
  * Filler List (filler episodes); TMDB, the catalogue underneath, answers only
@@ -84,7 +101,7 @@ export class AnimeFirstCatalog implements CatalogService {
     }
     if (franchises.length === 0) return found;
     // A franchise stands for its series and its films: TMDB's own anime results would repeat them.
-    const rest = found.filter((t) => !isAnimeish(t) && !(t.type === "movie" && t.partOf));
+    const rest = found.filter((t) => !isAnimeish(t) && !(t.type === "movie" && (t.partOf || franchises.some((f) => isPartOf(t, f)))));
     return [...franchises.map((f) => f.title), ...rest].slice(0, limit);
   }
 

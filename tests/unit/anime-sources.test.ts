@@ -144,6 +144,17 @@ describe("anime come from the anime sources first", () => {
     expect(bleach.watchOrder![0]!.filler).toEqual([64, 366]);
   });
 
+  it("drops the catalogue's copies of the franchise's films, but not live action or other films of the same name", async () => {
+    const film = (id: string, title: string, year: number): Title => ({ ...tmdbFilm, id, title, year, partOf: undefined });
+    const { cat } = catalog([
+      tmdbBleach,
+      film("tmdb-movie-10", "Bleach - Memories of Nobody (Il film)", 2006),
+      film("tmdb-movie-11", "Bleach", 2018),
+      film("tmdb-movie-12", "Bleach: Memories of Nobody", 2019),
+    ]);
+    expect((await cat.search("bleach", 10)).map((t) => t.id)).toEqual(["anime-ann-4658", "tmdb-movie-11", "tmdb-movie-12"]);
+  });
+
   it("falls back to TMDB when the anime sources have nothing", async () => {
     const { cat } = catalog([tmdbBleach, tmdbFilm], { ann: "<ann></ann>" });
     expect((await cat.search("bleach", 10)).map((t) => t.id)).toEqual(["tmdb-tv-30984", "tmdb-movie-1"]);
