@@ -10,12 +10,13 @@ import { MEDIA_TYPE_LABEL } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
 
 type Option =
-  | { kind: "title"; id: string; href: string; label: string; meta: string; palette: readonly [string, string, string] }
+  | { kind: "title"; id: string; href: string; label: string; meta: string; posterUrl: string | null; palette: readonly [string, string, string] }
+  | { kind: "anime"; id: string; href: string; label: string; meta: string; posterUrl: string | null }
   | { kind: "person"; id: string; href: string; label: string; meta: string };
 
 type Status = "idle" | "loading" | "ready" | "error";
 
-const EMPTY: SearchResults = { titles: [], people: [] };
+const EMPTY: SearchResults = { titles: [], anime: [], people: [] };
 
 /**
  * Global search (ARIA combobox). Groups results by kind so people, friends
@@ -85,7 +86,16 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
         href: `/title/${t.id}`,
         label: t.title,
         meta: `${MEDIA_TYPE_LABEL[t.type]} · ${t.year}`,
+        posterUrl: t.posterUrl,
         palette: t.palette,
+      })),
+      ...results.anime.map((a) => ({
+        kind: "anime" as const,
+        id: a.id,
+        href: `/anime/${a.anidbId}`,
+        label: a.title,
+        meta: [a.year, a.format, "AniDB"].filter(Boolean).join(" · "),
+        posterUrl: a.posterUrl,
       })),
       ...results.people.map((p) => ({
         kind: "person" as const,
@@ -191,7 +201,7 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
                   <li key={`${opt.kind}-${opt.id}`} role="none">
                     {firstOfGroup && (
                       <div role="presentation" className="px-2.5 pt-2 pb-1 text-xs text-fg-3">
-                        {opt.kind === "title" ? "Titoli" : "Persone"}
+                        {opt.kind === "title" ? "Film e serie" : opt.kind === "anime" ? "Anime · AniDB" : "Persone"}
                       </div>
                     )}
                     <div
@@ -206,11 +216,17 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
                         active === i ? "bg-white/[0.07]" : "",
                       )}
                     >
-                      {opt.kind === "title" ? (
+                      {opt.kind !== "person" ? (
                         <span
                           aria-hidden
-                          className="h-9 w-6 shrink-0 rounded-[3px]"
-                          style={{ background: `linear-gradient(160deg, ${opt.palette[0]}, ${opt.palette[1]})` }}
+                          className="h-10 w-7 shrink-0 rounded-[3px] bg-cover bg-center"
+                          style={{
+                            backgroundImage: opt.posterUrl
+                              ? `url("${opt.posterUrl}")`
+                              : opt.kind === "title"
+                                ? `linear-gradient(160deg, ${opt.palette[0]}, ${opt.palette[1]})`
+                                : "linear-gradient(160deg, #27272a, #52525b)",
+                          }}
                         />
                       ) : (
                         <Avatar user={{ id: opt.id, displayName: opt.label, avatarUrl: null }} size="sm" decorative />

@@ -1,4 +1,4 @@
-import { Compass, Heart, House, LibraryBig, Popcorn, Settings, Trophy, UserRound, Users, type LucideIcon } from "lucide-react";
+import { Compass, Heart, House, LibraryBig, Popcorn, Settings, Trophy, UserRound, Users, Clapperboard, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -11,6 +11,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/home", label: "Home", icon: House },
   { href: "/explore", label: "Esplora", icon: Compass },
   { href: "/library", label: "La mia libreria", shortLabel: "Libreria", icon: LibraryBig },
+  { href: "/anime", label: "Anime", icon: Clapperboard },
   { href: "/wishlist", label: "Wishlist", icon: Heart },
   { href: "/rankings", label: "Classifiche", icon: Trophy },
   { href: "/friends", label: "Amici", icon: Users },

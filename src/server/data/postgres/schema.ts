@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPartyFilter, WatchProgress, WatchStatus, AnimeWatchPathRole } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -198,6 +198,25 @@ export const preferences = pgTable("preferences", {
   homeCategory: text("home_category").$type<MediaType>().notNull().default("series"),
   homeBackgrounds: jsonb("home_backgrounds").$type<Partial<Record<MediaType, string>>>().notNull().default({}),
 });
+
+/** User-selected AniDB works in a watch path; deliberately independent of TMDB title ids. */
+export const animeWatchPath = pgTable(
+  "anime_watch_path",
+  {
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    rootId: text("root_id").notNull(),
+    animeId: text("anime_id").notNull(),
+    included: boolean("included").notNull().default(true),
+    role: text("role").$type<AnimeWatchPathRole>().notNull().default("required"),
+    watched: boolean("watched").notNull().default(false),
+    watchedEpisodes: jsonb("watched_episodes").$type<string[]>().notNull().default([]),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.rootId, t.animeId] }),
+    index("anime_watch_path_user_root_idx").on(t.userId, t.rootId),
+  ],
+);
 
 /** One-time codes that pair the browser extension with an account. Stored hashed. */
 export const pairingCodes = pgTable("pairing_codes", {

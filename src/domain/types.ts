@@ -307,3 +307,20 @@ export interface ExtensionDevice {
   createdAt: string;
   lastUsedAt: string | null;
 }
+
+
+/** How a work participates in a personal anime watch path. */
+export type AnimeWatchPathRole = "required" | "optional" | "skipped";
+
+/** Per-user decision for an AniDB work in a particular anime watch path. */
+export interface AnimeWatchPathEntry {
+  userId: string;
+  rootId: string;
+  animeId: string;
+  included: boolean;
+  role: AnimeWatchPathRole;
+  watched: boolean;
+  /** Completed episode keys (TMDB season/episode) when the crosswalk is unambiguous. */
+  watchedEpisodes?: string[];
+  updatedAt: string;
+}

@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AnimeWatchPathEntry,
   AppNotification,
   ChartEntry,
   ExtensionDevice,
@@ -49,6 +50,7 @@ export class MemoryRepository implements Repository {
   private presence = new Map<string, Presence>();
   private rooms = new Map<string, PartyState>();
   private providerLinks = new Map<string, string>();
+  private animeWatchPath = new Map<string, AnimeWatchPathEntry>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
   private charts = new Map<string, { data: unknown; fetchedAt: Date }>();
@@ -111,6 +113,34 @@ export class MemoryRepository implements Repository {
 
   async upsertTitles(titles: readonly Title[]) {
     for (const t of titles) this.titles.set(t.id, t);
+  }
+
+  async listAnimeWatchPath(userId: string, rootId: string) {
+    return [...this.animeWatchPath.values()]
+      .filter((entry) => entry.userId === userId && entry.rootId === rootId)
+      .sort((a, b) => a.animeId.localeCompare(b.animeId));
+  }
+
+  async upsertAnimeWatchPath(entry: AnimeWatchPathEntry) {
+    const key = JSON.stringify([entry.userId, entry.rootId, entry.animeId]);
+    const previous = this.animeWatchPath.get(key);
+    this.animeWatchPath.set(key, { ...entry, watchedEpisodes: entry.watchedEpisodes ?? previous?.watchedEpisodes ?? [] });
+  }
+
+  async setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean) {
+    for (const [key, entry] of this.animeWatchPath) {
+      if (entry.userId !== userId || entry.animeId !== animeId || !entry.included) continue;
+      this.animeWatchPath.set(key, { ...entry, watched, updatedAt: new Date().toISOString() });
+    }
+  }
+
+  async markAnimeWatchPathEpisode(userId: string, animeId: string, episodeKey: string) {
+    for (const [key, entry] of this.animeWatchPath) {
+      if (entry.userId !== userId || entry.animeId !== animeId || !entry.included) continue;
+      const watchedEpisodes = entry.watchedEpisodes ?? [];
+      if (watchedEpisodes.includes(episodeKey)) continue;
+      this.animeWatchPath.set(key, { ...entry, watchedEpisodes: [...watchedEpisodes, episodeKey], updatedAt: new Date().toISOString() });
+    }
   }
 
   // Users -------------------------------------------------------------------

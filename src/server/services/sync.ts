@@ -3,6 +3,7 @@ import { applyReport, driftBetween, IN_SYNC_SECONDS, type PlaybackReport } from 
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
+import { getAniDbAnimeForTmdb } from "@/integrations/catalog/anidb-first";
 import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
 import { plainQuotes, searchKey } from "@/lib/text";
@@ -77,8 +78,14 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     }
   } else if (!step.started) {
     // The player's name arrived after the session was matched (by the show page,
-    // which can be out of date): the player wins.
-    const named = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    // which can be out of date): the player wins. AnimeUnity lists each Bleach
+    // Thousand-Year Blood War cour as a related title, so re-check its canonical
+    // series mapping even when the label itself has not changed.
+    const isBleachCour = presence.providerId === "animeunity" &&
+      /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(presence.label ?? "");
+    const named = presence.label !== before?.label || isBleachCour
+      ? await matchLabel(repo, presence, null)
+      : null;
     if (named && named !== presence.titleId) {
       presence.titleId = named;
       await startWatching(repo, presence, fraction);
@@ -392,7 +399,14 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
-  const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  let baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  // AnimeUnity presents Bleach TYBW's four cours as separate related pages;
+  // they all belong to the existing Bleach series, not four extra catalogue
+  // entries (or the live-action Bleach film).
+  if (presence.providerId === "animeunity" &&
+      /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(baseLabel)) {
+    baseLabel = "Bleach";
+  }
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 8);
   // With an episode number it is a series: never a film of the same name.
@@ -441,6 +455,8 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
 /** First time a session is matched to a title: it goes to "In corso" (even if seen before) and friends see it. */
 async function startWatching(repo: Repository, presence: Presence, fraction: number | null = null): Promise<void> {
   const titleId = presence.titleId!;
+  const title = await ensureTitle(titleId);
+  if (title) await syncAnimeWatchPath(repo, presence, title, false);
   await syncProgress(repo, presence, fraction);
   await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
@@ -477,7 +493,11 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   }
   // A part named in the player's title ("JoJo: Stone Ocean") is that season,
   // even when the service numbers the part as a show of its own ("S1:E3").
-  const named = title ? seasonFromLabel(title, presence.label) : null;
+  const isAnimeUnityBleachCour = presence.providerId === "animeunity" &&
+    /^bleach\s*[:\-–]?\s*thousand-year blood war\b/i.test(presence.label ?? "");
+  // For AnimeUnity, the four TYBW cours are explicit seasons in CineLoop's
+  // watch order. Do not let TMDB's broader grouping collapse them.
+  const named = title && !isAnimeUnityBleachCour ? seasonFromLabel(title, presence.label) : null;
   if (named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
@@ -487,9 +507,13 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   if (title) {
     const today = italianDay();
     const at = { season: presence.season, episode: presence.episode, fraction: next };
+    if (fraction !== null && fraction >= 0.9 && (!sameEpisode || (prev?.fraction ?? 0) < 0.9)) {
+      await syncAnimeWatchPathEpisode(repo, presence, title);
+    }
     // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today) && (fraction === null || fraction >= 0.5)) return;
     if (finishesTitle(title, at, today)) {
+      await syncAnimeWatchPath(repo, presence, title, true);
       await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
       await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });
       return;
@@ -506,6 +530,27 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     url: presence.url,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/** Keep AniDB watch-path checkmarks aligned with completion from a mapped player title. */
+async function syncAnimeWatchPath(repo: Repository, presence: Presence, title: Title, watched: boolean): Promise<void> {
+  const match = /^tmdb-(tv|movie)-(\d+)$/.exec(title.id);
+  if (!match) return;
+  const anime = await getAniDbAnimeForTmdb(Number(match[2]), match[1] === "tv" ? "tv" : "movie");
+  if (anime) await repo.setAnimeWatchPathWatched(presence.userId, anime.id, watched);
+}
+
+/** Records episode-level progress only when a TV crosswalk is unambiguous. */
+async function syncAnimeWatchPathEpisode(repo: Repository, presence: Presence, title: Title): Promise<void> {
+  const match = /^tmdb-tv-(\d+)$/.exec(title.id);
+  if (!match || !Number.isInteger(presence.season) || !Number.isInteger(presence.episode) ||
+      (presence.season ?? 0) < 1 || (presence.episode ?? 0) < 1) return;
+  const tmdbId = Number(match[1]);
+  const anime = await getAniDbAnimeForTmdb(tmdbId, "tv");
+  // Do not invent episode equivalences across multi-title/cour mappings (e.g. split cours).
+  if (!anime || anime.tmdbIds.length !== 1 ||
+      anime.tmdbIds[0].type !== "tv" || anime.tmdbIds[0].id !== tmdbId) return;
+  await repo.markAnimeWatchPathEpisode(presence.userId, anime.id, "S" + presence.season + "E" + presence.episode);
 }
 
 async function storeMinutes(repo: Repository, p: Presence, minutes: number, now: Date): Promise<void> {

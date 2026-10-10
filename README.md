@@ -52,6 +52,7 @@ Per i test E2E con un Chromium già installato: `PLAYWRIGHT_CHROMIUM_PATH=/perco
 
 - **Home**: ora in visione, continua a guardare, cosa fanno gli amici, la tua settimana, da vedere stasera.
 - **Libreria**: tutto quello che hai visto o stai seguendo, con filtri, voti a mezze stelle e stato.
+- **Anime**: catalogo dedicato basato su AniDB, titoli alternativi, opere correlate e percorso di visione con progresso episodi quando la mappatura è verificabile.
 - **Wishlist**: la tua coda in ordine di priorità, riordinabile anche da tastiera.
 - **Classifiche**: i tuoi preferiti per tipo e cosa mette d'accordo gli amici.
 - **Amici**: attività, compatibilità dei gusti, titoli in comune.

@@ -3,6 +3,7 @@ import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type {
   ActivityEvent,
+  AnimeWatchPathEntry,
   AppNotification,
   ChartEntry,
   ExtensionDevice,
@@ -71,6 +72,59 @@ export class PostgresRepository implements Repository {
     for (const t of list) {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
+    }
+  }
+
+  async listAnimeWatchPath(userId: string, rootId: string): Promise<AnimeWatchPathEntry[]> {
+    const rows = await this.db.select().from(schema.animeWatchPath).where(
+      and(eq(schema.animeWatchPath.userId, userId), eq(schema.animeWatchPath.rootId, rootId)),
+    );
+    return rows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }));
+  }
+
+  async upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void> {
+    await this.db.insert(schema.animeWatchPath).values({
+      ...entry,
+      watchedEpisodes: entry.watchedEpisodes ?? [],
+      updatedAt: new Date(entry.updatedAt),
+    }).onConflictDoUpdate({
+      target: [schema.animeWatchPath.userId, schema.animeWatchPath.rootId, schema.animeWatchPath.animeId],
+      set: {
+        included: entry.included,
+        role: entry.role,
+        watched: entry.watched,
+        updatedAt: new Date(entry.updatedAt),
+      },
+    });
+  }
+
+  async setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean): Promise<void> {
+    await this.db.update(schema.animeWatchPath)
+      .set({ watched, updatedAt: new Date() })
+      .where(and(
+        eq(schema.animeWatchPath.userId, userId),
+        eq(schema.animeWatchPath.animeId, animeId),
+        eq(schema.animeWatchPath.included, true),
+      ));
+  }
+
+  async markAnimeWatchPathEpisode(userId: string, animeId: string, episodeKey: string): Promise<void> {
+    const rows = await this.db.select().from(schema.animeWatchPath).where(and(
+      eq(schema.animeWatchPath.userId, userId),
+      eq(schema.animeWatchPath.animeId, animeId),
+      eq(schema.animeWatchPath.included, true),
+    ));
+    const now = new Date();
+    for (const row of rows) {
+      const watchedEpisodes = row.watchedEpisodes ?? [];
+      if (watchedEpisodes.includes(episodeKey)) continue;
+      await this.db.update(schema.animeWatchPath)
+        .set({ watchedEpisodes: [...watchedEpisodes, episodeKey], updatedAt: now })
+        .where(and(
+          eq(schema.animeWatchPath.userId, userId),
+          eq(schema.animeWatchPath.rootId, row.rootId),
+          eq(schema.animeWatchPath.animeId, animeId),
+        ));
     }
   }
 

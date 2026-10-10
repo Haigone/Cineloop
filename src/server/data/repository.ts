@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AnimeWatchPathEntry,
   AppNotification,
   ChartEntry,
   ExtensionDevice,
@@ -36,6 +37,14 @@ export interface Repository {
   searchTitles(query: string, limit: number): Promise<Title[]>;
   /** Insert or refresh titles fetched from a CatalogService. */
   upsertTitles(titles: readonly Title[]): Promise<void>;
+
+  // Per-user anime watch path
+  listAnimeWatchPath(userId: string, rootId: string): Promise<AnimeWatchPathEntry[]>;
+  upsertAnimeWatchPath(entry: AnimeWatchPathEntry): Promise<void>;
+  /** Synchronizes a completed or restarted AniDB work across all paths for a user. */
+  setAnimeWatchPathWatched(userId: string, animeId: string, watched: boolean): Promise<void>;
+  /** Adds a completed episode to every included path for this AniDB work; idempotent. */
+  markAnimeWatchPathEpisode(userId: string, animeId: string, episodeKey: string): Promise<void>;
 
   // Users & credentials
   listUsers(): Promise<User[]>;
