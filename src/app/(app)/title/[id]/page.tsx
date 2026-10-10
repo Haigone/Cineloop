@@ -31,21 +31,29 @@ function siteWatchUrl(
   season: number | null,
   episode: number | null,
 ): string {
-  // For a known StreamingCommunity URL, mask only the domain and preserve its exact path/query.
-  if (providerId === "streamingcommunity" && sourceUrl) {
-    try {
-      const source = new URL(sourceUrl);
-      const host = source.hostname.toLowerCase().replace(/^www\./, "");
-      const isStreamingCommunity =
-        source.protocol === "https:" &&
-        /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host) &&
-        /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)/i.test(source.pathname);
-      if (isStreamingCommunity) {
-        return `https://cineloop.freedev.app${source.pathname}${source.search}`;
+  // The Worker is a placeholder destination for every title. Send a title query
+  // when no observed provider ID exists; otherwise pass the observed ID as diagnostics.
+  if (providerId === "streamingcommunity") {
+    const params = new URLSearchParams({ query: titleName });
+    params.set("provider", "streamingcommunity");
+    if (sourceUrl) {
+      try {
+        const source = new URL(sourceUrl);
+        const host = source.hostname.toLowerCase().replace(/^www\\./, "");
+        const validHost = source.protocol === "https:" &&
+          /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host);
+        const match = validHost && /^\\/(?:[a-z]{2}\\/)?(?:watch|titles?)\\/(\\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+        if (match) params.set("id", match[1]!);
+        const episodeId = source.searchParams.get("e");
+        if (episodeId && /^\\d{1,12}$/.test(episodeId)) params.set("episodeId", episodeId);
+      } catch {
+        // Keep the title-only query when the saved URL is invalid.
       }
-    } catch {
-      // Fall through to the generic CineLoop title link.
     }
+    if (season !== null) params.set("season", String(season));
+    if (episode !== null) params.set("episode", String(episode));
+    params.set("minute", String(Math.max(0, Math.floor(fraction * runtimeMinutes))));
+    return `https://odd-tree-f5fa.turiscrocca.workers.dev/?${params.toString()}`;
   }
 
   const params = new URLSearchParams({
