@@ -6,6 +6,8 @@ import { getAniDbAnime, getAnnAnime } from "@/integrations/catalog/anidb-first";
 import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { AnimeWatchPath } from "@/components/anime/anime-watch-path";
 import { SectionHeader } from "@/components/ui/section-header";
+import { getCurrentUser } from "@/server/auth/current-user";
+import { getRepository } from "@/server/data";
 
 export const metadata: Metadata = { title: "Scheda anime" };
 
@@ -45,6 +47,9 @@ export default async function AnimeDetailPage({ params }: PageProps<"/anime/[id]
       episodeCount: item.episodeCount,
     })),
   ];
+  const user = await getCurrentUser();
+  const savedPath = await getRepository().listAnimeWatchPath(user.id, anime.id);
+  const initialPlan = Object.fromEntries(savedPath.map((entry) => [entry.animeId, { include: entry.included, watched: entry.watched }]));
   const animeUnitySearch = providerSearchUrl("animeunity", anime.title);
   const annId = anime.annIds[0] ?? null;
   const ann = annId ? await getAnnAnime(annId) : null;
@@ -73,7 +78,7 @@ export default async function AnimeDetailPage({ params }: PageProps<"/anime/[id]
         </div>
       </section>
 
-      <AnimeWatchPath rootId={anime.id} nodes={watchNodes} />
+      <AnimeWatchPath key={anime.id} rootId={anime.id} nodes={watchNodes} initialPlan={initialPlan} />
 
       <section aria-labelledby="anime-relations-title" className="space-y-3">
         <SectionHeader as="h2" title="Opere correlate" id="anime-relations-title" description="La relazione non implica automaticamente che l’opera sia obbligatoria nel tuo percorso." />
