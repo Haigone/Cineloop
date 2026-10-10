@@ -210,7 +210,7 @@ export async function getForYouView(type: MediaType | "all" = "all"): Promise<Fo
 
   const comingBack = sortReleases(returning).map((r) => releaseCard(r, today));
   const upcomingRow = sortReleases(
-    (await canonicalReleases(repo, coming)).filter((r) => ofType(r.title) && (!isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id)),
+    (await canonicalReleases(repo, coming)).filter((r) => ofType(r.title) && (!isKnown(r.title) || wishlist.some((w) => w.titleId === r.title.id))),
   ).map((r) => releaseCard(r, today));
 
   await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker, ...upcomingRow.map((r) => r.title)]);
