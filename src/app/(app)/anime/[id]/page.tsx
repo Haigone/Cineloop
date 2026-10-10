@@ -42,7 +42,7 @@ async function AnimeDetailContent({ params }: Pick<PageProps<"/anime/[id]">, "pa
   );
   const related = relatedRecords.filter((item): item is typeof item & { anime: NonNullable<typeof item.anime> } => item.anime !== null);
   const isWatchable = (item: typeof anime) =>
-    !/(?:^|\\b)(?:music|music video|trailer|promotional video|commercial|pv|cm)(?:\\b|$)/i.test(item.format ?? "") &&
+    !/(?:^|\b)(?:music|music video|trailer|promotional video|commercial|pv|cm)(?:\b|$)/i.test(item.format ?? "") &&
     (item.episodeCount === null || item.episodeCount > 0);
   const watchNodes = [
     { id: anime.id, title: anime.title, relation: "parent_story", url: anime.anidbUrl, episodeCount: anime.episodeCount, watchable: isWatchable(anime) },
