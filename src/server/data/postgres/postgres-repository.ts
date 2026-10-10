@@ -90,6 +90,7 @@ export class PostgresRepository implements Repository {
       target: [schema.animeWatchPath.userId, schema.animeWatchPath.rootId, schema.animeWatchPath.animeId],
       set: {
         included: entry.included,
+        role: entry.role,
         watched: entry.watched,
         updatedAt: new Date(entry.updatedAt),
       },
