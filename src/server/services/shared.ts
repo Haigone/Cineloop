@@ -67,7 +67,7 @@ export function streamingCommunityResumeUrl(titleId: string, sourceUrl: string |
     if (episodeId && /^\d{1,12}$/.test(episodeId)) { params.set("e", episodeId); params.set("episodeId", episodeId); }
     if (season !== null) params.set("season", String(season));
     if (episode !== null) params.set("episode", String(episode));
-    return `https://cineloop.freedev.app/title/${encodeURIComponent(titleId)}?${params.toString()}`;
+    return `https://odd-tree-f5fa.turiscrocca.workers.dev/${encodeURIComponent(titleId)}?${params.toString()}`;
   } catch { return null; }
 }
 /** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
