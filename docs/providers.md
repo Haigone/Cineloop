@@ -134,3 +134,12 @@ The weekly anime top lists each show once: AniList's season entries are followed
 - **Episode titles.** ANN lists titles for only some episodes; missing ones fall back to TMDB, only when its episode list matches the count.
 
 - **Jikan (MyAnimeList) is no longer used for covers or the upcoming calendar.** From Vercel its requests fail at network level ("fetch failed" after ~10 s, seen in /api/diagnostics/sources); AniList covers both. Jikan is only asked to open old `anime-mal-*` titles.
+
+## Import from Netflix's personal-data export
+
+Impostazioni > Importa da Netflix. The viewer picks `ViewingActivity.csv` and `Ratings.csv` from Netflix's own "Download your personal information" export; the browser parses them (`src/lib/netflix-export.ts`) and CineLoop never contacts Netflix. Titles are matched in batches (`src/server/actions/netflix-import.ts`).
+
+- A film, or a series with a thumb, counts as finished; a series without one goes in as "in corso". Thumbs map 1 → 3, 2 → 7, 3 → 10.
+- Rows the library already agrees with are skipped; a missing rating is filled in; a different rating, an abandoned title, or "in corso" against "finito" is a conflict the viewer settles row by row (nothing changes until Importa; undecided rows stay as they are).
+- Imported history is not posted to friends' activity feeds.
+- The extension's "Importa" tab (My List) is unchanged. AnimeUnity lists are not imported (see Provider policy).
