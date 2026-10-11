@@ -255,11 +255,14 @@ export class AnimeFirstCatalog implements CatalogService {
     const fromSeason = f!.title.seasons.find((x) => x.number === season)?.episodeCount ?? 0;
     // The airing season: when each coming episode is out, from AniList's schedule.
     const dates = new Map<number, string>();
+    let airing = false;
     if (season === f!.title.seasons.at(-1)?.number) {
       const a = await this.anilist.airingNow(f!.title.title).catch(() => null);
+      airing = Boolean(a?.nextAiringEpisode);
       for (const n of a?.airingSchedule?.nodes ?? []) dates.set(n.episode, italianDay(new Date(n.airingAt * 1000)));
     }
-    const count = Math.max(entry.episodes ?? 0, fromSeason, names.size, ...dates.keys());
+    // ANN may give an airing season the count of the whole run (Black Clover: 170): the season's own count wins.
+    const count = airing && fromSeason > 0 ? Math.max(fromSeason, ...dates.keys()) : Math.max(entry.episodes ?? 0, fromSeason, names.size, ...dates.keys());
     // Titles ANN does not list: the same season on TMDB, when it has exactly these episodes.
     const theirs = names.size < count ? await this.tmdbNames(f!.title, season, count) : new Map<number, string>();
     return Array.from({ length: count }, (_, i) => ({
