@@ -7,7 +7,7 @@ import { ProviderBadge } from "@/components/ui/provider-badge";
 import { KeyArt } from "@/components/media/key-art";
 
 function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string | null, fraction: number, runtimeMinutes: number, season: number | null, episode: number | null): string {
-  const params = new URLSearchParams({ query: titleName, titleId });
+  const params = new URLSearchParams({ query: titleName });
   if (sourceUrl) {
     try {
       const source = new URL(sourceUrl);
