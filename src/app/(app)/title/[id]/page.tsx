@@ -40,7 +40,8 @@ function siteWatchUrl(
   // when no observed provider ID exists; otherwise pass the observed ID as diagnostics.
   if (providerId === "streamingcommunity") {
     const params = new URLSearchParams({ query: titleName });
-    params.set("provider", "streamingcommunity");
+    // Send only title/episode diagnostics to the placeholder Worker for extension testing.
+    params.set("titleId", titleId);
     if (sourceUrl) {
       try {
         const source = new URL(sourceUrl);
