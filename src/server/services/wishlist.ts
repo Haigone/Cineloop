@@ -20,17 +20,22 @@ export interface WishlistRow {
 export interface PlaylistView {
   playlist: Playlist;
   titles: Title[];
+  /** Who owns it when it is a friend's collaborative playlist; null for the viewer's own. */
+  owner: PublicUser | null;
 }
 
 export async function getWishlistView(): Promise<{ rows: WishlistRow[]; playlists: PlaylistView[] }> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
-  const [wishlist, friends, playlists] = await Promise.all([repo.listWishlist(viewer.id), loadFriendBundles(repo, viewer.id), repo.listPlaylists(viewer.id)]);
+  const [wishlist, friends, own] = await Promise.all([repo.listWishlist(viewer.id), loadFriendBundles(repo, viewer.id), repo.listPlaylists(viewer.id)]);
+  // The friends' collaborative playlists are the viewer's to add to as well.
+  const collaborative = (await repo.listSharedPlaylists(friends.map((f) => f.user.id))).filter((p) => p.visibility === "collaborative");
+  const playlists = [...own, ...collaborative];
   const titles = new Map((await repo.getTitlesByIds([...wishlist.map((w) => w.titleId), ...playlists.flatMap((p) => p.titleIds)])).map((t) => [t.id, t]));
   const byId = new Map(friends.map((f) => [f.user.id, f.user]));
   const awaited = await awaitedReleases([...titles.values()], italianDay());
   return {
-    playlists: playlists.map((playlist) => ({ playlist, titles: playlist.titleIds.flatMap((id) => titles.get(id) ?? []) })),
+    playlists: playlists.map((playlist) => ({ playlist, titles: playlist.titleIds.flatMap((id) => titles.get(id) ?? []), owner: playlist.ownerId === viewer.id ? null : (byId.get(playlist.ownerId) ?? null) })),
     rows: wishlist
       .filter((w) => titles.has(w.titleId))
       .map((item) => ({

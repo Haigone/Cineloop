@@ -5,12 +5,13 @@ import { z } from "zod";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { ensureTitle } from "@/server/services/explore";
+import type { PlaylistVisibility } from "@/domain/types";
 import type { ActionResult } from "./library";
 
 /** Mutations for the viewer's own playlists (the owner is always the signed-in user, never an argument). */
 
 const name = z.string().trim().min(1, "Dai un nome alla playlist.").max(60, "Il nome è troppo lungo.");
-const visibility = z.enum(["private", "friends"]);
+const visibility = z.enum(["private", "friends", "collaborative"]);
 const id = z.string().min(1).max(80);
 const MAX_PLAYLISTS = 30;
 
@@ -25,7 +26,7 @@ async function run(fn: () => Promise<boolean>, failure: string): Promise<ActionR
   }
 }
 
-export async function createPlaylist(input: { name: string; visibility: "private" | "friends"; titleId?: string }): Promise<ActionResult & { id?: string }> {
+export async function createPlaylist(input: { name: string; visibility: PlaylistVisibility; titleId?: string }): Promise<ActionResult & { id?: string }> {
   const user = await getCurrentUser();
   const parsedName = name.safeParse(input.name);
   const parsedVisibility = visibility.safeParse(input.visibility);
@@ -46,10 +47,10 @@ export async function createPlaylist(input: { name: string; visibility: "private
   }
 }
 
-export async function updatePlaylist(playlistId: string, patch: { name?: string; visibility?: "private" | "friends" }): Promise<ActionResult> {
+export async function updatePlaylist(playlistId: string, patch: { name?: string; visibility?: PlaylistVisibility }): Promise<ActionResult> {
   const user = await getCurrentUser();
   const pid = id.safeParse(playlistId);
-  const next: { name?: string; visibility?: "private" | "friends" } = {};
+  const next: { name?: string; visibility?: PlaylistVisibility } = {};
   if (patch.name !== undefined) {
     const n = name.safeParse(patch.name);
     if (!n.success) return { ok: false, error: n.error.issues[0]?.message ?? "Nome non valido." };
@@ -71,12 +72,20 @@ export async function deletePlaylist(playlistId: string): Promise<ActionResult> 
   return run(() => getRepository().deletePlaylist(user.id, pid.data), "Non siamo riusciti a eliminare la playlist.");
 }
 
-/** Puts a title in a playlist or takes it out. */
+/** Puts a title in a playlist or takes it out. The owner always can; friends only in a collaborative one. */
 export async function setInPlaylist(playlistId: string, titleId: string, present: boolean): Promise<ActionResult> {
   const user = await getCurrentUser();
   const pid = id.safeParse(playlistId);
   const tid = z.string().min(1).max(120).safeParse(titleId);
   if (!pid.success || !tid.success) return { ok: false, error: "Richiesta non valida." };
   if (present && !(await ensureTitle(tid.data))) return { ok: false, error: "Titolo non trovato." };
-  return run(() => getRepository().setPlaylistItem(user.id, pid.data, tid.data, present), "Non siamo riusciti ad aggiornare la playlist.");
+  const repo = getRepository();
+  const playlist = await repo.getPlaylist(pid.data);
+  if (!playlist) return { ok: false, error: "Playlist non trovata." };
+  if (playlist.ownerId !== user.id) {
+    const friends = playlist.visibility === "collaborative" ? await repo.listFriends(user.id) : [];
+    // A private or friends-only playlist looks, to anyone else, like it does not exist.
+    if (!friends.some((f) => f.user.id === playlist.ownerId)) return { ok: false, error: "Playlist non trovata." };
+  }
+  return run(() => repo.setPlaylistItem(playlist.ownerId, playlist.id, tid.data, present), "Non siamo riusciti ad aggiornare la playlist.");
 }

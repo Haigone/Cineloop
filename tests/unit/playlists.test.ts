@@ -35,4 +35,13 @@ describe("playlists", () => {
     expect(await repo.deletePlaylist("u_marco", p.id)).toBe(true);
     expect(await repo.listPlaylists("u_marco")).toEqual([]);
   });
+
+  it("collaborative ones are shared like friends' ones and can be read by id", async () => {
+    const repo = new MemoryRepository();
+    const mixed = await repo.createPlaylist("u_marco", "Insieme", "collaborative");
+    await repo.createPlaylist("u_marco", "Mia", "private");
+    expect((await repo.listSharedPlaylists(["u_marco"])).map((p) => p.name)).toEqual(["Insieme"]);
+    expect((await repo.getPlaylist(mixed.id))?.visibility).toBe("collaborative");
+    expect(await repo.getPlaylist("missing")).toBeNull();
+  });
 });

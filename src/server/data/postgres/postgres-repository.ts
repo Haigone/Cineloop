@@ -461,13 +461,17 @@ export class PostgresRepository implements Repository {
     return this.withItems(await this.db.select().from(schema.playlists).where(eq(schema.playlists.ownerId, ownerId)).orderBy(desc(schema.playlists.createdAt)));
   }
 
+  async getPlaylist(id: string) {
+    return (await this.withItems(await this.db.select().from(schema.playlists).where(eq(schema.playlists.id, id))))[0] ?? null;
+  }
+
   async listSharedPlaylists(ownerIds: readonly string[]) {
     if (ownerIds.length === 0) return [];
     return this.withItems(
       await this.db
         .select()
         .from(schema.playlists)
-        .where(and(inArray(schema.playlists.ownerId, [...ownerIds]), eq(schema.playlists.visibility, "friends"))),
+        .where(and(inArray(schema.playlists.ownerId, [...ownerIds]), ne(schema.playlists.visibility, "private"))),
     );
   }
 

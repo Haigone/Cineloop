@@ -61,6 +61,12 @@ Motion con `MotionConfig reducedMotion="user"` più la preferenza in-app. La ruo
 
 ## Serate insieme e playlist
 
-- **Playlist** (migrazione `0011_playlists`): liste con nome dentro la Wishlist (scheda "Playlist"), `playlists` + `playlist_items`. Visibilità `private` (solo il proprietario) o `friends` (gli amici possono caricarla in una serata). Solo il proprietario le modifica; `listSharedPlaylists` restituisce soltanto quelle condivise e il servizio le chiede solo per gli amici confermati.
+- **Playlist** (migrazione `0011_playlists`): liste con nome dentro la Wishlist (scheda "Playlist"), `playlists` + `playlist_items`. Visibilità `private` (solo il proprietario), `friends` (gli amici possono caricarla in una serata) o `collaborative` (in più, gli amici aggiungono e tolgono titoli: l'azione `setInPlaylist` controlla amicizia e visibilità, e la copertina ha un badge tondo). Solo il proprietario rinomina, cambia visibilità ed elimina; `listSharedPlaylists` restituisce soltanto quelle condivise e il servizio le chiede solo per gli amici confermati.
 - **Serata** (`/watch-party`): ogni partecipante porta la propria wishlist o una o più playlist (`PartySource`, `wantedFrom`); le liste scelte si uniscono, si filtra per categoria (tutto/film/serie/anime) e, a scelta, per "voluto da almeno metà del gruppo". L'elenco mostra tutti i titoli compatibili. Il vincitore è sorteggiato tra tutti; la ruota mostra al massimo 20 spicchi (il vincitore più un campione degli altri, `wheelSample`), quindi le probabilità non cambiano.
 - Il filtro salvato con la serata è `common` solo con "tutto"; altrimenti è la categoria.
+
+## Classifiche, podio ed Esplora
+
+- **Podio per categoria** (migrazione `0012_podiums`): `preferences.podiums` = `{movie|series|anime: [id×3]}`; `buildPodiums` (`src/domain/podium.ts`) ricava picks e candidati e porta nella categoria giusta un vecchio podio unico (`preferences.podium`). Nel profilo di un amico (`/friends/[username]`) è mostrato in sola lettura, solo se il suo profilo è visibile.
+- **Esplora**: le righe di uscite (`getReleasesView`, calendari AniList e ricerche ANN) sono in una `<Suspense>` a parte, così catalogo e consigli compaiono subito; le ricerche della scheda principale delle nuove stagioni girano in parallelo con un budget di 6 s.
+- **Dove lo guardi**: `saveManualProgress` accetta un `providerId` (solo servizi del catalogo del titolo, mai Anime Unity / Streaming Community); il pulsante "Continua a guardare" della scheda usa `resolveContinueUrl` come la Home.

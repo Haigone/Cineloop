@@ -102,7 +102,9 @@ export interface Repository {
   // Playlists
   /** The owner's playlists, newest first. */
   listPlaylists(ownerId: string): Promise<Playlist[]>;
-  /** Playlists the owners share with friends ("friends" visibility only). */
+  /** One playlist by id, whoever owns it; null when there is none. Callers check who may see it. */
+  getPlaylist(id: string): Promise<Playlist | null>;
+  /** Playlists the owners share with friends ("friends" and "collaborative"). */
   listSharedPlaylists(ownerIds: readonly string[]): Promise<Playlist[]>;
   createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility): Promise<Playlist>;
   /** Only the owner's own playlist changes; false when it is not theirs. */

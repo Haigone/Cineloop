@@ -410,8 +410,13 @@ export class MemoryRepository implements Repository {
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   }
 
+  async getPlaylist(id: string) {
+    const p = this.playlists.find((x) => x.id === id);
+    return p ? { ...p, titleIds: [...p.titleIds] } : null;
+  }
+
   async listSharedPlaylists(ownerIds: readonly string[]) {
-    return this.playlists.filter((p) => p.visibility === "friends" && ownerIds.includes(p.ownerId)).map((p) => ({ ...p, titleIds: [...p.titleIds] }));
+    return this.playlists.filter((p) => p.visibility !== "private" && ownerIds.includes(p.ownerId)).map((p) => ({ ...p, titleIds: [...p.titleIds] }));
   }
 
   async createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility) {

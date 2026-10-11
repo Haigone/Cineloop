@@ -101,7 +101,9 @@ test("make a playlist, fill it, and load it into a night together", async ({ pag
   await signIn(page, "/wishlist");
   await page.getByRole("radio", { name: /Playlist/ }).click();
   await page.getByLabel("Nome della playlist").fill("Natale");
+  await page.getByLabel("Chi può usarla").first().selectOption("collaborative");
   await page.getByRole("button", { name: "Crea playlist" }).click();
+  await expect(page.getByRole("img", { name: "Playlist collaborativa" })).toBeVisible();
   const card = page.getByRole("listitem").filter({ has: page.getByLabel("Nome", { exact: true }) }).first();
   await expect(card.getByLabel("Nome", { exact: true })).toHaveValue("Natale");
   await card.getByLabel("Aggiungi dalla wishlist").selectOption({ index: 1 });

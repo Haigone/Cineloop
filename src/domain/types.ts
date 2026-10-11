@@ -243,14 +243,17 @@ export interface ActivityEvent {
   rating: RatingValue | null;
 }
 
-/** A named list of titles in the wishlist area ("Natale", "Halloween"); only the owner edits it. */
-export type PlaylistVisibility = "private" | "friends";
+/**
+ * A named list of titles in the wishlist area ("Natale", "Halloween"). Only the owner renames or
+ * deletes it; in a "collaborative" one the owner's friends can also add and remove titles.
+ */
+export type PlaylistVisibility = "private" | "friends" | "collaborative";
 
 export interface Playlist {
   id: string;
   ownerId: string;
   name: string;
-  /** "friends": the owner's friends can load it into a watch party. */
+  /** "friends": the owner's friends can load it into a watch party; "collaborative": and they can edit its titles. */
   visibility: PlaylistVisibility;
   /** In the order the owner put them. */
   titleIds: string[];
