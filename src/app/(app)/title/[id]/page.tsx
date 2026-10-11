@@ -4,6 +4,7 @@ import { migrateAnimeTitle } from "@/server/services/anime-migration";
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
 import { STATUS_LABEL } from "@/domain/library";
+import { sectionOf } from "@/domain/types";
 import { getTitleView } from "@/server/services/library";
 import { episodeLabel, firstName, percent, titleMeta } from "@/lib/format";
 import { Avatar } from "@/components/ui/avatar";
@@ -39,8 +40,7 @@ function siteWatchUrl(
   // The Worker is a placeholder destination for every title. Send a title query
   // when no observed provider ID exists; otherwise pass the observed ID as diagnostics.
   if (providerId === "streamingcommunity") {
-    const params = new URLSearchParams({ query: titleName });
-    params.set("provider", "streamingcommunity");
+    const params = new URLSearchParams({ query: titleName, titleId });
     if (sourceUrl) {
       try {
         const source = new URL(sourceUrl);
@@ -140,8 +140,9 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 <p className="mt-1 text-sm text-fg-2">Non risulta incluso in nessun abbonamento in Italia.</p>
               )}
               <ul className="mt-3 flex flex-wrap gap-2">
-                {providers.length === 0 && (
-                  // Generic fallback destination when no catalogue provider is available.
+                {sectionOf(title) !== "anime" && (
+                  // Every film and non-anime series gets a generic Worker entry point,
+                  // even when JustWatch already lists official subscription services.
                   <li>
                     <a
                       href={siteWatchUrl(
@@ -187,7 +188,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                         className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                       >
                         <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: p.tint }} />
-                        {progress?.providerId === p.id ? "Continua a guardare" : `Dove guardarlo · ${p.name}`}
+                        {p.name}
                       </a>
                     </li>
                   );
