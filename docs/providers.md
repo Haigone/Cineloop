@@ -122,3 +122,5 @@ Esplora's anime come from the TMDB catalogue plus two open calendars: MyAnimeLis
 An anime opened under its old TMDB id moves, for every profile, to its franchise card (`migrateAnimeTitle`), and the page follows.
 
 Weekly episodes: AniList's `nextAiringEpisode` tells when the next episode of an anime that is airing now comes out. `AnimeFirstCatalog.nextSeasons` returns it as a release with `episode` set, so the timer on the wishlist, in "In attesa" (finished series) and on the title page reads "S2E5" or "Episodio 5". Pictures: `next.config.ts` also allows `*.anilist.co` (AniList covers).
+
+The weekly anime top lists each show once: AniList's season entries are followed back to the first season (`rootOf`) and open as the whole franchise. Opening an anime under a MyAnimeList or AniList id moves it, like a TMDB one, to its franchise card.

@@ -304,11 +304,18 @@ export async function canonical(repo: Repository, titles: Title[]): Promise<Titl
   const out: Title[] = [];
   const seen = new Set<string>();
   titles.forEach((t, i) => {
-    const pick = (swaps[i] && found.get(swaps[i]!)) || t;
+    const local = swaps[i] ? found.get(swaps[i]!) : undefined;
+    // The bundled copy keeps its id (lists point at it) but takes the catalogue's pictures when it has none.
+    const pick = local ? (local.artwork.posterUrl || !t.artwork.posterUrl ? local : { ...local, artwork: { ...local.artwork, posterUrl: t.artwork.posterUrl, backdropUrl: local.artwork.backdropUrl ?? t.artwork.backdropUrl } }) : t;
     if (!seen.has(pick.id)) out.push(pick);
     seen.add(pick.id);
   });
-  return out;
+  // Whichever copy came first, the picture of the catalogue's copy of the same title is not lost.
+  const posters = new Map(titles.filter((t) => t.artwork.posterUrl).map((t) => [identity(t), t.artwork] as const));
+  return out.map((t) => {
+    const art = !t.artwork.posterUrl ? posters.get(identity(t)) : undefined;
+    return art ? { ...t, artwork: { ...t.artwork, posterUrl: art.posterUrl, backdropUrl: t.artwork.backdropUrl ?? art.backdropUrl } } : t;
+  });
 }
 
 /**
@@ -337,7 +344,7 @@ export async function cacheTitles(repo: Repository, titles: readonly Title[]): P
 export async function ensureTitle(id: string): Promise<Title | null> {
   const repo = getRepository();
   const [local] = await repo.getTitlesByIds([id]);
-  if (local && !needsDetails(local)) return local;
+  if (local && !needsDetails(local)) return local.artwork.posterUrl ? local : withCataloguePicture(repo, local);
   const remote = await getCatalog().getTitle(id);
   if (!remote) return local ?? null;
   if (!local || JSON.stringify(withKnownSeasons(remote, local)) !== JSON.stringify(local)) await cacheTitles(repo, [remote]);
@@ -355,3 +362,19 @@ function needsDetails(t: Title): boolean {
   return t.type === "movie" ? t.partOf === undefined : t.seasons.length === 0;
 }
 
+
+/**
+ * A bundled title has generated art until the catalogue's picture is found. Look for it by name and
+ * year when the title is opened, and keep it (a miss is not retried for a while).
+ */
+const looked = new Map<string, number>();
+async function withCataloguePicture(repo: Repository, title: Title): Promise<Title> {
+  const catalog = getCatalog();
+  if (!catalog.complete || /^(anime-|tmdb-)/.test(title.id) || Date.now() - (looked.get(title.id) ?? 0) < 6 * 3_600_000) return title;
+  looked.set(title.id, Date.now());
+  const match = await catalog.match(title).catch(() => null);
+  if (!match?.artwork.posterUrl) return title;
+  const enriched = { ...title, artwork: { ...title.artwork, posterUrl: match.artwork.posterUrl, backdropUrl: title.artwork.backdropUrl ?? match.artwork.backdropUrl } };
+  await cacheTitles(repo, [enriched]);
+  return enriched;
+}

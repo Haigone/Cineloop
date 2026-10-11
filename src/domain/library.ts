@@ -90,3 +90,20 @@ export function finishesTitle(
   const last = airedSeasons(title, today, overrides).at(-1);
   return Boolean(last && at.season === last.number && at.episode !== null && at.episode >= lastWantedEpisode(title, last.number, overrides));
 }
+
+/**
+ * True when this point is the end of a season that is not the last one out: the series is
+ * seen up to there, and the seasons after it that already aired are "Novità".
+ */
+export function finishesEarlierSeason(
+  title: Title,
+  at: { season: number | null; episode: number | null; fraction: number },
+  today: string,
+  overrides?: Overrides,
+): boolean {
+  if (at.fraction < FINISHED_AT || title.type === "movie" || at.season === null || at.episode === null) return false;
+  const aired = airedSeasons(title, today, overrides);
+  const last = aired.at(-1);
+  const here = aired.find((s) => s.number === at.season);
+  return Boolean(last && here && here.number < last.number && at.episode >= lastWantedEpisode(title, here.number, overrides));
+}

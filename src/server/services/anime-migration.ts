@@ -24,11 +24,11 @@ export async function franchiseFor(old: Title): Promise<Title | null> {
 }
 
 /**
- * An anime that still has its TMDB id is moved, for every profile, to its franchise card. Returns the
+ * An anime that still has a TMDB, MyAnimeList or AniList id is moved, for every profile, to its franchise card. Returns the
  * new id, or null when the title is not a TMDB anime or has no clear match.
  */
 export async function migrateAnimeTitle(id: string): Promise<string | null> {
-  if (!/^tmdb-tv-\d+$/.test(id) || noMatch.has(id)) return null;
+  if (!/^(tmdb-tv-\d+|anime-(al|mal)-\d+)$/.test(id) || noMatch.has(id)) return null;
   try {
     const old = await ensureTitle(id);
     if (!old || old.type !== "anime") return null;

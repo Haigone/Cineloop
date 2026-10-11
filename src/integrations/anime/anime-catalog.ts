@@ -240,14 +240,22 @@ export class AnimeFirstCatalog implements CatalogService {
     }));
   }
 
-  /** TMDB's week, plus the anime airing now that people watch most (TMDB barely lists them). */
+  /**
+   * TMDB's week, plus the anime airing now that people watch most (TMDB barely lists them). AniList
+   * lists every season as an entry of its own: each one stands for the show's first season here,
+   * which opens as the whole franchise.
+   */
   async trending(limit: number): Promise<Title[]> {
     const [base, airing] = await Promise.all([this.base.trending(limit), this.anilist.trending()]);
+    const roots = await Promise.all(airing.slice(0, 12).map((a) => this.anilist.rootOf(a)));
     const known = new Set(base.map((t) => searchKey(t.title)));
-    const extra = airing
-      .filter((a) => !alNames(a).some((n) => known.has(searchKey(n))))
-      .map(alSeries)
-      .filter((t): t is NonNullable<typeof t> => t !== null);
+    const extra: Title[] = [];
+    for (const a of roots) {
+      const title = alSeries(a);
+      if (!title || alNames(a).some((n) => known.has(searchKey(n)))) continue;
+      alNames(a).forEach((n) => known.add(searchKey(n)));
+      extra.push(title);
+    }
     return [...base, ...extra];
   }
   discover(query: DiscoverQuery, limit: number): Promise<DiscoverPage> {

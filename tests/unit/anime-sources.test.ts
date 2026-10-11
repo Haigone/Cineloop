@@ -4,7 +4,7 @@ import { JikanClient } from "@/integrations/anime/jikan";
 import { AniListClient } from "@/integrations/anime/anilist";
 import { AnnClient, parseAnimeList } from "@/integrations/anime/ann";
 import { FillerList, fillerSlug, parseEpisodeKinds, parseFillerEpisodes, quickListOf, toRanges } from "@/integrations/anime/filler-list";
-import { finishesTitle, newSeasons } from "@/domain/library";
+import { finishesEarlierSeason, finishesTitle, newSeasons } from "@/domain/library";
 import { includedByDefault, isIncluded, plannedSeasons } from "@/domain/watch-order";
 import { getRepository } from "@/server/data";
 import { parseXml } from "@/lib/xml";
@@ -264,5 +264,16 @@ describe("filler quick list and artwork", () => {
     expect(library.some((e) => e.titleId === old.id)).toBe(false);
     expect(library.find((e) => e.titleId === next.id)?.status).toBe("watching");
     expect(await repo.getTitlesByIds([old.id])).toEqual([]);
+  });
+});
+
+describe("a season seen while a later one is out", () => {
+  const show = { ...tmdbBleach, seasons: [{ number: 1, episodeCount: 12, airDate: "2020-01-01" }, { number: 2, episodeCount: 12, airDate: "2021-01-01" }] } as Series;
+  it("is the end of an earlier season, not of the title", () => {
+    expect(finishesEarlierSeason(show, { season: 1, episode: 12, fraction: 1 }, "2026-01-01")).toBe(true);
+    expect(finishesEarlierSeason(show, { season: 1, episode: 11, fraction: 1 }, "2026-01-01")).toBe(false);
+    expect(finishesEarlierSeason(show, { season: 2, episode: 12, fraction: 1 }, "2026-01-01")).toBe(false);
+    // The next season has not aired yet: it is the last one out, so the title is finished instead.
+    expect(finishesEarlierSeason(show, { season: 1, episode: 12, fraction: 1 }, "2020-06-01")).toBe(false);
   });
 });

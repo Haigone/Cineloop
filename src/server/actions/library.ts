@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { ActivityKind, RatingValue, SeasonSummary } from "@/domain/types";
-import { airedSeasons, finishesTitle } from "@/domain/library";
+import { airedSeasons, finishesEarlierSeason, finishesTitle } from "@/domain/library";
 import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
@@ -232,6 +232,14 @@ export async function saveManualProgress(
       await repo.markFinished(user.id, title.id, season);
       await repo.removeFromWishlist(user.id, title.id);
       await record(user.id, "completed", title.id);
+    }, "Non siamo riusciti a salvare dove sei arrivato.");
+  }
+  // At the end of a season while a later one has already aired: seen up to there, the next season is "Novità".
+  if (runtime > 1 && finishesEarlierSeason(title, { season, episode, fraction: minute / runtime }, italianDay(), await overridesFor(user.id, title.id))) {
+    return run(async () => {
+      const repo = getRepository();
+      await repo.markSeenThrough(user.id, title.id, season!);
+      await repo.removeFromWishlist(user.id, title.id);
     }, "Non siamo riusciti a salvare dove sei arrivato.");
   }
   return run(async () => {

@@ -3,7 +3,7 @@ import type { MediaType, Title, User } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getRepository } from "@/server/data";
 import { withoutSeriesFilms } from "@/domain/franchise";
-import { cacheTitles } from "./explore";
+import { cacheTitles, canonical } from "./explore";
 
 export interface SearchResults {
   titles: { id: string; title: string; year: number; type: MediaType; palette: readonly [string, string, string]; posterUrl: string | null }[];
@@ -50,7 +50,11 @@ async function withRemote(local: Title[], q: string, limit: number): Promise<Tit
     const folded = found.some((t) => t.id.startsWith("anime-ann-"));
     const kept = folded ? local.filter((t) => t.type !== "anime" && !(t.type === "movie" && t.partOf)) : local;
     const merged = [...found.filter((t) => t.id.startsWith("anime-ann-")), ...kept.map((t) => fresh.get(t.id) ?? t), ...found.filter((t) => !t.id.startsWith("anime-ann-") && !kept.some((l) => l.id === t.id))];
-    return withoutSeriesFilms(merged).slice(0, limit);
+    // One row per title: a bundled copy and the catalogue's copy of the same film are the same row.
+    const repo = getRepository();
+    const one = await canonical(repo, withoutSeriesFilms(merged));
+    await cacheTitles(repo, one.filter((t) => t.artwork.posterUrl));
+    return one.slice(0, limit);
   } catch (err) {
     console.error("catalog search failed", err);
     return withoutSeriesFilms(local);

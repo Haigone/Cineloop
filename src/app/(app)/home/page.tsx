@@ -21,6 +21,7 @@ import { WeekStats } from "@/components/home/week-stats";
 import { RecentlyWatched } from "@/components/home/recently-watched";
 import { TonightQueue } from "@/components/home/tonight-queue";
 import { RatePrompt } from "@/components/home/rate-prompt";
+import { AwaitingList } from "@/components/library/awaiting-list";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
 import { HOME_SECTIONS, HomeSectionTabs, SectionBackdrop, sectionFromSlug } from "@/components/home/home-sections";
 
@@ -114,10 +115,15 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
           )}
         </RevealItem>
 
-        {view.newSeasons.length > 0 && (
+        {(view.newSeasons.length > 0 || view.awaiting.length > 0) && (
           <RevealItem as="section" className="order-4 min-w-0">
-            <SectionHeader title="Novità" description="Serie che avevi finito e che hanno una stagione nuova." href="/library" hrefLabel="Apri libreria" />
-            <NewSeasonsRail items={view.newSeasons} wishlistIds={wishlistIds} />
+            <SectionHeader title="Novità" description="Serie che avevi finito e che hanno una stagione nuova o un nuovo episodio in arrivo." href="/library" hrefLabel="Apri libreria" />
+            {view.newSeasons.length > 0 && <NewSeasonsRail items={view.newSeasons} wishlistIds={wishlistIds} />}
+            {view.awaiting.length > 0 && (
+              <div className={view.newSeasons.length > 0 ? "mt-4" : ""}>
+                <AwaitingList items={view.awaiting} />
+              </div>
+            )}
           </RevealItem>
         )}
       </div>

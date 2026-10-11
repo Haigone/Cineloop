@@ -20,6 +20,7 @@ export interface AniListAnime {
   description?: string | null;
   coverImage?: { extraLarge?: string | null; large?: string | null };
   genres?: string[];
+  relations?: { edges?: { relationType?: string; node?: { id: number; format?: string | null } }[] };
 }
 
 export const AL_ID = /^anime-al-(\d+)$/;
@@ -38,7 +39,7 @@ const GENRES: Record<string, Genre> = {
   Thriller: "Thriller",
 };
 
-const FIELDS = "id idMal format status title { romaji english native } startDate { year month day } episodes duration description(asHtml: false) coverImage { extraLarge large } genres";
+const FIELDS = "id idMal format status title { romaji english native } startDate { year month day } episodes duration description(asHtml: false) coverImage { extraLarge large } genres relations { edges { relationType node { id format } } }";
 
 /** First airing day (YYYY-MM-DD), or null when it is not fully announced. */
 export function alDate(a: AniListAnime): string | null {
@@ -102,6 +103,21 @@ export class AniListClient {
         return k === key || k.startsWith(key) || key.startsWith(k);
       })) ?? null
     );
+  }
+
+  /**
+   * The first season of the show a season belongs to: AniList lists each season as its own entry,
+   * linked to the one before it. Followed up to a few steps, and the entry itself when unlinked.
+   */
+  async rootOf(a: AniListAnime, steps = 4): Promise<AniListAnime> {
+    let current = a;
+    for (let i = 0; i < steps; i++) {
+      const before = current.relations?.edges?.find((e) => e.relationType === "PREQUEL" && e.node && (e.node.format === "TV" || e.node.format === "ONA"));
+      const found = before?.node ? await this.byId(String(before.node.id)) : null;
+      if (!found) break;
+      current = found;
+    }
+    return current;
   }
 
   async byId(id: string): Promise<AniListAnime | null> {

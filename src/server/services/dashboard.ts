@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { isLive } from "@/domain/presence";
 import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
+import { awaitedReleases, type AwaitedRelease } from "./awaited";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
@@ -51,6 +52,8 @@ export interface HomeView {
   toRate: Title[];
   /** "Novità": finished series with a new season out. */
   newSeasons: NewSeasonItem[];
+  /** Finished series waiting on a season or, for those airing weekly, the next episode; soonest first. */
+  awaiting: { title: Title; release: AwaitedRelease }[];
 }
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -101,7 +104,7 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     .map((item) => (item.title.id === liveTitleId ? { ...item, live: true } : item));
 
   const recentlyWatched: RecentWatchItem[] = library
-    .filter((entry) => (entry.status === "watching" || entry.status === "completed") && inSection.has(entry.titleId) && (entry.lastWatchedAt || entry.progress))
+    .filter((entry) => entry.status === "completed" && inSection.has(entry.titleId) && (entry.lastWatchedAt || entry.progress))
     .sort((a, b) => Date.parse(b.lastWatchedAt ?? b.progress?.updatedAt ?? "") - Date.parse(a.lastWatchedAt ?? a.progress?.updatedAt ?? ""))
     .slice(0, 8)
     .map((entry) => ({ title: titles.get(entry.titleId)!, status: entry.status as "watching" | "completed", watchedAt: entry.lastWatchedAt ?? entry.progress?.updatedAt ?? null, season: entry.progress?.season ?? null, episode: entry.progress?.episode ?? null, fraction: entry.progress?.fraction ?? (entry.status === "completed" ? 1 : null) }))
@@ -134,9 +137,14 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     ...friends.filter((f) => partyFriends.some((p) => p.id === f.user.id)).map((f) => toPartyMember(f.user, f.library, f.wishlist)),
   ];
 
+  const finished = category === "movie" ? [] : library.filter((e) => e.status === "completed" && inSection.has(e.titleId)).map((e) => inSection.get(e.titleId)!);
+  const awaited = await awaitedReleases(finished, italianDay(now));
   return {
     viewer: toPublicUser(viewer),
     category,
+    awaiting: finished
+      .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
+      .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
     background: sectionBackground(prefs, category, library, inSection),
     nowWatching: continueWatching[0] ?? null,
     continueWatching: continueWatching.slice(1),
