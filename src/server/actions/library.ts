@@ -300,18 +300,21 @@ export async function chooseWatchProvider(id: string, providerId: string): Promi
   }, "Non siamo riusciti a salvare il servizio scelto.");
 }
 
-const podiumSchema = z.array(titleId).max(3);
+const podiumSchema = z.object({ category: z.enum(["movie", "series", "anime"]), ids: z.array(titleId).max(3) });
 
-/** The viewer's top 3 for Classifiche, first place first. Only titles they have watched. */
-export async function savePodium(ids: string[]): Promise<ActionResult> {
+/** The viewer's top 3 of one category for Classifiche, first place first. Only titles of that category they have watched. */
+export async function savePodium(category: string, ids: string[]): Promise<ActionResult> {
   const user = await getCurrentUser();
-  const parsed = podiumSchema.safeParse(ids);
-  if (!parsed.success || new Set(parsed.data).size !== parsed.data.length) return { ok: false, error: "Podio non valido." };
+  const parsed = podiumSchema.safeParse({ category, ids });
+  if (!parsed.success || new Set(parsed.data.ids).size !== parsed.data.ids.length) return { ok: false, error: "Podio non valido." };
   const repo = getRepository();
-  const watched = new Set((await repo.listLibrary(user.id)).filter((e) => e.status === "completed" || e.status === "watching").map((e) => e.titleId));
-  if (!parsed.data.every((id) => watched.has(id))) return { ok: false, error: "Sul podio vanno solo titoli che hai visto." };
+  const [library, titles] = await Promise.all([repo.listLibrary(user.id), repo.listTitles()]);
+  const kind = new Map(titles.map((t) => [t.id, t.type]));
+  const watched = new Set(library.filter((e) => e.status === "completed" || e.status === "watching").map((e) => e.titleId));
+  if (!parsed.data.ids.every((id) => watched.has(id) && kind.get(id) === parsed.data.category)) return { ok: false, error: "Sul podio vanno solo titoli di questa categoria che hai visto." };
   return run(async () => {
-    await repo.updatePreferences(user.id, { podium: parsed.data });
+    const prefs = await repo.getPreferences(user.id);
+    await repo.updatePreferences(user.id, { podiums: { ...prefs.podiums, [parsed.data.category]: parsed.data.ids } });
   }, "Non siamo riusciti a salvare il podio.");
 }
 

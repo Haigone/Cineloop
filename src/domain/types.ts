@@ -289,6 +289,8 @@ export interface UserPreferences {
   liveVisible: boolean;
   /** The viewer's own top 3, in order (first place first). Shown as a podium in Classifiche. */
   podium: string[];
+  /** The viewer's top 3 per category (first place first); `podium` above is what it was before categories. */
+  podiums: Partial<Record<MediaType, string[]>>;
   notifyFriendActivity: boolean;
   notifyWatchParty: boolean;
   notifySuggestions: boolean;

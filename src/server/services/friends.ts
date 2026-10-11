@@ -1,4 +1,5 @@
 import "server-only";
+import { buildPodiums, type CategoryPodium, type PodiumCategory } from "@/domain/podium";
 import { compare, genreProfile, topGenres, type Comparison } from "@/domain/compare";
 import type { ActivityEvent, Genre, LibraryEntry, PublicUser, Title, WishlistItem } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
@@ -74,6 +75,8 @@ export interface FriendProfileView {
   wishlist: { item: WishlistItem; title: Title }[];
   topRated: { entry: LibraryEntry; title: Title }[];
   recent: FriendActivityItem[];
+  /** The friend's podium per category; null when their profile is not visible to the viewer. */
+  podiums: Record<PodiumCategory, CategoryPodium> | null;
   viewerWishlistIds: string[];
 }
 
@@ -119,6 +122,7 @@ export async function getFriendProfile(username: string): Promise<FriendProfileV
           .map((e) => toItem(e, new Map([[friend.id, friend]]), titles, Date.now()))
           .filter((x): x is FriendActivityItem => x !== null)
       : [],
+    podiums: visible ? buildPodiums(prefs, theirLibrary, titles) : null,
     viewerWishlistIds: myWishlist.map((w) => w.titleId),
   };
 }

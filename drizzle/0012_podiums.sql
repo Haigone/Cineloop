@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "podiums" jsonb DEFAULT '{}'::jsonb NOT NULL;

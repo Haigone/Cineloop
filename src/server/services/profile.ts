@@ -1,6 +1,7 @@
 import "server-only";
 import { genreProfile, summarize, type SideSummary } from "@/domain/compare";
 import { genreShares, ratingDistribution, socialRankings, topRated, type RankedTitle, type SocialRankings } from "@/domain/rankings";
+import { buildPodiums, type CategoryPodium, type PodiumCategory } from "@/domain/podium";
 import { dailyMinutes, weekStart } from "@/domain/stats";
 import type { Genre, RatingValue, Title, User } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
@@ -22,23 +23,11 @@ async function loadOwn() {
   return { viewer, repo, library, wishlist, titles: new Map(allTitles.map((t) => [t.id, t])) };
 }
 
-export interface PodiumView {
-  /** The chosen top 3, first place first (fewer while not all chosen). */
-  picks: { title: Title; rating: RatingValue | null }[];
-  /** Everything the viewer has watched, best rated first, to choose from. */
-  candidates: { title: Title; rating: RatingValue | null }[];
-}
-
-export async function getRankingsView(): Promise<{ podium: PodiumView; personal: PersonalRankings; social: SocialRankings; friendCount: number }> {
+export async function getRankingsView(): Promise<{ podiums: Record<PodiumCategory, CategoryPodium>; personal: PersonalRankings; social: SocialRankings; friendCount: number }> {
   const { viewer, repo, library, titles } = await loadOwn();
   const [friends, prefs] = await Promise.all([loadFriendBundles(repo, viewer.id), repo.getPreferences(viewer.id)]);
-  const watched = library
-    .filter((e) => (e.status === "completed" || e.status === "watching") && titles.has(e.titleId))
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
-    .map((e) => ({ title: titles.get(e.titleId)!, rating: e.rating }));
-  const byId = new Map(watched.map((w) => [w.title.id, w]));
   return {
-    podium: { picks: prefs.podium.map((id) => byId.get(id)).filter((x) => x !== undefined), candidates: watched },
+    podiums: buildPodiums(prefs, library, titles),
     personal: {
       movies: topRated(library, titles, "movie", 10),
       series: topRated(library, titles, "series", 10),

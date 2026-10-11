@@ -300,6 +300,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
     shareActivity: true,
     liveVisible: true,
     podium: [],
+    podiums: {},
     notifyFriendActivity: true,
     notifyWatchParty: true,
     notifySuggestions: true,

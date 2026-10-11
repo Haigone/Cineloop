@@ -41,10 +41,10 @@ const names = (users: PublicUser[]) => users.map((u) => u.displayName.split(" ")
 const avg = (v: number) => (v / 2).toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 async function RankingsContent() {
-  const { podium, personal: p, social: s, friendCount } = await getRankingsView();
+  const { podiums, personal: p, social: s, friendCount } = await getRankingsView();
   const rated = p.distribution.reduce((a, b) => a + b, 0);
 
-  if (rated === 0 && friendCount === 0 && podium.candidates.length === 0) {
+  if (rated === 0 && friendCount === 0 && Object.values(podiums).every((p) => p.candidates.length === 0)) {
     return (
       <EmptyState
         icon={<Trophy />}
@@ -64,7 +64,7 @@ async function RankingsContent() {
   return (
     <Reveal className="space-y-12">
       <RevealItem>
-        <Podium picks={podium.picks} candidates={podium.candidates} />
+        <Podium podiums={podiums} />
       </RevealItem>
 
       <RevealItem as="section">

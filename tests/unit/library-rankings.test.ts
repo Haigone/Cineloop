@@ -70,6 +70,7 @@ describe("filterNotifications", () => {
     shareActivity: true,
     liveVisible: true,
     podium: [],
+    podiums: {},
     notifyFriendActivity: false,
     notifyWatchParty: true,
     notifySuggestions: false,

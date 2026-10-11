@@ -14,6 +14,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { Rail } from "@/components/media/rail";
 import { TitleCard } from "@/components/media/title-card";
+import { Podium } from "@/components/rankings/podium";
 import { CompareTable } from "@/components/friends/compare-table";
 import { CompatibilityMeter } from "@/components/friends/compatibility-meter";
 import { RemoveFriendButton } from "@/components/friends/remove-friend-button";
@@ -83,6 +84,8 @@ async function FriendContent({ params }: { params: PageProps<"/friends/[username
               </Rail>
             </section>
           )}
+
+          {view.podiums && Object.values(view.podiums).some((p) => p.picks.length > 0) && <Podium podiums={view.podiums} owner={name} />}
 
           <section id="confronto" aria-labelledby="compare-h" className="scroll-mt-24">
             <SectionHeader id="compare-h" title={`Tu e ${name}`} description="Confronto basato su ciò che avete visto e votato." />

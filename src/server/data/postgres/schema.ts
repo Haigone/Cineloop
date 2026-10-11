@@ -222,6 +222,7 @@ export const preferences = pgTable("preferences", {
   profileVisibility: text("profile_visibility").$type<"public" | "friends" | "private">().notNull().default("friends"),
   shareActivity: boolean("share_activity").notNull().default(true),
   liveVisible: boolean("live_visible").notNull().default(true),
+  podiums: jsonb("podiums").$type<Partial<Record<MediaType, string[]>>>().notNull().default({}),
   podium: text("podium").array().notNull().default(sql`'{}'::text[]`),
   notifyFriendActivity: boolean("notify_friend_activity").notNull().default(true),
   notifyWatchParty: boolean("notify_watch_party").notNull().default(true),

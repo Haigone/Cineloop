@@ -588,6 +588,7 @@ export function defaultPreferences(userId: string): UserPreferences {
     shareActivity: true,
     liveVisible: true,
     podium: [],
+    podiums: {},
     notifyFriendActivity: true,
     notifyWatchParty: true,
     notifySuggestions: true,
