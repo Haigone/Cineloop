@@ -246,10 +246,10 @@ describe("filler quick list and artwork", () => {
     const ann = new AnnClient(fetcher);
     (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
     vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
-    const mal = new JikanClient((async () => new Response(JSON.stringify({ data: [{ mal_id: 269, title: "Bleach", type: "TV", images: { jpg: { large_image_url: "https://cdn.myanimelist.net/images/anime/3/40451l.jpg" } } }] }), { status: 200 })) as unknown as typeof fetch);
-    const cat = new AnimeFirstCatalog(base([tmdbBleach]), ann, new FillerList(fetcher), mal, new AniListClient((async () => new Response(JSON.stringify({ data: {} }), { status: 200 })) as unknown as typeof fetch));
+    const al = new AniListClient((async () => new Response(JSON.stringify({ data: { Page: { media: [{ id: 269, format: "TV", status: "FINISHED", title: { english: "Bleach" }, coverImage: { extraLarge: "https://s4.anilist.co/bleach.jpg" } }] } } }), { status: 200 })) as unknown as typeof fetch);
+    const cat = new AnimeFirstCatalog(base([tmdbBleach]), ann, new FillerList(fetcher), new JikanClient(), al);
     const [b] = await cat.search("bleach", 5);
-    expect(b!.artwork.posterUrl).toBe("https://cdn.myanimelist.net/images/anime/3/40451l.jpg");
+    expect(b!.artwork.posterUrl).toBe("https://s4.anilist.co/bleach.jpg");
   });
 
   it("replaces a TMDB anime by the franchise, keeping the user's own entry when both exist", async () => {

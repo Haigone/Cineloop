@@ -46,26 +46,6 @@ describe("Jikan / MyAnimeList seasonal", () => {
     expect(toSeries(rec(9, { title: null, title_english: null }))).toBeNull();
   });
 
-  it("adds the calendar's series to the upcoming list, without those the catalogue already has", async () => {
-    const tmdb: Release = { title: known, date: "2026-11-01", season: null, venue: "streaming" };
-    const c = cat(jikan([rec(1), rec(2), rec(3, { type: "Movie" })]), [tmdb]);
-    const list = await c.upcoming("all", TODAY, 20);
-    expect(list.map((r) => r.title.id)).toEqual(["tmdb-tv-1", "anime-mal-2"]);
-    expect(list[1]).toMatchObject({ date: "2026-12-05", venue: "seasonal" });
-  });
-
-  it("leaves films and series untouched, and keeps at most 5 undated entries", async () => {
-    const undated = [10, 11, 12, 13, 14, 15, 16].map((n) => rec(n, { aired: { from: null } }));
-    const c = cat(jikan(undated));
-    expect(await c.upcoming("movie", TODAY, 20)).toEqual([]);
-    expect((await c.upcoming("anime", TODAY, 20)).length).toBe(5);
-  });
-
-  it("drops entries past the one-year horizon", async () => {
-    const far = rec(20, { aired: { from: "2028-01-01T00:00:00+00:00" } });
-    expect(await cat(jikan([far])).upcoming("all", TODAY, 20)).toEqual([]);
-  });
-
   it("returns the title for a calendar id and the wait for its first season", async () => {
     const c = cat(jikan([], { "30": rec(30) }));
     expect((await c.getTitle("anime-mal-30"))?.title).toBe("New Show 30");
@@ -76,12 +56,6 @@ describe("Jikan / MyAnimeList seasonal", () => {
   it("stops waiting once the show has aired", async () => {
     const c = cat(jikan([], { "31": rec(31, { status: "Currently Airing", aired: { from: "2026-10-01T00:00:00+00:00" } }) }));
     expect(await c.nextSeasons([{ id: "anime-mal-31" } as Title], TODAY)).toEqual([]);
-  });
-
-  it("an unreachable calendar is an empty list, not an error", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const down = new JikanClient((async () => { throw new Error("down"); }) as unknown as typeof fetch);
-    expect(await cat(down).upcoming("all", TODAY, 20)).toEqual([]);
   });
 
   const rec2 = (id: number, extra: Partial<AniListAnime> = {}): AniListAnime => ({
@@ -95,7 +69,7 @@ describe("Jikan / MyAnimeList seasonal", () => {
     expect(s.seasons).toEqual([{ number: 1, episodeCount: 12, airDate: "2027-01-09" }]);
   });
 
-  it("adds AniList's announcements once, even when MyAnimeList lists the same show", async () => {
+  it("adds AniList's announcements once", async () => {
     const c = cat(jikan([rec(1, { title_english: "Fresh 5" })]), [], al([rec2(5), rec2(6)]));
     const list = await c.upcoming("anime", TODAY, 20);
     expect(list.map((r) => r.title.id)).toEqual(["anime-al-5", "anime-al-6"]);

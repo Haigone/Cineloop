@@ -94,8 +94,10 @@ export class AnimeFirstCatalog implements CatalogService {
       f.title.artwork = { ...f.title.artwork, posterUrl: tmdb.artwork.posterUrl, backdropUrl: tmdb.artwork.backdropUrl ?? f.title.artwork.backdropUrl };
       return f;
     }
-    const mal = (await this.jikan.search(name)).find((a) => namesOf(a).some(same) && (a.images?.jpg?.large_image_url || a.images?.jpg?.image_url));
-    if (mal) f.title.artwork = { ...f.title.artwork, posterUrl: mal.images!.jpg!.large_image_url || mal.images!.jpg!.image_url! };
+    // AniList is the second source: it answers from the server where MyAnimeList's Jikan does not.
+    const al = (await this.anilist.search(name).catch(() => [])).find((a) => alNames(a).some(same) && a.coverImage);
+    const cover = al?.coverImage?.extraLarge || al?.coverImage?.large;
+    if (cover) f.title.artwork = { ...f.title.artwork, posterUrl: cover };
     return f;
   }
 
@@ -334,7 +336,7 @@ export class AnimeFirstCatalog implements CatalogService {
     if (type !== "all" && type !== "anime") return base;
     const known = new Set(base.map((r) => searchKey(r.title.title)));
     const horizon = addDays(today, 365);
-    const [mal, listed] = await Promise.all([this.jikan.upcoming(), this.anilist.upcoming()]);
+    const listed = await this.anilist.upcoming();
     const within = (date: string | null) => date === null || (date > today && date <= horizon);
     const calendar: Release[] = [];
     const rootsSeen = new Set<string>();
@@ -354,14 +356,6 @@ export class AnimeFirstCatalog implements CatalogService {
         alNames(a).forEach((n) => known.add(searchKey(n)));
         calendar.push({ title, date: alDate(a), season: null, venue: "seasonal" });
       }
-    }
-    for (const a of mal) {
-      const names = namesOf(a);
-      const title = toSeries(a);
-      const date = airDate(a);
-      if (!title || !within(date) || names.some((n) => known.has(searchKey(n)))) continue;
-      names.forEach((n) => known.add(searchKey(n)));
-      calendar.push({ title, date, season: null, venue: "seasonal" });
     }
     const seasonal = calendar
       .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))

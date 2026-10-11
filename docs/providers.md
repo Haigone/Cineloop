@@ -132,3 +132,5 @@ The weekly anime top lists each show once: AniList's season entries are followed
 - **Anime tab.** "In uscita" merges AniList/MAL calendars; TMDB alone returns few anime (only 5 networks, ja + animation).
 - **Airing season.** Episode count of the season still airing comes from AniList (total, or aired + schedule); upcoming episodes get their air date from `airingSchedule`.
 - **Episode titles.** ANN lists titles for only some episodes; missing ones fall back to TMDB, only when its episode list matches the count.
+
+- **Jikan (MyAnimeList) is no longer used for covers or the upcoming calendar.** From Vercel its requests fail at network level ("fetch failed" after ~10 s, seen in /api/diagnostics/sources); AniList covers both. Jikan is only asked to open old `anime-mal-*` titles.

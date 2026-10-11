@@ -122,6 +122,15 @@ export class AniListClient {
     return { root: current, depth };
   }
 
+  /** Series matching a name, best match first (used for a cover). */
+  async search(name: string): Promise<AniListAnime[]> {
+    const data = await this.query<{ Page?: { media?: AniListAnime[] } }>(
+      `query ($search: String) { Page(page: 1, perPage: 6) { media(search: $search, type: ANIME, format_in: [TV, ONA], isAdult: false) { ${FIELDS} } } }`,
+      { search: name },
+    );
+    return data?.Page?.media ?? [];
+  }
+
   async byId(id: string): Promise<AniListAnime | null> {
     const data = await this.query<{ Media?: AniListAnime }>(`query { Media(id: ${Number(id)}, type: ANIME) { ${FIELDS} } }`);
     return data?.Media ?? null;
