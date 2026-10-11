@@ -15,12 +15,12 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
   if (sourceUrl) {
     try {
       const source = new URL(sourceUrl);
-      const host = source.hostname.toLowerCase().replace(/^www\\./, "");
-      const validHost = source.protocol === "https:" && /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host);
-      const match = validHost && /^\\/(?:[a-z]{2}\\/)?(?:watch|titles?)\\/(\\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+      const host = source.hostname.toLowerCase().replace(/^www\./, "");
+      const validHost = source.protocol === "https:" && /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+      const match = validHost && /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
       if (match) params.set("id", match[1]!);
       const episodeId = source.searchParams.get("e");
-      if (episodeId && /^\\d{1,12}$/.test(episodeId)) params.set("episodeId", episodeId);
+      if (episodeId && /^\d{1,12}$/.test(episodeId)) params.set("episodeId", episodeId);
     } catch {}
   }
   if (season !== null) params.set("season", String(season));
