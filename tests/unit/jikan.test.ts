@@ -109,4 +109,15 @@ describe("Jikan / MyAnimeList seasonal", () => {
     expect(r).toMatchObject({ date: "2027-01-09", season: 2, venue: "seasonal" });
     expect(r!.title).toMatchObject({ id: "anime-al-20", title: "Big Show" });
   });
+
+  it("flags a new season whose main show page ANN does not have", async () => {
+    const first = rec2(30, { status: "FINISHED", title: { english: "Lost Show" }, startDate: { year: 2020, month: 1, day: 1 } });
+    const second = rec2(31, { title: { english: "Lost Show 2" }, relations: { edges: [{ relationType: "PREQUEL", node: { id: 30, format: "TV" } }] } });
+    const client = new AniListClient((async (_url: string, init?: RequestInit) => {
+      const q = String(JSON.parse(String(init?.body)).query);
+      return new Response(JSON.stringify({ data: q.includes("Media(") ? { Media: first } : { Page: { media: [second] } } }), { status: 200 });
+    }) as unknown as typeof fetch);
+    const [r] = await cat(jikan([]), [], client).upcoming("anime", TODAY, 20);
+    expect(r).toMatchObject({ season: 2, mainNotFound: true });
+  });
 });

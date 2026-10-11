@@ -127,6 +127,8 @@ export interface Release {
   season: number | null;
   /** For a series airing now, one episode a week: the next episode's number. */
   episode?: number | null;
+  /** A new season whose main show page could not be found: the card is the season's own entry. */
+  mainNotFound?: boolean;
   /** On a streaming service, only in cinemas, or in the anime season calendar (platform unknown). Unset when it does not matter (a followed series). */
   venue?: "streaming" | "cinema" | "seasonal";
 }

@@ -256,7 +256,7 @@ export function releaseCard(r: Release, today: string): ReleaseCard {
     title: r.title,
     date: r.date,
     badge: r.date ? countdownLabel(r.date, today) : "Annunciata",
-    meta: r.episode ? `${r.season ? `S${r.season}E${r.episode}` : `Episodio ${r.episode}`} · ${when}` : r.season ? `Stagione ${r.season} · ${when}` : r.date ? `Dal ${when}` : when,
+    meta: r.mainNotFound ? `Stagione ${r.season ?? ""} · ${when} · scheda principale non trovata`.replace("Stagione  ·", "Stagione ·") : r.episode ? `${r.season ? `S${r.season}E${r.episode}` : `Episodio ${r.episode}`} · ${when}` : r.season ? `Stagione ${r.season} · ${when}` : r.date ? `Dal ${when}` : when,
   };
 }
 

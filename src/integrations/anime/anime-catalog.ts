@@ -13,6 +13,8 @@ import type { AnimeEntry } from "./types";
 const MEMO_MS = 6 * 3_600_000;
 /** A search shows at most this many franchises, each one costing a few source requests. */
 const MAX_FRANCHISES = 3;
+/** New seasons whose main show is looked up per Esplora refresh (ANN allows a call a second). */
+const MAX_MAIN_LOOKUPS = 10;
 
 const isAnimeish = (t: Title) => t.type === "anime";
 
@@ -287,6 +289,21 @@ export class AnimeFirstCatalog implements CatalogService {
     }));
   }
 
+  /** The franchise page of a show known by these names, or null when ANN has no TV entry of that name. */
+  private async mainShow(names: readonly string[]): Promise<Title | null> {
+    for (const name of names.slice(0, 3)) {
+      try {
+        const key = searchKey(name);
+        const exact = (await this.ann.search(name)).find((e) => kindOf(e) === "season" && searchKey(e.name) === key);
+        const f = exact && (await this.franchise(exact.id, [exact]));
+        if (f) return f.title;
+      } catch (err) {
+        console.error("finding the main show of a new season failed", err);
+      }
+    }
+    return null;
+  }
+
   /** Episode titles of a season from the TMDB catalogue; empty unless it lists as many episodes as we expect. */
   private async tmdbNames(title: Title, season: number, count: number): Promise<Map<number, string>> {
     try {
@@ -343,18 +360,22 @@ export class AnimeFirstCatalog implements CatalogService {
     // A season of a show that already exists opens that show's page: the card stands for its first season,
     // marked with the number of the new season. A brand-new show is its own card.
     const resolved = await Promise.all(listed.filter((a) => within(alDate(a))).slice(0, 25).map(async (a) => ({ a, ...(await this.anilist.rootOf(a)) })));
+    let lookups = 0;
     for (const { a, root, depth } of resolved) {
-      const title = alSeries(root);
-      if (!title) continue;
+      const alTitle = alSeries(root);
+      if (!alTitle) continue;
       if (depth > 0) {
-        if (rootsSeen.has(title.id)) continue;
-        rootsSeen.add(title.id);
+        if (rootsSeen.has(alTitle.id)) continue;
+        rootsSeen.add(alTitle.id);
         alNames(root).forEach((n) => known.add(searchKey(n)));
         alNames(a).forEach((n) => known.add(searchKey(n)));
-        calendar.push({ title, date: alDate(a), season: depth + 1, venue: "seasonal" });
+        // The show's own page (all its seasons) is the franchise; AniList's entry is only the fallback.
+        const main = lookups++ < MAX_MAIN_LOOKUPS ? await this.mainShow(alNames(root)) : null;
+        calendar.push({ title: main ?? alTitle, date: alDate(a), season: depth + 1, venue: "seasonal", ...(main ? {} : { mainNotFound: true }) });
+        continue;
       } else if (!alNames(a).some((n) => known.has(searchKey(n)))) {
         alNames(a).forEach((n) => known.add(searchKey(n)));
-        calendar.push({ title, date: alDate(a), season: null, venue: "seasonal" });
+        calendar.push({ title: alTitle, date: alDate(a), season: null, venue: "seasonal" });
       }
     }
     const seasonal = calendar

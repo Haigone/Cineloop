@@ -111,7 +111,7 @@ export async function GET(request: Request) {
     catalogue: { name: catalog.name, complete: catalog.complete, tmdbTokenSet: Boolean(process.env.TMDB_READ_TOKEN), animeSources: process.env.ANIME_SOURCES !== "off" },
     today,
     upcoming: Array.isArray(upcoming)
-      ? { total: upcoming.length, streaming: upcoming.filter((r) => r.venue === "streaming").length, cinema: upcoming.filter((r) => r.venue === "cinema").length, seasonal: upcoming.filter((r) => r.venue === "seasonal").length }
+      ? { total: upcoming.length, streaming: upcoming.filter((r) => r.venue === "streaming").length, cinema: upcoming.filter((r) => r.venue === "cinema").length, seasonal: upcoming.filter((r) => r.venue === "seasonal").length, mainNotFound: upcoming.filter((r) => r.mainNotFound).map((r) => `${r.title.title} (season ${r.season})`) }
       : upcoming,
     sources: { annSearch, annById, fillerList: filler, myAnimeList: mal, aniList: anilist },
   });
