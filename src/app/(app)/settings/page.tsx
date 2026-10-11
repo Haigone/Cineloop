@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { BackgroundPicker } from "@/components/settings/background-picker";
-import { NetflixImport } from "@/components/settings/netflix-import";
 import { ExtensionSettings } from "@/components/settings/extension-settings";
 import { PasswordForm } from "@/components/settings/password-form";
 import { PreferenceSwitch } from "@/components/settings/preference-switch";
@@ -24,7 +23,6 @@ const SECTIONS = [
   { id: "notifiche", label: "Notifiche" },
   { id: "servizi", label: "I tuoi servizi" },
   { id: "estensione", label: "Estensione Netflix" },
-  { id: "importa", label: "Importa da Netflix" },
   { id: "sfondi", label: "Sfondi della Home" },
   { id: "accessibilita", label: "Aspetto e accessibilità" },
 ] as const;
@@ -142,14 +140,6 @@ async function SettingsContent() {
         description="Mentre guardi Netflix, CineLoop aggiorna da solo la libreria e mostra agli amici cosa stai guardando, così possono unirsi a te."
       >
         <ExtensionSettings devices={devices} />
-      </Section>
-
-      <Section
-        id="importa"
-        title="Importa da Netflix"
-        description="Porta in libreria quello che hai già visto e votato, partendo dai file che Netflix ti manda su richiesta. I voti Netflix (pollice giù, su, doppio su) diventano 3, 7 e 10."
-      >
-        <NetflixImport />
       </Section>
 
       <Section
