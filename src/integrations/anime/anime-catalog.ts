@@ -115,6 +115,9 @@ export class AnimeFirstCatalog implements CatalogService {
     const aired = next.episode - 1;
     const total = a.episodes ?? aired + (a.airingSchedule?.nodes?.length ?? 0);
     last.episodeCount = Math.max(total, aired);
+    // The watching order lists the same season: it must not keep ANN's count of the whole run.
+    const part = f.title.watchOrder?.find((p) => p.kind === "season" && p.season === last.number);
+    if (part) part.episodes = last.episodeCount;
     return f;
   }
 

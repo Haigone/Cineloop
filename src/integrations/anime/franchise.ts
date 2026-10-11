@@ -99,8 +99,16 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
     sorted.filter((e) => e.related.some((r) => r.rel === "summary" || r.rel === "summary of")).map((e) => e.id),
   );
   const fillerBy = new Map<string, WatchPart["quickList"]>();
+  // Entries that share a name share one Filler List page (Black Clover's two ANN entries): its numbers belong to the first.
+  const firstOfName = new Set<string>();
+  const fillerCandidates = seasonEntries.filter((e) => {
+    const key = e.name.toLowerCase();
+    if (firstOfName.has(key)) return false;
+    firstOfName.add(key);
+    return true;
+  });
   await Promise.all(
-    seasonEntries
+    fillerCandidates
       .filter((e) => (e.episodes ?? 0) >= FILLER_MIN_EPISODES)
       .map(async (e) => {
         const kinds = await fillers.kindsOf(e.name);
