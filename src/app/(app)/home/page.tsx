@@ -21,6 +21,7 @@ import { WeekStats } from "@/components/home/week-stats";
 import { RecentlyWatched } from "@/components/home/recently-watched";
 import { TonightQueue } from "@/components/home/tonight-queue";
 import { RatePrompt } from "@/components/home/rate-prompt";
+import { NewEpisodeNotice } from "@/components/home/new-episode-notice";
 import { FillerNotice } from "@/components/home/filler-notice";
 import { AwaitingList } from "@/components/library/awaiting-list";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
@@ -68,6 +69,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
               {view.fillerRuns[view.nowWatching.title.id] && (
                 <FillerNotice titleId={view.nowWatching.title.id} titleName={view.nowWatching.title.title} run={view.fillerRuns[view.nowWatching.title.id]!} />
               )}
+              {view.upcomingEpisodes[view.nowWatching.title.id] && <NewEpisodeNotice release={view.upcomingEpisodes[view.nowWatching.title.id]!} />}
             </>
           ) : (
             <section aria-label={EMPTY[view.category].hero} className="rounded-xl border border-line bg-surface/80 backdrop-blur-md">
@@ -90,6 +92,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
                 <li key={item.title.id} className="min-w-0">
                   <InProgressCard item={item} />
                   {view.fillerRuns[item.title.id] && <FillerNotice titleId={item.title.id} titleName={item.title.title} run={view.fillerRuns[item.title.id]!} />}
+                  {view.upcomingEpisodes[item.title.id] && <NewEpisodeNotice release={view.upcomingEpisodes[item.title.id]!} />}
                 </li>
               ))}
             </ul>
