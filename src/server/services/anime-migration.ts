@@ -2,6 +2,7 @@ import "server-only";
 import type { Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { ANIME_ID } from "@/integrations/anime/franchise";
+import { AniListClient, alNames } from "@/integrations/anime/anilist";
 import { getRepository } from "@/server/data";
 import { searchKey } from "@/lib/text";
 import { ensureTitle } from "./explore";
@@ -12,15 +13,29 @@ const noMatch = new Set<string>();
 /** The franchise card of the anime sources that stands for this TMDB anime, when one clearly does. */
 export async function franchiseFor(old: Title): Promise<Title | null> {
   if (process.env.ANIME_SOURCES === "off") return null;
-  const key = searchKey(old.title);
-  const found = await getCatalog().search(old.title, 6).catch(() => []);
-  return (
-    found.find((t) => {
-      if (!ANIME_ID.test(t.id)) return false;
-      const k = searchKey(t.title);
-      return k === key || k.startsWith(key) || key.startsWith(k);
-    }) ?? null
-  );
+  const lookup = async (name: string) => {
+    const key = searchKey(name);
+    const found = await getCatalog().search(name, 6).catch(() => []);
+    return (
+      found.find((t) => {
+        if (!ANIME_ID.test(t.id)) return false;
+        const k = searchKey(t.title);
+        return k === key || k.startsWith(key) || key.startsWith(k);
+      }) ?? null
+    );
+  };
+  const direct = await lookup(old.title);
+  if (direct) return direct;
+  // A translated or Japanese title: AniList knows the show under every name; ask ANN again with those.
+  const al = (await new AniListClient().search(old.title).catch(() => [])).find((a) => {
+    const y = a.startDate?.year;
+    return !y || !old.year || Math.abs(y - old.year) <= 1;
+  });
+  for (const name of al ? alNames(al).slice(0, 3) : []) {
+    const hit = await lookup(name);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /**
