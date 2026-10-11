@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -151,6 +151,35 @@ export const activity = pgTable(
     rating: smallint("rating"),
   },
   (t) => [index("activity_user_time_idx").on(t.userId, t.at)],
+);
+
+export const playlists = pgTable(
+  "playlists",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    visibility: text("visibility").$type<PlaylistVisibility>().notNull().default("private"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("playlists_owner_idx").on(t.ownerId)],
+);
+
+export const playlistItems = pgTable(
+  "playlist_items",
+  {
+    playlistId: text("playlist_id")
+      .notNull()
+      .references(() => playlists.id, { onDelete: "cascade" }),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => titles.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    addedAt: ts("added_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.playlistId, t.titleId] })],
 );
 
 export const watchParties = pgTable(

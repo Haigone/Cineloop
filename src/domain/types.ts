@@ -243,6 +243,20 @@ export interface ActivityEvent {
   rating: RatingValue | null;
 }
 
+/** A named list of titles in the wishlist area ("Natale", "Halloween"); only the owner edits it. */
+export type PlaylistVisibility = "private" | "friends";
+
+export interface Playlist {
+  id: string;
+  ownerId: string;
+  name: string;
+  /** "friends": the owner's friends can load it into a watch party. */
+  visibility: PlaylistVisibility;
+  /** In the order the owner put them. */
+  titleIds: string[];
+  createdAt: string;
+}
+
 export type WatchPartyFilter = "common" | "movie" | "series" | "anime" | "all";
 
 export interface WatchParty {

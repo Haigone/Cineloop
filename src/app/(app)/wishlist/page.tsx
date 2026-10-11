@@ -24,6 +24,6 @@ export default function WishlistPage() {
 }
 
 async function WishlistContent() {
-  const { rows } = await getWishlistView();
-  return <WishlistBoard initialRows={rows} />;
+  const { rows, playlists } = await getWishlistView();
+  return <WishlistBoard initialRows={rows} playlists={playlists} />;
 }

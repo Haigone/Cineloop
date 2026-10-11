@@ -78,6 +78,13 @@
       "when": 1791642214550,
       "tag": "0010_anime_watch_order",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791743468700,
+      "tag": "0011_playlists",
+      "breakpoints": true
     }
   ]
 }

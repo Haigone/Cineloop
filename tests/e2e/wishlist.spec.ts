@@ -96,3 +96,24 @@ test("Home has a section each for films, series and anime, and reopens on the la
   await page.goto("/home?c=serie");
   await expect(tabs.getByRole("link", { name: "Serie TV" })).toHaveAttribute("aria-current", "page");
 });
+
+test("make a playlist, fill it, and load it into a night together", async ({ page }) => {
+  await signIn(page, "/wishlist");
+  await page.getByRole("radio", { name: /Playlist/ }).click();
+  await page.getByLabel("Nome della playlist").fill("Natale");
+  await page.getByRole("button", { name: "Crea playlist" }).click();
+  const card = page.getByRole("listitem").filter({ has: page.getByLabel("Nome", { exact: true }) }).first();
+  await expect(card.getByLabel("Nome", { exact: true })).toHaveValue("Natale");
+  await card.getByLabel("Aggiungi dalla wishlist").selectOption({ index: 1 });
+  await expect(card.getByRole("list", { name: "Titoli di Natale" })).toBeVisible();
+
+  await page.goto("/watch-party");
+  await expect(page.getByRole("button", { name: /^Natale/ })).toBeVisible();
+
+  // Tidy up: the demo account is shared with the other tests.
+  await page.goto("/wishlist");
+  await page.getByRole("radio", { name: /Playlist/ }).click();
+  await page.getByRole("button", { name: "Elimina la playlist Natale" }).click();
+  await page.getByRole("button", { name: "Elimina “Natale”" }).click();
+  await expect(page.getByLabel("Nome", { exact: true })).toHaveCount(0);
+});

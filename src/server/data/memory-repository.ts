@@ -6,6 +6,8 @@ import type {
   Friend,
   LibraryEntry,
   PartyState,
+  Playlist,
+  PlaylistVisibility,
   Presence,
   ProviderId,
   PublicUser,
@@ -42,6 +44,7 @@ export class MemoryRepository implements Repository {
   private watchEvents: WatchEvent[] = [];
   private activity: ActivityEvent[] = [];
   private parties: WatchParty[] = [];
+  private playlists: Playlist[] = [];
   private notifications = new Map<string, AppNotification[]>();
   private preferences = new Map<string, UserPreferences>();
   private pairingCodes = new Map<string, { userId: string; expiresAt: Date }>();
@@ -244,6 +247,7 @@ export class MemoryRepository implements Repository {
         moved++;
       }
     }
+    for (const pl of this.playlists) pl.titleIds = [...new Set(pl.titleIds.map((t) => (t === oldId ? next.id : t)))];
     this.titles.delete(oldId);
     return { moved, merged };
   }
@@ -395,6 +399,47 @@ export class MemoryRepository implements Repository {
 
   async recordActivity(event: Omit<ActivityEvent, "id">) {
     this.activity.push({ ...event, id: `a_${crypto.randomUUID()}` });
+  }
+
+  // Playlists -------------------------------------------------------------------
+
+  async listPlaylists(ownerId: string) {
+    return this.playlists
+      .filter((p) => p.ownerId === ownerId)
+      .map((p) => ({ ...p, titleIds: [...p.titleIds] }))
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  }
+
+  async listSharedPlaylists(ownerIds: readonly string[]) {
+    return this.playlists.filter((p) => p.visibility === "friends" && ownerIds.includes(p.ownerId)).map((p) => ({ ...p, titleIds: [...p.titleIds] }));
+  }
+
+  async createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility) {
+    const playlist: Playlist = { id: `pl_${crypto.randomUUID()}`, ownerId, name, visibility, titleIds: [], createdAt: new Date().toISOString() };
+    this.playlists.push(playlist);
+    return { ...playlist };
+  }
+
+  async updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility }) {
+    const playlist = this.playlists.find((p) => p.id === id && p.ownerId === ownerId);
+    if (!playlist) return false;
+    Object.assign(playlist, patch);
+    return true;
+  }
+
+  async deletePlaylist(ownerId: string, id: string) {
+    const before = this.playlists.length;
+    this.playlists = this.playlists.filter((p) => !(p.id === id && p.ownerId === ownerId));
+    return this.playlists.length < before;
+  }
+
+  async setPlaylistItem(ownerId: string, id: string, titleId: string, present: boolean) {
+    const playlist = this.playlists.find((p) => p.id === id && p.ownerId === ownerId);
+    if (!playlist) return false;
+    const has = playlist.titleIds.includes(titleId);
+    if (present && !has) playlist.titleIds.push(titleId);
+    if (!present && has) playlist.titleIds = playlist.titleIds.filter((t) => t !== titleId);
+    return true;
   }
 
   // Watch parties -----------------------------------------------------------

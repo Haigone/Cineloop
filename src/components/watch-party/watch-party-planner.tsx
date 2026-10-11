@@ -5,7 +5,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Dices, Popcorn, RotateCcw } from "lucide-react";
 import type { Genre, WatchPartyFilter } from "@/domain/types";
-import { compatibleTitles, pickWinner, type PartyMember } from "@/domain/watch-party";
+import { compatibleTitles, pickWinner, sourceKey, wantedFrom, wheelSample, type PartyCandidate, type PartyMember } from "@/domain/watch-party";
 import { getProvider } from "@/domain/providers";
 import type { WatchPartyView } from "@/server/services/watch-party";
 import { saveWatchParty } from "@/server/actions/watch-party";
@@ -19,15 +19,17 @@ import { useToast } from "@/components/ui/toast";
 import { KeyArt } from "@/components/media/key-art";
 import { SpinWheel, type SpinWheelHandle } from "./spin-wheel";
 
-const FILTERS: { value: WatchPartyFilter; label: string }[] = [
-  { value: "common", label: "Solo titoli comuni" },
-  { value: "all", label: "Tutti" },
-  { value: "movie", label: "Solo film" },
-  { value: "series", label: "Solo serie" },
-  { value: "anime", label: "Solo anime" },
+type Category = "all" | "movie" | "series" | "anime";
+
+const CATEGORIES: { value: Category; label: string }[] = [
+  { value: "all", label: "Tutto" },
+  { value: "movie", label: "Film" },
+  { value: "series", label: "Serie" },
+  { value: "anime", label: "Anime" },
 ];
 
-const MAX_ON_WHEEL = 12;
+/** A wheel cannot hold a hundred slices: it shows this many, the winner is drawn from all of them. */
+const MAX_ON_WHEEL = 20;
 
 type Phase = "idle" | "spinning" | "result";
 
@@ -35,7 +37,17 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(view.friends.filter((f) => preselected.includes(f.user.username)).map((f) => f.user.id)),
   );
-  const [filter, setFilter] = useState<WatchPartyFilter>("all");
+  const [category, setCategory] = useState<Category>("all");
+  const [commonOnly, setCommonOnly] = useState(false);
+  // Which lists each person brings: their wishlist unless the viewer picks playlists instead.
+  const [picked, setPicked] = useState<Set<string>>(
+    () =>
+      new Set([
+        sourceKey(view.host.user.id, "wishlist"),
+        ...view.friends.filter((f) => preselected.includes(f.user.username)).map((f) => sourceKey(f.user.id, "wishlist")),
+      ]),
+  );
+  const [spun, setSpun] = useState<PartyCandidate[] | null>(null);
   const [genre, setGenre] = useState<Genre | "all">("all");
   const [phase, setPhase] = useState<Phase>("idle");
   const [winnerId, setWinnerId] = useState<string | null>(null);
@@ -45,42 +57,65 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
   const toast = useToast();
 
   const members: PartyMember[] = useMemo(
-    () => [view.host, ...view.friends.filter((f) => selected.has(f.user.id))],
-    [view, selected],
+    () => [view.host, ...view.friends.filter((f) => selected.has(f.user.id))].map((m) => ({ ...m, wantedIds: wantedFrom(m.user.id, view.sources, picked) })),
+    [view, selected, picked],
   );
+  const filter: WatchPartyFilter = category;
   const candidates = useMemo(
-    () => compatibleTitles({ members, titles: view.titles, filter, genre: genre === "all" ? null : genre }),
-    [members, view.titles, filter, genre],
+    () => compatibleTitles({ members, titles: view.titles, filter, commonOnly, genre: genre === "all" ? null : genre }),
+    [members, view.titles, filter, commonOnly, genre],
   );
-  const onWheel = candidates.slice(0, MAX_ON_WHEEL);
+  const onWheel = spun ?? candidates.slice(0, MAX_ON_WHEEL);
   const genres = useMemo(() => [...new Set(view.titles.flatMap((t) => t.genres))].sort((a, b) => a.localeCompare(b, "it")), [view.titles]);
-  const winner = onWheel.find((c) => c.title.id === winnerId) ?? null;
+  const winner = candidates.find((c) => c.title.id === winnerId) ?? null;
 
   function resetResult() {
     setWinnerId(null);
     setSaved(false);
+    setSpun(null);
     setPhase("idle");
+  }
+
+  function togglePick(key: string) {
+    resetResult();
+    setPicked((s) => {
+      const next = new Set(s);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   function toggle(id: string) {
     if (phase === "spinning") return;
     resetResult();
+    const adding = !selected.has(id);
     setSelected((s) => {
       const next = new Set(s);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (adding) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    // A friend joining brings their wishlist; leaving takes all their lists away.
+    setPicked((s) => {
+      const next = new Set([...s].filter((k) => !k.startsWith(`${id}:`)));
+      if (adding) next.add(sourceKey(id, "wishlist"));
       return next;
     });
   }
 
   async function spin() {
-    if (onWheel.length === 0 || phase === "spinning") return;
+    if (candidates.length < 2 || phase === "spinning") return;
     setWinnerId(null);
     setSaved(false);
     setPhase("spinning");
-    const index = pickWinner(onWheel);
+    // Drawn from every candidate; the wheel shows the winner among a sample of the others.
+    const drawn = pickWinner(candidates);
+    const { items, index } = wheelSample(candidates, drawn, MAX_ON_WHEEL);
+    setSpun(items);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     await wheel.current?.spinTo(index);
-    setWinnerId(onWheel[index]!.title.id);
+    setWinnerId(candidates[drawn]!.title.id);
     setPhase("result");
   }
 
@@ -89,9 +124,9 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
     startSaving(async () => {
       const res = await saveWatchParty({
         participantIds: members.map((m) => m.user.id),
-        filter,
+        filter: commonOnly && category === "all" ? "common" : filter,
         genre: genre === "all" ? null : genre,
-        candidateTitleIds: onWheel.map((c) => c.title.id),
+        candidateTitleIds: candidates.map((c) => c.title.id),
         pickedTitleId: winner.title.id,
       });
       if (res.ok) {
@@ -144,17 +179,18 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
               })}
             </ul>
           )}
+          <SourcePicker members={members} sources={view.sources} picked={picked} hostId={view.host.user.id} onToggle={togglePick} />
         </Step>
 
-        <Step n={2} title="Cosa guardiamo" hint="I titoli comuni sono nella wishlist di almeno metà del gruppo.">
+        <Step n={2} title="Cosa guardiamo" hint="Le liste di tutti si uniscono: scegli la categoria e, se vuoi, solo i titoli voluti da più persone.">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <Segmented
-              label="Filtro dei titoli"
-              options={FILTERS}
-              value={filter}
+              label="Categoria"
+              options={CATEGORIES}
+              value={category}
               onChange={(v) => {
                 resetResult();
-                setFilter(v);
+                setCategory(v);
               }}
             />
             <Select
@@ -173,6 +209,17 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
               ))}
             </Select>
           </div>
+          <label className="mt-3 flex items-center gap-2.5 text-sm text-fg-2">
+            <input
+              type="checkbox"
+              checked={commonOnly}
+              onChange={(e) => {
+                resetResult();
+                setCommonOnly(e.target.checked);
+              }}
+            />
+            Solo titoli voluti da almeno metà del gruppo
+          </label>
         </Step>
 
         <Step
@@ -185,8 +232,8 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
               Nessun titolo va bene per tutti con questi filtri. Prova “Tutti” o un altro genere.
             </p>
           ) : (
-            <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
-              {candidates.slice(0, 8).map((c) => (
+            <ul className="max-h-[30rem] divide-y divide-line overflow-auto rounded-xl border border-line bg-surface" aria-label="Titoli compatibili">
+              {candidates.map((c) => (
                 <li key={c.title.id} className={cn("flex items-center gap-3 px-4 py-2.5 transition-colors", winnerId === c.title.id && "bg-accent-soft")}>
                   <span className="min-w-0 flex-1">
                     <Link href={`/title/${c.title.id}`} className="block truncate rounded-sm text-sm text-fg hover:underline hover:underline-offset-4">
@@ -203,7 +250,9 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
             </ul>
           )}
           {candidates.length > MAX_ON_WHEEL && (
-            <p className="mt-2 text-xs text-fg-3">Sulla ruota finiscono i {MAX_ON_WHEEL} titoli più desiderati dal gruppo.</p>
+            <p className="mt-2 text-xs text-fg-3">
+              La ruota mostra {MAX_ON_WHEEL} titoli alla volta, ma il titolo di stasera viene sorteggiato tra tutti i {candidates.length}.
+            </p>
           )}
         </Step>
       </div>
@@ -232,14 +281,14 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
               size="lg"
               className="flex-1"
               onClick={spin}
-              disabled={onWheel.length < 2}
+              disabled={candidates.length < 2}
               loading={phase === "spinning"}
               icon={phase === "result" ? <RotateCcw aria-hidden className="size-4" /> : <Dices aria-hidden className="size-4" />}
             >
               {phase === "spinning" ? "La ruota gira…" : phase === "result" ? "Gira di nuovo" : "Gira la ruota"}
             </Button>
           </div>
-          {onWheel.length < 2 && <p className="mt-2 text-center text-xs text-fg-3">Servono almeno due titoli per girare la ruota.</p>}
+          {candidates.length < 2 && <p className="mt-2 text-center text-xs text-fg-3">Servono almeno due titoli per girare la ruota.</p>}
 
           <div aria-live="polite" className="mt-5 empty:hidden">
             <AnimatePresence mode="wait">
@@ -292,6 +341,61 @@ export function WatchPartyPlanner({ view, preselected }: { view: WatchPartyView;
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Which lists each person brings. Everyone's wishlist is on by default; where someone has playlists
+ * they can be chosen instead of, or together with, the wishlist. Friends' playlists appear only if shared.
+ */
+function SourcePicker({
+  members,
+  sources,
+  picked,
+  hostId,
+  onToggle,
+}: {
+  members: PartyMember[];
+  sources: WatchPartyView["sources"];
+  picked: Set<string>;
+  hostId: string;
+  onToggle: (key: string) => void;
+}) {
+  const withPlaylists = members.filter((m) => sources.some((s) => s.ownerId === m.user.id && s.kind === "playlist"));
+  if (withPlaylists.length === 0) return null;
+  return (
+    <div className="mt-5 flex flex-col gap-3">
+      <p className="text-[13px] text-fg-2">Liste da usare. Puoi scegliere la wishlist, una playlist o più liste insieme.</p>
+      {withPlaylists.map((m) => (
+        <fieldset key={m.user.id} className="flex flex-wrap items-center gap-2">
+          <legend className="sr-only">Liste di {m.user.id === hostId ? "te" : firstName(m.user.displayName)}</legend>
+          <span aria-hidden className="w-16 shrink-0 text-xs text-fg-3">
+            {m.user.id === hostId ? "Tue" : firstName(m.user.displayName)}
+          </span>
+          {sources
+            .filter((s) => s.ownerId === m.user.id)
+            .map((s) => {
+              const on = picked.has(s.key);
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onToggle(s.key)}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors",
+                    on ? "border-violet/60 bg-violet/15 text-fg" : "border-line-strong text-fg-2 hover:border-white/20 hover:text-fg",
+                  )}
+                >
+                  {on && <Check aria-hidden className="size-3 text-violet" />}
+                  {s.label}
+                  <span className="text-fg-3">{s.titleIds.length}</span>
+                </button>
+              );
+            })}
+        </fieldset>
+      ))}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import type {
   Friend,
   LibraryEntry,
   PartyState,
+  Playlist,
+  PlaylistVisibility,
   Presence,
   ProviderId,
   PublicUser,
@@ -205,6 +207,8 @@ export class PostgresRepository implements Repository {
       const merged = (mergedLibrary as unknown as { count?: number }).count ?? 0;
       const moved = await tx.update(schema.libraryEntries).set({ titleId: next.id }).where(eq(schema.libraryEntries.titleId, oldId)).returning({ u: schema.libraryEntries.userId });
       await tx.update(schema.wishlistItems).set({ titleId: next.id }).where(eq(schema.wishlistItems.titleId, oldId));
+      await tx.execute(sql`delete from playlist_items o where o.title_id = ${oldId} and exists (select 1 from playlist_items n where n.playlist_id = o.playlist_id and n.title_id = ${next.id})`);
+      await tx.update(schema.playlistItems).set({ titleId: next.id }).where(eq(schema.playlistItems.titleId, oldId));
       await tx.update(schema.watchEvents).set({ titleId: next.id }).where(eq(schema.watchEvents.titleId, oldId));
       await tx.update(schema.activity).set({ titleId: next.id }).where(eq(schema.activity.titleId, oldId));
       await tx.update(schema.providerTitleLinks).set({ titleId: next.id }).where(eq(schema.providerTitleLinks.titleId, oldId));
@@ -432,6 +436,84 @@ export class PostgresRepository implements Repository {
         rating: r.rating as RatingValue | null,
       }),
     );
+  }
+
+  // Playlists -------------------------------------------------------------------
+
+  private async withItems(rows: (typeof schema.playlists.$inferSelect)[]): Promise<Playlist[]> {
+    if (rows.length === 0) return [];
+    const items = await this.db
+      .select()
+      .from(schema.playlistItems)
+      .where(inArray(schema.playlistItems.playlistId, rows.map((r) => r.id)))
+      .orderBy(asc(schema.playlistItems.position));
+    return rows.map((r) => ({
+      id: r.id,
+      ownerId: r.ownerId,
+      name: r.name,
+      visibility: r.visibility,
+      titleIds: items.filter((i) => i.playlistId === r.id).map((i) => i.titleId),
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async listPlaylists(ownerId: string) {
+    return this.withItems(await this.db.select().from(schema.playlists).where(eq(schema.playlists.ownerId, ownerId)).orderBy(desc(schema.playlists.createdAt)));
+  }
+
+  async listSharedPlaylists(ownerIds: readonly string[]) {
+    if (ownerIds.length === 0) return [];
+    return this.withItems(
+      await this.db
+        .select()
+        .from(schema.playlists)
+        .where(and(inArray(schema.playlists.ownerId, [...ownerIds]), eq(schema.playlists.visibility, "friends"))),
+    );
+  }
+
+  async createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility) {
+    const [row] = await this.db.insert(schema.playlists).values({ id: `pl_${crypto.randomUUID()}`, ownerId, name, visibility }).returning();
+    return { id: row!.id, ownerId, name, visibility, titleIds: [], createdAt: row!.createdAt.toISOString() };
+  }
+
+  async updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility }) {
+    const rows = await this.db
+      .update(schema.playlists)
+      .set(patch)
+      .where(and(eq(schema.playlists.id, id), eq(schema.playlists.ownerId, ownerId)))
+      .returning({ id: schema.playlists.id });
+    return rows.length > 0;
+  }
+
+  async deletePlaylist(ownerId: string, id: string) {
+    const rows = await this.db
+      .delete(schema.playlists)
+      .where(and(eq(schema.playlists.id, id), eq(schema.playlists.ownerId, ownerId)))
+      .returning({ id: schema.playlists.id });
+    return rows.length > 0;
+  }
+
+  async setPlaylistItem(ownerId: string, id: string, titleId: string, present: boolean) {
+    const [owned] = await this.db
+      .select({ id: schema.playlists.id })
+      .from(schema.playlists)
+      .where(and(eq(schema.playlists.id, id), eq(schema.playlists.ownerId, ownerId)));
+    if (!owned) return false;
+    if (present) {
+      const [last] = await this.db
+        .select({ position: schema.playlistItems.position })
+        .from(schema.playlistItems)
+        .where(eq(schema.playlistItems.playlistId, id))
+        .orderBy(desc(schema.playlistItems.position))
+        .limit(1);
+      await this.db
+        .insert(schema.playlistItems)
+        .values({ playlistId: id, titleId, position: (last?.position ?? -1) + 1 })
+        .onConflictDoNothing();
+    } else {
+      await this.db.delete(schema.playlistItems).where(and(eq(schema.playlistItems.playlistId, id), eq(schema.playlistItems.titleId, titleId)));
+    }
+    return true;
   }
 
   // Watch parties -----------------------------------------------------------

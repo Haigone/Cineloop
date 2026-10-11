@@ -11,7 +11,7 @@ const schema = z.object({
   participantIds: z.array(z.string().min(1).max(80)).min(1).max(12),
   filter: z.enum(["common", "movie", "series", "anime", "all"]),
   genre: z.enum(GENRES).nullable(),
-  candidateTitleIds: z.array(z.string().min(1).max(120)).max(60),
+  candidateTitleIds: z.array(z.string().min(1).max(120)).max(500),
   pickedTitleId: z.string().min(1).max(120),
 });
 

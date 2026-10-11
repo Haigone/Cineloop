@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { createContext, useContext, useMemo, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
-import { ArrowDown, ArrowUp, GripVertical, Heart, Plus, SearchX } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, SearchX } from "lucide-react";
 import type { Genre, MediaType } from "@/domain/types";
-import type { WishlistRow } from "@/server/services/wishlist";
+import type { PlaylistView, WishlistRow } from "@/server/services/wishlist";
+import { setInPlaylist } from "@/server/actions/playlists";
 import { reorderWishlist, setWishlisted } from "@/server/actions/library";
 import { cn } from "@/lib/cn";
 import { firstName, MEDIA_TYPE_LABEL } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { Popover } from "@/components/ui/popover";
 import { ProviderBadge } from "@/components/ui/provider-badge";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
@@ -19,6 +21,10 @@ import { useToast } from "@/components/ui/toast";
 import { KeyArt } from "@/components/media/key-art";
 import { ReleaseTimer } from "@/components/media/release-timer";
 import { AddTitleDialog } from "./add-title-dialog";
+import { PlaylistsPanel } from "./playlists-panel";
+
+/** The viewer's playlists, for the "Playlist" menu on each row. */
+const PlaylistsContext = createContext<PlaylistView[]>([]);
 
 type TypeFilter = "all" | MediaType;
 type Sort = "rank" | "added" | "rating";
@@ -29,7 +35,8 @@ const SORT_LABEL: Record<Sort, string> = { rank: "La mia classifica", added: "Da
  * The wishlist is a ranked queue. In "La mia classifica" order it can be
  * reordered by dragging the handle or with the up/down buttons (keyboard).
  */
-export function WishlistBoard({ initialRows }: { initialRows: WishlistRow[] }) {
+export function WishlistBoard({ initialRows, playlists }: { initialRows: WishlistRow[]; playlists: PlaylistView[] }) {
+  const [tab, setTab] = useState<"list" | "playlists">("list");
   const [rows, setRows] = useState(initialRows);
   // Server data wins whenever it changes (e.g. after adding from the dialog).
   const [source, setSource] = useState(initialRows);
@@ -112,6 +119,7 @@ export function WishlistBoard({ initialRows }: { initialRows: WishlistRow[] }) {
   );
 
   return (
+    <PlaylistsContext.Provider value={playlists}>
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -123,7 +131,20 @@ export function WishlistBoard({ initialRows }: { initialRows: WishlistRow[] }) {
         {addButton}
       </div>
 
-      {rows.length === 0 ? (
+      <Segmented
+        label="Sezione"
+        className="mb-6"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "list", label: "Wishlist", count: rows.length },
+          { value: "playlists", label: "Playlist", count: playlists.length },
+        ]}
+      />
+
+      {tab === "playlists" ? (
+        <PlaylistsPanel playlists={playlists} wishlist={rows} />
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={<Heart />}
           title="La tua prossima ossessione potrebbe iniziare qui."
@@ -221,6 +242,7 @@ export function WishlistBoard({ initialRows }: { initialRows: WishlistRow[] }) {
 
       <AddTitleDialog open={adding} onClose={() => setAdding(false)} existingIds={new Set(rows.map((r) => r.title.id))} />
     </div>
+    </PlaylistsContext.Provider>
   );
 }
 
@@ -344,9 +366,52 @@ function RowBody({
           {title.communityRating.toLocaleString("it-IT")}
         </span>
       )}
+      <PlaylistMenu titleId={title.id} titleName={title.title} />
       <RemoveHeart titleName={title.title} onRemove={onRemove} />
       {trailing}
     </div>
+  );
+}
+
+/** "Playlist": puts the title in, or takes it out of, any of the viewer's playlists. */
+function PlaylistMenu({ titleId, titleName }: { titleId: string; titleName: string }) {
+  const playlists = useContext(PlaylistsContext);
+  const [, startTransition] = useTransition();
+  const toast = useToast();
+  return (
+    <Popover
+      label={`Playlist di ${titleName}`}
+      className="w-64 p-2"
+      trigger={(props) => (
+        <IconButton {...props} size="sm" tooltip={false} label={`Playlist: ${titleName}`} icon={<ListPlus aria-hidden className="size-4" />} className="size-9" />
+      )}
+    >
+      {() =>
+        playlists.length === 0 ? (
+          <p className="px-2 py-2 text-sm text-fg-2">Nessuna playlist. Creane una dalla scheda Playlist.</p>
+        ) : (
+          <ul className="flex max-h-64 flex-col overflow-auto">
+            {playlists.map(({ playlist }) => (
+              <li key={playlist.id}>
+                <label className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm text-fg hover:bg-white/[0.05]">
+                  <input
+                    type="checkbox"
+                    checked={playlist.titleIds.includes(titleId)}
+                    onChange={(e) =>
+                      startTransition(async () => {
+                        const res = await setInPlaylist(playlist.id, titleId, e.target.checked);
+                        if (!res.ok) toast.show(res.error, { tone: "error" });
+                      })
+                    }
+                  />
+                  <span className="min-w-0 flex-1 truncate">{playlist.name}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </Popover>
   );
 }
 

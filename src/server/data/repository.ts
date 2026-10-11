@@ -6,6 +6,8 @@ import type {
   Friend,
   LibraryEntry,
   PartyState,
+  Playlist,
+  PlaylistVisibility,
   Presence,
   ProviderId,
   PublicUser,
@@ -97,6 +99,17 @@ export interface Repository {
   recordActivity(event: Omit<ActivityEvent, "id">): Promise<void>;
 
   // Watch parties
+  // Playlists
+  /** The owner's playlists, newest first. */
+  listPlaylists(ownerId: string): Promise<Playlist[]>;
+  /** Playlists the owners share with friends ("friends" visibility only). */
+  listSharedPlaylists(ownerIds: readonly string[]): Promise<Playlist[]>;
+  createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility): Promise<Playlist>;
+  /** Only the owner's own playlist changes; false when it is not theirs. */
+  updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility }): Promise<boolean>;
+  deletePlaylist(ownerId: string, id: string): Promise<boolean>;
+  setPlaylistItem(ownerId: string, id: string, titleId: string, present: boolean): Promise<boolean>;
+
   createWatchParty(party: Omit<WatchParty, "id" | "createdAt">): Promise<WatchParty>;
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;

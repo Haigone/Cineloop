@@ -58,3 +58,9 @@ Motion con `MotionConfig reducedMotion="user"` più la preferenza in-app. La ruo
 
 - `npm test`: Vitest per dominio, auth, repository, adapter, catalogo e controlli UI (jsdom).
 - `npm run test:e2e`: Playwright su build di produzione con dati demo. Copre accesso e uscita, navigazione, ricerca, wishlist con annulla, serata insieme e controlli axe su ogni pagina (desktop e mobile).
+
+## Serate insieme e playlist
+
+- **Playlist** (migrazione `0011_playlists`): liste con nome dentro la Wishlist (scheda "Playlist"), `playlists` + `playlist_items`. Visibilità `private` (solo il proprietario) o `friends` (gli amici possono caricarla in una serata). Solo il proprietario le modifica; `listSharedPlaylists` restituisce soltanto quelle condivise e il servizio le chiede solo per gli amici confermati.
+- **Serata** (`/watch-party`): ogni partecipante porta la propria wishlist o una o più playlist (`PartySource`, `wantedFrom`); le liste scelte si uniscono, si filtra per categoria (tutto/film/serie/anime) e, a scelta, per "voluto da almeno metà del gruppo". L'elenco mostra tutti i titoli compatibili. Il vincitore è sorteggiato tra tutti; la ruota mostra al massimo 20 spicchi (il vincitore più un campione degli altri, `wheelSample`), quindi le probabilità non cambiano.
+- Il filtro salvato con la serata è `common` solo con "tutto"; altrimenti è la categoria.
