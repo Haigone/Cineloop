@@ -64,6 +64,7 @@ export class AnimeFirstCatalog implements CatalogService {
     const value = this.gather(annId, known)
       .then((entries) => buildFranchise(entries, this.fillers))
       .then((f) => (f ? this.withArtwork(f) : f))
+      .then((f) => (f ? this.withAiring(f) : f))
       .catch((err) => {
         console.error("building an anime franchise failed", err);
         return null;
@@ -95,6 +96,25 @@ export class AnimeFirstCatalog implements CatalogService {
     }
     const mal = (await this.jikan.search(name)).find((a) => namesOf(a).some(same) && (a.images?.jpg?.large_image_url || a.images?.jpg?.image_url));
     if (mal) f.title.artwork = { ...f.title.artwork, posterUrl: mal.images!.jpg!.large_image_url || mal.images!.jpg!.image_url! };
+    return f;
+  }
+
+  /**
+   * A franchise whose latest season is airing now: ANN may not know its episode count yet (or repeats
+   * the first season's), so the count comes from AniList: the total when announced, else what has aired.
+   */
+  private async withAiring(f: Franchise): Promise<Franchise> {
+    const last = f.title.seasons.at(-1);
+    if (!last) return f;
+    const a = await this.anilist.airingNow(f.title.title).catch(() => null);
+    const next = a?.nextAiringEpisode;
+    if (!a || !next) return f;
+    const start = alDate(a);
+    const near = !last.airDate || !start || Math.abs(Date.parse(last.airDate) - Date.parse(start)) < 400 * 86_400_000;
+    if (!near) return f;
+    const aired = next.episode - 1;
+    const total = a.episodes ?? aired + (a.airingSchedule?.nodes?.length ?? 0);
+    last.episodeCount = Math.max(total, aired);
     return f;
   }
 
@@ -232,12 +252,35 @@ export class AnimeFirstCatalog implements CatalogService {
     if (!entry) return null;
     const names = new Map(entry.episodeNames.map((e) => [e.number, e.name]));
     const air = entry.start && entry.start.length === 10 ? entry.start : null;
-    return Array.from({ length: entry.episodes ?? names.size }, (_, i) => ({
+    const fromSeason = f!.title.seasons.find((x) => x.number === season)?.episodeCount ?? 0;
+    // The airing season: when each coming episode is out, from AniList's schedule.
+    const dates = new Map<number, string>();
+    if (season === f!.title.seasons.at(-1)?.number) {
+      const a = await this.anilist.airingNow(f!.title.title).catch(() => null);
+      for (const n of a?.airingSchedule?.nodes ?? []) dates.set(n.episode, italianDay(new Date(n.airingAt * 1000)));
+    }
+    const count = Math.max(entry.episodes ?? 0, fromSeason, names.size, ...dates.keys());
+    // Titles ANN does not list: the same season on TMDB, when it has exactly these episodes.
+    const theirs = names.size < count ? await this.tmdbNames(f!.title, season, count) : new Map<number, string>();
+    return Array.from({ length: count }, (_, i) => ({
       number: i + 1,
-      name: names.get(i + 1) ?? null,
-      airDate: i === 0 ? air : null,
+      name: names.get(i + 1) ?? theirs.get(i + 1) ?? null,
+      airDate: dates.get(i + 1) ?? (i === 0 ? air : null),
       runtimeMinutes: entry.runtimeMinutes,
     }));
+  }
+
+  /** Episode titles of a season from the TMDB catalogue; empty unless it lists as many episodes as we expect. */
+  private async tmdbNames(title: Title, season: number, count: number): Promise<Map<number, string>> {
+    try {
+      const match = await this.base.match(title);
+      if (!match || !/^tmdb-tv-/.test(match.id)) return new Map();
+      const list = await this.base.episodes(match.id, season);
+      if (!list || list.length !== count) return new Map();
+      return new Map(list.flatMap((e) => (e.name ? [[e.number, e.name] as const] : [])));
+    } catch {
+      return new Map();
+    }
   }
 
   /**
@@ -247,7 +290,7 @@ export class AnimeFirstCatalog implements CatalogService {
    */
   async trending(limit: number): Promise<Title[]> {
     const [base, airing] = await Promise.all([this.base.trending(limit), this.anilist.trending()]);
-    const roots = await Promise.all(airing.slice(0, 12).map((a) => this.anilist.rootOf(a)));
+    const roots = (await Promise.all(airing.slice(0, 12).map((a) => this.anilist.rootOf(a)))).map((r) => r.root);
     const known = new Set(base.map((t) => searchKey(t.title)));
     const extra: Title[] = [];
     for (const a of roots) {
@@ -279,13 +322,32 @@ export class AnimeFirstCatalog implements CatalogService {
     const [mal, listed] = await Promise.all([this.jikan.upcoming(), this.anilist.upcoming()]);
     const within = (date: string | null) => date === null || (date > today && date <= horizon);
     const calendar: Release[] = [];
-    const add = (names: string[], title: Title | null, date: string | null) => {
-      if (!title || !within(date) || names.some((n) => known.has(searchKey(n)))) return;
+    const rootsSeen = new Set<string>();
+    // A season of a show that already exists opens that show's page: the card stands for its first season,
+    // marked with the number of the new season. A brand-new show is its own card.
+    const resolved = await Promise.all(listed.filter((a) => within(alDate(a))).slice(0, 25).map(async (a) => ({ a, ...(await this.anilist.rootOf(a)) })));
+    for (const { a, root, depth } of resolved) {
+      const title = alSeries(root);
+      if (!title) continue;
+      if (depth > 0) {
+        if (rootsSeen.has(title.id)) continue;
+        rootsSeen.add(title.id);
+        alNames(root).forEach((n) => known.add(searchKey(n)));
+        alNames(a).forEach((n) => known.add(searchKey(n)));
+        calendar.push({ title, date: alDate(a), season: depth + 1, venue: "seasonal" });
+      } else if (!alNames(a).some((n) => known.has(searchKey(n)))) {
+        alNames(a).forEach((n) => known.add(searchKey(n)));
+        calendar.push({ title, date: alDate(a), season: null, venue: "seasonal" });
+      }
+    }
+    for (const a of mal) {
+      const names = namesOf(a);
+      const title = toSeries(a);
+      const date = airDate(a);
+      if (!title || !within(date) || names.some((n) => known.has(searchKey(n)))) continue;
       names.forEach((n) => known.add(searchKey(n)));
       calendar.push({ title, date, season: null, venue: "seasonal" });
-    };
-    for (const a of mal) add(namesOf(a), toSeries(a), airDate(a));
-    for (const a of listed) add(alNames(a), alSeries(a), alDate(a));
+    }
     const seasonal = calendar
       .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
       // Announced without a date: a few, so they do not crowd the row.

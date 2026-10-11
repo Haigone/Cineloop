@@ -148,6 +148,8 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
     : [];
   const communityRows = community.filter(ofType);
   const wishlistIds = new Set(view.wishlistIds);
+  // On the Anime tab a single row: the platforms' few announcements and the calendars are one list by date.
+  const animeUpcoming = [...view.upcoming, ...view.seasonal].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
   const topLabel = view.topIsWeekly ? "Top 10 della settimana" : "Top 10 del catalogo";
 
   return (
@@ -215,25 +217,40 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
           </Rail>
         </RevealItem>
       ))}
-      {view.upcoming.length > 0 && (
-        <RevealItem as="section">
-          <SectionHeader
-            title="In uscita"
-            id="shelf-upcoming"
-            description="Nei prossimi mesi, sulle piattaforme. Metti il cuore e ti avvisiamo quando esce."
-          />
-          <ReleaseRail label="In uscita" releases={view.upcoming} wishlistIds={wishlistIds} />
-        </RevealItem>
-      )}
-      {view.seasonal.length > 0 && (
-        <RevealItem as="section">
-          <SectionHeader
-            title="Anime delle prossime stagioni"
-            id="shelf-seasonal"
-            description="Dai calendari di MyAnimeList e AniList. Non sappiamo ancora su quale piattaforma arrivano in Italia."
-          />
-          <ReleaseRail label="Anime delle prossime stagioni" releases={view.seasonal} wishlistIds={wishlistIds} />
-        </RevealItem>
+      {type === "anime" ? (
+        animeUpcoming.length > 0 && (
+          <RevealItem as="section">
+            <SectionHeader
+              title="Anime in uscita"
+              id="shelf-upcoming"
+              description="Nuove serie e nuove stagioni dai calendari di MyAnimeList e AniList, più quelle annunciate sulle piattaforme. Metti il cuore e ti avvisiamo quando escono."
+            />
+            <ReleaseRail label="Anime in uscita" releases={animeUpcoming} wishlistIds={wishlistIds} />
+          </RevealItem>
+        )
+      ) : (
+        <>
+          {view.upcoming.length > 0 && (
+            <RevealItem as="section">
+              <SectionHeader
+                title="In uscita"
+                id="shelf-upcoming"
+                description="Nei prossimi mesi, sulle piattaforme. Metti il cuore e ti avvisiamo quando esce."
+              />
+              <ReleaseRail label="In uscita" releases={view.upcoming} wishlistIds={wishlistIds} />
+            </RevealItem>
+          )}
+          {view.seasonal.length > 0 && (
+            <RevealItem as="section">
+              <SectionHeader
+                title="Anime delle prossime stagioni"
+                id="shelf-seasonal"
+                description="Dai calendari di MyAnimeList e AniList. Non sappiamo ancora su quale piattaforma arrivano in Italia."
+              />
+              <ReleaseRail label="Anime delle prossime stagioni" releases={view.seasonal} wishlistIds={wishlistIds} />
+            </RevealItem>
+          )}
+        </>
       )}
       {view.atCinema.length > 0 && (
         <RevealItem as="section">

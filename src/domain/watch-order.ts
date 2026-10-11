@@ -54,3 +54,28 @@ export function isSkippedEpisode(title: Title, season: number, episode: number, 
   if (!skipsFiller(overrides)) return false;
   return Boolean(watchOrderOf(title).find((p) => p.kind === "season" && p.season === season)?.filler?.includes(episode));
 }
+
+/** A run of filler episodes the viewer is about to meet, and the first episode after it. */
+export interface FillerRun {
+  season: number;
+  from: number;
+  to: number;
+  /** The first episode that is not filler; null when the season ends in filler. */
+  after: number | null;
+}
+
+/**
+ * Whether the episode after `at` starts a run of filler (default choice: fillers are skipped).
+ * Consecutive filler episodes are one run.
+ */
+export function fillerRunAfter(title: Title, at: { season: number | null; episode: number | null }, overrides: Overrides): FillerRun | null {
+  if (title.type === "movie" || at.season === null || at.episode === null || !skipsFiller(overrides)) return null;
+  const part = watchOrderOf(title).find((p) => p.kind === "season" && p.season === at.season);
+  const filler = new Set(part?.filler ?? []);
+  const from = at.episode + 1;
+  if (!filler.has(from)) return null;
+  const count = title.seasons.find((s) => s.number === at.season)?.episodeCount ?? Infinity;
+  let to = from;
+  while (filler.has(to + 1)) to++;
+  return { season: at.season, from, to, after: to + 1 <= count ? to + 1 : null };
+}

@@ -98,7 +98,7 @@ describe("Jikan / MyAnimeList seasonal", () => {
   it("adds AniList's announcements once, even when MyAnimeList lists the same show", async () => {
     const c = cat(jikan([rec(1, { title_english: "Fresh 5" })]), [], al([rec2(5), rec2(6)]));
     const list = await c.upcoming("anime", TODAY, 20);
-    expect(list.map((r) => r.title.id)).toEqual(["anime-mal-1", "anime-al-6"]);
+    expect(list.map((r) => r.title.id)).toEqual(["anime-al-5", "anime-al-6"]);
   });
 
   it("this week's top anime is TMDB's trending plus the airing ones, without repeats", async () => {
@@ -122,5 +122,17 @@ describe("Jikan / MyAnimeList seasonal", () => {
   it("ignores a series of the same name that is not the one airing", async () => {
     const c = cat(jikan([]), [], al([rec2(10, { status: "RELEASING", title: { english: "Other Show" }, nextAiringEpisode: { airingAt: 1_800_000_000, episode: 2 } })]));
     expect(await c.nextSeasons([{ id: "tmdb-tv-1", type: "anime", title: "Black Clover", seasons: [] } as unknown as Title], TODAY)).toEqual([]);
+  });
+
+  it("a new season of a known show is a card of the show itself, marked with the season", async () => {
+    const first = rec2(20, { status: "FINISHED", title: { english: "Big Show" }, startDate: { year: 2020, month: 1, day: 1 } });
+    const second = rec2(21, { title: { english: "Big Show 2" }, relations: { edges: [{ relationType: "PREQUEL", node: { id: 20, format: "TV" } }] } });
+    const client = new AniListClient((async (_url: string, init?: RequestInit) => {
+      const q = String(JSON.parse(String(init?.body)).query);
+      return new Response(JSON.stringify({ data: q.includes("Media(") ? { Media: first } : { Page: { media: [second] } } }), { status: 200 });
+    }) as unknown as typeof fetch);
+    const [r] = await cat(jikan([]), [], client).upcoming("anime", TODAY, 20);
+    expect(r).toMatchObject({ date: "2027-01-09", season: 2, venue: "seasonal" });
+    expect(r!.title).toMatchObject({ id: "anime-al-20", title: "Big Show" });
   });
 });

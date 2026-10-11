@@ -124,3 +124,11 @@ An anime opened under its old TMDB id moves, for every profile, to its franchise
 Weekly episodes: AniList's `nextAiringEpisode` tells when the next episode of an anime that is airing now comes out. `AnimeFirstCatalog.nextSeasons` returns it as a release with `episode` set, so the timer on the wishlist, in "In attesa" (finished series) and on the title page reads "S2E5" or "Episodio 5". Pictures: `next.config.ts` also allows `*.anilist.co` (AniList covers).
 
 The weekly anime top lists each show once: AniList's season entries are followed back to the first season (`rootOf`) and open as the whole franchise. Opening an anime under a MyAnimeList or AniList id moves it, like a TMDB one, to its franchise card.
+
+## Filler skip, sequel cards, episode dates and titles
+
+- **Filler notice (Home).** `fillerRunAfter` (src/domain/watch-order.ts) finds the run of consecutive filler episodes right after the viewer's progress; the Home shows it under Continue watching with a "Salta i filler" button (`skipFillers` recomputes the run server-side and saves progress on the first non-filler episode). Nothing is shown when the viewer chose to watch fillers. CineLoop does not edit external site URLs.
+- **Sequel cards.** AniList calendar entries that are sequels are resolved to the root franchise (`rootOf`, via PREQUEL edges) and shown as a release of that title with the season number, so they open the main anime page.
+- **Anime tab.** "In uscita" merges AniList/MAL calendars; TMDB alone returns few anime (only 5 networks, ja + animation).
+- **Airing season.** Episode count of the season still airing comes from AniList (total, or aired + schedule); upcoming episodes get their air date from `airingSchedule`.
+- **Episode titles.** ANN lists titles for only some episodes; missing ones fall back to TMDB, only when its episode list matches the count.

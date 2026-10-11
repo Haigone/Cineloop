@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import type { ActivityKind, RatingValue, SeasonSummary } from "@/domain/types";
 import { airedSeasons, finishesEarlierSeason, finishesTitle } from "@/domain/library";
+import { fillerRunAfter } from "@/domain/watch-order";
 import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
@@ -312,4 +313,32 @@ export async function savePodium(ids: string[]): Promise<ActionResult> {
   return run(async () => {
     await repo.updatePreferences(user.id, { podium: parsed.data });
   }, "Non siamo riusciti a salvare il podio.");
+}
+
+
+/** Moves the viewer past the filler episodes coming up: their place becomes the first episode after them. */
+export async function skipFillers(id: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsed = titleId.safeParse(id);
+  const title = parsed.success ? await cacheRemoteTitle(parsed.data) : null;
+  if (!parsed.success || !title) return { ok: false, error: "Titolo non trovato." };
+  const repo = getRepository();
+  const entry = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id);
+  const progress = entry?.progress;
+  // Worked out again here from the title's own data, never taken from the page.
+  const runAhead = progress ? fillerRunAfter(title, progress, entry?.partOverrides) : null;
+  if (!progress || !runAhead || runAhead.after === null) return { ok: false, error: "Non ci sono filler da saltare." };
+  return run(async () => {
+    await repo.saveProgress(user.id, {
+      titleId: title.id,
+      providerId: progress.providerId,
+      season: runAhead.season,
+      episode: runAhead.after!,
+      fraction: 0,
+      // The link of another episode would open the wrong one.
+      url: null,
+      updatedAt: new Date().toISOString(),
+    });
+    await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season: runAhead.season, episode: runAhead.after, rating: null });
+  }, "Non siamo riusciti a saltare i filler.");
 }

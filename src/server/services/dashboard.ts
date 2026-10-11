@@ -5,6 +5,7 @@ import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type 
 import { italianDay } from "@/lib/dates";
 import { awaitedReleases, type AwaitedRelease } from "./awaited";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
+import { fillerRunAfter, type FillerRun } from "@/domain/watch-order";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
 import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
@@ -52,6 +53,8 @@ export interface HomeView {
   toRate: Title[];
   /** "Novità": finished series with a new season out. */
   newSeasons: NewSeasonItem[];
+  /** For what is being watched, the run of filler episodes coming up next, by title id. */
+  fillerRuns: Record<string, FillerRun>;
   /** Finished series waiting on a season or, for those airing weekly, the next episode; soonest first. */
   awaiting: { title: Title; release: AwaitedRelease }[];
 }
@@ -137,11 +140,18 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     ...friends.filter((f) => partyFriends.some((p) => p.id === f.user.id)).map((f) => toPartyMember(f.user, f.library, f.wishlist)),
   ];
 
+  const fillerRuns: Record<string, FillerRun> = {};
+  for (const item of continueWatching) {
+    const entry = library.find((e) => e.titleId === item.title.id);
+    const ahead = fillerRunAfter(item.title, item.progress, entry?.partOverrides);
+    if (ahead) fillerRuns[item.title.id] = ahead;
+  }
   const finished = category === "movie" ? [] : library.filter((e) => e.status === "completed" && inSection.has(e.titleId)).map((e) => inSection.get(e.titleId)!);
   const awaited = await awaitedReleases(finished, italianDay(now));
   return {
     viewer: toPublicUser(viewer),
     category,
+    fillerRuns,
     awaiting: finished
       .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
       .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),

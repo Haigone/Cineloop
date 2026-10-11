@@ -5,7 +5,7 @@ import { AniListClient } from "@/integrations/anime/anilist";
 import { AnnClient, parseAnimeList } from "@/integrations/anime/ann";
 import { FillerList, fillerSlug, parseEpisodeKinds, parseFillerEpisodes, quickListOf, toRanges } from "@/integrations/anime/filler-list";
 import { finishesEarlierSeason, finishesTitle, newSeasons } from "@/domain/library";
-import { includedByDefault, isIncluded, plannedSeasons } from "@/domain/watch-order";
+import { fillerRunAfter, includedByDefault, isIncluded, plannedSeasons } from "@/domain/watch-order";
 import { getRepository } from "@/server/data";
 import { parseXml } from "@/lib/xml";
 import type { Series, Title, WatchPart } from "@/domain/types";
@@ -275,5 +275,17 @@ describe("a season seen while a later one is out", () => {
     expect(finishesEarlierSeason(show, { season: 2, episode: 12, fraction: 1 }, "2026-01-01")).toBe(false);
     // The next season has not aired yet: it is the last one out, so the title is finished instead.
     expect(finishesEarlierSeason(show, { season: 1, episode: 12, fraction: 1 }, "2020-06-01")).toBe(false);
+  });
+});
+
+describe("filler ahead", () => {
+  const withFiller = { ...tmdbBleach, seasons: [{ number: 1, episodeCount: 12 }], watchOrder: [{ key: "ann-1", kind: "season", name: "Bleach", year: 2004, episodes: 12, canon: null, season: 1, filler: [5, 6, 7, 12] }] } as Series;
+  it("is the run of consecutive filler episodes starting at the next one", () => {
+    expect(fillerRunAfter(withFiller, { season: 1, episode: 4 }, {})).toEqual({ season: 1, from: 5, to: 7, after: 8 });
+    expect(fillerRunAfter(withFiller, { season: 1, episode: 3 }, {})).toBeNull();
+    expect(fillerRunAfter(withFiller, { season: 1, episode: 11 }, {})).toEqual({ season: 1, from: 12, to: 12, after: null });
+  });
+  it("is nothing when the viewer chose to watch the fillers", () => {
+    expect(fillerRunAfter(withFiller, { season: 1, episode: 4 }, { filler: true })).toBeNull();
   });
 });

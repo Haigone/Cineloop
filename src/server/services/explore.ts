@@ -344,6 +344,10 @@ export async function cacheTitles(repo: Repository, titles: readonly Title[]): P
 export async function ensureTitle(id: string): Promise<Title | null> {
   const repo = getRepository();
   const [local] = await repo.getTitlesByIds([id]);
+  if (local && /^anime-ann-/.test(local.id)) {
+    refreshFranchise(repo, local);
+    return local;
+  }
   if (local && !needsDetails(local)) return local.artwork.posterUrl ? local : withCataloguePicture(repo, local);
   const remote = await getCatalog().getTitle(id);
   if (!remote) return local ?? null;
@@ -377,4 +381,19 @@ async function withCataloguePicture(repo: Repository, title: Title): Promise<Tit
   const enriched = { ...title, artwork: { ...title.artwork, posterUrl: match.artwork.posterUrl, backdropUrl: title.artwork.backdropUrl ?? match.artwork.backdropUrl } };
   await cacheTitles(repo, [enriched]);
   return enriched;
+}
+
+/** A stored franchise is served as it is and brought up to date once in a while, after the response. */
+const refreshed = new Map<string, number>();
+function refreshFranchise(repo: Repository, local: Title): void {
+  if (Date.now() - (refreshed.get(local.id) ?? 0) < 3 * 3_600_000) return;
+  refreshed.set(local.id, Date.now());
+  try {
+    after(async () => {
+      const latest = await getCatalog().getTitle(local.id).catch(() => null);
+      if (latest && JSON.stringify(latest) !== JSON.stringify(local)) await cacheTitles(repo, [latest]);
+    });
+  } catch {
+    refreshed.delete(local.id);
+  }
 }

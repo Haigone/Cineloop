@@ -16,6 +16,7 @@ export interface AniListAnime {
   startDate?: { year?: number | null; month?: number | null; day?: number | null };
   episodes?: number | null;
   nextAiringEpisode?: { airingAt: number; episode: number } | null;
+  airingSchedule?: { nodes?: { episode: number; airingAt: number }[] };
   duration?: number | null;
   description?: string | null;
   coverImage?: { extraLarge?: string | null; large?: string | null };
@@ -93,7 +94,7 @@ export class AniListClient {
   /** The series of this name that is airing now, with the date of its next episode (null when none is). */
   async airingNow(name: string): Promise<AniListAnime | null> {
     const data = await this.query<{ Page?: { media?: AniListAnime[] } }>(
-      `query ($search: String) { Page(page: 1, perPage: 8) { media(search: $search, type: ANIME, status: RELEASING, format_in: [TV, ONA]) { ${FIELDS} nextAiringEpisode { airingAt episode } } } }`,
+      `query ($search: String) { Page(page: 1, perPage: 8) { media(search: $search, type: ANIME, status: RELEASING, format_in: [TV, ONA]) { ${FIELDS} nextAiringEpisode { airingAt episode } airingSchedule(notYetAired: true, perPage: 50) { nodes { episode airingAt } } } } }`,
       { search: name },
     );
     const key = searchKey(name);
@@ -109,15 +110,16 @@ export class AniListClient {
    * The first season of the show a season belongs to: AniList lists each season as its own entry,
    * linked to the one before it. Followed up to a few steps, and the entry itself when unlinked.
    */
-  async rootOf(a: AniListAnime, steps = 4): Promise<AniListAnime> {
+  async rootOf(a: AniListAnime, steps = 4): Promise<{ root: AniListAnime; depth: number }> {
     let current = a;
-    for (let i = 0; i < steps; i++) {
+    let depth = 0;
+    for (; depth < steps; depth++) {
       const before = current.relations?.edges?.find((e) => e.relationType === "PREQUEL" && e.node && (e.node.format === "TV" || e.node.format === "ONA"));
       const found = before?.node ? await this.byId(String(before.node.id)) : null;
       if (!found) break;
       current = found;
     }
-    return current;
+    return { root: current, depth };
   }
 
   async byId(id: string): Promise<AniListAnime | null> {

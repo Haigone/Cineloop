@@ -21,6 +21,7 @@ import { WeekStats } from "@/components/home/week-stats";
 import { RecentlyWatched } from "@/components/home/recently-watched";
 import { TonightQueue } from "@/components/home/tonight-queue";
 import { RatePrompt } from "@/components/home/rate-prompt";
+import { FillerNotice } from "@/components/home/filler-notice";
 import { AwaitingList } from "@/components/library/awaiting-list";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
 import { HOME_SECTIONS, HomeSectionTabs, SectionBackdrop, sectionFromSlug } from "@/components/home/home-sections";
@@ -62,7 +63,12 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
       <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-10">
         <RevealItem className="order-1">
           {view.nowWatching ? (
-            <Hero item={view.nowWatching} />
+            <>
+              <Hero item={view.nowWatching} />
+              {view.fillerRuns[view.nowWatching.title.id] && (
+                <FillerNotice titleId={view.nowWatching.title.id} titleName={view.nowWatching.title.title} run={view.fillerRuns[view.nowWatching.title.id]!} />
+              )}
+            </>
           ) : (
             <section aria-label={EMPTY[view.category].hero} className="rounded-xl border border-line bg-surface/80 backdrop-blur-md">
               <EmptyState
@@ -83,6 +89,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
               {view.continueWatching.map((item) => (
                 <li key={item.title.id} className="min-w-0">
                   <InProgressCard item={item} />
+                  {view.fillerRuns[item.title.id] && <FillerNotice titleId={item.title.id} titleName={item.title.title} run={view.fillerRuns[item.title.id]!} />}
                 </li>
               ))}
             </ul>
