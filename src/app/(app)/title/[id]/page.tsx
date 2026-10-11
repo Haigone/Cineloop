@@ -40,7 +40,11 @@ function siteWatchUrl(
   // when no observed provider ID exists; otherwise pass the observed ID as diagnostics.
   if (providerId === "streamingcommunity") {
     const params = new URLSearchParams({ query: titleName });
+    // Keep this Worker destination in non-redirecting test mode so the extension can be tested safely.
     params.set("provider", "streamingcommunity");
+    params.set("titleId", titleId);
+    params.set("redirect", "false");
+    params.set("mode", "test");
     if (sourceUrl) {
       try {
         const source = new URL(sourceUrl);
