@@ -40,7 +40,7 @@ function siteWatchUrl(
   // The Worker is a placeholder destination for every title. Send a title query
   // when no observed provider ID exists; otherwise pass the observed ID as diagnostics.
   if (providerId === "streamingcommunity") {
-    const params = new URLSearchParams({ query: titleName, titleId });
+    const params = new URLSearchParams({ query: titleName });
     if (sourceUrl) {
       try {
         const source = new URL(sourceUrl);
