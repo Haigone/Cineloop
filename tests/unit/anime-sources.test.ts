@@ -289,3 +289,14 @@ describe("filler ahead", () => {
     expect(fillerRunAfter(withFiller, { season: 1, episode: 4 }, { filler: true })).toBeNull();
   });
 });
+
+describe("a sequel ANN does not link", () => {
+  it("counts a TV entry that continues the first season's name as its second season", async () => {
+    const A = entry(500, "TV", "Frieren", `<info type="Number of episodes">28</info><info type="Vintage">2023-09-29</info>`);
+    const B = entry(501, "TV", "Frieren 2nd Season", `<info type="Number of episodes">10</info><info type="Vintage">2026-01-16</info>`);
+    const { cat } = catalog([{ ...tmdbBleach, id: "tmdb-tv-1", title: "Frieren" }], { ann: `<?xml version="1.0"?><ann>${A}${B}</ann>` });
+    const found = await cat.search("Frieren", 5);
+    const f = found.find((t) => t.id === "anime-ann-500");
+    expect(f && f.type !== "movie" ? f.seasons.map((s) => s.episodeCount) : []).toEqual([28, 10]);
+  });
+});

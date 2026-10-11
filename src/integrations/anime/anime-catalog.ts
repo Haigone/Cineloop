@@ -129,7 +129,16 @@ export class AnimeFirstCatalog implements CatalogService {
       if (!root) return new Map();
       have = [root, ...(await this.ann.search(root.name))];
     }
-    return collectEntries([annId], this.ann, have);
+    const linked = await collectEntries([annId], this.ann, have);
+    // A sequel ANN does not link ("Frieren" / "Frieren 2nd Season"): a TV entry that continues the root's name is a season of it.
+    const rootKey = searchKey((linked.get(annId) ?? have.find((e) => e.id === annId))?.name ?? "");
+    if (rootKey.length >= 5) {
+      for (const e of have) {
+        if (linked.has(e.id) || kindOf(e) !== "season" || e.type.toLowerCase() !== "tv") continue;
+        if (searchKey(e.name).startsWith(`${rootKey} `)) linked.set(e.id, e);
+      }
+    }
+    return linked;
   }
 
   async search(query: string, limit: number): Promise<Title[]> {
