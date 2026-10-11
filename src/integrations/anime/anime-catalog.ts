@@ -4,7 +4,7 @@ import { addDays, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
-import { AL_ID, AniListClient, alSeries, alDate, alNames } from "./anilist";
+import { AL_ID, AniListClient, type AniListAnime, alSeries, alDate, alNames } from "./anilist";
 import { JikanClient, MAL_ID, airDate, namesOf, toSeries } from "./jikan";
 import { ANIME_ID, buildFranchise, collectEntries, kindOf, type Franchise } from "./franchise";
 import type { AnimeEntry } from "./types";
@@ -15,6 +15,8 @@ const MEMO_MS = 6 * 3_600_000;
 const MAX_FRANCHISES = 3;
 /** New seasons whose main show is looked up per Esplora refresh (ANN allows a call a second). */
 const MAX_MAIN_LOOKUPS = 10;
+/** How long the page waits for the main shows of new seasons before showing AniList's own cards. */
+const MAIN_LOOKUP_BUDGET_MS = 6000;
 
 const isAnimeish = (t: Title) => t.type === "anime";
 
@@ -360,7 +362,7 @@ export class AnimeFirstCatalog implements CatalogService {
     // A season of a show that already exists opens that show's page: the card stands for its first season,
     // marked with the number of the new season. A brand-new show is its own card.
     const resolved = await Promise.all(listed.filter((a) => within(alDate(a))).slice(0, 25).map(async (a) => ({ a, ...(await this.anilist.rootOf(a)) })));
-    let lookups = 0;
+    const sequels: { a: AniListAnime; root: AniListAnime; depth: number; title: Title }[] = [];
     for (const { a, root, depth } of resolved) {
       const alTitle = alSeries(root);
       if (!alTitle) continue;
@@ -369,15 +371,27 @@ export class AnimeFirstCatalog implements CatalogService {
         rootsSeen.add(alTitle.id);
         alNames(root).forEach((n) => known.add(searchKey(n)));
         alNames(a).forEach((n) => known.add(searchKey(n)));
-        // The show's own page (all its seasons) is the franchise; AniList's entry is only the fallback.
-        const main = lookups++ < MAX_MAIN_LOOKUPS ? await this.mainShow(alNames(root)) : null;
-        calendar.push({ title: main ?? alTitle, date: alDate(a), season: depth + 1, venue: "seasonal", ...(main ? {} : { mainNotFound: true }) });
+        sequels.push({ a, root, depth, title: alTitle });
         continue;
       } else if (!alNames(a).some((n) => known.has(searchKey(n)))) {
         alNames(a).forEach((n) => known.add(searchKey(n)));
         calendar.push({ title: alTitle, date: alDate(a), season: null, venue: "seasonal" });
       }
     }
+    // The show's own page (all its seasons) is the franchise; AniList's entry is only the fallback.
+    // The lookups run together under a time budget, so a slow ANN never holds the page up: what
+    // did not answer in time keeps the AniList card, without claiming the main show is missing.
+    const looked = await Promise.all(
+      sequels.map(async ({ root }, i) => {
+        if (i >= MAX_MAIN_LOOKUPS) return { main: null, tried: false };
+        const main = await Promise.race([this.mainShow(alNames(root)), new Promise<"late">((r) => setTimeout(() => r("late"), MAIN_LOOKUP_BUDGET_MS))]);
+        return main === "late" ? { main: null, tried: false } : { main, tried: true };
+      }),
+    );
+    sequels.forEach(({ a, depth, title }, i) => {
+      const { main, tried } = looked[i];
+      calendar.push({ title: main ?? title, date: alDate(a), season: depth + 1, venue: "seasonal", ...(main || !tried ? {} : { mainNotFound: true }) });
+    });
     const seasonal = calendar
       .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
       // Announced without a date: a few, so they do not crowd the row.

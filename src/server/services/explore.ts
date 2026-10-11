@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { after } from "next/server";
 import { getCatalog } from "@/integrations/catalog";
 import type { CatalogSort } from "@/integrations/catalog/types";
@@ -96,19 +97,24 @@ export interface ReleaseCard {
   meta: string;
 }
 
-export interface ForYouView {
-  /** The week's most watched titles, in order. */
-  top: Title[];
+/** What is coming out. Slow (it asks the anime calendars), so Esplora shows it after the rest. */
+export interface ReleasesView {
   /** New seasons of series the viewer has watched, soonest first. */
   comingBack: ReleaseCard[];
   /** Films and series coming out soon on the streaming services, for the chosen type. */
   upcoming: ReleaseCard[];
-  /** Anime of the coming seasons from MyAnimeList's calendar, on a platform we don't know yet. */
+  /** Anime of the coming seasons from the anime calendars, on a platform we don't know yet. */
   seasonal: ReleaseCard[];
   /** Films that will only be in cinemas: shown last, they are not what CineLoop is for. */
   atCinema: ReleaseCard[];
   /** False when release dates are examples (demo catalog). */
   realDates: boolean;
+  wishlistIds: string[];
+}
+
+export interface ForYouView {
+  /** The week's most watched titles, in order. */
+  top: Title[];
   /** True when `top` really is this week's chart (TMDB), not the demo catalog's best rated. */
   topIsWeekly: boolean;
   shelves: Shelf[];
@@ -163,22 +169,11 @@ export async function getForYouView(type: MediaType | "all" = "all", hideKnown =
   const seedTitles = await repo.getTitlesByIds(seedIds);
   const favourite = (await repo.getTitlesByIds(liked.slice(0, 1).map((e) => e.titleId)))[0];
 
-  // Series the viewer watched (or is watching): are they coming back?
-  const followed = await repo.getTitlesByIds(
-    library
-      .filter((e) => e.status === "watching" || e.status === "completed")
-      .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
-      .map((e) => e.titleId),
-  );
-  const today = italianDay();
-
-  const [forYou, trending, becauseOf, popular, returning, coming] = await Promise.all([
+  const [forYou, trending, becauseOf, popular] = await Promise.all([
     seedTitles.length ? catalog.similarTo(seedTitles, 60) : Promise.resolve([]),
     catalog.trending(60),
     favourite ? catalog.similarTo([favourite], 30) : Promise.resolve([]),
     liked.length < TASTE_TARGET ? catalog.discover({ type, genre: null, sort: "popular" }, 40).then((p) => p.titles) : Promise.resolve([]),
-    catalog.nextSeasons(followed.filter((t) => t.type !== "movie" && ofType(t)).slice(0, 20), today).catch(() => []),
-    catalog.upcoming(type, today, 20).catch(() => []),
   ]);
 
   // What friends rated highly or put on their own wishlist.
@@ -214,27 +209,10 @@ export async function getForYouView(type: MediaType | "all" = "all", hideKnown =
     shelves.push({ id: "friends", title: "Piace ai tuoi amici", description: "Votati alto o in wishlist dai tuoi amici.", titles: friendsRow });
   }
 
-  const comingBack = sortReleases(returning).map((r) => releaseCard(r, today));
-  const comingUp = sortReleases(
-    (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || (!hideKnown && wishlist.some((w) => w.titleId === r.title.id))),
-  );
-  const upcomingRow = comingUp.filter((r) => r.venue !== "cinema" && r.venue !== "seasonal").map((r) => releaseCard(r, today));
-  const seasonalRow = comingUp.filter((r) => r.venue === "seasonal").map((r) => releaseCard(r, today));
-  const cinemaRow = comingUp.filter((r) => r.venue === "cinema").map((r) => releaseCard(r, today));
-
-  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker, ...upcomingRow.map((r) => r.title), ...seasonalRow.map((r) => r.title), ...cinemaRow.map((r) => r.title)]);
-  // On the day something the viewer follows comes out, leave a notification.
-  const wished = new Set(wishlist.map((w) => w.titleId));
-  const outToday = [...returning, ...coming.filter((r) => wished.has(r.title.id))].filter((r) => r.date === today);
-  if (outToday.length && catalog.complete) after(() => notifyReleases(repo, viewer.id, outToday));
+  await cacheTitles(repo, [...top, ...shelves.flatMap((x) => x.titles), ...picker]);
 
   return {
     top,
-    comingBack,
-    upcoming: upcomingRow,
-    seasonal: seasonalRow,
-    atCinema: cinemaRow,
-    realDates: catalog.complete,
     topIsWeekly: catalog.complete,
     shelves,
     picker: liked.length < TASTE_TARGET ? picker : [],
@@ -244,6 +222,43 @@ export async function getForYouView(type: MediaType | "all" = "all", hideKnown =
     completeCatalog: catalog.complete,
   };
 }
+
+/** What is coming out, for the chosen type: the viewer's series coming back, the platforms' releases, the anime calendars, cinema. */
+export const getReleasesView = cache(async (type: MediaType | "all" = "all", hideKnown = true): Promise<ReleasesView> => {
+  const viewer = await getCurrentUser();
+  const repo = getRepository();
+  const catalog = getCatalog();
+  const [library, wishlist] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id)]);
+  const knownTitles = await repo.getTitlesByIds([...new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)])]);
+  const isKnown = knownMatcher(knownTitles);
+  const ofType = (t: Title) => type === "all" || t.type === type;
+  const today = italianDay();
+  // Series the viewer watched (or is watching): are they coming back?
+  const followed = await repo.getTitlesByIds(
+    library
+      .filter((e) => e.status === "watching" || e.status === "completed")
+      .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
+      .map((e) => e.titleId),
+  );
+  const [returning, coming] = await Promise.all([
+    catalog.nextSeasons(followed.filter((t) => t.type !== "movie" && ofType(t)).slice(0, 20), today).catch(() => []),
+    catalog.upcoming(type, today, 20).catch(() => []),
+  ]);
+
+  const comingBack = sortReleases(returning).map((r) => releaseCard(r, today));
+  const comingUp = sortReleases(
+    (await canonicalReleases(repo, coming)).filter((r) => !isKnown(r.title) || (!hideKnown && wishlist.some((w) => w.titleId === r.title.id))),
+  );
+  const upcoming = comingUp.filter((r) => r.venue !== "cinema" && r.venue !== "seasonal").map((r) => releaseCard(r, today));
+  const seasonal = comingUp.filter((r) => r.venue === "seasonal").map((r) => releaseCard(r, today));
+  const atCinema = comingUp.filter((r) => r.venue === "cinema").map((r) => releaseCard(r, today));
+  await cacheTitles(repo, [...upcoming.map((r) => r.title), ...seasonal.map((r) => r.title), ...atCinema.map((r) => r.title)]);
+  // On the day something the viewer follows comes out, leave a notification.
+  const wished = new Set(wishlist.map((w) => w.titleId));
+  const outToday = [...returning, ...coming.filter((r) => wished.has(r.title.id))].filter((r) => r.date === today);
+  if (outToday.length && catalog.complete) after(() => notifyReleases(repo, viewer.id, outToday));
+  return { comingBack, upcoming, seasonal, atCinema, realDates: catalog.complete, wishlistIds: wishlist.map((w) => w.titleId) };
+});
 
 /** Dated releases first, soonest first; announced-without-date last. */
 function sortReleases(list: Release[]): Release[] {

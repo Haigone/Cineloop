@@ -5,7 +5,7 @@ import { Compass, SearchX } from "lucide-react";
 import { GENRES } from "@/domain/genres";
 import { BROWSABLE_PROVIDERS, PROVIDERS } from "@/domain/providers";
 import type { Genre, MediaType, ProviderId } from "@/domain/types";
-import { getExploreView, getForYouView, TASTE_TARGET, type ExploreFilters as Filters } from "@/server/services/explore";
+import { getExploreView, getForYouView, getReleasesView, TASTE_TARGET, type ExploreFilters as Filters } from "@/server/services/explore";
 import { getCommunityNetflixTop, getNetflixTop10, type RankedTitle } from "@/server/services/charts";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Reveal, RevealItem } from "@/components/ui/reveal";
@@ -59,6 +59,9 @@ async function Results({ searchParams }: { searchParams: PageProps<"/explore">["
   return (
     <>
       <ForYou type={filters.type} hideKnown={filters.hideKnown} />
+      <Suspense fallback={<Skeleton className="mt-10 h-64 rounded-xl" />}>
+        <Releases type={filters.type} hideKnown={filters.hideKnown} />
+      </Suspense>
       <section aria-labelledby="catalog-h" className="mt-12">
         <SectionHeader as="h2" title={TYPE_PLURAL[filters.type]} id="catalog-h" description="Usa genere e ordine qui sopra per restringere." />
         <BrowseResults filters={filters} bare />
@@ -148,26 +151,10 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
     : [];
   const communityRows = community.filter(ofType);
   const wishlistIds = new Set(view.wishlistIds);
-  // On the Anime tab a single row: the platforms' few announcements and the calendars are one list by date.
-  const animeUpcoming = [...view.upcoming, ...view.seasonal].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
   const topLabel = view.topIsWeekly ? "Top 10 della settimana" : "Top 10 del catalogo";
 
   return (
     <Reveal className="mt-8 flex flex-col gap-10">
-      {view.comingBack.length > 0 && (
-        <RevealItem as="section">
-          <SectionHeader
-            title="Nuove stagioni delle tue serie"
-            id="shelf-coming-back"
-            description={
-              view.realDates
-                ? "Serie che hai visto e che tornano: ti avvisiamo il giorno dell’uscita."
-                : "Date di esempio nel catalogo di prova: con TMDB sono quelle annunciate."
-            }
-          />
-          <ReleaseRail label="Nuove stagioni delle tue serie" releases={view.comingBack} wishlistIds={wishlistIds} />
-        </RevealItem>
-      )}
       {view.top.length > 0 && (
         <RevealItem as="section">
           <SectionHeader
@@ -217,6 +204,41 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
           </Rail>
         </RevealItem>
       ))}
+      {view.shelves.length === 0 && view.picker.length === 0 && (
+        <RevealItem>
+          <EmptyState
+            compact
+            icon={<Compass />}
+            title="Ancora niente “Per te” per questo tipo."
+            description="Vota qualche titolo che hai visto: i consigli arrivano da lì."
+          />
+        </RevealItem>
+      )}
+    </Reveal>
+  );
+}
+
+async function Releases({ type, hideKnown }: { type: Filters["type"]; hideKnown: boolean }) {
+  const view = await getReleasesView(type, hideKnown);
+  const wishlistIds = new Set(view.wishlistIds);
+  // On the Anime tab a single row: the platforms' few announcements and the calendars are one list by date.
+  const animeUpcoming = [...view.upcoming, ...view.seasonal].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
+  return (
+    <Reveal className="mt-10 flex flex-col gap-10">
+      {view.comingBack.length > 0 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="Nuove stagioni delle tue serie"
+            id="shelf-coming-back"
+            description={
+              view.realDates
+                ? "Serie che hai visto e che tornano: ti avvisiamo il giorno dell’uscita."
+                : "Date di esempio nel catalogo di prova: con TMDB sono quelle annunciate."
+            }
+          />
+          <ReleaseRail label="Nuove stagioni delle tue serie" releases={view.comingBack} wishlistIds={wishlistIds} />
+        </RevealItem>
+      )}
       {type === "anime" ? (
         animeUpcoming.length > 0 && (
           <RevealItem as="section">
@@ -260,16 +282,6 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
             description="Solo in sala, per ora: non sono su nessuna piattaforma."
           />
           <ReleaseRail label="Prossimamente al cinema" releases={view.atCinema} wishlistIds={wishlistIds} />
-        </RevealItem>
-      )}
-      {view.shelves.length === 0 && view.picker.length === 0 && (
-        <RevealItem>
-          <EmptyState
-            compact
-            icon={<Compass />}
-            title="Ancora niente “Per te” per questo tipo."
-            description="Vota qualche titolo che hai visto: i consigli arrivano da lì."
-          />
         </RevealItem>
       )}
     </Reveal>
