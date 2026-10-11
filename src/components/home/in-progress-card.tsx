@@ -6,6 +6,26 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProviderBadge } from "@/components/ui/provider-badge";
 import { KeyArt } from "@/components/media/key-art";
 
+function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string | null, fraction: number, runtimeMinutes: number, season: number | null, episode: number | null): string {
+  const params = new URLSearchParams({ query: titleName, titleId });
+  if (sourceUrl) {
+    try {
+      const source = new URL(sourceUrl);
+      const host = source.hostname.toLowerCase().replace(/^www\./, "");
+      const validHost = source.protocol === "https:" && /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+      const match = validHost && /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+      if (match) params.set("id", match[1]!);
+      const episodeId = source.searchParams.get("e");
+      if (episodeId && /^\d{1,12}$/.test(episodeId)) params.set("episodeId", episodeId);
+    } catch {}
+  }
+  if (season !== null) params.set("season", String(season));
+  if (episode !== null) params.set("episode", String(episode));
+  params.set("minute", String(Math.max(0, Math.floor(fraction * runtimeMinutes))));
+  return `https://odd-tree-f5fa.turiscrocca.workers.dev/?${params.toString()}`;
+}
+
+
 /**
  * A smaller rectangle under the hero for the other titles in progress: where
  * you are (episode, or how much of the film) and how far through the series.
@@ -14,6 +34,9 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
   const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live } = item;
   const ep = episodeLabel(progress, "short");
   const fraction = seriesFraction ?? progress.fraction;
+  const destination = progress.providerId === "streamingcommunity"
+    ? workerContinueUrl(title.id, title.title, progress.url ?? null, progress.fraction, title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes, title.type === "movie" ? null : (progress.season ?? null), title.type === "movie" ? null : (progress.episode ?? null))
+    : continueUrl;
   const label = continueOnSite
     ? [`${title.title}: ${progress.providerId === "streamingcommunity" ? "continua a guardare" : "dove guardarlo"}`, episodeLabel(progress, "long")].filter(Boolean).join(", ")
     : [`Continua ${title.title}`, providerName && `su ${providerName}`, episodeLabel(progress, "long")].filter(Boolean).join(", ");
@@ -22,7 +45,7 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
 
   return (
     <Wrapper
-      href={continueUrl ?? `/title/${title.id}`}
+      href={destination ?? `/title/${title.id}`}
       aria-label={label}
       {...(continueOnSite ? {} : { target: "_blank", rel: "noopener noreferrer" })}
       className="group/card flex items-center gap-3 rounded-lg border border-line bg-surface p-2 pr-3 transition-colors hover:border-line-strong hover:bg-surface-2"

@@ -10,6 +10,26 @@ import { ProviderBadge } from "@/components/ui/provider-badge";
 import { KeyArt } from "@/components/media/key-art";
 import { ProgressEditor } from "@/components/title/progress-editor";
 
+function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string | null, fraction: number, runtimeMinutes: number, season: number | null, episode: number | null): string {
+  const params = new URLSearchParams({ query: titleName, titleId });
+  if (sourceUrl) {
+    try {
+      const source = new URL(sourceUrl);
+      const host = source.hostname.toLowerCase().replace(/^www\./, "");
+      const validHost = source.protocol === "https:" && /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+      const match = validHost && /^\/(?:[a-z]{2}\/)?(?:watch|titles?)\/(\d{1,9})(?:[-/?#]|$)/i.exec(source.pathname);
+      if (match) params.set("id", match[1]!);
+      const episodeId = source.searchParams.get("e");
+      if (episodeId && /^\d{1,12}$/.test(episodeId)) params.set("episodeId", episodeId);
+    } catch {}
+  }
+  if (season !== null) params.set("season", String(season));
+  if (episode !== null) params.set("episode", String(episode));
+  params.set("minute", String(Math.max(0, Math.floor(fraction * runtimeMinutes))));
+  return `https://odd-tree-f5fa.turiscrocca.workers.dev/?${params.toString()}`;
+}
+
+
 /**
  * What is playing now (reported by the extension) or, failing that, the last
  * title opened: the single most important thing on Home. CineLoop does
@@ -20,6 +40,9 @@ export function Hero({ item }: { item: ContinueItem }) {
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
   const remaining = Math.max(1, Math.round(runtime * (1 - progress.fraction)));
+  const destination = progress.providerId === "streamingcommunity"
+    ? workerContinueUrl(title.id, title.title, progress.url ?? null, progress.fraction, runtime, title.type === "movie" ? null : (progress.season ?? null), title.type === "movie" ? null : (progress.episode ?? null))
+    : continueUrl;
 
   return (
     <section aria-labelledby="hero-title" className="relative isolate overflow-hidden rounded-xl border border-line bg-surface">
@@ -78,13 +101,13 @@ export function Hero({ item }: { item: ContinueItem }) {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {continueUrl && continueOnSite ? (
+          {destination && continueOnSite ? (
             // No service known for this title: its page says where it streams.
-            <ButtonLink href={continueUrl} size="lg" icon={progress.providerId === "streamingcommunity" ? <Play aria-hidden className="size-4" fill="currentColor" /> : <MapPin aria-hidden className="size-4" />}>
+            <ButtonLink href={destination} size="lg" icon={progress.providerId === "streamingcommunity" ? <Play aria-hidden className="size-4" fill="currentColor" /> : <MapPin aria-hidden className="size-4" />}>
               {progress.providerId === "streamingcommunity" ? "Continua a guardare" : "Dove guardarlo"}
             </ButtonLink>
-          ) : continueUrl ? (
-            <ButtonAnchor href={continueUrl} size="lg" icon={<Play aria-hidden className="size-4" fill="currentColor" />}>
+          ) : destination ? (
+            <ButtonAnchor href={destination} size="lg" icon={<Play aria-hidden className="size-4" fill="currentColor" />}>
               {providerName ? `Continua su ${providerName}` : "Continua"}
             </ButtonAnchor>
           ) : null}
