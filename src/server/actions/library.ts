@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import type { ActivityKind, RatingValue, SeasonSummary } from "@/domain/types";
+import type { ActivityKind, ProviderId, RatingValue, SeasonSummary } from "@/domain/types";
 import { airedSeasons, finishesEarlierSeason, finishesTitle } from "@/domain/library";
 import { fillerRunAfter } from "@/domain/watch-order";
 import { italianDay } from "@/lib/dates";
@@ -185,6 +185,8 @@ const manualProgressSchema = z.object({
   episode: z.number().int().min(1).max(5000).nullable(),
   minute: z.number().int().min(0).max(1000),
   finished: z.boolean().optional(),
+  /** Where it is watched; undefined leaves the saved service as it is, null clears it. */
+  providerId: z.string().max(40).nullable().optional(),
 });
 
 /**
@@ -193,7 +195,7 @@ const manualProgressSchema = z.object({
  */
 export async function saveManualProgress(
   id: string,
-  input: { season: number | null; episode: number | null; minute: number; finished?: boolean },
+  input: { season: number | null; episode: number | null; minute: number; finished?: boolean; providerId?: string | null },
 ): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
@@ -214,6 +216,11 @@ export async function saveManualProgress(
   }
   const { minute } = parsed.data;
   let { season, episode } = parsed.data;
+  const chosenProvider = parsed.data.providerId;
+  // Only the title's own streaming services can be chosen here.
+  if (chosenProvider && (!title.providers.includes(chosenProvider as never) || chosenProvider === "animeunity" || chosenProvider === "streamingcommunity")) {
+    return { ok: false, error: "Servizio non valido per questo titolo." };
+  }
   if (title.type === "movie") {
     season = null;
     episode = null;
@@ -249,12 +256,12 @@ export async function saveManualProgress(
     const sameEpisode = prev?.season === season && prev?.episode === episode;
     await repo.saveProgress(user.id, {
       titleId: title.id,
-      providerId: prev?.providerId ?? null,
+      providerId: chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null),
       season,
       episode,
       fraction: Math.min(0.99, minute / runtime),
-      // A link to another episode would open the wrong one.
-      url: sameEpisode ? (prev?.url ?? null) : null,
+      // A link to another episode, or to another service, would open the wrong one.
+      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : null,
       updatedAt: new Date().toISOString(),
     });
     await repo.removeFromWishlist(user.id, title.id);

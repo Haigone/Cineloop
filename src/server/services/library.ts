@@ -6,7 +6,7 @@ import type { LibraryItem } from "@/domain/library";
 import { sectionOf, type LibraryEntry, type PublicUser, type RatingValue, type Title, type WatchStatus } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getProvider } from "@/domain/providers";
-import { getAdapter } from "@/integrations/providers/registry";
+import { getAdapter, resolveContinueUrl } from "@/integrations/providers/registry";
 import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
@@ -42,7 +42,7 @@ export interface TitleView {
   title: Title;
   entry: LibraryEntry | null;
   wishlisted: boolean;
-  providers: { id: string; name: string; tint: string; url: string | null }[];
+  providers: { id: string; name: string; tint: string; url: string | null; /** Where "Continua a guardare" goes, same as on Home; only for the chosen service. */ continueUrl: string | null }[];
   watchChoices: { id: "netflix" | "animeunity"; name: string; tint: string; url: string }[];
   friends: { user: PublicUser; status: WatchStatus | "wishlist"; rating: RatingValue | null }[];
   allFriends: PublicUser[];
@@ -89,7 +89,14 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     }) : [],
     providers: providerIds.map((pid) => {
       const p = getProvider(pid)!;
+      const progress = library.find((e) => e.titleId === id)?.progress ?? null;
+      // The same resolution Home uses for its button, for the service the viewer chose.
+      const continueUrl =
+        pid !== "animeunity" && pid !== "streamingcommunity" && progress?.providerId === pid
+          ? resolveContinueUrl({ providerId: pid, externalId: null, title: title.title, type: title.type, season: progress.season, episode: progress.episode, titleId: id }, progress.url)
+          : null;
       return {
+        continueUrl,
         id: p.id,
         name: p.name,
         tint: p.tint,

@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import type { SeasonSummary, Title, WatchProgress } from "@/domain/types";
 import { loadSeasons, saveManualProgress } from "@/server/actions/library";
 import { Button } from "@/components/ui/button";
+import { PROVIDERS } from "@/domain/providers";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
@@ -78,13 +79,17 @@ function ProgressDialog({
   }, [loading, title.id]);
   const [episode, setEpisode] = useState(progress?.episode ?? 1);
   const [minute, setMinute] = useState(progress ? Math.round(progress.fraction * runtime) : 0);
+  // The services that carry it, as the catalogue lists them. What is chosen decides where "Continua a guardare" goes.
+  const services = title.providers.filter((id) => id !== "animeunity" && id !== "streamingcommunity" && PROVIDERS[id]);
+  const [service, setService] = useState<string | undefined>(undefined);
+  const savedService = progress?.providerId && services.includes(progress.providerId) ? progress.providerId : "";
   const [pending, startTransition] = useTransition();
   const toast = useToast();
   const episodes = seasons.find((s) => s.number === season)?.episodeCount ?? 0;
 
   function save() {
     startTransition(async () => {
-      const res = await saveManualProgress(title.id, { season: isMovie ? null : season, episode: isMovie ? null : episode, minute, finished: !isMovie && finished });
+      const res = await saveManualProgress(title.id, { season: isMovie ? null : season, episode: isMovie ? null : episode, minute, finished: !isMovie && finished, ...(service === undefined ? {} : { providerId: service || null }) });
       if (res.ok) {
         toast.show("Progressi salvati", { tone: "success" });
         onClose();
@@ -130,6 +135,19 @@ function ProgressDialog({
             ))}
           </div>
         </fieldset>
+      )}
+      {services.length > 0 && !(finished && !isMovie) && (
+        <div className="mb-4">
+          <Select label="Dove lo guardi" value={service ?? savedService} onChange={(e) => setService(e.target.value)}>
+            <option value="">Non specificato</option>
+            {services.map((id) => (
+              <option key={id} value={id}>
+                {PROVIDERS[id].name}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1.5 text-xs text-fg-3">Il pulsante “Continua a guardare” ti porta su questo servizio. Lo puoi cambiare quando vuoi.</p>
+        </div>
       )}
       <div className="flex flex-wrap items-end gap-3">
         {!isMovie && loading && <p className="text-sm text-fg-3">Carico le stagioni…</p>}

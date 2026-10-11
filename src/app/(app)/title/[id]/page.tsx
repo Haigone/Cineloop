@@ -167,7 +167,8 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 )}
                 {providers.map((p) => {
                   const progress = entry?.progress;
-                  const destination = siteWatchUrl(
+                  const ownLink = p.id !== "streamingcommunity" && p.id !== "animeunity";
+                  const destination = ownLink && p.url ? (p.continueUrl ?? p.url) : siteWatchUrl(
                     title.id,
                     title.title,
                     p.id,
@@ -181,8 +182,8 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                     <li key={p.id}>
                       <a
                         href={destination}
-                        target={p.id === "streamingcommunity" ? "_blank" : undefined}
-                        rel={p.id === "streamingcommunity" ? "noopener noreferrer" : undefined}
+                        target={p.id === "streamingcommunity" || (ownLink && p.url) ? "_blank" : undefined}
+                        rel={p.id === "streamingcommunity" || (ownLink && p.url) ? "noopener noreferrer" : undefined}
                         aria-label={p.id === "streamingcommunity" ? `Guarda ${title.title} in streaming` : undefined}
                         className="relative z-10 inline-flex h-9 cursor-pointer pointer-events-auto items-center gap-2 rounded-md border border-line-strong px-3 text-sm text-fg transition-colors hover:bg-white/[0.05]"
                       >
