@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { FastForward } from "lucide-react";
 import type { FillerRun } from "@/domain/watch-order";
 import { skipFillers } from "@/server/actions/library";
@@ -10,6 +11,7 @@ import { useToast } from "@/components/ui/toast";
 /** Tells that the next episodes are filler, and moves the viewer's place to the first one after them. */
 export function FillerNotice({ titleId, titleName, run }: { titleId: string; titleName: string; run: FillerRun }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const toast = useToast();
   const range = run.from === run.to ? `L’episodio ${run.from}` : `Gli episodi ${run.from}–${run.to}`;
   const verb = run.from === run.to ? "è un filler" : "sono filler";
@@ -29,6 +31,7 @@ export function FillerNotice({ titleId, titleName, run }: { titleId: string; tit
             startTransition(async () => {
               const res = await skipFillers(titleId);
               toast.show(res.ok ? `${titleName}: ora sei all’episodio ${run.after}` : (res.error ?? "Qualcosa non ha funzionato."), { tone: res.ok ? "success" : "error" });
+              if (res.ok) router.refresh();
             })
           }
         >
