@@ -72,6 +72,12 @@ function siteWatchUrl(
   if (episode !== null) params.set("episode", String(episode));
   return `/title/${encodeURIComponent(titleId)}?${params.toString()}`;
 }
+/**
+ * "Da dove lo stai guardando?" now lives in "A che punto sei?" ("Dove lo guardi"). The standalone box is kept in the code, off,
+ * so it can be turned back on here.
+ */
+const SHOW_SOURCE_CHOOSER = false;
+
 export default function TitlePage({ params }: PageProps<"/title/[id]">) {
   return (
     <Suspense
@@ -213,7 +219,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                   </li>
                 )}
               </ul>
-              {watchChoices.length > 0 && (
+              {SHOW_SOURCE_CHOOSER && watchChoices.length > 0 && (
                 <WatchSourceChooser
                   titleId={title.id}
                   titleName={title.title}
