@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CineLoop · Test Discord RPC</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body { width: min(620px, calc(100vw - 32px)); margin: 24px auto; }
+      .result { padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .good { color: #8ee6ad; }
+      .bad { color: #ff9aa8; }
+      .muted { line-height: 1.55; }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="icons/32.png" alt="" width="20" height="20" />
+      <span class="brand">CineLoop · Test Discord RPC</span>
+    </header>
+    <section class="card">
+      <p class="title">Verifica sperimentale, senza cambiare la presenza</p>
+      <p class="muted">Questo test prova soltanto ad aprire una connessione WebSocket locale al client Discord desktop. Non invia attività, non accede al tuo account e non richiede token o Client Secret.</p>
+      <p class="muted small">Application ID: <code>1559324285544435712</code></p>
+      <div class="actions">
+        <button id="run" class="primary" type="button">Prova connessione</button>
+        <button id="clear" type="button">Pulisci risultato</button>
+      </div>
+    </section>
+    <section class="card">
+      <p class="title">Risultato</p>
+      <p id="status" class="muted" role="status">Premi “Prova connessione” con Discord desktop aperto.</p>
+      <pre id="log" class="result" aria-live="polite">In attesa del test.</pre>
+    </section>
+    <p class="muted small">Nota: Discord documenta restrizioni per le connessioni RPC dal browser e richiede un'origine autorizzata. Un esito negativo può quindi indicare un limite della piattaforma, non un errore di CineLoop.</p>
+    <script src="discord-rpc-test.js"></script>
+  </body>
+</html>
