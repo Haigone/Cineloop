@@ -296,18 +296,26 @@ export class AnimeFirstCatalog implements CatalogService {
     }));
   }
 
-  /** The franchise page of a show known by these names, or null when ANN has no TV entry of that name. */
+  /**
+   * The franchise page of a show known by these names, or null when ANN has no TV entry of that name.
+   * Throws when ANN could not be asked at all, so "not found" never covers a failed request.
+   */
   private async mainShow(names: readonly string[]): Promise<Title | null> {
-    for (const name of names.slice(0, 3)) {
+    const keys = new Set(names.map(searchKey));
+    // The full name first, then what comes before a subtitle ("Frieren: Beyond Journey's End" -> "Frieren").
+    const queries = [...new Set(names.flatMap((n) => [n, n.split(/\s*[:：]\s*/)[0]!.trim()]).filter((q) => q.length >= 4))].slice(0, 4);
+    let failures = 0;
+    for (const query of queries) {
       try {
-        const key = searchKey(name);
-        const exact = (await this.ann.search(name)).find((e) => kindOf(e) === "season" && searchKey(e.name) === key);
+        const exact = (await this.ann.search(query)).find((e) => kindOf(e) === "season" && keys.has(searchKey(e.name)));
         const f = exact && (await this.franchise(exact.id, [exact]));
         if (f) return f.title;
       } catch (err) {
+        failures++;
         console.error("finding the main show of a new season failed", err);
       }
     }
+    if (failures === queries.length) throw new Error("ANN could not be asked");
     return null;
   }
 
@@ -389,8 +397,12 @@ export class AnimeFirstCatalog implements CatalogService {
     const looked = await Promise.all(
       sequels.map(async ({ root }, i) => {
         if (i >= MAX_MAIN_LOOKUPS) return { main: null, tried: false };
-        const main = await Promise.race([this.mainShow(alNames(root)), new Promise<"late">((r) => setTimeout(() => r("late"), MAIN_LOOKUP_BUDGET_MS))]);
-        return main === "late" ? { main: null, tried: false } : { main, tried: true };
+        const main = await Promise.race([
+          this.mainShow(alNames(root)).catch(() => "failed" as const),
+          new Promise<"late">((r) => setTimeout(() => r("late"), MAIN_LOOKUP_BUDGET_MS)),
+        ]);
+        // Too slow or ANN down: keep AniList's card without claiming the main show is missing.
+        return main === "late" || main === "failed" ? { main: null, tried: false } : { main, tried: true };
       }),
     );
     sequels.forEach(({ a, depth, title }, i) => {

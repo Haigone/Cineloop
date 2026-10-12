@@ -97,15 +97,8 @@ export function LibraryBrowser({
     filterLibrary(items, type, "all"),
     (i) => i.entry.status,
   );
-  const inType = (t: Title) => type === "all" || sectionOf(t) === type;
-  const newShown = useMemo(
-    () => newSeasons.filter((n) => inType(n.title)),
-    [newSeasons, type],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
-  const awaitingShown = useMemo(
-    () => awaiting.filter((a) => inType(a.title)),
-    [awaiting, type],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+  const newShown = useMemo(() => newSeasons.filter((n) => type === "all" || sectionOf(n.title) === type), [newSeasons, type]);
+  const awaitingShown = useMemo(() => awaiting.filter((x) => type === "all" || sectionOf(x.title) === type), [awaiting, type]);
   const shown = useMemo(
     () => sortLibrary(filterLibrary(items, type, status), sort),
     [items, type, status, sort],

@@ -3,7 +3,7 @@ import { genreProfile, summarize, type SideSummary } from "@/domain/compare";
 import { genreShares, ratingDistribution, socialRankings, topRated, type RankedTitle, type SocialRankings } from "@/domain/rankings";
 import { buildPodiums, type CategoryPodium, type PodiumCategory } from "@/domain/podium";
 import { dailyMinutes, weekStart } from "@/domain/stats";
-import type { Genre, RatingValue, Title, User } from "@/domain/types";
+import type { Genre, User } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { loadFriendBundles } from "./shared";
