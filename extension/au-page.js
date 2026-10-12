@@ -150,7 +150,7 @@
     const id = titleIdNow();
     if (!id) return;
     if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
-    const episodeId = /\\/anime\\/\\d{1,9}[-/][^/]+\\/(\\d{1,12})(?:\\/|$)/.exec(location.pathname)?.[1] ?? null;
+    const episodeId = /\/anime\/\d{1,9}[-/][^/]+\/(\d{1,12})(?:\/|$)/.exec(location.pathname)?.[1] ?? null;
     known.episodeId = episodeId;
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
