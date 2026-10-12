@@ -12,6 +12,14 @@ const noMatch = new Set<string>();
 
 /** The franchise card of the anime sources that stands for this TMDB anime, when one clearly does. */
 export async function franchiseFor(old: Title): Promise<Title | null> {
+  const hit = await findFranchise(old);
+  if (!hit) return null;
+  // A picture the anime sources lack comes from the TMDB title it replaces.
+  const a = hit.artwork;
+  return { ...hit, artwork: { ...a, posterUrl: a.posterUrl ?? old.artwork.posterUrl, backdropUrl: a.backdropUrl ?? old.artwork.backdropUrl } };
+}
+
+async function findFranchise(old: Title): Promise<Title | null> {
   if (process.env.ANIME_SOURCES === "off") return null;
   const lookup = async (name: string) => {
     const key = searchKey(name);
