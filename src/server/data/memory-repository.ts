@@ -345,9 +345,9 @@ export class MemoryRepository implements Repository {
   async addToWishlist(userId: string, titleId: string, suggestedBy: string | null = null) {
     const mine = this.wishlist.filter((w) => w.userId === userId);
     if (mine.some((w) => w.titleId === titleId)) return;
-    // New items go to the top, like a queue you just added to.
-    for (const w of mine) w.position += 1;
-    this.wishlist.push({ userId, titleId, addedAt: new Date().toISOString(), position: 0, suggestedBy });
+    // New items are appended to the end of the wishlist.
+    const position = mine.reduce((max, w) => Math.max(max, w.position), -1) + 1;
+    this.wishlist.push({ userId, titleId, addedAt: new Date().toISOString(), position, suggestedBy });
   }
 
   async removeFromWishlist(userId: string, titleId: string) {
