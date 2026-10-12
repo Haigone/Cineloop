@@ -71,12 +71,16 @@ export function streamingCommunityResumeUrl(sourceUrl: string | null, fraction: 
   } catch { return null; }
 }
 /** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
-export function animeUnityResumeUrl(value: string, fraction: number): string {
+export function animeUnityResumeUrl(value: string, fraction: number, runtimeMinutes: number): string {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     if (url.protocol !== "https:" || !(host === "animeunity.so" || host.endsWith(".animeunity.so")) || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)) return value;
-    url.searchParams.set("cineloopResume", String(Math.min(1, Math.max(0, fraction))));
+    const safeFraction = Math.min(1, Math.max(0, fraction));
+    url.searchParams.set("cineloopResume", String(safeFraction));
+    if (Number.isFinite(runtimeMinutes) && runtimeMinutes > 0) {
+      url.searchParams.set("minute", String(Math.max(0, Math.floor(safeFraction * runtimeMinutes))));
+    }
     return url.toString();
   } catch {
     return value;
@@ -112,7 +116,7 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
       )
     : null;
   const providerUrl = streamingCommunityUrl ?? (resolvedUrl && providerId === "animeunity" && entry.progress.providerId === "animeunity"
-    ? animeUnityResumeUrl(resolvedUrl, entry.progress.fraction)
+    ? animeUnityResumeUrl(resolvedUrl, entry.progress.fraction, title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes)
     : resolvedUrl);
   const continueUrl = providerUrl ?? `/title/${title.id}`;
   const season = title.type === "movie" ? undefined : title.seasons.find((s) => s.number === entry.progress!.season);
