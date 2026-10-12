@@ -71,7 +71,7 @@ export function streamingCommunityResumeUrl(sourceUrl: string | null, fraction: 
   } catch { return null; }
 }
 /** Append a one-shot seek hint for the Anime Unity extension, preserving the page URL. */
-export function animeUnityResumeUrl(value: string, fraction: number, runtimeMinutes: number): string {
+export function animeUnityResumeUrl(value: string, fraction: number, runtimeMinutes = 0): string {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
