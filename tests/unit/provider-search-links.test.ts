@@ -9,13 +9,27 @@ describe("provider title search links", () => {
     );
   });
 
-  it("opens Anime Unity's title search instead of its homepage", () => {
-    expect(providerSearchUrl("animeunity", "Bleach")).toBe("https://www.animeunity.so/filter?search=Bleach");
+  it("searches Anime Unity archive by title when no saved provider id exists", () => {
+    expect(providerSearchUrl("animeunity", "Bleach: Thousand-Year Blood War")).toBe(
+      "https://www.animeunity.so/archivio?title=Bleach%3A%20Thousand-Year%20Blood%20War",
+    );
+  });
+
+  it("prefers the numeric Anime Unity id saved by the extension", () => {
+    expect(providerSearchUrl("animeunity", "Bleach", "https://www.animeunity.so/anime/123-bleach")).toBe(
+      "https://www.animeunity.so/archivio?title=123",
+    );
+  });
+
+  it("does not trust an id from a different host", () => {
+    expect(providerSearchUrl("animeunity", "Bleach", "https://example.com/anime/123-bleach")).toBe(
+      "https://www.animeunity.so/archivio?title=Bleach",
+    );
   });
 
   it("does not append a playback seek hint to a search page", () => {
-    expect(animeUnityResumeUrl("https://www.animeunity.so/filter?search=Bleach", 0.7)).toBe(
-      "https://www.animeunity.so/filter?search=Bleach",
+    expect(animeUnityResumeUrl("https://www.animeunity.so/archivio?title=Bleach", 0.7)).toBe(
+      "https://www.animeunity.so/archivio?title=Bleach",
     );
   });
 
