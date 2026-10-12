@@ -20,7 +20,7 @@
   let resumeApplied = false;
 
   /** L'anime che questa pagina sta mostrando, finche' non cambia pagina. */
-  let known = { watchId: null, title: "", season: null, episode: null };
+  let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
   let lastSent = "";
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
 
@@ -149,7 +149,9 @@
     if (!alive()) return stop();
     const id = titleIdNow();
     if (!id) return;
-    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null };
+    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
+    const episodeId = /\\/anime\\/\\d{1,9}[-/][^/]+\\/(\\d{1,12})(?:\\/|$)/.exec(location.pathname)?.[1] ?? null;
+    known.episodeId = episodeId;
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
       if (found.title && !known.title) known.title = found.title;
