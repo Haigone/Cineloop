@@ -8,7 +8,7 @@ import { Popover } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/toast";
 
 /** For a title marked "in corso" by mistake: back to the wishlist, or out of the library. */
-export function StopWatching({ titleId, titleName }: { titleId: string; titleName: string }) {
+export function StopWatching({ titleId, titleName, compact = false }: { titleId: string; titleName: string; compact?: boolean }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
@@ -26,11 +26,23 @@ export function StopWatching({ titleId, titleName }: { titleId: string; titleNam
       label={`Togli ${titleName} da In corso`}
       className="w-64"
       onOpenChange={(open) => !open && setConfirming(false)}
-      trigger={({ ref, ...props }) => (
-        <Button ref={ref} {...props} variant="ghost" size="sm" icon={<Undo2 aria-hidden className="size-3.5" />}>
+      trigger={({ ref, ...props }) =>
+        compact ? (
+          <button
+            ref={ref}
+            type="button"
+            aria-label={`Togli ${titleName} da In corso`}
+            {...props}
+            className="grid size-7 place-items-center rounded-full text-fg-3 transition-colors hover:bg-white/10 hover:text-fg"
+          >
+            <Undo2 aria-hidden className="size-3.5" />
+          </button>
+        ) : (
+          <Button ref={ref} {...props} variant="ghost" size="sm" icon={<Undo2 aria-hidden className="size-3.5" />}>
           Non lo sto guardando
-        </Button>
-      )}
+          </Button>
+        )
+      }
     >
       {(close) =>
         confirming ? (

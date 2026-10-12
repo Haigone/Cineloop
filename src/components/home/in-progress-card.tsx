@@ -5,6 +5,7 @@ import { episodeLabel, percent } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProviderBadge } from "@/components/ui/provider-badge";
 import { KeyArt } from "@/components/media/key-art";
+import { StopWatching } from "@/components/title/stop-watching";
 
 function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string | null, fraction: number, runtimeMinutes: number, season: number | null, episode: number | null): string {
   const params = new URLSearchParams({ query: titleName });
@@ -43,14 +44,16 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
   // The service in a new tab; with no service known, the title's own page here.
   const Wrapper = continueOnSite ? Link : "a";
 
+  // The card as a whole continues; the title inside opens the title's own page.
   return (
-    <Wrapper
-      href={destination ?? `/title/${title.id}`}
-      aria-label={label}
-      {...(continueOnSite ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-      className="group/card flex items-center gap-3 rounded-lg border border-line bg-surface p-2 pr-3 transition-colors hover:border-line-strong hover:bg-surface-2"
-    >
-      <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-surface-2">
+    <div className="group/card relative flex items-center gap-3 rounded-lg border border-line bg-surface p-2 pr-3 transition-colors hover:border-line-strong hover:bg-surface-2">
+      <Wrapper
+        href={destination ?? `/title/${title.id}`}
+        aria-label={label}
+        {...(continueOnSite ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+        className="absolute inset-0 rounded-lg"
+      />
+      <div className="pointer-events-none relative aspect-video w-28 shrink-0 overflow-hidden rounded-md bg-surface-2">
         <KeyArt title={title} variant="backdrop" className="absolute inset-0" />
         {!continueOnSite && (
           <span className="absolute inset-0 grid place-items-center bg-black/45 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-visible/card:opacity-100">
@@ -58,10 +61,10 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
           </span>
         )}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="pointer-events-none min-w-0 flex-1">
         <p className="flex items-center gap-1.5 truncate text-sm font-medium text-fg">
           {live && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" />}
-          <span className="truncate">{title.title}</span>
+          <Link href={`/title/${title.id}`} className="pointer-events-auto relative z-10 truncate hover:text-accent hover:underline">{title.title}</Link>
         </p>
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-3">
           <ProviderBadge id={progress.providerId} quiet />
@@ -77,6 +80,9 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
           <span className="text-[11px] tabular text-fg-2">{percent(fraction)}</span>
         </div>
       </div>
-    </Wrapper>
+      <div className="relative z-10 self-start">
+        <StopWatching titleId={title.id} titleName={title.title} compact />
+      </div>
+    </div>
   );
 }
