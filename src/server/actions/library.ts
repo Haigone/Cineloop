@@ -317,7 +317,9 @@ export async function chooseWatchProvider(id: string, providerId: string): Promi
       fraction: previous?.fraction ?? 0,
       // Keep a previously observed page only when the provider is unchanged.
       // Otherwise point to a provider-side search until the extension reports the exact page.
-      url: previous?.providerId === parsedProvider.data && previous.url ? previous.url : searchUrl,
+      url: previous?.providerId === parsedProvider.data && previous.url
+        ? previous.url
+        : providerSearchUrl(parsedProvider.data, title.title, parsedProvider.data === "animeunity" ? previous?.url : null) ?? searchUrl,
       updatedAt: now,
     });
     await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: now, season: previous?.season ?? null, episode: previous?.episode ?? null, rating: null });
