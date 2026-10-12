@@ -105,9 +105,26 @@ export async function GET(request: Request) {
       franchise = { error: String(err) };
     }
   }
+  // What the site itself shows for that franchise: the finished title (artwork, AniList's airing counts) and its episode lists.
+  let site: unknown = undefined;
+  if (seed && /^\d{1,8}$/.test(seed)) {
+    try {
+      const title = await catalog.getTitle(`anime-ann-${seed}`);
+      const airing = title ? await new AniListClient().airingNow(title.title).catch(() => null) : null;
+      site = title && {
+        seasons: title.type === "movie" ? [] : title.seasons,
+        order: title.type === "movie" ? [] : title.watchOrder?.map((p) => [p.kind, p.name, p.year, p.episodes]),
+        episodeLists: title.type === "movie" ? [] : await Promise.all(title.seasons.map(async (x) => [x.number, (await catalog.episodes(title.id, x.number).catch(() => null))?.length ?? null])),
+        anilist: airing && { episodes: airing.episodes, next: airing.nextAiringEpisode?.episode, scheduled: airing.airingSchedule?.nodes?.length },
+      };
+    } catch (err) {
+      site = { error: String(err) };
+    }
+  }
   return NextResponse.json({
     search,
     franchise,
+    site,
     catalogue: { name: catalog.name, complete: catalog.complete, tmdbTokenSet: Boolean(process.env.TMDB_READ_TOKEN), animeSources: process.env.ANIME_SOURCES !== "off" },
     today,
     upcoming: Array.isArray(upcoming)
