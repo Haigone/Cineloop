@@ -482,6 +482,11 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
   }
+  // Persist the observed episode URL only when the catalogue position is known.
+  if (presence.providerId === "animeunity" && title?.type === "anime" && presence.season !== null && presence.episode !== null) {
+    const episodeUrlId = new URL(presence.url).pathname.split("/").filter(Boolean).at(-1);
+    if (episodeUrlId && /^\d{1,12}$/.test(episodeUrlId)) await repo.saveProviderEpisodeLink({ providerId: "animeunity", titleId, season: presence.season, episode: presence.episode, url: presence.url, externalEpisodeId: episodeUrlId });
+  }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
   const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
   if (title) {
