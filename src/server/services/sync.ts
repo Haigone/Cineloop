@@ -454,6 +454,25 @@ async function startWatching(repo: Repository, presence: Presence, fraction: num
   });
 }
 
+async function rememberAnimeUnityEpisodeLink(
+  repo: Repository,
+  title: Title | null,
+  titleId: string,
+  presence: Presence,
+  season: number | null,
+  episode: number | null,
+): Promise<void> {
+  if (presence.providerId !== "animeunity" || title?.type !== "anime" || season === null || episode === null) return;
+  try {
+    const episodeUrlId = new URL(presence.url).pathname.split("/").filter(Boolean).at(-1);
+    if (episodeUrlId && /^\\d{1,12}$/.test(episodeUrlId)) {
+      await repo.saveProviderEpisodeLink({ providerId: "animeunity", titleId, season, episode, url: presence.url, externalEpisodeId: episodeUrlId });
+    }
+  } catch {
+    // A malformed or transient page URL must not interrupt progress syncing.
+  }
+}
+
 /**
  * Keeps the library in step with the player: "In corso", season, episode and
  * how far into it. Watching a title marked as seen (a rewatch, a new season)
@@ -470,6 +489,9 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   // A series episode the player has not named yet: keep the last known season
   // and episode (the next heartbeats bring the new ones), only the link moves.
   if (title && title.type !== "movie" && presence.episode === null && prev) {
+    // The player may omit the episode number; retain the last known catalogue position
+    // while still remembering the actual AnimeUnity episode URL under that position.
+    await rememberAnimeUnityEpisodeLink(repo, title, titleId, presence, prev.season, prev.episode);
     if (entry?.status !== "watching" || prev.url !== presence.url) {
       await repo.saveProgress(presence.userId, { ...prev, providerId: presence.providerId, url: presence.url, updatedAt: new Date().toISOString() });
     }
@@ -482,11 +504,8 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   if (presence.season === null && presence.episode !== null && title) {
     presence.season = inferSeason(title, prev, presence.episode);
   }
-  // Persist the observed episode URL only when the catalogue position is known.
-  if (presence.providerId === "animeunity" && title?.type === "anime" && presence.season !== null && presence.episode !== null) {
-    const episodeUrlId = new URL(presence.url).pathname.split("/").filter(Boolean).at(-1);
-    if (episodeUrlId && /^\d{1,12}$/.test(episodeUrlId)) await repo.saveProviderEpisodeLink({ providerId: "animeunity", titleId, season: presence.season, episode: presence.episode, url: presence.url, externalEpisodeId: episodeUrlId });
-  }
+  // Save the exact URL/ID whenever the episode position is known.
+  await rememberAnimeUnityEpisodeLink(repo, title, titleId, presence, presence.season, presence.episode);
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
   const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
   if (title) {
