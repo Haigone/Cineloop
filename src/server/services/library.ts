@@ -82,7 +82,9 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
   // Anime pages always offer an Anime Unity shortcut. If playback has already
   // been observed, the progress entry instead opens the exact saved page.
   const hasStreamingCommunityProgress = sectionOf(title) !== "anime" && library.some((e) => e.titleId === id && e.progress?.providerId === "streamingcommunity");
-  const providerIds = [...new Set([...title.providers, ...(title.type === "anime" ? ["animeunity" as const] : []), ...(hasStreamingCommunityProgress ? ["streamingcommunity" as const] : [])])];
+  // A service the viewer chose by hand counts even when the catalogue does not list it.
+  const chosen = library.find((e) => e.titleId === id)?.progress?.providerId;
+  const providerIds = [...new Set([...title.providers, ...(chosen && chosen !== "animeunity" && chosen !== "streamingcommunity" && getProvider(chosen) ? [chosen] : []), ...(title.type === "anime" ? ["animeunity" as const] : []), ...(hasStreamingCommunityProgress ? ["streamingcommunity" as const] : [])])];
   return {
     title,
     awaited,

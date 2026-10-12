@@ -1,5 +1,6 @@
 "use server";
 
+import { getProvider } from "@/domain/providers";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { ActivityKind, ProviderId, RatingValue, SeasonSummary } from "@/domain/types";
@@ -234,8 +235,8 @@ export async function saveManualProgress(
   const { minute } = parsed.data;
   let { season, episode } = parsed.data;
   const chosenProvider = parsed.data.providerId;
-  // Only the title's own streaming services can be chosen here.
-  if (chosenProvider && (!title.providers.includes(chosenProvider as never) || chosenProvider === "animeunity" || chosenProvider === "streamingcommunity")) {
+  // Any known service can be chosen by hand, except the two this app does not link to.
+  if (chosenProvider && (!getProvider(chosenProvider as never) || chosenProvider === "animeunity" || chosenProvider === "streamingcommunity")) {
     return { ok: false, error: "Servizio non valido per questo titolo." };
   }
   if (title.type === "movie") {
