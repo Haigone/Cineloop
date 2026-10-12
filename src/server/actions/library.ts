@@ -1,5 +1,6 @@
 "use server";
 
+import { getProvider } from "@/domain/providers";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { sectionOf, type ActivityKind, type ProviderId, type RatingValue, type SeasonSummary } from "@/domain/types";
@@ -235,13 +236,14 @@ export async function saveManualProgress(
   const { minute } = parsed.data;
   let { season, episode } = parsed.data;
   const chosenProvider = parsed.data.providerId;
-  // Anime Unity is available as a manual choice for anime/franchise titles,
+  // Any known service can be chosen by hand. Anime Unity is available for anime/franchise titles,
   // even when the catalogue does not list it among official subscription providers.
   const isAnime = sectionOf(title) === "anime";
   if (
     chosenProvider &&
-    (chosenProvider === "streamingcommunity" ||
-      (chosenProvider === "animeunity" ? !isAnime : !title.providers.includes(chosenProvider as never)))
+    (!getProvider(chosenProvider as never) ||
+      chosenProvider === "streamingcommunity" ||
+      (chosenProvider === "animeunity" && !isAnime))
   ) {
     return { ok: false, error: "Servizio non valido per questo titolo." };
   }
