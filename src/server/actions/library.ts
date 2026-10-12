@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import type { ActivityKind, ProviderId, RatingValue, SeasonSummary } from "@/domain/types";
+import { sectionOf, type ActivityKind, type ProviderId, type RatingValue, type SeasonSummary } from "@/domain/types";
 import { airedSeasons, finishesEarlierSeason, finishesTitle } from "@/domain/library";
 import { fillerRunAfter } from "@/domain/watch-order";
 import { italianDay } from "@/lib/dates";
@@ -10,6 +10,7 @@ import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
 import { getCatalog } from "@/integrations/catalog";
+import { providerSearchUrl } from "@/integrations/providers/search-links";
 import type { EpisodeInfo } from "@/integrations/catalog/types";
 
 /**
@@ -234,8 +235,14 @@ export async function saveManualProgress(
   const { minute } = parsed.data;
   let { season, episode } = parsed.data;
   const chosenProvider = parsed.data.providerId;
-  // Only the title's own streaming services can be chosen here.
-  if (chosenProvider && (!title.providers.includes(chosenProvider as never) || chosenProvider === "animeunity" || chosenProvider === "streamingcommunity")) {
+  // Anime Unity is available as a manual choice for anime/franchise titles,
+  // even when the catalogue does not list it among official subscription providers.
+  const isAnime = sectionOf(title) === "anime";
+  if (
+    chosenProvider &&
+    (chosenProvider === "streamingcommunity" ||
+      (chosenProvider === "animeunity" ? !isAnime : !title.providers.includes(chosenProvider as never)))
+  ) {
     return { ok: false, error: "Servizio non valido per questo titolo." };
   }
   if (title.type === "movie") {
@@ -277,8 +284,14 @@ export async function saveManualProgress(
       season,
       episode,
       fraction: Math.min(0.99, minute / runtime),
-      // A link to another episode, or to another service, would open the wrong one.
-      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : null,
+      // Keep a known provider page for the same episode/service. When Anime Unity
+      // is newly selected, save its archive search so Continue opens that provider
+      // instead of falling back to the homepage.
+      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId)
+        ? (prev?.url ?? null)
+        : chosenProvider === "animeunity"
+          ? providerSearchUrl("animeunity", title.title, prev?.providerId === "animeunity" ? prev.url : null)
+          : null,
       updatedAt: new Date().toISOString(),
     });
     await repo.removeFromWishlist(user.id, title.id);
