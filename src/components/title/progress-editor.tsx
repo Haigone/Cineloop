@@ -80,7 +80,11 @@ function ProgressDialog({
   const [episode, setEpisode] = useState(progress?.episode ?? 1);
   const [minute, setMinute] = useState(progress ? Math.round(progress.fraction * runtime) : 0);
   // The services that carry it, as the catalogue lists them. What is chosen decides where "Continua a guardare" goes.
-  const services = [...new Set([...title.providers.filter((id) => id !== "animeunity" && id !== "streamingcommunity" && PROVIDERS[id]), ...(sectionOf(title) === "anime" ? ["animeunity" as const] : [])])];
+  const usable = (id: string) => id !== "animeunity" && id !== "streamingcommunity" && Boolean(PROVIDERS[id as keyof typeof PROVIDERS]);
+  const listed = title.providers.filter(usable);
+  // Not every title lists its services: the others can be picked by hand.
+  const others = (Object.keys(PROVIDERS) as (keyof typeof PROVIDERS)[]).filter((id) => usable(id) && !listed.includes(id));
+  const services = [...listed, ...others.filter((id) => id !== "animeunity"), ...(sectionOf(title) === "anime" ? ["animeunity" as const] : [])];
   const [service, setService] = useState<string | undefined>(undefined);
   const savedService = progress?.providerId && services.includes(progress.providerId) ? progress.providerId : "";
   const [pending, startTransition] = useTransition();
@@ -136,7 +140,7 @@ function ProgressDialog({
           </div>
         </fieldset>
       )}
-      {services.length > 0 && !(finished && !isMovie) && (
+      {!(finished && !isMovie) && (
         <div className="mb-4">
           <Select label="Dove lo guardi" value={service ?? savedService} onChange={(e) => setService(e.target.value)}>
             <option value="">Non specificato</option>
