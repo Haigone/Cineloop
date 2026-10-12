@@ -287,11 +287,13 @@ export async function saveManualProgress(
       // Keep a known provider page for the same episode/service. When Anime Unity
       // is newly selected, save its archive search so Continue opens that provider
       // instead of falling back to the homepage.
-      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId)
-        ? (prev?.url ?? null)
+      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) && prev?.url
+        ? prev.url
         : chosenProvider === "animeunity"
           ? providerSearchUrl("animeunity", title.title, prev?.providerId === "animeunity" ? prev.url : null)
-          : null,
+          : sameEpisode && chosenProvider === undefined
+            ? (prev?.url ?? null)
+            : null,
       updatedAt: new Date().toISOString(),
     });
     await repo.removeFromWishlist(user.id, title.id);
