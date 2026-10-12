@@ -76,3 +76,19 @@ test("finishing the last episode marks the series seen and Home asks for a ratin
   await page.reload();
   await expect(page.getByRole("region", { name: "Vota Adolescence" })).toHaveCount(0);
 });
+
+test("a progress set by mistake can be taken back to the wishlist", async ({ page }) => {
+  await signIn(page, "/title/peaky-blinders");
+  await page.getByRole("button", { name: "A che punto sei?" }).click();
+  const dialog = page.getByRole("dialog", { name: "A che punto sei?" });
+  await dialog.getByLabel("Stagione").selectOption("1");
+  await dialog.getByLabel("Episodio").selectOption("2");
+  await dialog.getByRole("button", { name: "Salva" }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.getByRole("button", { name: "Non lo sto guardando" }).click();
+  await page.getByRole("button", { name: "Sposta in wishlist" }).click();
+  await expect(page.getByRole("button", { name: "Non lo sto guardando" })).toHaveCount(0);
+  await page.goto("/wishlist");
+  await expect(page.getByText("Peaky Blinders").first()).toBeVisible();
+});

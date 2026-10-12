@@ -125,6 +125,23 @@ export async function removeFromLibrary(id: string): Promise<ActionResult> {
   return run(() => getRepository().removeFromLibrary(user.id, parsedId.data), "Non siamo riusciti a rimuovere il titolo.");
 }
 
+/**
+ * "I am not watching this": takes a title out of "In corso" (progress and rating go with it), either
+ * back to the wishlist or out of the library altogether. Only for what is being watched.
+ */
+export async function stopWatching(id: string, destination: "wishlist" | "remove"): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  if (!parsedId.success || (destination !== "wishlist" && destination !== "remove")) return { ok: false, error: "Richiesta non valida." };
+  const repo = getRepository();
+  const entry = (await repo.listLibrary(user.id)).find((e) => e.titleId === parsedId.data);
+  if (!entry || entry.status !== "watching") return { ok: false, error: "Questo titolo non è in corso." };
+  return run(async () => {
+    await repo.removeFromLibrary(user.id, parsedId.data);
+    if (destination === "wishlist") await repo.addToWishlist(user.id, parsedId.data);
+  }, "Non siamo riusciti a togliere il titolo da In corso.");
+}
+
 /** Library card menu: seen to the end (a series up to its latest season out), then Home asks for a rating. */
 export async function finishTitle(id: string): Promise<ActionResult> {
   const user = await getCurrentUser();

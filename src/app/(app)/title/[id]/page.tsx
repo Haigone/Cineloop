@@ -17,6 +17,7 @@ import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
 import { WatchSourceChooser } from "@/components/title/watch-source-chooser";
 import { SuggestDialog } from "@/components/title/suggest-dialog";
+import { StopWatching } from "@/components/title/stop-watching";
 import { ProgressEditor } from "@/components/title/progress-editor";
 import { SeasonList } from "@/components/title/season-list";
 import { WatchOrder } from "@/components/title/watch-order";
@@ -119,7 +120,10 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               <h2 id="progress-h" className="text-[15px] font-semibold">
                 Dove sei arrivato
               </h2>
-              <ProgressEditor title={title} progress={entry?.progress ?? null} seenThrough={entry?.seenThrough ?? null} />
+              <div className="flex items-center gap-2">
+                {entry?.status === "watching" && <StopWatching titleId={title.id} titleName={title.title} />}
+                <ProgressEditor title={title} progress={entry?.progress ?? null} seenThrough={entry?.seenThrough ?? null} />
+              </div>
             </div>
             {entry?.progress ? (
               <>
