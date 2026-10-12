@@ -218,8 +218,11 @@ export async function saveManualProgress(
   let { season, episode } = parsed.data;
   const chosenProvider = parsed.data.providerId;
   // Only the title's own streaming services can be chosen here.
-  if (chosenProvider && (!title.providers.includes(chosenProvider as never) || chosenProvider === "animeunity" || chosenProvider === "streamingcommunity")) {
-    return { ok: false, error: "Servizio non valido per questo titolo." };
+  if (chosenProvider) {
+    const allowedSpecialProvider = chosenProvider === "animeunity" ? title.type === "anime" : chosenProvider === "streamingcommunity" ? title.type !== "anime" : false;
+    if (!allowedSpecialProvider && !title.providers.includes(chosenProvider as never)) {
+      return { ok: false, error: "Servizio non valido per questo titolo." };
+    }
   }
   if (title.type === "movie") {
     season = null;
@@ -277,17 +280,19 @@ export async function saveManualProgress(
 export async function chooseWatchProvider(id: string, providerId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
-  const parsedProvider = z.enum(["netflix", "animeunity"]).safeParse(providerId);
+  const parsedProvider = z.enum(["netflix", "animeunity", "streamingcommunity"]).safeParse(providerId);
   const title = parsedId.success ? await cacheRemoteTitle(parsedId.data) : null;
   if (!parsedId.success || !parsedProvider.success || !title) {
     return { ok: false, error: "Scelta del servizio non valida." };
   }
-  if (parsedProvider.data === "animeunity" && title.type !== "anime" && !("partOf" in title && title.partOf)) {
+  if (parsedProvider.data === "animeunity" && title.type !== "anime" && !( "partOf" in title && title.partOf)) {
     return { ok: false, error: "Anime Unity è disponibile solo per i titoli anime." };
+  }
+  if (parsedProvider.data === "streamingcommunity" && title.type === "anime") {
+    return { ok: false, error: "Streaming Community è disponibile per film e serie, non per gli anime." };
   }
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const searchUrl = providerSearchUrl(parsedProvider.data, title.title);
-  if (!searchUrl) return { ok: false, error: "Non è disponibile un link di ricerca per questo servizio." };
 
   return run(async () => {
     const repo = getRepository();
