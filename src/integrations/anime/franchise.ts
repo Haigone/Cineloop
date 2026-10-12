@@ -85,6 +85,22 @@ export async function collectEntries(seeds: readonly string[], ann: AnnClient, k
 const orderKey = (e: AnimeEntry) => e.start ?? "9999";
 
 /**
+ * How many episodes the earlier TV entries of the same name already cover. ANN splits a long run
+ * (One Piece, Black Clover) into entries of one name and may number the later one from the start of
+ * the run, so its "1180 episodes" are really 25 after the 1155 of the first. A number above this
+ * offset is run-wide; one at or below it already counts from the entry's own first episode.
+ */
+export function runOffset(entries: ReadonlyMap<string, AnimeEntry>, e: AnimeEntry): number {
+  const name = e.name.toLowerCase();
+  return [...entries.values()]
+    .filter((o) => o.id !== e.id && kindOf(o) === "season" && o.name.toLowerCase() === name && (orderKey(o).localeCompare(orderKey(e)) || Number(o.id) - Number(e.id)) < 0)
+    .reduce((sum, o) => sum + (o.episodes ?? 0), 0);
+}
+
+/** An episode number of the run, counted from the entry's own first episode. */
+export const withinEntry = (n: number, offset: number) => (offset > 0 && n > offset ? n - offset : n);
+
+/**
  * One title for a whole franchise: its TV seasons as the seasons, and every
  * season, film, OVA and special in release order as the watching order.
  * Null when the entries hold no TV season (a lone film is not an anime series here).
@@ -125,7 +141,7 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
       kind,
       name: e.name,
       year: Number(e.start?.slice(0, 4)) || null,
-      episodes: e.episodes,
+      episodes: e.episodes === null ? null : withinEntry(e.episodes, runOffset(entries, e)),
       canon: recap ? false : null,
     };
     if (kind === "season") {
@@ -146,7 +162,7 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
       const e = entries.get(p.key.slice(4))!;
       return {
         number: p.season!,
-        episodeCount: e.episodes ?? 0,
+        episodeCount: withinEntry(e.episodes ?? 0, runOffset(entries, e)),
         ...(p.name !== root.name ? { name: p.name } : {}),
         ...(e.start && e.start.length === 10 ? { airDate: e.start } : {}),
       };

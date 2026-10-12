@@ -6,7 +6,7 @@ import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
 import { AL_ID, AniListClient, type AniListAnime, alSeries, alDate, alNames } from "./anilist";
 import { JikanClient, MAL_ID, airDate, namesOf, toSeries } from "./jikan";
-import { ANIME_ID, buildFranchise, collectEntries, kindOf, type Franchise } from "./franchise";
+import { ANIME_ID, buildFranchise, collectEntries, kindOf, runOffset, withinEntry, type Franchise } from "./franchise";
 import type { AnimeEntry } from "./types";
 
 /** A built franchise is reused for this long before the sources are asked again. */
@@ -118,11 +118,14 @@ export class AnimeFirstCatalog implements CatalogService {
     const start = alDate(a);
     const near = !last.airDate || !start || Math.abs(Date.parse(last.airDate) - Date.parse(start)) < 400 * 86_400_000;
     if (!near) return f;
-    const aired = next.episode - 1;
-    const total = a.episodes ?? aired + (a.airingSchedule?.nodes?.length ?? 0);
-    last.episodeCount = Math.max(total, aired);
     // The watching order lists the same season: it must not keep ANN's count of the whole run.
     const part = f.title.watchOrder?.find((p) => p.kind === "season" && p.season === last.number);
+    const lastEntry = part && f.entries.get(part.key.slice(4));
+    // AniList counts a long run from its first episode, an entry of it from its own.
+    const offset = lastEntry ? runOffset(f.entries, lastEntry) : 0;
+    const aired = withinEntry(next.episode - 1, offset);
+    const total = a.episodes ? withinEntry(a.episodes, offset) : aired + (a.airingSchedule?.nodes?.length ?? 0);
+    last.episodeCount = Math.max(total, aired);
     if (part) part.episodes = last.episodeCount;
     return f;
   }
@@ -268,7 +271,9 @@ export class AnimeFirstCatalog implements CatalogService {
     const part = f?.title.watchOrder?.find((p) => p.kind === "season" && p.season === season);
     const entry = part && f?.entries.get(part.key.slice(4));
     if (!entry) return null;
-    const names = new Map(entry.episodeNames.map((e) => [e.number, e.name]));
+    // A later entry of a long run may number its episodes from the start of the run.
+    const offset = runOffset(f!.entries, entry);
+    const names = new Map(entry.episodeNames.map((e) => [withinEntry(e.number, offset), e.name]));
     const air = entry.start && entry.start.length === 10 ? entry.start : null;
     const fromSeason = f!.title.seasons.find((x) => x.number === season)?.episodeCount ?? 0;
     // The airing season: when each coming episode is out, from AniList's schedule.
@@ -277,10 +282,10 @@ export class AnimeFirstCatalog implements CatalogService {
     if (season === f!.title.seasons.at(-1)?.number) {
       const a = await this.anilist.airingNow(f!.title.title).catch(() => null);
       airing = Boolean(a?.nextAiringEpisode);
-      for (const n of a?.airingSchedule?.nodes ?? []) dates.set(n.episode, italianDay(new Date(n.airingAt * 1000)));
+      for (const n of a?.airingSchedule?.nodes ?? []) dates.set(withinEntry(n.episode, offset), italianDay(new Date(n.airingAt * 1000)));
     }
     // ANN may give an airing season the count of the whole run (Black Clover: 170): the season's own count wins.
-    const count = airing && fromSeason > 0 ? Math.max(fromSeason, ...dates.keys()) : Math.max(entry.episodes ?? 0, fromSeason, names.size, ...dates.keys());
+    const count = airing && fromSeason > 0 ? Math.max(fromSeason, ...dates.keys()) : Math.max(withinEntry(entry.episodes ?? 0, offset), fromSeason, names.size, ...dates.keys());
     // Titles ANN does not list: the same season on TMDB, when it has exactly these episodes.
     const theirs = names.size < count ? await this.tmdbNames(f!.title, season, count) : new Map<number, string>();
     return Array.from({ length: count }, (_, i) => ({
