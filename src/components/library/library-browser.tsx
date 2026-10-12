@@ -139,7 +139,7 @@ export function LibraryBrowser({
           <SectionHeader
             id="library-awaiting"
             title="In attesa"
-            description="Serie che hai finito e che stanno per tornare: quanto manca alla nuova stagione o al prossimo episodio."
+            description="Serie e anime, finiti o che stai guardando, con una nuova stagione o un nuovo episodio in arrivo: quanto manca."
           />
           <AwaitingList items={awaitingShown} />
         </section>

@@ -17,7 +17,7 @@ export interface LibraryView {
   items: LibraryItem[];
   wishlistIds: string[];
   newSeasons: NewSeasonItem[];
-  /** Finished series waiting on a season that is not out yet, soonest first. */
+  /** Series finished or being watched with a season or an episode still to come, soonest first. */
   awaiting: { title: Title; release: AwaitedRelease }[];
 }
 
@@ -26,10 +26,15 @@ export async function getLibraryView(): Promise<LibraryView> {
   const repo = getRepository();
   const [entries, wishlist] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id)]);
   const titles = new Map((await repo.getTitlesByIds(entries.map((e) => e.titleId))).map((t) => [t.id, t]));
-  const finished = entries.filter((e) => e.status === "completed" && titles.has(e.titleId)).map((e) => titles.get(e.titleId)!);
-  const awaited = await awaitedReleases(finished, italianDay());
+  // Finished or still being watched: either way, something scheduled to come out is worth waiting for.
+  // The catalogue is asked about 30 at most, so what is being watched goes first.
+  const followed = entries
+    .filter((e) => (e.status === "completed" || e.status === "watching") && titles.has(e.titleId))
+    .sort((a, b) => Number(b.status === "watching") - Number(a.status === "watching"))
+    .map((e) => titles.get(e.titleId)!);
+  const awaited = await awaitedReleases(followed, italianDay());
   return {
-    awaiting: finished
+    awaiting: followed
       .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
       .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
     items: entries.filter((e) => e.status !== "planned" && titles.has(e.titleId)).map((entry) => ({ entry, title: titles.get(entry.titleId)! })),
