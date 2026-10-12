@@ -13,7 +13,8 @@ import {
   type LibraryStatusFilter,
   type LibraryTypeFilter,
 } from "@/domain/library";
-import { sectionOf } from "@/domain/types";
+import { sectionOf, type Title } from "@/domain/types";
+import type { AwaitedRelease } from "@/server/services/awaited";
 import { EntryMenu } from "./entry-menu";
 import { episodeLabel, percent } from "@/lib/format";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -21,6 +22,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RatingStars } from "@/components/ui/rating";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
+import { SectionHeader } from "@/components/ui/section-header";
+import { AwaitingList } from "./awaiting-list";
+import { NewSeasonsRail } from "./new-seasons-rail";
 import { TitleCard } from "@/components/media/title-card";
 
 const TYPE_OPTIONS: { value: LibraryTypeFilter; label: string }[] = [
@@ -46,11 +50,24 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 interface Props {
   items: LibraryItem[];
   wishlistIds: string[];
-  initial: { type: LibraryTypeFilter; status: LibraryStatusFilter; sort: LibrarySort };
+  /** Finished series with a new season out, and series waiting on one; they follow the type chosen below. */
+  newSeasons: { title: Title; label: string }[];
+  awaiting: { title: Title; release: AwaitedRelease }[];
+  initial: {
+    type: LibraryTypeFilter;
+    status: LibraryStatusFilter;
+    sort: LibrarySort;
+  };
 }
 
 /** Filters live in the URL (replaceState), so a view can be bookmarked or shared. */
-export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
+export function LibraryBrowser({
+  items,
+  wishlistIds,
+  newSeasons,
+  awaiting,
+  initial,
+}: Props) {
   const [type, setType] = useState(initial.type);
   const [status, setStatus] = useState(initial.status);
   const [sort, setSort] = useState(initial.sort);
@@ -64,13 +81,35 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
       else params.set(key, v);
     }
     const qs = params.toString();
-    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    window.history.replaceState(
+      null,
+      "",
+      qs ? `?${qs}` : window.location.pathname,
+    );
   }
 
-  const byType = useMemo(() => filterLibrary(items, "all", status), [items, status]);
+  const byType = useMemo(
+    () => filterLibrary(items, "all", status),
+    [items, status],
+  );
   const typeCounts = countBy(byType, (i) => sectionOf(i.title));
-  const statusCounts = countBy(filterLibrary(items, type, "all"), (i) => i.entry.status);
-  const shown = useMemo(() => sortLibrary(filterLibrary(items, type, status), sort), [items, type, status, sort]);
+  const statusCounts = countBy(
+    filterLibrary(items, type, "all"),
+    (i) => i.entry.status,
+  );
+  const inType = (t: Title) => type === "all" || sectionOf(t) === type;
+  const newShown = useMemo(
+    () => newSeasons.filter((n) => inType(n.title)),
+    [newSeasons, type],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+  const awaitingShown = useMemo(
+    () => awaiting.filter((a) => inType(a.title)),
+    [awaiting, type],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = useMemo(
+    () => sortLibrary(filterLibrary(items, type, status), sort),
+    [items, type, status, sort],
+  );
 
   if (items.length === 0) {
     return (
@@ -85,23 +124,53 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
 
   return (
     <div>
+      {newShown.length > 0 && (
+        <section aria-labelledby="library-new-seasons" className="mb-10">
+          <SectionHeader
+            id="library-new-seasons"
+            title="Novità"
+            description="Serie che avevi finito e che hanno una stagione nuova. Aprile e scegli “A che punto sei?” quando ricominci."
+          />
+          <NewSeasonsRail items={newShown} wishlistIds={wishlist} />
+        </section>
+      )}
+      {awaitingShown.length > 0 && (
+        <section aria-labelledby="library-awaiting" className="mb-10">
+          <SectionHeader
+            id="library-awaiting"
+            title="In attesa"
+            description="Serie che hai finito e che stanno per tornare: quanto manca alla nuova stagione o al prossimo episodio."
+          />
+          <AwaitingList items={awaitingShown} />
+        </section>
+      )}
       <div className="flex flex-col gap-3 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <Segmented
             label="Tipo"
-            options={TYPE_OPTIONS.map((o) => ({ ...o, count: o.value === "all" ? byType.length : (typeCounts[o.value] ?? 0) }))}
+            options={TYPE_OPTIONS.map((o) => ({
+              ...o,
+              count:
+                o.value === "all" ? byType.length : (typeCounts[o.value] ?? 0),
+            }))}
             value={type}
             onChange={(v) => {
               setType(v);
               sync({ type: v });
             }}
           />
-          <span aria-hidden className="hidden h-5 w-px bg-line-strong sm:block" />
+          <span
+            aria-hidden
+            className="hidden h-5 w-px bg-line-strong sm:block"
+          />
           <Segmented
             label="Stato"
             options={STATUS_OPTIONS.map((o) => ({
               ...o,
-              count: o.value === "all" ? filterLibrary(items, type, "all").length : (statusCounts[o.value] ?? 0),
+              count:
+                o.value === "all"
+                  ? filterLibrary(items, type, "all").length
+                  : (statusCounts[o.value] ?? 0),
             }))}
             value={status}
             onChange={(v) => {
@@ -151,7 +220,11 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
           }
         />
       ) : (
-        <motion.ul layout aria-label="Titoli in libreria" className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(156px,1fr))]">
+        <motion.ul
+          layout
+          aria-label="Titoli in libreria"
+          className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(156px,1fr))]"
+        >
           <AnimatePresence initial={false} mode="popLayout">
             {shown.map(({ entry, title }) => (
               <motion.li
@@ -174,7 +247,9 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
                   showWishlist={false}
                   badge={
                     entry.status === "watching" ? (
-                      <span className="rounded-sm bg-black/60 px-1.5 py-0.5 text-[11px] text-fg backdrop-blur-md">In corso</span>
+                      <span className="rounded-sm bg-black/60 px-1.5 py-0.5 text-[11px] text-fg backdrop-blur-md">
+                        In corso
+                      </span>
                     ) : undefined
                   }
                   meta={<EntryMeta item={{ entry, title }} />}
@@ -190,11 +265,21 @@ export function LibraryBrowser({ items, wishlistIds, initial }: Props) {
 
 function EntryMeta({ item: { entry } }: { item: LibraryItem }) {
   if (entry.status === "completed") {
-    return entry.rating ? <RatingStars value={entry.rating} size="xs" /> : <span>{STATUS_LABEL.completed}</span>;
+    return entry.rating ? (
+      <RatingStars value={entry.rating} size="xs" />
+    ) : (
+      <span>{STATUS_LABEL.completed}</span>
+    );
   }
   if (entry.status === "watching" && entry.progress) {
     const ep = episodeLabel(entry.progress, "short");
-    return <span className="tabular">{ep ? `${ep} · ${percent(entry.progress.fraction)}` : percent(entry.progress.fraction)}</span>;
+    return (
+      <span className="tabular">
+        {ep
+          ? `${ep} · ${percent(entry.progress.fraction)}`
+          : percent(entry.progress.fraction)}
+      </span>
+    );
   }
   return <span>{STATUS_LABEL[entry.status]}</span>;
 }
