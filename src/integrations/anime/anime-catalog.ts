@@ -121,7 +121,14 @@ export class AnimeFirstCatalog implements CatalogService {
     };
     const tmdb = await this.base.search(name, 5).then((r) => r.find((t) => t.type !== "movie" && same(t.title) && t.artwork.posterUrl), () => undefined);
     if (tmdb) {
-      f.title.artwork = { ...f.title.artwork, posterUrl: tmdb.artwork.posterUrl, backdropUrl: tmdb.artwork.backdropUrl ?? f.title.artwork.backdropUrl };
+      // TMDB's page is the fuller one: the franchise card keeps everything it has (rating, services, overview, genres).
+      const full = (await this.base.getTitle(tmdb.id).catch(() => null)) ?? tmdb;
+      const t = f.title;
+      t.artwork = { ...t.artwork, posterUrl: tmdb.artwork.posterUrl, backdropUrl: full.artwork.backdropUrl ?? tmdb.artwork.backdropUrl ?? t.artwork.backdropUrl };
+      if (full.overview) t.overview = full.overview;
+      if (full.communityRating !== null) t.communityRating = full.communityRating;
+      if (full.providers.length) t.providers = full.providers;
+      t.genres = [...new Set([...t.genres, ...full.genres])];
       return f;
     }
     // AniList is the second source: it answers from the server where MyAnimeList's Jikan does not.
