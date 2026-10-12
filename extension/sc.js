@@ -7,6 +7,8 @@
 
 export const DIRECTORY_ORIGIN = "https://www.streaming-community.how";
 export const DIRECTORY_ORIGINS = ["https://www.streaming-community.how/*"];
+// Optional broad host grant is requested once by the user; scripts still run only on a validated SC origin.
+export const STREAMING_HOST_ORIGINS = ["https://*/*"];
 
 const RESOLVED_KEY = "scResolved";
 const CACHE_MS = 6 * 60 * 60 * 1000; // il dominio dura giorni: risolvi al massimo ogni 6 ore
@@ -24,8 +26,9 @@ export async function getResolved() {
 /** True se l'estensione puo' leggere le schede del dominio risolto. */
 export async function hasStreamingAccess() {
   const resolved = await getResolved();
-  if (!resolved?.origin) return false;
   try {
+    if (await chrome.permissions.contains({ origins: STREAMING_HOST_ORIGINS })) return true;
+    if (!resolved?.origin) return false;
     return await chrome.permissions.contains({ origins: [`${resolved.origin}/*`] });
   } catch {
     return false;
@@ -37,7 +40,7 @@ export function streamingOriginFromWatchUrl(value) {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+    const validHost = /streaming-?community/i.test(host);
     const validPath = /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)/i.test(url.pathname) ||
       /^\/titles?\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
     if (url.protocol !== "https:" || url.username || url.password || url.origin === DIRECTORY_ORIGIN || host === "streaming-community.how" || !validHost || !validPath) return null;
@@ -84,7 +87,7 @@ export async function resolveStreamingUrl({ force = false } = {}) {
       try {
         const target = new URL(m[1], res.url || DIRECTORY_ORIGIN);
         const targetHost = target.hostname.toLowerCase().replace(/^www\./, "");
-        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || targetHost === "streaming-community.how" || !/streaming[-]?community/i.test(target.hostname)) continue;
+        if (target.protocol !== "https:" || target.origin === DIRECTORY_ORIGIN || targetHost === "streaming-community.how" || !/streaming-?community/i.test(target.hostname)) continue;
 
         // The directory button may redirect to another host. Resolve that
         // redirect with a temporary inactive tab; fetch() would require the
@@ -116,12 +119,14 @@ export async function resolveStreamingUrl({ force = false } = {}) {
         }
         const final = new URL(finalUrl || target.href);
         const finalHost = final.hostname.toLowerCase().replace(/^www\./, "");
-        if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming[-]?community/i.test(final.hostname)) continue;
+        if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming-?community/i.test(final.hostname)) return cached?.origin ?? null;
         const resolved = { origin: final.origin, at: Date.now() };
         await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
         return resolved.origin;
       } catch {
-        // Invalid link or redirect: try the next StreamingCommunity button.
+        // Do not open a cascade of temporary tabs when a candidate fails.
+        // Keep the last known domain and let the user retry explicitly.
+        return cached?.origin ?? null;
       }
     }
   } catch {

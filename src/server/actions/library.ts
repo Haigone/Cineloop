@@ -36,10 +36,10 @@ async function record(userId: string, kind: ActivityKind, id: string, rating: Ra
   await getRepository().recordActivity({ userId, kind, titleId: id, at: new Date().toISOString(), season: null, episode: null, rating });
 }
 
-async function run(fn: () => Promise<void>, failure: string): Promise<ActionResult> {
+async function run(fn: () => Promise<void>, failure: string, refreshPage = true): Promise<ActionResult> {
   try {
     await fn();
-    refresh();
+    if (refreshPage) refresh();
     return { ok: true };
   } catch (err) {
     console.error(failure, err);
@@ -235,8 +235,11 @@ export async function saveManualProgress(
   let { season, episode } = parsed.data;
   const chosenProvider = parsed.data.providerId;
   // Only the title's own streaming services can be chosen here.
-  if (chosenProvider && (!title.providers.includes(chosenProvider as never) || chosenProvider === "animeunity" || chosenProvider === "streamingcommunity")) {
-    return { ok: false, error: "Servizio non valido per questo titolo." };
+  if (chosenProvider) {
+    const allowedSpecialProvider = chosenProvider === "animeunity" ? title.type === "anime" : chosenProvider === "streamingcommunity" ? title.type !== "anime" : false;
+    if (!allowedSpecialProvider && !title.providers.includes(chosenProvider as never)) {
+      return { ok: false, error: "Servizio non valido per questo titolo." };
+    }
   }
   if (title.type === "movie") {
     season = null;
@@ -271,14 +274,18 @@ export async function saveManualProgress(
     const repo = getRepository();
     const prev = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id)?.progress ?? null;
     const sameEpisode = prev?.season === season && prev?.episode === episode;
+    const providerId = chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null);
+    const episodeLink = providerId === "animeunity" && season !== null && episode !== null
+      ? await repo.findProviderEpisodeLink({ providerId: "animeunity", titleId: title.id, season, episode })
+      : null;
     await repo.saveProgress(user.id, {
       titleId: title.id,
-      providerId: chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null),
+      providerId,
       season,
       episode,
       fraction: Math.min(0.99, minute / runtime),
-      // A link to another episode, or to another service, would open the wrong one.
-      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : null,
+      // Restore only a URL known for this exact episode; never carry another episode URL forward.
+      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : (episodeLink?.url ?? null),
       updatedAt: new Date().toISOString(),
     });
     await repo.removeFromWishlist(user.id, title.id);
@@ -290,17 +297,19 @@ export async function saveManualProgress(
 export async function chooseWatchProvider(id: string, providerId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
-  const parsedProvider = z.enum(["netflix", "animeunity"]).safeParse(providerId);
+  const parsedProvider = z.enum(["netflix", "animeunity", "streamingcommunity"]).safeParse(providerId);
   const title = parsedId.success ? await cacheRemoteTitle(parsedId.data) : null;
   if (!parsedId.success || !parsedProvider.success || !title) {
     return { ok: false, error: "Scelta del servizio non valida." };
   }
-  if (parsedProvider.data === "animeunity" && title.type !== "anime" && !("partOf" in title && title.partOf)) {
+  if (parsedProvider.data === "animeunity" && title.type !== "anime" && !( "partOf" in title && title.partOf)) {
     return { ok: false, error: "Anime Unity è disponibile solo per i titoli anime." };
+  }
+  if (parsedProvider.data === "streamingcommunity" && title.type === "anime") {
+    return { ok: false, error: "Streaming Community è disponibile per film e serie, non per gli anime." };
   }
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const searchUrl = providerSearchUrl(parsedProvider.data, title.title);
-  if (!searchUrl) return { ok: false, error: "Non è disponibile un link di ricerca per questo servizio." };
 
   return run(async () => {
     const repo = getRepository();
@@ -362,10 +371,12 @@ export async function skipFillers(id: string): Promise<ActionResult> {
       season: runAhead.season,
       episode: runAhead.after!,
       fraction: 0,
-      // The link of another episode would open the wrong one.
-      url: null,
+      // Restore only the URL mapped to this exact episode, if observed before.
+      url: progress.providerId === "animeunity"
+        ? (await repo.findProviderEpisodeLink({ providerId: "animeunity", titleId: title.id, season: runAhead.season, episode: runAhead.after! }))?.url ?? null
+        : null,
       updatedAt: new Date().toISOString(),
     });
     await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season: runAhead.season, episode: runAhead.after, rating: null });
-  }, "Non siamo riusciti a saltare i filler.");
+  }, "Non siamo riusciti a saltare i filler.", false);
 }

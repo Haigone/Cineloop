@@ -52,6 +52,7 @@ export class MemoryRepository implements Repository {
   private presence = new Map<string, Presence>();
   private rooms = new Map<string, PartyState>();
   private providerLinks = new Map<string, string>();
+  private providerEpisodeLinks = new Map<string, { url: string; externalEpisodeId: string }>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
   private charts = new Map<string, { data: unknown; fetchedAt: Date }>();
@@ -539,6 +540,15 @@ export class MemoryRepository implements Repository {
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
+  }
+
+  async findProviderEpisodeLink(input: { providerId: ProviderId; titleId: string; season: number; episode: number }) {
+    const value = this.providerEpisodeLinks.get(`${input.providerId}:${input.titleId}:${input.season}:${input.episode}`);
+    return value ? { ...value } : null;
+  }
+
+  async saveProviderEpisodeLink(input: { providerId: ProviderId; titleId: string; season: number; episode: number; url: string; externalEpisodeId: string }) {
+    this.providerEpisodeLinks.set(`${input.providerId}:${input.titleId}:${input.season}:${input.episode}`, { url: input.url, externalEpisodeId: input.externalEpisodeId });
   }
 
   // Notifications & preferences --------------------------------------------

@@ -644,6 +644,24 @@ export class PostgresRepository implements Repository {
       });
   }
 
+  async findProviderEpisodeLink(input: { providerId: ProviderId; titleId: string; season: number; episode: number }) {
+    const rows = await this.db.select().from(schema.providerEpisodeLinks).where(and(
+      eq(schema.providerEpisodeLinks.providerId, input.providerId),
+      eq(schema.providerEpisodeLinks.titleId, input.titleId),
+      eq(schema.providerEpisodeLinks.season, input.season),
+      eq(schema.providerEpisodeLinks.episode, input.episode),
+    )).limit(1);
+    const row = rows[0];
+    return row ? { url: row.url, externalEpisodeId: row.externalEpisodeId } : null;
+  }
+
+  async saveProviderEpisodeLink(input: { providerId: ProviderId; titleId: string; season: number; episode: number; url: string; externalEpisodeId: string }) {
+    await this.db.insert(schema.providerEpisodeLinks).values({ ...input, updatedAt: new Date() }).onConflictDoUpdate({
+      target: [schema.providerEpisodeLinks.providerId, schema.providerEpisodeLinks.titleId, schema.providerEpisodeLinks.season, schema.providerEpisodeLinks.episode],
+      set: { url: input.url, externalEpisodeId: input.externalEpisodeId, updatedAt: new Date() },
+    });
+  }
+
   // Notifications & preferences --------------------------------------------
 
   async listNotifications(userId: string) {
