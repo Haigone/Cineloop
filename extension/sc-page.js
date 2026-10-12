@@ -99,12 +99,22 @@
     if (!id) return;
     if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
     const urlEpisodeId = new URL(location.href).searchParams.get("e");
-    known.episodeId = urlEpisodeId && /^\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
+    const nextEpisodeId = urlEpisodeId && /^\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
+    // StreamingCommunity often switches episodes inside the same SPA route:
+    // the series/watch ID stays put while ?e= changes. Do not keep the
+    // previous episode number while the new episode UI is still rendering.
+    const episodeChanged = known.episodeId !== nextEpisodeId;
+    if (episodeChanged) {
+      known.episodeId = nextEpisodeId;
+      known.season = null;
+      known.episode = null;
+    }
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
       if (found.title && !known.title) known.title = found.title;
-      if (found.episode !== null && known.episode === null) known.episode = found.episode;
-      if (found.season !== null && known.season === null) known.season = found.season;
+      // Refresh episode metadata instead of treating the first reading as final.
+      if (found.episode !== null) known.episode = found.episode;
+      if (found.season !== null) known.season = found.season;
     }
     const active = activeEpisodeEl();
     if (active) {
