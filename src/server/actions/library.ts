@@ -254,14 +254,18 @@ export async function saveManualProgress(
     const repo = getRepository();
     const prev = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id)?.progress ?? null;
     const sameEpisode = prev?.season === season && prev?.episode === episode;
+    const providerId = chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null);
+    const episodeLink = providerId === "animeunity" && season !== null && episode !== null
+      ? await repo.findProviderEpisodeLink({ providerId: "animeunity", titleId: title.id, season, episode })
+      : null;
     await repo.saveProgress(user.id, {
       titleId: title.id,
-      providerId: chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null),
+      providerId,
       season,
       episode,
       fraction: Math.min(0.99, minute / runtime),
-      // A link to another episode, or to another service, would open the wrong one.
-      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : null,
+      // Restore only a URL known for this exact episode; never carry another episode URL forward.
+      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : (episodeLink?.url ?? null),
       updatedAt: new Date().toISOString(),
     });
     await repo.removeFromWishlist(user.id, title.id);
@@ -345,8 +349,10 @@ export async function skipFillers(id: string): Promise<ActionResult> {
       season: runAhead.season,
       episode: runAhead.after!,
       fraction: 0,
-      // The link of another episode would open the wrong one.
-      url: null,
+      // Restore only the URL mapped to this exact episode, if observed before.
+      url: progress.providerId === "animeunity"
+        ? (await repo.findProviderEpisodeLink({ providerId: "animeunity", titleId: title.id, season: runAhead.season, episode: runAhead.after! }))?.url ?? null
+        : null,
       updatedAt: new Date().toISOString(),
     });
     await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season: runAhead.season, episode: runAhead.after, rating: null });
