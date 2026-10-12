@@ -80,7 +80,7 @@ function ProgressDialog({
   const [episode, setEpisode] = useState(progress?.episode ?? 1);
   const [minute, setMinute] = useState(progress ? Math.round(progress.fraction * runtime) : 0);
   // The services that carry it, as the catalogue lists them. What is chosen decides where "Continua a guardare" goes.
-  const services = title.providers.filter((id) => id !== "animeunity" && id !== "streamingcommunity" && PROVIDERS[id]);
+  const services = [...new Set([...title.providers.filter((id) => id !== "animeunity" && id !== "streamingcommunity" && PROVIDERS[id]), ...(title.type === "anime" ? ["animeunity" as const] : ["streamingcommunity" as const])])];
   const [service, setService] = useState<string | undefined>(undefined);
   const savedService = progress?.providerId && services.includes(progress.providerId) ? progress.providerId : "";
   const [pending, startTransition] = useTransition();
