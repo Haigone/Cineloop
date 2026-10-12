@@ -359,12 +359,9 @@ export class PostgresRepository implements Repository {
         .from(schema.wishlistItems)
         .where(and(eq(schema.wishlistItems.userId, userId), eq(schema.wishlistItems.titleId, titleId)));
       if (existing) return;
-      // New items go to the top, like a queue you just added to.
-      await tx
-        .update(schema.wishlistItems)
-        .set({ position: sql`${schema.wishlistItems.position} + 1` })
-        .where(eq(schema.wishlistItems.userId, userId));
-      await tx.insert(schema.wishlistItems).values({ userId, titleId, addedAt: new Date(), position: 0, suggestedBy });
+      // Append new items after the current last position.
+      const [last] = await tx.select({ position: schema.wishlistItems.position }).from(schema.wishlistItems).where(eq(schema.wishlistItems.userId, userId)).orderBy(desc(schema.wishlistItems.position)).limit(1);
+      await tx.insert(schema.wishlistItems).values({ userId, titleId, addedAt: new Date(), position: (last?.position ?? -1) + 1, suggestedBy });
     });
   }
 
