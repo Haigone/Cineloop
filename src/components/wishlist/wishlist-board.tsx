@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useMemo, useState, useTransition } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
 import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, SearchX } from "lucide-react";
 import type { Genre, MediaType } from "@/domain/types";
@@ -68,6 +68,22 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
       const res = await reorderWishlist(next.map((r) => r.title.id));
       if (!res.ok) toast.show(res.error, { tone: "error" });
     });
+  }
+
+  function moveToPosition(titleId: string, requestedPosition: number) {
+    if (!Number.isInteger(requestedPosition) || requestedPosition < 1 || requestedPosition > rows.length) {
+      toast.show(`Inserisci una posizione da 1 a ${rows.length}.`, { tone: "error" });
+      return;
+    }
+    const from = rows.findIndex((r) => r.title.id === titleId);
+    const to = requestedPosition - 1;
+    if (from < 0 || from === to) return;
+    const next = [...rows];
+    const [item] = next.splice(from, 1);
+    if (!item) return;
+    next.splice(to, 0, item);
+    setRows(next);
+    persistOrder(next);
   }
 
   function move(index: number, delta: -1 | 1) {
@@ -218,6 +234,7 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
                   isFirst={i === 0}
                   isLast={i === rows.length - 1}
                   onMove={(d) => move(i, d)}
+                  onMoveToPosition={(position) => moveToPosition(row.title.id, position)}
                   onRemove={() => remove(row)}
                   onDragEnd={() => persistOrder(rows)}
                 />
@@ -252,6 +269,7 @@ function DraggableRow({
   isFirst,
   isLast,
   onMove,
+  onMoveToPosition,
   onRemove,
   onDragEnd,
 }: {
@@ -260,6 +278,7 @@ function DraggableRow({
   isFirst: boolean;
   isLast: boolean;
   onMove: (delta: -1 | 1) => void;
+  onMoveToPosition: (position: number) => void;
   onRemove: () => void;
   onDragEnd: () => void;
 }) {
@@ -287,9 +306,7 @@ function DraggableRow({
             >
               <GripVertical className="size-4" />
             </button>
-            <span className="w-6 text-center text-sm tabular text-fg-3" aria-label={`Posizione ${rank}`}>
-              {rank}
-            </span>
+            <PositionEditor rank={rank} title={row.title.title} onConfirm={onMoveToPosition} />
           </div>
         }
         trailing={
@@ -318,6 +335,36 @@ function DraggableRow({
         }
       />
     </Reorder.Item>
+  );
+}
+
+function PositionEditor({ rank, title, onConfirm }: { rank: number; title: string; onConfirm: (position: number) => void }) {
+  const [value, setValue] = useState(String(rank));
+  useEffect(() => setValue(String(rank)), [rank]);
+  return (
+    <input
+      aria-label={`Posizione di ${title}`}
+      title="Modifica la posizione e premi Invio"
+      type="number"
+      min={1}
+      max={500}
+      step={1}
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const position = Number(value);
+          if (!Number.isInteger(position) || position < 1 || position > 500) return;
+          if (position !== rank && window.confirm(`Spostare “${title}” alla posizione ${position}?`)) onConfirm(position);
+          else setValue(String(rank));
+          (event.currentTarget as HTMLInputElement).blur();
+        }
+        if (event.key === "Escape") { setValue(String(rank)); (event.currentTarget as HTMLInputElement).blur(); }
+      }}
+      onBlur={() => setValue(String(rank))}
+      className="w-10 rounded border border-line bg-bg px-1 py-1 text-center text-sm tabular text-fg-2 focus:border-accent focus:outline-none"
+    />
   );
 }
 
