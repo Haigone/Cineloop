@@ -23,14 +23,19 @@ async function findFranchise(old: Title): Promise<Title | null> {
   if (process.env.ANIME_SOURCES === "off") return null;
   const lookup = async (name: string) => {
     const key = searchKey(name);
-    const found = await getCatalog().search(name, 6).catch(() => []);
-    return (
-      found.find((t) => {
+    // ANN's title search copes badly with a subtitle: the name before it is asked too, and must match exactly.
+    const head = name.split(/\s*[:：]\s*|\s+-\s+/)[0]!.trim();
+    const headKey = searchKey(head);
+    for (const query of [...new Set([name, head])].filter((q) => q.length >= 4)) {
+      const found = await getCatalog().search(query, 6).catch(() => []);
+      const hit = found.find((t) => {
         if (!ANIME_ID.test(t.id)) return false;
         const k = searchKey(t.title);
-        return k === key || k.startsWith(key) || key.startsWith(k);
-      }) ?? null
-    );
+        return k === key || k.startsWith(key) || key.startsWith(k) || (headKey.length >= 4 && k === headKey);
+      });
+      if (hit) return hit;
+    }
+    return null;
   };
   const direct = await lookup(old.title);
   if (direct) return direct;
