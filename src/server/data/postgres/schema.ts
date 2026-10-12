@@ -302,6 +302,20 @@ export const providerTitleLinks = pgTable(
 );
 
 /** Charts fetched from outside (e.g. Netflix's public Top 10), refreshed at most daily. */
+export const providerEpisodeLinks = pgTable(
+  "provider_episode_links",
+  {
+    providerId: text("provider_id").$type<ProviderId>().notNull(),
+    titleId: text("title_id").notNull().references(() => titles.id, { onDelete: "cascade" }),
+    season: integer("season").notNull(),
+    episode: integer("episode").notNull(),
+    externalEpisodeId: text("external_episode_id").notNull(),
+    url: text("url").notNull(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.providerId, t.titleId, t.season, t.episode] })],
+);
+
 export const charts = pgTable("charts", {
   id: text("id").primaryKey(),
   data: jsonb("data").$type<unknown>().notNull(),
