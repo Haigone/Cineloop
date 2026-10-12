@@ -1,6 +1,6 @@
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
-import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
+import { DIRECTORY_ORIGINS, STREAMING_HOST_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
 import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
 
 const $ = (id) => document.getElementById(id);
@@ -240,7 +240,7 @@ async function renderProviderPermissions() {
   setButton("manage-au", anime, "AnimeUnity");
   setButton("manage-sc", streaming, "StreamingCommunity");
   $("manage-sc-status").textContent = sc
-    ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
+    ? (streaming ? `Attivo${resolved?.origin ? ` su ${new URL(resolved.origin).hostname}` : " sui domini StreamingCommunity riconosciuti"}.` : "Directory attiva; autorizza una volta i domini HTTPS per i cambi automatici.")
     : "Disattivato. Puoi attivarlo quando vuoi.";
 }
 
@@ -256,17 +256,11 @@ async function togglePermission(provider) {
     const directory = await hasDirectoryAccess();
     const streaming = await hasStreamingAccess();
     if (streaming) {
-      const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
+      const origins = [...new Set([...STREAMING_HOST_ORIGINS, ...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
       await chrome.permissions.remove({ origins });
-    } else if (resolved?.origin) {
-      // A changed origin is detected from the watch tab. Chrome requires an
-      // explicit user gesture to grant this new host before reading the player.
-      await chrome.permissions.request({ origins: [`${resolved.origin}/*`] });
-    } else if (directory) {
-      const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
-      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`] });
     } else {
-      await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
+      // The user grants this once; Chrome remembers it and new validated SC domains work automatically.
+      await chrome.permissions.request({ origins: STREAMING_HOST_ORIGINS });
     }
   }
   await render();
@@ -301,11 +295,16 @@ async function renderGrant() {
   const btn = $("sc-grant-btn");
   btn.hidden = false;
   const resolved = await getResolved();
-  if (resolved?.origin && !(await hasStreamingAccess())) {
-    $("sc-grant-status").textContent = "Ho rilevato il dominio dalla scheda che hai aperto. Consentilo una volta per leggere titolo, episodio e avanzamento.";
-    btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
+  if (!(await hasStreamingAccess())) {
+    $("sc-grant-status").textContent = resolved?.origin
+      ? "Per non chiederti il permesso a ogni cambio di dominio, puoi autorizzare una volta i domini HTTPS. CineLoop eseguirà lo script soltanto sui domini riconosciuti di StreamingCommunity."
+      : "Autorizza una volta i domini HTTPS per riconoscere automaticamente i futuri indirizzi di StreamingCommunity. Lo script verrà eseguito solo sul sito riconosciuto.";
+    btn.textContent = "Consenti una volta per i cambi dominio";
     btn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`] })) await render();
+      if (await chrome.permissions.request({ origins: STREAMING_HOST_ORIGINS })) {
+        await renderGrant();
+        await chrome.runtime.sendMessage({ type: "tick" }).catch(() => null);
+      }
     };
     return;
   }
