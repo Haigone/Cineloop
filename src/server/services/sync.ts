@@ -465,7 +465,7 @@ async function rememberAnimeUnityEpisodeLink(
   if (presence.providerId !== "animeunity" || title?.type !== "anime" || season === null || episode === null) return;
   try {
     const episodeUrlId = new URL(presence.url).pathname.split("/").filter(Boolean).at(-1);
-    if (episodeUrlId && /^\\d{1,12}$/.test(episodeUrlId)) {
+    if (episodeUrlId && /^\d{1,12}$/.test(episodeUrlId)) {
       await repo.saveProviderEpisodeLink({ providerId: "animeunity", titleId, season, episode, url: presence.url, externalEpisodeId: episodeUrlId });
     }
   } catch {
