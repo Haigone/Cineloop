@@ -36,10 +36,10 @@ async function record(userId: string, kind: ActivityKind, id: string, rating: Ra
   await getRepository().recordActivity({ userId, kind, titleId: id, at: new Date().toISOString(), season: null, episode: null, rating });
 }
 
-async function run(fn: () => Promise<void>, failure: string): Promise<ActionResult> {
+async function run(fn: () => Promise<void>, failure: string, refreshPage = true): Promise<ActionResult> {
   try {
     await fn();
-    refresh();
+    if (refreshPage) refresh();
     return { ok: true };
   } catch (err) {
     console.error(failure, err);
@@ -350,5 +350,5 @@ export async function skipFillers(id: string): Promise<ActionResult> {
       updatedAt: new Date().toISOString(),
     });
     await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season: runAhead.season, episode: runAhead.after, rating: null });
-  }, "Non siamo riusciti a saltare i filler.");
+  }, "Non siamo riusciti a saltare i filler.", false);
 }
