@@ -116,7 +116,7 @@ export async function resolveStreamingUrl({ force = false } = {}) {
         }
         const final = new URL(finalUrl || target.href);
         const finalHost = final.hostname.toLowerCase().replace(/^www\./, "");
-        if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming-?community/i.test(final.hostname)) continue;
+        if (final.protocol !== "https:" || finalHost === "streaming-community.how" || !/streaming-?community/i.test(final.hostname)) return cached?.origin ?? null;
         const resolved = { origin: final.origin, at: Date.now() };
         await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
         return resolved.origin;
