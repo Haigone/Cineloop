@@ -300,3 +300,21 @@ describe("a sequel ANN does not link", () => {
     expect(f && f.type !== "movie" ? f.seasons.map((s) => s.episodeCount) : []).toEqual([28, 10]);
   });
 });
+
+describe("a season airing now that ANN does not list", () => {
+  it("joins the franchise from AniList, as the latest season", async () => {
+    const A = entry(600, "TV", "JoJo's Bizarre Adventure", `<info type="Number of episodes">26</info><info type="Vintage">2012-10-06</info>`);
+    const B = entry(601, "TV", "JoJo's Bizarre Adventure: Stone Ocean", `<info type="Number of episodes">38</info><info type="Vintage">2021-12-01</info>`);
+    const { fetcher } = routed({ ann: `<?xml version="1.0"?><ann>${A}${B}</ann>` });
+    const ann = new AnnClient(fetcher);
+    (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
+    const airing = { id: 900, format: "ONA", status: "RELEASING", title: { english: "JoJo's Bizarre Adventure: Steel Ball Run" }, startDate: { year: 2026, month: 3, day: 1 }, episodes: 12, nextAiringEpisode: { airingAt: Math.floor(Date.now() / 1000) + 86_400, episode: 5 } };
+    const al = new AniListClient((async () => new Response(JSON.stringify({ data: { Page: { media: [airing] } } }), { status: 200 })) as unknown as typeof fetch);
+    const jikan = new JikanClient((async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch);
+    const cat = new AnimeFirstCatalog(base([{ ...tmdbBleach, id: "tmdb-tv-2", title: "JoJo's Bizarre Adventure" }]), ann, new FillerList(fetcher), jikan, al);
+    const f = (await cat.search("JoJo's Bizarre Adventure", 5)).find((t) => t.id === "anime-ann-600");
+    expect(f && f.type !== "movie" ? f.seasons.length : 0).toBe(3);
+    expect(f && f.type !== "movie" ? f.seasons.at(-1)?.episodeCount : 0).toBe(12);
+  });
+});

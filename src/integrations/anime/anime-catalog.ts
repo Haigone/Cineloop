@@ -147,9 +147,41 @@ export class AnimeFirstCatalog implements CatalogService {
     if (rootKey.length >= 5) {
       for (const e of have) {
         if (linked.has(e.id) || kindOf(e) !== "season" || e.type.toLowerCase() !== "tv") continue;
-        if (searchKey(e.name).startsWith(`${rootKey} `)) linked.set(e.id, e);
+        const key = searchKey(e.name);
+        // "Frieren 2nd Season", "JoJo's Bizarre Adventure: Stone Ocean": the root's name, then a space or a subtitle.
+        if (key.startsWith(rootKey) && /^[\s:：\-–—]/u.test(key.slice(rootKey.length))) linked.set(e.id, e);
       }
     }
+    return this.withAiringSeason(linked, rootKey);
+  }
+
+  /**
+   * The season airing now that ANN does not list (or lists as something else): AniList knows it, so
+   * it joins the franchise as an entry of its own. Without it the card stops at the last season ANN has.
+   */
+  private async withAiringSeason(linked: Map<string, AnimeEntry>, rootKey: string): Promise<Map<string, AnimeEntry>> {
+    const root = [...linked.values()].find((e) => searchKey(e.name) === rootKey) ?? [...linked.values()][0];
+    if (!root || rootKey.length < 5) return linked;
+    const a = await this.anilist.airingNow(root.name).catch(() => null);
+    const start = a && alDate(a);
+    if (!a || !start || !a.nextAiringEpisode) return linked;
+    const when = Date.parse(start);
+    const covered = [...linked.values()].some((e) => kindOf(e) === "season" && e.start && Math.abs(Date.parse(e.start.length === 4 ? `${e.start}-07-01` : e.start.length === 7 ? `${e.start}-15` : e.start) - when) < 200 * 86_400_000);
+    if (covered) return linked;
+    const name = alNames(a).find((n) => searchKey(n).startsWith(rootKey)) ?? alNames(a)[0]!;
+    linked.set(`al${a.id}`, {
+      id: `al${a.id}`,
+      type: "TV",
+      name,
+      picture: a.coverImage?.extraLarge || a.coverImage?.large || null,
+      plot: (a.description ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 700),
+      genres: [],
+      episodes: a.episodes ?? null,
+      start,
+      runtimeMinutes: a.duration ?? null,
+      related: [],
+      episodeNames: [],
+    });
     return linked;
   }
 
