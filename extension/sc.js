@@ -7,6 +7,8 @@
 
 export const DIRECTORY_ORIGIN = "https://www.streaming-community.how";
 export const DIRECTORY_ORIGINS = ["https://www.streaming-community.how/*"];
+// Optional broad host grant is requested once by the user; scripts still run only on a validated SC origin.
+export const STREAMING_HOST_ORIGINS = ["https://*/*"];
 
 const RESOLVED_KEY = "scResolved";
 const CACHE_MS = 6 * 60 * 60 * 1000; // il dominio dura giorni: risolvi al massimo ogni 6 ore
@@ -24,8 +26,9 @@ export async function getResolved() {
 /** True se l'estensione puo' leggere le schede del dominio risolto. */
 export async function hasStreamingAccess() {
   const resolved = await getResolved();
-  if (!resolved?.origin) return false;
   try {
+    if (await chrome.permissions.contains({ origins: STREAMING_HOST_ORIGINS })) return true;
+    if (!resolved?.origin) return false;
     return await chrome.permissions.contains({ origins: [`${resolved.origin}/*`] });
   } catch {
     return false;
