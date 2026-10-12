@@ -318,3 +318,22 @@ describe("a season airing now that ANN does not list", () => {
     expect(f && f.type !== "movie" ? f.seasons.at(-1)?.episodeCount : 0).toBe(12);
   });
 });
+
+describe("an airing run split into entries", () => {
+  it("puts the airing episodes on the entry that has begun, not on the one still to come", async () => {
+    const A = entry(836, "TV", "One Piece", `<info type="Number of episodes">1155</info><info type="Vintage">1999-10-20</info>`);
+    const B = entry(837, "TV", "One Piece", `<info type="Number of episodes">1180</info><info type="Vintage">2026-04-05</info><related-prev rel="sequel of" id="836"/>`);
+    const C = entry(838, "TV", "One Piece", `<info type="Vintage">2027</info><related-prev rel="sequel of" id="837"/>`);
+    const { fetcher } = routed({ ann: `<?xml version="1.0"?><ann>${A}${B}${C}</ann>` });
+    const ann = new AnnClient(fetcher);
+    (ann as unknown as { last: number }).last = Number.NEGATIVE_INFINITY;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
+    const nodes = Array.from({ length: 9 }, (_, i) => ({ episode: 1181 + i, airingAt: Math.floor(Date.now() / 1000) + 86_400 * (i + 1) }));
+    const airing = { id: 21, format: "TV", status: "RELEASING", title: { english: "One Piece" }, startDate: { year: 1999, month: 10, day: 20 }, episodes: null, nextAiringEpisode: nodes[0], airingSchedule: { nodes } };
+    const al = new AniListClient((async () => new Response(JSON.stringify({ data: { Page: { media: [airing] } } }), { status: 200 })) as unknown as typeof fetch);
+    const jikan = new JikanClient((async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch);
+    const cat = new AnimeFirstCatalog(base([{ ...tmdbBleach, id: "tmdb-tv-3", title: "One Piece" }]), ann, new FillerList(fetcher), jikan, al);
+    const f = (await cat.search("One Piece", 5)).find((t) => t.id === "anime-ann-836");
+    expect(f && f.type !== "movie" ? f.seasons.map((s) => s.episodeCount) : []).toEqual([1155, 34, 0]);
+  });
+});

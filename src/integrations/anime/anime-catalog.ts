@@ -18,6 +18,32 @@ const MAX_MAIN_LOOKUPS = 10;
 /** How long the page waits for the main shows of new seasons before showing AniList's own cards. */
 const MAIN_LOOKUP_BUDGET_MS = 6000;
 
+/**
+ * The season an airing AniList series is: the one that began closest to its start (a run split into
+ * several entries has later ones that have not begun), else the last season when it has no date.
+ */
+function airingSeason(f: Franchise, a: AniListAnime) {
+  const seasons = f.title.seasons;
+  // A long run split into several entries of one name (One Piece): AniList counts it as one show, so the airing
+  // episodes belong to the latest entry that has begun, not to one still to come.
+  const run = seasons.filter((s) => !s.name);
+  if (run.length > 1) {
+    const today = italianDay(new Date());
+    return run.filter((s) => s.airDate && s.airDate <= today).at(-1) ?? run.at(-1);
+  }
+  const start = alDate(a);
+  if (start) {
+    const near = seasons
+      .filter((s) => s.airDate)
+      .map((s) => ({ s, gap: Math.abs(Date.parse(s.airDate!) - Date.parse(start)) }))
+      .filter((x) => x.gap < 400 * 86_400_000)
+      .sort((x, y) => x.gap - y.gap)[0];
+    if (near) return near.s;
+  }
+  const last = seasons.at(-1);
+  return last && (!start || !last.airDate) ? last : undefined;
+}
+
 const isAnimeish = (t: Title) => t.type === "anime";
 
 const FILLER_WORDS = new Set(["the", "movie", "film", "il", "la", "lo", "di", "del", "of", "a", "an"]);
@@ -110,23 +136,20 @@ export class AnimeFirstCatalog implements CatalogService {
    * the first season's), so the count comes from AniList: the total when announced, else what has aired.
    */
   private async withAiring(f: Franchise): Promise<Franchise> {
-    const last = f.title.seasons.at(-1);
-    if (!last) return f;
     const a = await this.anilist.airingNow(f.title.title).catch(() => null);
     const next = a?.nextAiringEpisode;
     if (!a || !next) return f;
-    const start = alDate(a);
-    const near = !last.airDate || !start || Math.abs(Date.parse(last.airDate) - Date.parse(start)) < 400 * 86_400_000;
-    if (!near) return f;
+    const target = airingSeason(f, a);
+    if (!target) return f;
     // The watching order lists the same season: it must not keep ANN's count of the whole run.
-    const part = f.title.watchOrder?.find((p) => p.kind === "season" && p.season === last.number);
+    const part = f.title.watchOrder?.find((p) => p.kind === "season" && p.season === target.number);
     const lastEntry = part && f.entries.get(part.key.slice(4));
     // AniList counts a long run from its first episode, an entry of it from its own.
     const offset = lastEntry ? runOffset(f.entries, lastEntry) : 0;
-    const aired = withinEntry(next.episode - 1, offset);
+    const aired = withinEntry(next.episode, offset) - 1;
     const total = a.episodes ? withinEntry(a.episodes, offset) : aired + (a.airingSchedule?.nodes?.length ?? 0);
-    last.episodeCount = Math.max(total, aired);
-    if (part) part.episodes = last.episodeCount;
+    target.episodeCount = Math.max(total, aired);
+    if (part) part.episodes = target.episodeCount;
     return f;
   }
 
@@ -311,9 +334,9 @@ export class AnimeFirstCatalog implements CatalogService {
     // The airing season: when each coming episode is out, from AniList's schedule.
     const dates = new Map<number, string>();
     let airing = false;
-    if (season === f!.title.seasons.at(-1)?.number) {
-      const a = await this.anilist.airingNow(f!.title.title).catch(() => null);
-      airing = Boolean(a?.nextAiringEpisode);
+    const a = await this.anilist.airingNow(f!.title.title).catch(() => null);
+    if (a && season === airingSeason(f!, a)?.number) {
+      airing = Boolean(a.nextAiringEpisode);
       for (const n of a?.airingSchedule?.nodes ?? []) dates.set(withinEntry(n.episode, offset), italianDay(new Date(n.airingAt * 1000)));
     }
     // ANN may give an airing season the count of the whole run (Black Clover: 170): the season's own count wins.
