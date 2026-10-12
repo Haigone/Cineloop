@@ -90,7 +90,7 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     wishlisted: wishlist.some((w) => w.titleId === id),
     watchChoices: sectionOf(title) === "anime" ? (["netflix", "animeunity"] as const).map((pid) => {
       const p = getProvider(pid)!;
-      return { id: pid, name: p.name, tint: p.tint, url: providerSearchUrl(pid, title.title)! };
+      return { id: pid, name: p.name, tint: p.tint, url: providerSearchUrl(pid, title.title, pid === "animeunity" && library.find((e) => e.titleId === id)?.progress?.providerId === "animeunity" ? library.find((e) => e.titleId === id)?.progress?.url : null)! };
     }) : [],
     providers: providerIds.map((pid) => {
       const p = getProvider(pid)!;
@@ -106,7 +106,7 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
         name: p.name,
         tint: p.tint,
         url: pid === "animeunity" || pid === "netflix"
-          ? providerSearchUrl(pid, title.title)
+          ? providerSearchUrl(pid, title.title, pid === "animeunity" && progress?.providerId === "animeunity" ? progress.url : null)
           : getAdapter(pid).getContentUrl({ providerId: pid, externalId: null, title: title.title, type: title.type, season: null, episode: null, titleId: id }),
       };
     }),
