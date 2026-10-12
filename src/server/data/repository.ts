@@ -136,6 +136,8 @@ export interface Repository {
   /** Catalog title a provider id was matched to, trying ids in order. */
   findProviderLink(providerId: ProviderId, externalIds: readonly string[]): Promise<string | null>;
   saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }): Promise<void>;
+  findProviderEpisodeLink(input: { providerId: ProviderId; titleId: string; season: number; episode: number }): Promise<{ url: string; externalEpisodeId: string } | null>;
+  saveProviderEpisodeLink(input: { providerId: ProviderId; titleId: string; season: number; episode: number; url: string; externalEpisodeId: string }): Promise<void>;
 
   // Notifications & preferences
   listNotifications(userId: string): Promise<AppNotification[]>;
