@@ -22,19 +22,20 @@
     </header>
     <section class="card">
       <p class="title">Verifica sperimentale, senza cambiare la presenza</p>
-      <p class="muted">Questo test prova soltanto ad aprire una connessione WebSocket locale al client Discord desktop. Non invia attività, non accede al tuo account e non richiede token o Client Secret.</p>
+      <p class="muted">Il primo test controlla soltanto la connessione. Il secondo invia una richiesta AUTHORIZE con gli ambiti rpc e identify, senza Client Secret, token o comando SET_ACTIVITY. Potrebbe apparire una richiesta di consenso Discord: autorizza solo se la finestra è chiaramente di Discord e vuoi proseguire.</p>
       <p class="muted small">Application ID: <code>1559324285544435712</code></p>
       <div class="actions">
         <button id="run" class="primary" type="button">Prova connessione</button>
+        <button id="authorize" type="button">Prova autorizzazione RPC</button>
         <button id="clear" type="button">Pulisci risultato</button>
       </div>
     </section>
     <section class="card">
       <p class="title">Risultato</p>
-      <p id="status" class="muted" role="status">Premi “Prova connessione” con Discord desktop aperto.</p>
+      <p id="status" class="muted" role="status">Scegli uno dei test con Discord desktop aperto.</p>
       <pre id="log" class="result" aria-live="polite">In attesa del test.</pre>
     </section>
-    <p class="muted small">Nota: Discord documenta restrizioni per le connessioni RPC dal browser e richiede un'origine autorizzata. Un esito negativo può quindi indicare un limite della piattaforma, non un errore di CineLoop.</p>
+    <p class="muted small">Nota: Discord documenta restrizioni per le connessioni RPC dal browser e richiede un'origine autorizzata. Questo test non scambia codici OAuth, non salva credenziali e non imposta la presenza.</p>
     <script src="discord-rpc-test.js"></script>
   </body>
 </html>
