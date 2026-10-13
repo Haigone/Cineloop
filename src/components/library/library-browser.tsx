@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, use, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { LibraryBig, SearchX } from "lucide-react";
 import {
@@ -51,8 +51,7 @@ interface Props {
   items: LibraryItem[];
   wishlistIds: string[];
   /** Finished series with a new season out, and series waiting on one; they follow the type chosen below. */
-  newSeasons: { title: Title; label: string }[];
-  awaiting: { title: Title; release: AwaitedRelease }[];
+  extras: Promise<{ newSeasons: { title: Title; label: string }[]; awaiting: { title: Title; release: AwaitedRelease }[] }>;
   initial: {
     type: LibraryTypeFilter;
     status: LibraryStatusFilter;
@@ -64,8 +63,7 @@ interface Props {
 export function LibraryBrowser({
   items,
   wishlistIds,
-  newSeasons,
-  awaiting,
+  extras,
   initial,
 }: Props) {
   const [type, setType] = useState(initial.type);
@@ -97,8 +95,6 @@ export function LibraryBrowser({
     filterLibrary(items, type, "all"),
     (i) => i.entry.status,
   );
-  const newShown = useMemo(() => newSeasons.filter((n) => type === "all" || sectionOf(n.title) === type), [newSeasons, type]);
-  const awaitingShown = useMemo(() => awaiting.filter((x) => type === "all" || sectionOf(x.title) === type), [awaiting, type]);
   const shown = useMemo(
     () => sortLibrary(filterLibrary(items, type, status), sort),
     [items, type, status, sort],
@@ -117,26 +113,9 @@ export function LibraryBrowser({
 
   return (
     <div>
-      {newShown.length > 0 && (
-        <section aria-labelledby="library-new-seasons" className="mb-10">
-          <SectionHeader
-            id="library-new-seasons"
-            title="Novità"
-            description="Serie che avevi finito e che hanno una stagione nuova. Aprile e scegli “A che punto sei?” quando ricominci."
-          />
-          <NewSeasonsRail items={newShown} wishlistIds={wishlist} />
-        </section>
-      )}
-      {awaitingShown.length > 0 && (
-        <section aria-labelledby="library-awaiting" className="mb-10">
-          <SectionHeader
-            id="library-awaiting"
-            title="In attesa"
-            description="Serie e anime, finiti o che stai guardando, con una nuova stagione o un nuovo episodio in arrivo: quanto manca."
-          />
-          <AwaitingList items={awaitingShown} />
-        </section>
-      )}
+      <Suspense fallback={null}>
+        <Extras extras={extras} type={type} wishlist={wishlist} />
+      </Suspense>
       <div className="flex flex-col gap-3 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <Segmented
@@ -275,4 +254,35 @@ function EntryMeta({ item: { entry } }: { item: LibraryItem }) {
     );
   }
   return <span>{STATUS_LABEL[entry.status]}</span>;
+}
+
+/** Novità and In attesa ask outside services: they appear when ready, the library does not wait for them. */
+function Extras({ extras, type, wishlist }: { extras: Props["extras"]; type: LibraryTypeFilter; wishlist: ReadonlySet<string> }) {
+  const { newSeasons, awaiting } = use(extras);
+  const newShown = newSeasons.filter((n) => type === "all" || sectionOf(n.title) === type);
+  const awaitingShown = awaiting.filter((x) => type === "all" || sectionOf(x.title) === type);
+  return (
+    <>
+      {newShown.length > 0 && (
+        <section aria-labelledby="library-new-seasons" className="mb-10">
+          <SectionHeader
+            id="library-new-seasons"
+            title="Novità"
+            description="Serie che avevi finito e che hanno una stagione nuova. Aprile e scegli “A che punto sei?” quando ricominci."
+          />
+          <NewSeasonsRail items={newShown} wishlistIds={wishlist} />
+        </section>
+      )}
+      {awaitingShown.length > 0 && (
+        <section aria-labelledby="library-awaiting" className="mb-10">
+          <SectionHeader
+            id="library-awaiting"
+            title="In attesa"
+            description="Serie e anime, finiti o che stai guardando, con una nuova stagione o un nuovo episodio in arrivo: quanto manca."
+          />
+          <AwaitingList items={awaitingShown} />
+        </section>
+      )}
+    </>
+  );
 }

@@ -53,11 +53,10 @@ async function LibraryContent({
       <LibraryBrowser
         items={view.items}
         wishlistIds={view.wishlistIds}
-        newSeasons={view.newSeasons.map((i) => ({
-          title: i.title,
-          label: newSeasonsLabel(i),
+        extras={view.extras.then((x) => ({
+          newSeasons: x.newSeasons.map((i) => ({ title: i.title, label: newSeasonsLabel(i) })),
+          awaiting: x.awaiting,
         }))}
-        awaiting={view.awaiting}
         initial={{
           type: pick(params.type, TYPES, "all"),
           status: pick(params.filter, STATUSES, "all"),

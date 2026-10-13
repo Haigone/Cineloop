@@ -26,12 +26,10 @@ export interface FriendBundle {
 export async function loadFriendBundles(repo: Repository, userId: string): Promise<FriendBundle[]> {
   const friends = await repo.listFriends(userId);
   return Promise.all(
-    friends.map(async (f) => ({
-      user: f.user,
-      since: f.since,
-      library: await repo.listLibrary(f.user.id),
-      wishlist: await repo.listWishlist(f.user.id),
-    })),
+    friends.map(async (f) => {
+      const [library, wishlist] = await Promise.all([repo.listLibrary(f.user.id), repo.listWishlist(f.user.id)]);
+      return { user: f.user, since: f.since, library, wishlist };
+    }),
   );
 }
 

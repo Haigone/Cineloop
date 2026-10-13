@@ -21,7 +21,13 @@ export interface LibraryView {
   awaiting: { title: Title; release: AwaitedRelease }[];
 }
 
-export async function getLibraryView(): Promise<LibraryView> {
+export interface LibraryExtras {
+  awaiting: { title: Title; release: AwaitedRelease }[];
+  newSeasons: NewSeasonItem[];
+}
+
+/** The library itself comes straight from the database; Novità and In attesa ask outside services and arrive after it. */
+export async function getLibraryView(): Promise<Omit<LibraryView, "awaiting" | "newSeasons"> & { extras: Promise<LibraryExtras> }> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
   const [entries, wishlist] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id)]);
@@ -32,14 +38,18 @@ export async function getLibraryView(): Promise<LibraryView> {
     .filter((e) => (e.status === "completed" || e.status === "watching") && titles.has(e.titleId))
     .sort((a, b) => Number(b.status === "watching") - Number(a.status === "watching"))
     .map((e) => titles.get(e.titleId)!);
-  const awaited = await awaitedReleases(followed, italianDay());
+  const extras = Promise.all([awaitedReleases(followed, italianDay()), listNewSeasons(repo, entries, titles, italianDay())])
+    .then(([awaited, newSeasons]) => ({
+      awaiting: followed
+        .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
+        .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
+      newSeasons,
+    }))
+    .catch((): LibraryExtras => ({ awaiting: [], newSeasons: [] }));
   return {
-    awaiting: followed
-      .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
-      .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
     items: entries.filter((e) => e.status !== "planned" && titles.has(e.titleId)).map((entry) => ({ entry, title: titles.get(entry.titleId)! })),
     wishlistIds: wishlist.map((w) => w.titleId),
-    newSeasons: await listNewSeasons(repo, entries, titles, italianDay()),
+    extras,
   };
 }
 

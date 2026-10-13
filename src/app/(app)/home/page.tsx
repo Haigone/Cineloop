@@ -3,7 +3,7 @@ import type { MediaType } from "@/domain/types";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Clapperboard, Users } from "lucide-react";
-import { getHomeView } from "@/server/services/dashboard";
+import { getHomeView, type HomeLater } from "@/server/services/dashboard";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Panel } from "@/components/ui/panel";
@@ -44,6 +44,28 @@ const EMPTY: Record<MediaType, { hero: string; wishlist: string }> = {
   anime: { hero: "Nessun anime in corso.", wishlist: "Aggiungi anime alla wishlist e qui troverai cosa guardare stasera." },
 };
 
+/** The next episode of something being watched: asks outside services, so it arrives after the page. */
+async function NextEpisode({ later, titleId }: { later: Promise<HomeLater>; titleId: string }) {
+  const release = (await later).upcomingEpisodes[titleId];
+  return release ? <NewEpisodeNotice release={release} /> : null;
+}
+
+async function News({ later, wishlistIds }: { later: Promise<HomeLater>; wishlistIds: ReadonlySet<string> }) {
+  const { newSeasons, awaiting } = await later;
+  if (newSeasons.length === 0 && awaiting.length === 0) return null;
+  return (
+    <RevealItem as="section" className="order-4 min-w-0">
+      <SectionHeader title="Novità" description="Serie che avevi finito e che hanno una stagione nuova o un nuovo episodio in arrivo." href="/library" hrefLabel="Apri libreria" />
+      {newSeasons.length > 0 && <NewSeasonsRail items={newSeasons.map((i) => ({ title: i.title, label: newSeasonsLabel(i) }))} wishlistIds={wishlistIds} />}
+      {awaiting.length > 0 && (
+        <div className={newSeasons.length > 0 ? "mt-4" : ""}>
+          <AwaitingList items={awaiting} />
+        </div>
+      )}
+    </RevealItem>
+  );
+}
+
 async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">["searchParams"] }) {
   const params = await searchParams;
   const view = await getHomeView(sectionFromSlug(params.c));
@@ -70,7 +92,9 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
               {view.fillerRuns[view.nowWatching.title.id] && (
                 <FillerNotice titleId={view.nowWatching.title.id} titleName={view.nowWatching.title.title} run={view.fillerRuns[view.nowWatching.title.id]!} />
               )}
-              {view.upcomingEpisodes[view.nowWatching.title.id] && <NewEpisodeNotice release={view.upcomingEpisodes[view.nowWatching.title.id]!} />}
+              <Suspense fallback={null}>
+                <NextEpisode later={view.later} titleId={view.nowWatching.title.id} />
+              </Suspense>
             </>
           ) : (
             <section aria-label={EMPTY[view.category].hero} className="rounded-xl border border-line bg-surface/80 backdrop-blur-md">
@@ -93,7 +117,9 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
                 <li key={item.title.id} className="min-w-0">
                   <InProgressCard item={item} />
                   {view.fillerRuns[item.title.id] && <FillerNotice titleId={item.title.id} titleName={item.title.title} run={view.fillerRuns[item.title.id]!} />}
-                  {view.upcomingEpisodes[item.title.id] && <NewEpisodeNotice release={view.upcomingEpisodes[item.title.id]!} />}
+                  <Suspense fallback={null}>
+                    <NextEpisode later={view.later} titleId={item.title.id} />
+                  </Suspense>
                 </li>
               ))}
             </ul>
@@ -126,17 +152,9 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
           )}
         </RevealItem>
 
-        {(view.newSeasons.length > 0 || view.awaiting.length > 0) && (
-          <RevealItem as="section" className="order-4 min-w-0">
-            <SectionHeader title="Novità" description="Serie che avevi finito e che hanno una stagione nuova o un nuovo episodio in arrivo." href="/library" hrefLabel="Apri libreria" />
-            {view.newSeasons.length > 0 && <NewSeasonsRail items={view.newSeasons.map((i) => ({ title: i.title, label: newSeasonsLabel(i) }))} wishlistIds={wishlistIds} />}
-            {view.awaiting.length > 0 && (
-              <div className={view.newSeasons.length > 0 ? "mt-4" : ""}>
-                <AwaitingList items={view.awaiting} />
-              </div>
-            )}
-          </RevealItem>
-        )}
+        <Suspense fallback={null}>
+          <News later={view.later} wishlistIds={wishlistIds} />
+        </Suspense>
       </div>
 
       {/* Side column */}

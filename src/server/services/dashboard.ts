@@ -31,6 +31,15 @@ export interface RecentWatchItem {
   fraction: number | null;
 }
 
+export interface HomeLater {
+  /** "Novità": finished series with a new season out. */
+  newSeasons: NewSeasonItem[];
+  /** For what is being watched, the next episode already scheduled, by title id. */
+  upcomingEpisodes: Record<string, AwaitedRelease>;
+  /** Finished series waiting on a season or, for those airing weekly, the next episode; soonest first. */
+  awaiting: { title: Title; release: AwaitedRelease }[];
+}
+
 export interface HomeView {
   viewer: PublicUser;
   /** The section shown: Home holds only films, only series or only anime. */
@@ -51,14 +60,10 @@ export interface HomeView {
   wishlist: Title[];
   /** Just finished by watching to the end and not rated yet, most recent first. */
   toRate: Title[];
-  /** "Novità": finished series with a new season out. */
-  newSeasons: NewSeasonItem[];
+  /** Novità, In attesa and the next episodes ask outside services: they arrive after the rest of the page. */
+  later: Promise<HomeLater>;
   /** For what is being watched, the run of filler episodes coming up next, by title id. */
   fillerRuns: Record<string, FillerRun>;
-  /** For what is being watched, the next episode already scheduled, by title id. */
-  upcomingEpisodes: Record<string, AwaitedRelease>;
-  /** Finished series waiting on a season or, for those airing weekly, the next episode; soonest first. */
-  awaiting: { title: Title; release: AwaitedRelease }[];
 }
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -72,12 +77,13 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   const repo = getRepository();
   const now = new Date();
 
-  const [library, wishlist, events, friends, presence] = await Promise.all([
+  const [library, wishlist, events, friends, presence, allTitles] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     repo.listWatchEvents(viewer.id, weekStart(now)),
     loadFriendBundles(repo, viewer.id),
     repo.getPresence(viewer.id),
+    repo.listTitles(),
   ]);
   const friendIds = friends.map((f) => f.user.id);
   const [activity, prefs, liveFriends] = await Promise.all([
@@ -90,7 +96,6 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   const category = asked ?? prefs.homeCategory;
   if (asked && asked !== prefs.homeCategory) after(() => repo.updatePreferences(viewer.id, { homeCategory: asked }));
 
-  const allTitles = await repo.listTitles();
   const titles = new Map(allTitles.map((t) => [t.id, t]));
   // Everything about titles below stays within the section.
   const inSection = new Map(allTitles.filter((t) => sectionOf(t) === category).map((t) => [t.id, t]));
@@ -150,17 +155,29 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   }
   const finished = category === "movie" ? [] : library.filter((e) => e.status === "completed" && inSection.has(e.titleId)).map((e) => inSection.get(e.titleId)!);
   const watching = continueWatching.map((i) => i.title);
-  const [awaited, watchingAhead] = await Promise.all([awaitedReleases(finished, italianDay(now)), awaitedReleases(watching, italianDay(now))]);
-  const upcomingEpisodes: Record<string, AwaitedRelease> = {};
-  for (const [id, r] of watchingAhead) if (r.episode) upcomingEpisodes[id] = r;
+  const today = italianDay(now);
+  const later: Promise<HomeLater> = Promise.all([
+    awaitedReleases(finished, today),
+    awaitedReleases(watching, today),
+    category === "movie" ? Promise.resolve([]) : listNewSeasons(repo, library.filter((e) => inSection.has(e.titleId)), inSection, today),
+  ])
+    .then(([awaited, watchingAhead, newSeasons]) => {
+      const upcomingEpisodes: Record<string, AwaitedRelease> = {};
+      for (const [id, r] of watchingAhead) if (r.episode) upcomingEpisodes[id] = r;
+      return {
+        newSeasons,
+        upcomingEpisodes,
+        awaiting: finished
+          .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
+          .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
+      };
+    })
+    .catch((): HomeLater => ({ newSeasons: [], upcomingEpisodes: {}, awaiting: [] }));
   return {
     viewer: toPublicUser(viewer),
     category,
     fillerRuns,
-    upcomingEpisodes,
-    awaiting: finished
-      .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
-      .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
+    later,
     background: sectionBackground(prefs, category, library, inSection),
     nowWatching: continueWatching[0] ?? null,
     continueWatching: continueWatching.slice(1),
@@ -180,7 +197,6 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
       .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
       .slice(0, 3)
       .map((e) => titles.get(e.titleId)!),
-    newSeasons: category === "movie" ? [] : await listNewSeasons(repo, library.filter((e) => inSection.has(e.titleId)), inSection, italianDay(now)),
   };
 }
 
