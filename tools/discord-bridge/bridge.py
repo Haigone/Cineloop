@@ -21,6 +21,7 @@ def rpc_connect():
         return False
     try:
         from pypresence import Presence
+        from pypresence.types import ActivityType
         client = Presence(APP_ID)
         client.connect()
         RPC = client
@@ -78,7 +79,10 @@ def publish(payload):
         try:
             if RPC is None and not rpc_connect():
                 return
-            RPC.update(details=details, state=state, large_text="CineLoop")
+            # Use Discord's LISTENING activity category, similar to Spotify.
+            # This changes the activity type, but Discord still controls display priority.
+            from pypresence.types import ActivityType
+            RPC.update(activity_type=ActivityType.LISTENING, details=details, state=state, large_text="CineLoop")
         except Exception as exc:
             print(f"Impossibile aggiornare Discord: {exc}", flush=True)
             RPC = None
