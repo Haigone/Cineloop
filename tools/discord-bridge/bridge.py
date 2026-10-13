@@ -63,7 +63,6 @@ def publish(payload):
                 state=state,
                 large_text="CineLoop",
                 start=int(time.time()),
-                buttons=[{"label": "Apri CineLoop", "url": "https://cineloop.vercel.app"}],
             )
         except Exception as exc:
             print(f"Impossibile aggiornare Discord: {exc}")
@@ -77,7 +76,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "chrome-extension://*")
+        self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin", "null"))
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
