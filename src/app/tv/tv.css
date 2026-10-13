@@ -1,0 +1,4 @@
+.tv-focus:focus-visible {
+  outline: 4px solid #a5f36b;
+  outline-offset: 4px;
+}
