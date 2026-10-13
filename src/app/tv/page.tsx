@@ -4,6 +4,7 @@ import { getLibraryView } from "@/server/services/library";
 import { getWishlistView } from "@/server/services/wishlist";
 import { getExploreView } from "@/server/services/explore";
 import { TvShell } from "./tv-shell";
+import "./tv.css";
 
 export const metadata: Metadata = {
   title: "CineLoop TV",
