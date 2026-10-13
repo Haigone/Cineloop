@@ -71,6 +71,27 @@ export async function rememberObservedStreamingUrl(value) {
 export async function resolveStreamingUrl({ force = false } = {}) {
   const cached = await getResolved();
   if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.origin;
+
+  // Fallback for a fresh installation: infer the current host from a
+  // StreamingCommunity watch tab the user already opened. This avoids relying
+  // exclusively on per-browser cache when the directory is unavailable or
+  // hasn't been granted yet. The URL is only remembered; page access still
+  // requires the user's explicit host permission.
+  if (!cached?.origin) {
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        const origin = streamingOriginFromWatchUrl(tab.url || "");
+        if (!origin) continue;
+        const resolved = { origin, at: Date.now() };
+        await chrome.storage.local.set({ [RESOLVED_KEY]: resolved });
+        return origin;
+      }
+    } catch {
+      // Continue to the directory / cached fallback below.
+    }
+  }
+
   if (!(await hasDirectoryAccess())) return cached?.origin ?? null;
   try {
     const res = await fetch(DIRECTORY_ORIGIN + "/", { credentials: "omit", redirect: "follow" });
