@@ -58,13 +58,17 @@ async function Results({ searchParams }: { searchParams: PageProps<"/explore">["
   // Otherwise the recommendations come first (for the chosen type), then the catalog.
   return (
     <>
-      <ForYou type={filters.type} hideKnown={filters.hideKnown} />
+      <Suspense fallback={<Skeleton className="mt-8 h-64 rounded-xl" />}>
+        <ForYou type={filters.type} hideKnown={filters.hideKnown} />
+      </Suspense>
       <Suspense fallback={<Skeleton className="mt-10 h-64 rounded-xl" />}>
         <Releases type={filters.type} hideKnown={filters.hideKnown} />
       </Suspense>
       <section aria-labelledby="catalog-h" className="mt-12">
         <SectionHeader as="h2" title={TYPE_PLURAL[filters.type]} id="catalog-h" description="Usa genere e ordine qui sopra per restringere." />
-        <BrowseResults filters={filters} bare />
+        <Suspense fallback={<GridSkeleton label="Caricamento dei titoli" count={12} />}>
+          <BrowseResults filters={filters} bare />
+        </Suspense>
       </section>
     </>
   );
@@ -140,16 +144,10 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
 }
 
 async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: boolean }) {
-  const [view, netflix, community] = await Promise.all([getForYouView(type, hideKnown), getNetflixTop10(), getCommunityNetflixTop()]);
+  // The Netflix charts come from outside: asked at once, shown when they arrive, the rest does not wait.
+  const charts = Promise.all([getNetflixTop10().catch(() => null), getCommunityNetflixTop().catch(() => [])]);
+  const view = await getForYouView(type, hideKnown);
   const have = new Set([...view.wishlistIds, ...view.libraryIds]);
-  const ofType = (r: RankedTitle) => (type === "all" || r.title.type === type) && !(hideKnown && have.has(r.title.id));
-  const netflixRows = netflix
-    ? [
-        { id: "netflix-film", label: "Top 10 Netflix Italia: film", rows: type === "all" || type === "movie" ? netflix.films.filter(ofType) : [] },
-        { id: "netflix-tv", label: "Top 10 Netflix Italia: serie", rows: type === "movie" ? [] : netflix.tv.filter(ofType) },
-      ].filter((c) => c.rows.length > 0)
-    : [];
-  const communityRows = community.filter(ofType);
   const wishlistIds = new Set(view.wishlistIds);
   const topLabel = view.topIsWeekly ? "Top 10 della settimana" : "Top 10 del catalogo";
 
@@ -164,31 +162,9 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
           <TopTen titles={view.top} wishlistIds={wishlistIds} label={topLabel} />
         </RevealItem>
       )}
-      {netflixRows.map((chart) => (
-        <RevealItem key={chart.id} as="section">
-          <SectionHeader
-            title={chart.label}
-            description={`Classifica ufficiale di Netflix, settimana fino al ${formatWeek(netflix!.week)}.`}
-            href="/explore?on=netflix"
-            hrefLabel="Tutto Netflix"
-          />
-          <TopTen titles={chart.rows.map((r) => r.title)} wishlistIds={wishlistIds} label={chart.label} notes={chart.rows.map((r) => r.note)} />
-        </RevealItem>
-      ))}
-      {communityRows.length >= 3 && (
-        <RevealItem as="section">
-          <SectionHeader
-            title="Più visti su Netflix da chi usa CineLoop"
-            description="Questa settimana, da chi ha l’estensione e condivide la propria attività."
-          />
-          <TopTen
-            titles={communityRows.map((r) => r.title)}
-            wishlistIds={wishlistIds}
-            label="Più visti su Netflix da chi usa CineLoop"
-            notes={communityRows.map((r) => r.note)}
-          />
-        </RevealItem>
-      )}
+      <Suspense fallback={null}>
+        <Charts charts={charts} type={type} hideKnown={hideKnown} have={have} wishlistIds={wishlistIds} />
+      </Suspense>
       {view.picker.length > 0 && (
         <RevealItem>
           <TastePicker titles={view.picker} liked={view.liked} target={TASTE_TARGET} />
@@ -215,6 +191,59 @@ async function ForYou({ type, hideKnown }: { type: Filters["type"]; hideKnown: b
         </RevealItem>
       )}
     </Reveal>
+  );
+}
+
+async function Charts({
+  charts,
+  type,
+  hideKnown,
+  have,
+  wishlistIds,
+}: {
+  charts: Promise<[Awaited<ReturnType<typeof getNetflixTop10>>, RankedTitle[]]>;
+  type: Filters["type"];
+  hideKnown: boolean;
+  have: ReadonlySet<string>;
+  wishlistIds: ReadonlySet<string>;
+}) {
+  const [netflix, community] = await charts;
+  const ofType = (r: RankedTitle) => (type === "all" || r.title.type === type) && !(hideKnown && have.has(r.title.id));
+  const netflixRows = netflix
+    ? [
+        { id: "netflix-film", label: "Top 10 Netflix Italia: film", rows: type === "all" || type === "movie" ? netflix.films.filter(ofType) : [] },
+        { id: "netflix-tv", label: "Top 10 Netflix Italia: serie", rows: type === "movie" ? [] : netflix.tv.filter(ofType) },
+      ].filter((c) => c.rows.length > 0)
+    : [];
+  const communityRows = community.filter(ofType);
+  return (
+    <>
+      {netflixRows.map((chart) => (
+        <RevealItem key={chart.id} as="section">
+          <SectionHeader
+            title={chart.label}
+            description={`Classifica ufficiale di Netflix, settimana fino al ${formatWeek(netflix!.week)}.`}
+            href="/explore?on=netflix"
+            hrefLabel="Tutto Netflix"
+          />
+          <TopTen titles={chart.rows.map((r) => r.title)} wishlistIds={wishlistIds} label={chart.label} notes={chart.rows.map((r) => r.note)} />
+        </RevealItem>
+      ))}
+      {communityRows.length >= 3 && (
+        <RevealItem as="section">
+          <SectionHeader
+            title="Più visti su Netflix da chi usa CineLoop"
+            description="Questa settimana, da chi ha l’estensione e condivide la propria attività."
+          />
+          <TopTen
+            titles={communityRows.map((r) => r.title)}
+            wishlistIds={wishlistIds}
+            label="Più visti su Netflix da chi usa CineLoop"
+            notes={communityRows.map((r) => r.note)}
+          />
+        </RevealItem>
+      )}
+    </>
   );
 }
 
