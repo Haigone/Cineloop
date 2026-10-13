@@ -94,13 +94,16 @@ def publish(payload):
             if RPC is None and not rpc_connect():
                 return
             from pypresence.types import ActivityType
-            # Discord mostra la locandina del titolo se il provider fornisce un URL HTTPS.
-            # Il testo alternativo resta disponibile quando non c'è una locandina.
+            # Usa WATCHING per mostrare "Sta guardando" anziché "Sta ascoltando".
+            # "cineloop_logo" deve essere caricato come asset nel Discord Developer Portal.
+            # La locandina del contenuto resta l'immagine grande, quando disponibile.
             update_args = {
-                "activity_type": ActivityType.LISTENING,
+                "activity_type": ActivityType.WATCHING,
                 "details": details,
                 "state": state,
                 "large_text": remembered_title[:128] if remembered_poster else "CineLoop",
+                "small_image": "cineloop_logo",
+                "small_text": "CineLoop",
                 "buttons": [{"label": "Apri CineLoop", "url": "https://cineloop-one.vercel.app"}],
             }
             if remembered_poster:
