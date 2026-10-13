@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { getCurrentUser } from "@/server/auth/current-user";
+import { redirect } from "next/navigation";
+import { getOptionalUser } from "@/server/auth/current-user";
 import { getLibraryView } from "@/server/services/library";
 import { getWishlistView } from "@/server/services/wishlist";
 import { getExploreView } from "@/server/services/explore";
@@ -19,7 +20,8 @@ export default async function TvPage({ searchParams }: { searchParams: TvSearchP
     ? (params.tab as "home" | "library" | "explore" | "wishlist")
     : "home";
   const query = (params.q ?? "").trim().slice(0, 80);
-  const user = await getCurrentUser();
+  const user = await getOptionalUser();
+  if (!user) redirect("/login?next=%2Ftv");
 
   const [library, wishlist, explore] = await Promise.all([
     getLibraryView(),
