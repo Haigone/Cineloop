@@ -351,6 +351,9 @@ async function tick() {
         // la sessione (e gli amici con te); il server la lascia scadere dopo
         // qualche minuto senza heartbeat.
         if (!paused && found !== SILENT && ((await netflixOpen()) || (await animeOpen()) || (await streamingOpen()))) {
+          // La sessione CineLoop può restare valida durante la navigazione nel catalogo,
+          // ma Discord deve sapere subito che il player non è più attivo.
+          await sendDiscordPresence(null);
           await chrome.action.setBadgeText({ text: "" });
           return null;
         }
@@ -386,15 +389,22 @@ async function tick() {
   return running;
 }
 
-async function setLive(live, status = null) {
-  await chrome.storage.session.set({ live, status });
-  // Optional local Discord bridge: only send the minimal recognized title/episode.
-  // A stopped or unrecognized session clears Rich Presence.
+async function sendDiscordPresence(watching) {
+  const title = watching?.title;
+  const posterUrl = title?.artwork?.posterUrl ?? title?.posterUrl ?? watching?.posterUrl ?? null;
   fetch("http://127.0.0.1:32145/presence", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ watching: live ? status?.watching ?? null : null }),
+    body: JSON.stringify({
+      watching: watching ? { ...watching, ...(posterUrl ? { posterUrl } : {}) } : null,
+    }),
   }).catch(() => {});
+}
+
+async function setLive(live, status = null) {
+  await chrome.storage.session.set({ live, status });
+  // Optional local Discord bridge: title, episode and poster URL only.
+  await sendDiscordPresence(live ? status?.watching ?? null : null);
   const needsTitle = live && status?.watching && !status.watching.title;
   await chrome.action.setBadgeText({ text: live ? (needsTitle ? "?" : "●") : "" });
   await chrome.action.setBadgeBackgroundColor({ color: needsTitle ? "#7c6cf0" : "#d4294a" });
