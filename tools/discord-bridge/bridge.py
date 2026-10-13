@@ -101,6 +101,7 @@ def publish(payload):
                 "details": details,
                 "state": state,
                 "large_text": remembered_title[:128] if remembered_poster else "CineLoop",
+                "buttons": [{"label": "Apri CineLoop", "url": "https://cineloop-one.vercel.app"}],
             }
             if remembered_poster:
                 update_args["large_image"] = remembered_poster
