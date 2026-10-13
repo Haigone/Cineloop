@@ -1,0 +1,25 @@
+plugins {
+    id "com.android.application"
+}
+
+def tvUrl = (project.findProperty("cineloopUrl") ?: "").toString().trim()
+
+def escapedTvUrl = tvUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+
+android {
+    namespace "dev.cineloop.tv"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "dev.cineloop.tv"
+        minSdk 23
+        targetSdk 28
+        versionCode 1
+        versionName "0.1.0"
+        buildConfigField "String", "CINELOOP_TV_URL", "\"${escapedTvUrl}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
