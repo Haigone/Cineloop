@@ -388,6 +388,13 @@ async function tick() {
 
 async function setLive(live, status = null) {
   await chrome.storage.session.set({ live, status });
+  // Optional local Discord bridge: only send the minimal recognized title/episode.
+  // A stopped or unrecognized session clears Rich Presence.
+  fetch("http://127.0.0.1:32145/presence", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ watching: live ? status?.watching ?? null : null }),
+  }).catch(() => {});
   const needsTitle = live && status?.watching && !status.watching.title;
   await chrome.action.setBadgeText({ text: live ? (needsTitle ? "?" : "●") : "" });
   await chrome.action.setBadgeBackgroundColor({ color: needsTitle ? "#7c6cf0" : "#d4294a" });
