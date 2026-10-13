@@ -137,11 +137,11 @@ export function TvShell({
               <h2 className="mt-3 line-clamp-2 min-h-12 text-base font-bold sm:text-lg">{item.title}</h2>
               <p className="mt-1 text-sm text-white/45">{item.year} · {item.type === "movie" ? "Film" : item.type === "anime" ? "Anime" : "Serie"}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {tab !== "wishlist" && <button type="button" onClick={() => void toggleWishlist(item)} disabled={pending}
+                <button type="button" onClick={() => void toggleWishlist(item)} disabled={pending}
                   aria-label={(inWishlist ? "Rimuovi " : "Aggiungi ") + item.title + " " + (inWishlist ? "dalla" : "alla") + " wishlist"}
                   className="tv-focus min-h-10 rounded-lg border border-white/15 px-3 text-sm font-semibold hover:bg-white/10 disabled:opacity-50">
-                  {inWishlist ? "♥ In wishlist" : "♡ Wishlist"}
-                </button>}
+                  {tab === "wishlist" ? "Rimuovi" : inWishlist ? "♥ In wishlist" : "♡ Wishlist"}
+                </button>
                 {libraryItem && libraryItem.status !== "completed" && <button type="button" onClick={() => void updateStatus(libraryItem, "completed")} disabled={pending}
                   className="tv-focus min-h-10 rounded-lg border border-[#a5f36b]/45 px-3 text-sm font-semibold text-[#c9ffa5] hover:bg-[#a5f36b]/10 disabled:opacity-50">Visto</button>}
                 {tab === "explore" && <button type="button" onClick={() => startTransition(async () => {
