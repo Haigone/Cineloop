@@ -23,7 +23,7 @@ export interface ExtensionStatus {
   user: { displayName: string; username: string };
   watching: null | {
     label: string | null;
-    title: { id: string; title: string; year: number } | null;
+    title: { id: string; title: string; year: number; artwork?: { posterUrl: string | null } } | null;
     season: number | null;
     episode: number | null;
     /** The series' season numbers, for asking which one when the player does not say. */
@@ -180,7 +180,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
     const title = live.titleId ? titles.get(live.titleId) : undefined;
     watching = {
       label: live.label,
-      title: title ? brief(title) : null,
+      title: title ? { ...brief(title), artwork: { posterUrl: title.artwork.posterUrl } } : null,
       season: live.season,
       episode: live.episode,
       seasons: title && title.type !== "movie" ? title.seasons.map((x) => x.number) : [],
