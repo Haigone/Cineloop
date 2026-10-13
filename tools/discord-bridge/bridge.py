@@ -3,17 +3,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import threading
-import time
 from datetime import datetime
-from urllib.parse import urlparse
 
 HOST = "127.0.0.1"
 PORT = 32145
 APP_ID = os.environ.get("CINELOOP_DISCORD_APP_ID", "").strip()
 RPC = None
 RPC_LOCK = threading.Lock()
-HISTORY_FILE = os.path.join(os.path.dirname(__file__), "activity-history.jsonl")
 LAST_ACTIVITY_KEY = None
+LAST_WATCHING = None
 
 def rpc_connect():
     global RPC
@@ -42,45 +40,52 @@ def clear_presence():
             RPC = None
 
 def publish(payload):
-    global RPC, LAST_ACTIVITY_KEY
+    global RPC, LAST_ACTIVITY_KEY, LAST_WATCHING
     watching = payload.get("watching") if isinstance(payload, dict) else None
     title_obj = (watching or {}).get("title") if isinstance(watching, dict) else None
     title = title_obj.get("title") if isinstance(title_obj, dict) else None
     season = watching.get("season") if isinstance(watching, dict) else None
     episode = watching.get("episode") if isinstance(watching, dict) else None
     label = watching.get("label") if isinstance(watching, dict) else None
-    timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
-    record = {"timestamp": timestamp, "active": bool(title), "title": title, "label": label, "season": season, "episode": episode}
-    try:
-        with open(HISTORY_FILE, "a", encoding="utf-8") as history:
-            history.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        print(f"[STORICO] Errore scrittura: {exc}", flush=True)
+
+    # Variante 1: contenuto rilevato in questo momento.
     if title:
-        episode_text = f" — S{season} E{episode}" if season is not None and episode is not None else (f" — Episodio {episode}" if episode is not None else "")
-        print(f"[{timestamp}] ORA STA GUARDANDO: {title}{episode_text}", flush=True)
+        LAST_WATCHING = {"title": str(title), "season": season, "episode": episode, "label": label}
+        active = True
+    # Variante 2: nessuna visione attiva; conserva in memoria l'ultimo titolo rilevato.
     else:
-        print(f"[{timestamp}] Nessun titolo riconosciuto: attività Discord da cancellare.", flush=True)
-    activity_key = (title, season, episode, label)
-    if not title:
-        LAST_ACTIVITY_KEY = None
+        active = False
+
+    remembered = LAST_WATCHING
+    if not remembered:
+        print("[PRESENZA] Nessun contenuto rilevato finora.", flush=True)
         clear_presence()
+        LAST_ACTIVITY_KEY = None
         return
+
+    remembered_title = remembered["title"]
+    remembered_season = remembered.get("season")
+    remembered_episode = remembered.get("episode")
+    remembered_label = remembered.get("label")
+    activity_key = (active, remembered_title, remembered_season, remembered_episode, remembered_label)
+    episode_text = f" — S{remembered_season} E{remembered_episode}" if remembered_season is not None and remembered_episode is not None else (f" — Episodio {remembered_episode}" if remembered_episode is not None else "")
+    if active:
+        print(f"[PRESENZA] ORA STA GUARDANDO: {remembered_title}{episode_text}", flush=True)
+    else:
+        print(f"[PRESENZA] ULTIMO CONTENUTO RILEVATO: {remembered_title}{episode_text} (nessuna visione attiva)", flush=True)
+
     if activity_key == LAST_ACTIVITY_KEY:
         return
     LAST_ACTIVITY_KEY = activity_key
-    details = str(title)[:128]
-    state = str(label)[:128] if label else "Ora sta guardando su CineLoop"
-    if season is not None and episode is not None:
-        state = f"Ora sta guardando · Stagione {season}, episodio {episode}"
-    elif episode is not None:
-        state = f"Ora sta guardando · Episodio {episode}"
+    details = remembered_title[:128]
+    if active:
+        state = f"Ora sta guardando · Stagione {remembered_season}, episodio {remembered_episode}" if remembered_season is not None and remembered_episode is not None else (f"Ora sta guardando · Episodio {remembered_episode}" if remembered_episode is not None else "Ora sta guardando su CineLoop")
+    else:
+        state = f"Ultimo contenuto rilevato · Stagione {remembered_season}, episodio {remembered_episode}" if remembered_season is not None and remembered_episode is not None else (f"Ultimo contenuto rilevato · Episodio {remembered_episode}" if remembered_episode is not None else "Ultimo contenuto aperto · non in visione")
     with RPC_LOCK:
         try:
             if RPC is None and not rpc_connect():
                 return
-            # Use Discord's LISTENING activity category, similar to Spotify.
-            # This changes the activity type, but Discord still controls display priority.
             from pypresence.types import ActivityType
             RPC.update(activity_type=ActivityType.LISTENING, details=details, state=state, large_text="CineLoop")
         except Exception as exc:
@@ -130,7 +135,6 @@ def main():
         threading.Thread(target=rpc_connect, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"CineLoop Activity Bridge attivo su http://{HOST}:{PORT}", flush=True)
-    print(f"Storico attività: {HISTORY_FILE}", flush=True)
     print("In attesa di dati dall'estensione CineLoop... lascia questa finestra aperta.", flush=True)
     try:
         server.serve_forever()
