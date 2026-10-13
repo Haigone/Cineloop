@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { createContext, useContext, useMemo, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
-import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, SearchX } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, Search, SearchX } from "lucide-react";
 import type { Genre, MediaType } from "@/domain/types";
 import type { PlaylistView, WishlistRow } from "@/server/services/wishlist";
 import { setInPlaylist } from "@/server/actions/playlists";
 import { reorderWishlist, setWishlisted } from "@/server/actions/library";
 import { cn } from "@/lib/cn";
+import { searchKey } from "@/lib/text";
 import { firstName, MEDIA_TYPE_LABEL } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -47,12 +48,14 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
   const [type, setType] = useState<TypeFilter>("all");
   const [genre, setGenre] = useState<Genre | "all">("all");
   const [sort, setSort] = useState<Sort>("rank");
+  const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [, startTransition] = useTransition();
   const toast = useToast();
 
   const genres = useMemo(() => [...new Set(rows.flatMap((r) => r.title.genres))].sort((a, b) => a.localeCompare(b, "it")), [rows]);
-  const filtered = rows.filter((r) => (type === "all" || r.title.type === type) && (genre === "all" || r.title.genres.includes(genre)));
+  const needle = searchKey(query);
+  const filtered = rows.filter((r) => (type === "all" || r.title.type === type) && (genre === "all" || r.title.genres.includes(genre)) && (!needle || searchKey(r.title.title).includes(needle)));
   const shown =
     sort === "rank"
       ? filtered
@@ -61,7 +64,7 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
             ? Date.parse(b.item.addedAt) - Date.parse(a.item.addedAt)
             : (b.title.communityRating ?? 0) - (a.title.communityRating ?? 0),
         );
-  const canReorder = sort === "rank" && type === "all" && genre === "all";
+  const canReorder = sort === "rank" && type === "all" && genre === "all" && !needle;
 
   function persistOrder(next: WishlistRow[]) {
     startTransition(async () => {
@@ -81,6 +84,17 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
     requestAnimationFrame(() =>
       document.getElementById(`move-${delta < 0 ? "up" : "down"}-${next[target]!.title.id}`)?.focus(),
     );
+  }
+
+  /** Typing a position moves the title straight there. */
+  function moveTo(index: number, position: number) {
+    const target = Math.min(Math.max(position, 1), rows.length) - 1;
+    if (target === index) return;
+    const next = [...rows];
+    const [row] = next.splice(index, 1);
+    next.splice(target, 0, row!);
+    setRows(next);
+    persistOrder(next);
   }
 
   function remove(row: WishlistRow) {
@@ -153,6 +167,17 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
         />
       ) : (
         <>
+          <div className="relative mb-4 max-w-sm">
+            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" />
+            <input
+              type="search"
+              aria-label="Cerca nella wishlist"
+              placeholder="Cerca nella wishlist"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-10 w-full rounded-md border border-line-strong bg-transparent pr-3 pl-9 text-sm text-fg placeholder:text-fg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+          </div>
           <div className="flex flex-col gap-3 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between">
             <Segmented
               label="Tipo"
@@ -188,7 +213,7 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
             <EmptyState
               className="mt-6"
               icon={<SearchX />}
-              title="Nessun titolo con questi filtri."
+              title={needle ? `Nessun titolo con “${query.trim()}” in wishlist.` : "Nessun titolo con questi filtri."}
               action={
                 <Button
                   variant="secondary"
@@ -196,6 +221,7 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
                   onClick={() => {
                     setType("all");
                     setGenre("all");
+                    setQuery("");
                   }}
                 >
                   Mostra tutto
@@ -218,6 +244,8 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
                   isFirst={i === 0}
                   isLast={i === rows.length - 1}
                   onMove={(d) => move(i, d)}
+                  onMoveTo={(n) => moveTo(i, n)}
+                  total={rows.length}
                   onRemove={() => remove(row)}
                   onDragEnd={() => persistOrder(rows)}
                 />
@@ -252,6 +280,8 @@ function DraggableRow({
   isFirst,
   isLast,
   onMove,
+  onMoveTo,
+  total,
   onRemove,
   onDragEnd,
 }: {
@@ -260,6 +290,8 @@ function DraggableRow({
   isFirst: boolean;
   isLast: boolean;
   onMove: (delta: -1 | 1) => void;
+  onMoveTo: (position: number) => void;
+  total: number;
   onRemove: () => void;
   onDragEnd: () => void;
 }) {
@@ -287,9 +319,21 @@ function DraggableRow({
             >
               <GripVertical className="size-4" />
             </button>
-            <span className="w-6 text-center text-sm tabular text-fg-3" aria-label={`Posizione ${rank}`}>
-              {rank}
-            </span>
+            <input
+              key={rank}
+              type="text"
+              inputMode="numeric"
+              defaultValue={rank}
+              aria-label={`Posizione di ${row.title.title}, da 1 a ${total}`}
+              onFocus={(e) => e.currentTarget.select()}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              onBlur={(e) => {
+                const n = Number.parseInt(e.currentTarget.value, 10);
+                if (Number.isFinite(n)) onMoveTo(n);
+                e.currentTarget.value = String(rank);
+              }}
+              className="h-7 w-9 rounded-sm border border-transparent bg-transparent text-center text-sm tabular text-fg-3 hover:border-line-strong focus:border-line-strong focus:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            />
           </div>
         }
         trailing={

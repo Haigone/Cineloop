@@ -119,3 +119,28 @@ test("make a playlist, fill it, and load it into a night together", async ({ pag
   await page.getByRole("button", { name: "Elimina “Natale”" }).click();
   await expect(page.getByLabel("Nome", { exact: true })).toHaveCount(0);
 });
+
+test("type a position to move a title, and search inside the wishlist", async ({ page }) => {
+  await signIn(page, "/wishlist");
+  const list = page.getByRole("list", { name: "Wishlist, in ordine di priorità" });
+  const rows = list.getByRole("listitem");
+  await expect(rows.nth(2)).toBeVisible();
+  const names = async () =>
+    (await rows.getByRole("textbox", { name: /^Posizione di/ }).evaluateAll((els) => els.map((el) => (el.getAttribute("aria-label") ?? "").replace(/^Posizione di /, "").replace(/, da 1 a \d+$/, ""))));
+  const before = await names();
+
+  // The third title goes to the top by typing 1.
+  const box = rows.nth(2).getByRole("textbox", { name: /^Posizione di/ });
+  await box.fill("1");
+  await box.press("Enter");
+  await expect.poll(names).toEqual([before[2], before[0], before[1], ...before.slice(3)]);
+  await page.reload();
+  await expect.poll(async () => (await names())[0]).toBe(before[2]);
+
+  // The search narrows the list to matching titles only.
+  await page.getByRole("searchbox", { name: "Cerca nella wishlist" }).fill(before[0]!.slice(0, 4));
+  await expect(page.getByRole("link", { name: before[0]!, exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: before[2]!, exact: true })).toHaveCount(before[2]!.toLowerCase().includes(before[0]!.slice(0, 4).toLowerCase()) ? 2 : 0);
+  await page.getByRole("searchbox", { name: "Cerca nella wishlist" }).fill("zzzzqq");
+  await expect(page.getByText(/Nessun titolo con/)).toBeVisible();
+});
