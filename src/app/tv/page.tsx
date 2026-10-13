@@ -7,6 +7,9 @@ import { getExploreView } from "@/server/services/explore";
 import { TvShell } from "./tv-shell";
 import "./tv.css";
 
+// This authenticated, cookie-backed page must render at request time rather than prerender.
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "CineLoop TV",
   description: "La tua libreria, la wishlist e il catalogo CineLoop sul televisore.",
