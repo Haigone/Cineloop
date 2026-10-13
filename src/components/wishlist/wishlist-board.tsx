@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useMemo, useState, useTransition } from "react";
+import { createContext, Suspense, use, useContext, useMemo, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
 import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, Search, SearchX } from "lucide-react";
 import type { Genre, MediaType } from "@/domain/types";
 import type { PlaylistView, WishlistRow } from "@/server/services/wishlist";
+import type { AwaitedRelease } from "@/server/services/awaited";
 import { setInPlaylist } from "@/server/actions/playlists";
 import { reorderWishlist, setWishlisted } from "@/server/actions/library";
 import { cn } from "@/lib/cn";
@@ -26,6 +27,23 @@ import { PlaylistsPanel } from "./playlists-panel";
 
 /** The viewer's playlists, for the "Playlist" menu on each row. */
 const PlaylistsContext = createContext<PlaylistView[]>([]);
+/** When each title comes back: asks outside services, so it arrives after the list. */
+const ReleasesContext = createContext<Promise<Record<string, AwaitedRelease>> | null>(null);
+
+function RowRelease({ titleId }: { titleId: string }) {
+  const promise = useContext(ReleasesContext);
+  if (!promise) return null;
+  return (
+    <Suspense fallback={null}>
+      <RowReleaseTimer promise={promise} titleId={titleId} />
+    </Suspense>
+  );
+}
+
+function RowReleaseTimer({ promise, titleId }: { promise: Promise<Record<string, AwaitedRelease>>; titleId: string }) {
+  const release = use(promise)[titleId];
+  return release ? <ReleaseTimer className="mt-1.5" date={release.date} season={release.season} episode={release.episode} /> : null;
+}
 
 type TypeFilter = "all" | MediaType;
 type Sort = "rank" | "added" | "rating";
@@ -36,7 +54,7 @@ const SORT_LABEL: Record<Sort, string> = { rank: "La mia classifica", added: "Da
  * The wishlist is a ranked queue. In "La mia classifica" order it can be
  * reordered by dragging the handle or with the up/down buttons (keyboard).
  */
-export function WishlistBoard({ initialRows, playlists }: { initialRows: WishlistRow[]; playlists: PlaylistView[] }) {
+export function WishlistBoard({ initialRows, playlists, releases }: { initialRows: WishlistRow[]; playlists: PlaylistView[]; releases: Promise<Record<string, AwaitedRelease>> }) {
   const [tab, setTab] = useState<"list" | "playlists">("list");
   const [rows, setRows] = useState(initialRows);
   // Server data wins whenever it changes (e.g. after adding from the dialog).
@@ -134,6 +152,7 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
 
   return (
     <PlaylistsContext.Provider value={playlists}>
+    <ReleasesContext.Provider value={releases}>
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -270,6 +289,7 @@ export function WishlistBoard({ initialRows, playlists }: { initialRows: Wishlis
 
       <AddTitleDialog open={adding} onClose={() => setAdding(false)} existingIds={new Set(rows.map((r) => r.title.id))} />
     </div>
+    </ReleasesContext.Provider>
     </PlaylistsContext.Provider>
   );
 }
@@ -403,7 +423,7 @@ function RowBody({
           ))}
           {social && <span className={cn("text-xs", row.suggestedBy ? "text-violet" : "text-fg-3")}>{social}</span>}
         </div>
-        {row.release && <ReleaseTimer className="mt-1.5" date={row.release.date} season={row.release.season} episode={row.release.episode} />}
+        <RowRelease titleId={row.title.id} />
       </div>
       {title.communityRating != null && (
         <span className="hidden w-12 text-right text-sm tabular text-fg-2 sm:block" aria-label={`Voto community ${title.communityRating} su 10`}>
