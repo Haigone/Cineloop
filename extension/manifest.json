@@ -34,5 +34,8 @@
     "https://www.animeunity.so/*",
     "https://www.streaming-community.how/*",
     "https://*/*"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:32145/*"
   ]
 }
