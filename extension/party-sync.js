@@ -6,16 +6,17 @@
 // background worker every 2 seconds and keeps this tab on the room's clock:
 //
 // - play and pause pressed by anyone in the room are applied here;
-// - a small gap (1 to 8 s) is closed by playing a little faster or slower
+// - a gap of 2 s or more (a friend who just joined, someone who moved the bar)
+//   is closed by asking Netflix's own player to seek, through netflix-player.js,
+//   as Teleparty does; a gap of 1 to 2 s by playing a little faster or slower
 //   (the <video> element's playbackRate), so nobody sees a jump;
-// - a bigger gap (a friend who just joined, someone who moved the bar) reopens
+// - if Netflix's player does not answer (Netflix changed it), a big gap reopens
 //   the same episode at the room's point with Netflix's own `?t=` link. Netflix
 //   breaks when a page sets the video's currentTime, so this never does that.
 //
 // The room follows the host's player; a member's own play, pause or seek moves
-// it for everyone. It uses only the page's <video> element and the URL: no
-// Netflix internal API, and it makes no request itself. Outside a room it only
-// reports every few seconds, so the background can tell when a room starts.
+// it for everyone. It makes no request itself. Outside a room it only reports
+// every few seconds, so the background can tell when a room starts.
 (() => {
   // As in player-title.js: a copy from an earlier version of the extension is dead.
   const alive = () => Boolean(globalThis.chrome?.runtime?.id);
@@ -23,7 +24,9 @@
   let stopped = false;
   globalThis.__cineloopParty = () => !stopped && alive();
 
-  /** Beyond this gap (seconds) the episode is reopened at the room's point. */
+  /** Beyond this gap (seconds) Netflix's player is asked to seek to the room's point... */
+  const SEEK_SECONDS = 2;
+  /** ...and, if it cannot, beyond this one the episode is reopened there. */
   const JUMP_SECONDS = 8;
   /** Beyond this gap the player speeds up or slows down until it is back in step... */
   const NUDGE_SECONDS = 1;
@@ -44,11 +47,31 @@
   let inStep = false;
   /** Has this player had the room's state since it appeared? */
   let heard = false;
+  /** Was it too far from the room at the last check (still catching up)? */
+  let lagging = false;
   let nudging = false;
 
   const watchId = () => /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
   const video = () => document.querySelector("video");
   const own = () => Date.now() > applyingUntil;
+
+  // Netflix's player, through netflix-player.js in the page. Answers false when
+  // it is not there (or Netflix changed it); then the <video> element is used.
+  let asked = 0;
+  const waiting = new Map();
+  window.addEventListener("message", (e) => {
+    if (e.source !== window || e.data?.cineloop !== "player-ack") return;
+    waiting.get(e.data.id)?.(e.data.ok === true);
+    waiting.delete(e.data.id);
+  });
+  function netflixPlayer(cmd, ms) {
+    return new Promise((resolve) => {
+      const id = `${Date.now()}-${++asked}`;
+      waiting.set(id, resolve);
+      window.postMessage({ cineloop: "player", id, cmd, ...(ms === undefined ? {} : { ms }) }, location.origin);
+      setTimeout(() => waiting.delete(id) && resolve(false), 800);
+    });
+  }
 
   function bind(v) {
     if (bound === v) return;
@@ -56,6 +79,7 @@
     boundAt = Date.now();
     inStep = false;
     heard = false;
+    lagging = false;
     nudging = false;
     // Netflix starts, and seeks, by itself while the episode loads: only what
     // happens after this player has heard from the room counts as the user's.
@@ -74,7 +98,7 @@
     if (action) freshFrom = n;
     const t0 = performance.now();
     const res = await chrome.runtime
-      .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, ...(action ? { action } : {}) })
+      .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
       .catch(() => null);
     if (n < freshFrom) return;
     if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000);
@@ -96,19 +120,29 @@
     } catch {}
   }
 
-  function apply(party, v, rtt) {
+  async function apply(party, v, rtt) {
     if (!party.sameEpisode) return relax(v);
     heard = true;
     if (party.paused !== v.paused) {
       applyingUntil = Date.now() + 1500;
-      if (party.paused) v.pause();
-      else v.play().catch(() => {});
+      if (!(await netflixPlayer(party.paused ? "pause" : "play"))) {
+        if (party.paused) v.pause();
+        else v.play().catch(() => {});
+      }
     }
     // The room's clock was read on the server, about half a round trip ago.
     const target = party.position + (party.paused ? 0 : rtt / 2);
     const gap = v.currentTime - target;
     inStep = Math.abs(gap) < 3;
-    if (Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
+    lagging = Math.abs(gap) >= SEEK_SECONDS;
+    if (Math.abs(gap) >= SEEK_SECONDS) {
+      setRate(v, 1);
+      // Our own seek fires "seeked" too: it is not the user's.
+      applyingUntil = Date.now() + 2500;
+      if (await netflixPlayer("seek", Math.round(target * 1000))) return;
+      applyingUntil = 0;
+      if (Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
+    }
     if (party.paused) return setRate(v, 1);
     if (Math.abs(gap) >= NUDGE_SECONDS) setRate(v, gap > 0 ? 0.8 : 1.25);
     else if (Math.abs(gap) < SETTLED_SECONDS || !nudging) setRate(v, 1);

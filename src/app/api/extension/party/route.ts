@@ -11,6 +11,7 @@ const report = z
     position: z.number().min(0).max(24 * 3600),
     paused: z.boolean(),
     action: z.enum(["play", "pause", "seek"]).optional(),
+    following: z.boolean().optional(),
   })
   .strict();
 
