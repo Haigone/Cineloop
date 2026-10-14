@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { ExtensionNotice } from "@/components/auth/extension-notice";
 import { RegisterForm } from "@/components/auth/register-form";
 import { isGuest } from "@/domain/types";
 import { getOptionalUser } from "@/server/auth/current-user";
@@ -21,7 +22,7 @@ async function Register() {
   return (
     <>
       <RegisterIntro guest={Boolean(guest)} />
-      <RegisterForm guest={guest} />
+      <RegisterForm guest={guest} notice={<ExtensionNotice />} />
     </>
   );
 }

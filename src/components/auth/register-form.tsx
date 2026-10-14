@@ -9,13 +9,15 @@ import {
 } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { ExtensionNotice } from "./extension-notice";
 
 /** With `guest`, the signed-in guest completes their own account: the username stays. */
 export function RegisterForm({
   guest,
+  notice,
 }: {
   guest?: { username: string; displayName: string };
+  /** The extension download box, rendered on the server. */
+  notice?: React.ReactNode;
 }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(
     guest ? completeRegistration : register,
@@ -58,7 +60,7 @@ export function RegisterForm({
             defaultValue={state.values?.username}
             error={state.fieldErrors?.username}
           />
-          <ExtensionNotice />
+          {notice}
         </>
       )}
       <Field

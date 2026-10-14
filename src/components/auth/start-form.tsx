@@ -6,9 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { startAsGuest, type AuthFormState } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { ExtensionNotice } from "./extension-notice";
 
-export function StartForm() {
+/** `notice` is the extension download box, rendered on the server. */
+export function StartForm({ notice }: { notice: React.ReactNode }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(startAsGuest, {});
   const next = useSearchParams().get("next");
   const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
@@ -30,7 +30,7 @@ export function StartForm() {
         defaultValue={state.values?.username}
         error={state.fieldErrors?.username}
       />
-      <ExtensionNotice />
+      {notice}
       <Button type="submit" size="lg" loading={pending} className="mt-2 w-full">
         Inizia
       </Button>
