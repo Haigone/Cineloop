@@ -31,3 +31,23 @@ export async function awaitedReleases(series: readonly Title[], today: string): 
       .map((r) => [r.title.id, { date: r.date, season: r.season, ...(r.episode ? { episode: r.episode } : {}) }] as const),
   );
 }
+
+/** At most this many wishlist titles are checked for a release date per page view. */
+const PREMIERE_LIMIT = 30;
+
+/**
+ * Wishlist titles that are not out yet (or come out today), with their release date, soonest first.
+ * Only titles of this year or later (year 0: no date yet) can still be waiting.
+ */
+export async function wishedPremieres(titles: readonly Title[], today: string): Promise<{ title: Title; release: AwaitedRelease }[]> {
+  const thisYear = Number(today.slice(0, 4));
+  const candidates = titles.filter((t) => t.year === 0 || t.year >= thisYear).slice(0, PREMIERE_LIMIT);
+  if (candidates.length === 0) return [];
+  const found = await getCatalog()
+    .premieres(candidates, today)
+    .catch(() => []);
+  const byId = new Map(found.map((r) => [r.title.id, r]));
+  return candidates
+    .flatMap((title) => (byId.has(title.id) ? [{ title, release: { date: byId.get(title.id)!.date, season: null } }] : []))
+    .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999"));
+}

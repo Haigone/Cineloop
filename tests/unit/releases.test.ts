@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { SeedCatalog } from "@/integrations/catalog/seed-catalog";
-import { TmdbCatalog, nextSeasonOf } from "@/integrations/catalog/tmdb-catalog";
+import { TmdbCatalog, nextSeasonOf, premiereOf } from "@/integrations/catalog/tmdb-catalog";
 import { addDays, countdownLabel, formatDay, italianDay } from "@/lib/dates";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
 
@@ -115,6 +115,44 @@ describe("upcoming releases", () => {
       ["Serie", "2026-10-15"],
       ["Film", "2026-10-30"],
     ]);
+  });
+});
+
+describe("wishlist titles not out yet", () => {
+  const known = (date: string, digital = true) => ({ date, known: true, digital });
+
+  it("keeps a film until its Italian release day, filed by where it comes out", () => {
+    const film = { id: 7, title: "Film atteso", release_date: "2026-09-01", status: "Released" };
+    expect(premiereOf("movie", film, TODAY, known("2026-11-20"))).toMatchObject({ date: "2026-11-20", season: null, venue: "streaming" });
+    expect(premiereOf("movie", film, TODAY, known("2026-11-20", false))).toMatchObject({ venue: "cinema" });
+    expect(premiereOf("movie", film, TODAY, known(TODAY))).toMatchObject({ date: TODAY });
+    expect(premiereOf("movie", film, TODAY, known("2026-10-01"))).toBeNull();
+  });
+
+  it("keeps an announced film without a date, not a released one", () => {
+    expect(premiereOf("movie", { id: 8, title: "Senza data", status: "Post Production" }, TODAY, null)).toMatchObject({ date: null });
+    expect(premiereOf("movie", { id: 9, title: "Vecchio", status: "Released" }, TODAY, null)).toBeNull();
+  });
+
+  it("keeps a series until its first episode", () => {
+    const show = { id: 5, name: "Serie nuova", status: "In Production", first_air_date: "2026-12-03" };
+    expect(premiereOf("tv", show, TODAY, null)).toMatchObject({ date: "2026-12-03", season: null, venue: "streaming" });
+    expect(premiereOf("tv", { ...show, first_air_date: TODAY, last_episode_to_air: { season_number: 1, episode_number: 1, air_date: TODAY } }, TODAY, null)).toMatchObject({ date: TODAY });
+    expect(premiereOf("tv", { ...show, last_episode_to_air: { season_number: 1, episode_number: 2, air_date: "2026-10-01" } }, TODAY, null)).toBeNull();
+    expect(premiereOf("tv", { ...show, status: "Canceled" }, TODAY, null)).toBeNull();
+  });
+
+  it("asks TMDB about each wished title and keeps the wishlist's own title", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      if (url.includes("/movie/7/release_dates")) return { results: [{ iso_3166_1: "IT", release_dates: [{ type: 4, release_date: "2026-11-20T00:00:00.000Z" }] }] };
+      if (url.includes("/movie/7")) return { id: 7, title: "Film atteso", release_date: "2026-11-01", status: "Post Production" };
+      if (url.includes("/tv/5")) return { id: 5, name: "Già uscita", status: "Returning Series", last_episode_to_air: { season_number: 2, episode_number: 3 } };
+      return {};
+    });
+    const wished = [{ id: "tmdb-movie-7", title: "Film atteso", type: "movie" }, { id: "tmdb-tv-5", title: "Già uscita", type: "series" }, { id: "the-boys" }] as never[];
+    const out = await tmdb.premieres(wished, TODAY);
+    expect(out.map((r) => [r.title.id, r.date])).toEqual([["tmdb-movie-7", "2026-11-20"]]);
+    expect(out[0]!.title).toBe(wished[0]);
   });
 });
 

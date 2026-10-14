@@ -303,6 +303,27 @@ export class AnimeFirstCatalog implements CatalogService {
     return [...others, ...airing.values()];
   }
 
+  async premieres(titles: readonly Title[], today: string): Promise<Release[]> {
+    const ours = titles.filter((t) => ANIME_ID.test(t.id));
+    const calendar = titles.filter((t) => MAL_ID.test(t.id) || AL_ID.test(t.id));
+    const rest = titles.filter((t) => !ANIME_ID.test(t.id) && !MAL_ID.test(t.id) && !AL_ID.test(t.id));
+    const [base, own, announced] = await Promise.all([
+      this.base.premieres(rest, today),
+      Promise.all(
+        ours.map(async (t): Promise<Release | null> => {
+          const f = await this.franchise(ANIME_ID.exec(t.id)![1]!);
+          if (!f || f.title.seasons.some((s) => s.airDate && s.airDate <= today)) return null;
+          const first = f.title.seasons.find((s) => s.airDate)?.airDate ?? null;
+          // A franchise without any dates is more likely missing them than unannounced.
+          return first ? { title: f.title, date: first, season: null } : null;
+        }),
+      ),
+      // Wished from the season calendar: still there until it airs, on a platform we don't know yet.
+      this.nextSeasons(calendar, today).then((list) => list.filter((r) => !r.episode).map((r): Release => ({ ...r, season: null, venue: "seasonal" }))),
+    ]);
+    return [...base, ...own.filter((r): r is Release => r !== null), ...announced];
+  }
+
   /** The next episode of every series in the list that is airing now, by the title's id. */
   private async airingEpisodes(series: readonly Title[], today: string): Promise<Map<string, Release>> {
     const found = await Promise.all(

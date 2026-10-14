@@ -23,7 +23,7 @@ const jikan = (data: JikanAnime[], byId: Record<string, JikanAnime> = {}) =>
 
 const known = { id: "tmdb-tv-1", type: "anime", title: "New Show 1" } as Title;
 const base = (up: Release[] = []): CatalogService =>
-  ({ name: "tmdb", complete: true, search: async () => [], getTitle: async () => null, nextSeasons: async () => [], trending: async () => [], related: async () => [], episodes: async () => null, upcoming: vi.fn(async () => up) }) as unknown as CatalogService;
+  ({ name: "tmdb", complete: true, search: async () => [], getTitle: async () => null, nextSeasons: async () => [], trending: async () => [], related: async () => [], episodes: async () => null, upcoming: vi.fn(async () => up), premieres: async () => [] }) as unknown as CatalogService;
 const al = (media: AniListAnime[], one?: AniListAnime) =>
   new AniListClient((async (_url: string, init?: RequestInit) => {
     const q = String(JSON.parse(String(init?.body)).query);
@@ -51,6 +51,11 @@ describe("Jikan / MyAnimeList seasonal", () => {
     expect((await c.getTitle("anime-mal-30"))?.title).toBe("New Show 30");
     const waits = await c.nextSeasons([{ id: "anime-mal-30" } as Title], TODAY);
     expect(waits).toMatchObject([{ date: "2026-12-05", season: 1 }]);
+  });
+
+  it("puts a wished calendar show among the releases until it airs", async () => {
+    const c = cat(jikan([], { "30": rec(30) }));
+    expect(await c.premieres([{ id: "anime-mal-30" } as Title], TODAY)).toMatchObject([{ date: "2026-12-05", season: null, venue: "seasonal" }]);
   });
 
   it("stops waiting once the show has aired", async () => {
