@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getRepository } from "@/server/data";
+import { cacheTitles } from "@/server/services/explore";
 import { importNetflixHistory } from "@/server/services/import-history";
 
 describe("importing the Netflix viewing history", () => {
@@ -24,5 +25,18 @@ describe("importing the Netflix viewing history", () => {
     const again = await importNetflixHistory("u_elena", [{ title: "Arcane", kind: "series", season: 1, sample: "Arcane: Stagione 1: Atto I" }]);
     expect(again).toEqual({ added: [], already: 1, notFound: [] });
     expect((await repo.listLibrary("u_elena")).find((e) => e.titleId === "arcane")).toEqual(arcane);
+  });
+});
+
+describe("importing the history never duplicates a show", () => {
+  it("counts a show already in the library under another catalogue id as already there", async () => {
+    const repo = getRepository();
+    const [arcane] = await repo.getTitlesByIds(["arcane"]);
+    // The same series as cached from another source (TMDB, ANN), with its own id.
+    await cacheTitles(repo, [{ ...arcane!, id: "tmdb-tv-94605" }]);
+    await repo.setLibraryStatus("u_davide", "tmdb-tv-94605", "watching");
+    const res = await importNetflixHistory("u_davide", [{ title: "Arcane", kind: "series", season: 2, sample: "Arcane: Stagione 2: Atto I" }]);
+    expect(res).toEqual({ added: [], already: 1, notFound: [] });
+    expect((await repo.listLibrary("u_davide")).filter((e) => e.titleId === "arcane" || e.titleId === "tmdb-tv-94605")).toHaveLength(1);
   });
 });

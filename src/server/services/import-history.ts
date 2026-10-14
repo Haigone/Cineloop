@@ -4,6 +4,7 @@ import { getCatalog } from "@/integrations/catalog";
 import { searchKey } from "@/lib/text";
 import { getRepository } from "@/server/data";
 import { cacheTitles } from "./explore";
+import { nameKey, ownedNames } from "./import-list";
 
 /**
  * One title from the user's Netflix viewing history, already grouped by the
@@ -37,6 +38,8 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const repo = getRepository();
   const [library, wishlist] = await Promise.all([repo.listLibrary(userId), repo.listWishlist(userId)]);
   const have = new Set(library.map((e) => e.titleId));
+  // The same show can sit in the library under another catalogue id (seed, TMDB, ANN): match by name too.
+  const names = await ownedNames([...have]);
   const wished = new Set(wishlist.map((w) => w.titleId));
   const result: HistoryResult = { added: [], already: 0, notFound: [] };
 
@@ -51,13 +54,14 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     const item = items[i]!;
     if (!title) {
       result.notFound.push({ title: item.title, sample: item.sample });
-    } else if (have.has(title.id)) {
+    } else if (have.has(title.id) || names.has(nameKey(title))) {
       result.already += 1;
     } else {
       if (title.type === "movie") await repo.setLibraryStatus(userId, title.id, "completed");
       else await repo.markSeenThrough(userId, title.id, Math.max(1, item.season ?? 1));
       if (wished.has(title.id)) await repo.removeFromWishlist(userId, title.id);
       have.add(title.id);
+      names.add(nameKey(title));
       result.added.push(title.title);
     }
   }

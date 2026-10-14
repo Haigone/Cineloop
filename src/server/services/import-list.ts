@@ -11,6 +11,17 @@ export interface ListItem {
   title: string;
 }
 
+/** "s:jujutsu kaisen" / "m:parasite": the same show under another catalogue id (seed, TMDB, ANN) has the same key. */
+export function nameKey(title: Pick<Title, "title" | "type">): string {
+  return `${title.type === "movie" ? "m" : "s"}:${searchKey(title.title)}`;
+}
+
+/** The names of titles the user already has, so an import never adds the same show twice under another id. */
+export async function ownedNames(ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  return new Set((await getRepository().getTitlesByIds([...new Set(ids)])).map(nameKey));
+}
+
 export interface ImportResult {
   added: string[];
   /** Already in the wishlist or the library. */
@@ -28,6 +39,7 @@ export async function importNetflixList(userId: string, items: readonly ListItem
   const repo = getRepository();
   const [library, wishlist] = await Promise.all([repo.listLibrary(userId), repo.listWishlist(userId)]);
   const have = new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)]);
+  const names = await ownedNames([...have]);
   const result: ImportResult = { added: [], already: 0, notFound: [] };
 
   const found: (Title | null)[] = [];
@@ -41,11 +53,12 @@ export async function importNetflixList(userId: string, items: readonly ListItem
   for (const [i, title] of found.entries()) {
     if (!title) {
       result.notFound.push(items[i]!.title);
-    } else if (have.has(title.id)) {
+    } else if (have.has(title.id) || names.has(nameKey(title))) {
       result.already += 1;
     } else {
       await repo.addToWishlist(userId, title.id);
       have.add(title.id);
+      names.add(nameKey(title));
       result.added.push(title.title);
     }
   }
