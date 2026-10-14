@@ -1,6 +1,7 @@
 import type {
   ActivityEvent,
   AppNotification,
+  CollectionChoice,
   ChartEntry,
   ExtensionDevice,
   Friend,
@@ -49,6 +50,7 @@ export class MemoryRepository implements Repository {
   private playlists: Playlist[] = [];
   private savedPlaylists: { userId: string; playlistId: string; savedAt: string }[] = [];
   private notifications = new Map<string, AppNotification[]>();
+  private collectionChoices = new Map<string, CollectionChoice[]>();
   private preferences = new Map<string, UserPreferences>();
   private pairingCodes = new Map<string, { userId: string; expiresAt: Date }>();
   private devices: (ExtensionDevice & { userId: string; tokenHash: string })[] = [];
@@ -622,6 +624,18 @@ export class MemoryRepository implements Repository {
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
+  }
+
+  // Sagas -------------------------------------------------------------------
+
+  async listCollectionChoices(userId: string) {
+    return (this.collectionChoices.get(userId) ?? []).map((c) => ({ ...c, order: [...c.order], excluded: [...c.excluded] }));
+  }
+
+  async saveCollectionChoice(userId: string, choice: CollectionChoice) {
+    const others = (this.collectionChoices.get(userId) ?? []).filter((c) => c.collectionId !== choice.collectionId);
+    const keep = choice.order.length > 0 || choice.excluded.length > 0;
+    this.collectionChoices.set(userId, keep ? [...others, { collectionId: choice.collectionId, order: [...choice.order], excluded: [...choice.excluded] }] : others);
   }
 
   // Notifications & preferences --------------------------------------------

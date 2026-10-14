@@ -67,6 +67,8 @@ const PEOPLE: PersonSeed[] = [
       ["arcane", 10, 33, 1],
       ["whiplash", 9, 200],
       ["spirited-away", 10, 260],
+      // The first film of the demo saga: "Saghe da completare" suggests Parte due and counts down to Parte tre.
+      ["dune", 8, 320],
       ["mindhunter", 9, 75],
       ["cowboy-bebop", 9, 310],
       ["oppenheimer", 8, 180],

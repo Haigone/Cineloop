@@ -99,6 +99,15 @@ Per i titoli della sezione anime, la scheda mostra "Da dove lo stai guardando?" 
 - Un link di ricerca non riceve il parametro di ripresa del video. Il seek viene aggiunto soltanto a una pagina Anime Unity `/anime/{id}` già osservata.
 - La scelta manuale è un aiuto temporaneo; la rilevazione dell'estensione resta la fonte più precisa per la pagina, l'episodio e il progresso.
 
+## Film sagas (TMDB collections)
+
+A film's saga comes from TMDB's `belongs_to_collection` (film details) and `/collection/{id}` (all its films). Ids: `tmdb-collection-<id>`; the name loses TMDB's suffix ("- Collezione"), the app says "saga". Films cached from a list are asked once for their saga (`titles.collection_id`: "" = none, null = not checked yet, same as `part_of`). Films made from an anime series stay with their series and are left out.
+
+- **Ordine di visione** on a film's page: release order (the Italian date for a film not out yet or just out, else the worldwide one; undated last). Each user can move films with the arrows and switch films off (`collection_choices`, migration 0016); off films do not count and are never suggested. New films join at the end of a custom order.
+- **Saghe da completare** on Home > Film: sagas with a film seen or in progress and films still to watch or to come out, with the next film and the countdown.
+- **Notifications** (TMDB only, not the demo): "Hai iniziato la saga…, il prossimo è…", the release date of an announced film, and release day. The text names the film and the date, so each is sent once and a new one goes out when the next film or the date changes.
+- Demo catalogue: the "Dune" saga, with a third film whose date moves with today.
+
 ## Anime sources
 
 Anime go to the anime sources first; TMDB answers only when they have nothing (`ANIME_SOURCES=off` turns them off).

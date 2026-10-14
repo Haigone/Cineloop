@@ -33,6 +33,9 @@ export const titles = pgTable(
     partOf: text("part_of"),
     /** An anime franchise in watching order (null for everything else). */
     watchOrder: jsonb("watch_order").$type<WatchPart[]>(),
+    /** A film's saga ("tmdb-collection-119"); "" for a film of its own; null when not checked yet. */
+    collectionId: text("collection_id"),
+    collectionName: text("collection_name"),
   },
   (t) => [index("titles_search_key_idx").on(t.searchKey)],
 );
@@ -234,6 +237,22 @@ export const sharedWatches = pgTable(
     updatedAt: ts("updated_at"),
   },
   (t) => [index("shared_watches_title_idx").on(t.titleId), index("shared_watches_members_idx").using("gin", t.memberIds)],
+);
+
+/** A user's watching order for a saga and the films they leave out. Only stored once they change something. */
+export const collectionChoices = pgTable(
+  "collection_choices",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionId: text("collection_id").notNull(),
+    /** Film ids in the user's order; empty = release order. */
+    order: text("order").array().notNull().default(sql`'{}'::text[]`),
+    excluded: text("excluded").array().notNull().default(sql`'{}'::text[]`),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.collectionId] })],
 );
 
 export const notifications = pgTable(

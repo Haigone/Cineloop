@@ -69,6 +69,39 @@ export interface Movie extends BaseTitle {
   runtimeMinutes: number;
   /** For a film that belongs to an anime series (Bleach, Demon Slayer): that series' id. */
   partOf?: string | null;
+  /** The saga or trilogy the film is part of; null for a film of its own, unset when not checked yet. */
+  collection?: CollectionRef | null;
+}
+
+/** A saga of films ("Il Signore degli Anelli - La trilogia"), by its catalogue id. */
+export interface CollectionRef {
+  /** Namespaced like titles: "tmdb-collection-119". */
+  id: string;
+  name: string;
+}
+
+/** One film of a saga, with its release date. */
+export interface CollectionPart {
+  title: Movie;
+  /** First release in Italy when known, else worldwide (YYYY-MM-DD); null when announced without a date. */
+  releaseDate: string | null;
+}
+
+/** A saga with all its films, in release order (undated ones last). */
+export interface FilmCollection extends CollectionRef {
+  overview: string;
+  artwork: Artwork;
+  parts: CollectionPart[];
+}
+
+/**
+ * How a user watches a saga: their own order (empty = release order) and the
+ * films they leave out, which do not count for "finished" and are never suggested.
+ */
+export interface CollectionChoice {
+  collectionId: string;
+  order: string[];
+  excluded: string[];
 }
 
 export interface SeasonSummary {

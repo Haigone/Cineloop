@@ -27,6 +27,7 @@ import { FillerNotice } from "@/components/home/filler-notice";
 import { AwaitingList } from "@/components/library/awaiting-list";
 import { newSeasonsLabel } from "@/server/services/new-seasons";
 import { NewSeasonsRail } from "@/components/library/new-seasons-rail";
+import { OpenSagas } from "@/components/home/open-sagas";
 import { HOME_SECTIONS, HomeSectionTabs, SectionBackdrop, sectionFromSlug } from "@/components/home/home-sections";
 
 export const metadata: Metadata = { title: "Home" };
@@ -75,6 +76,22 @@ async function ComingFromWishlist({ later }: { later: Promise<HomeLater> }) {
     <RevealItem as="section" className="order-4 min-w-0">
       <SectionHeader title="In uscita dalla tua wishlist" id="home-premieres" description="Titoli che hai messo in wishlist e che non sono ancora usciti: ti avvisiamo il giorno dell’uscita." href="/explore" hrefLabel="Apri Esplora" />
       <AwaitingList items={premieres} label="In uscita dalla tua wishlist" />
+    </RevealItem>
+  );
+}
+
+/** Sagas the viewer started and has not finished: asks the catalogue, so it arrives after the page. Films only. */
+async function Sagas({ later }: { later: Promise<HomeLater> }) {
+  const { sagas } = await later;
+  if (sagas.length === 0) return null;
+  return (
+    <RevealItem as="section" className="order-4 min-w-0">
+      <SectionHeader
+        title="Saghe da completare"
+        id="home-sagas"
+        description="Trilogie e saghe che hai iniziato: il prossimo film da vedere e quelli in arrivo, con la data. Ti avvisiamo anche tra le notifiche."
+      />
+      <OpenSagas sagas={sagas} />
     </RevealItem>
   );
 }
@@ -190,6 +207,12 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
             />
           )}
         </RevealItem>
+
+        {view.category === "movie" && (
+          <Suspense fallback={null}>
+            <Sagas later={view.later} />
+          </Suspense>
+        )}
 
         <Suspense fallback={null}>
           <ComingFromWishlist later={view.later} />

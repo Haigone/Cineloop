@@ -1,5 +1,6 @@
-import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
-import { addDays } from "@/lib/dates";
+import type { CollectionPart, CollectionRef, FilmCollection, Genre, MediaType, Movie, ProviderId, Release, Title } from "@/domain/types";
+import { releaseOrder } from "@/domain/collections";
+import { addDays, italianDay } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
 import { searchKey } from "@/lib/text";
 import { franchiseHead, franchiseKey, franchiseNames, withoutSeriesFilms } from "@/domain/franchise";
@@ -118,7 +119,7 @@ interface TmdbItem {
   /** Present when requested with append_to_response=watch/providers. */
   "watch/providers"?: { results?: Record<string, WatchOffers> };
   /** Film details: the saga it is part of ("Bleach - Collezione"). */
-  belongs_to_collection?: { name?: string } | null;
+  belongs_to_collection?: { id?: number; name?: string } | null;
 }
 
 /** One country's offers (JustWatch data through TMDB). */
@@ -394,7 +395,7 @@ export class TmdbCatalog implements CatalogService {
       const details = await this.get<TmdbItem>(`/${parsed.kind}/${parsed.tmdbId}?append_to_response=watch/providers`);
       const title = toTitle(parsed.kind, details);
       const providers = servicesIn(details["watch/providers"]?.results);
-      if (title.type === "movie") return { ...title, providers, partOf: await this.seriesOf(details) };
+      if (title.type === "movie") return { ...title, providers, partOf: await this.seriesOf(details), collection: collectionRef(details.belongs_to_collection) };
       return { ...title, providers };
     } catch {
       return null;
@@ -548,6 +549,41 @@ export class TmdbCatalog implements CatalogService {
       return { date: first ?? null, known: dates.length > 0, digital: dates.some((d) => d.type === 4) };
     } catch {
       return { date: null, known: false, digital: false };
+    }
+  }
+
+  async collection(id: string): Promise<FilmCollection | null> {
+    const m = /^tmdb-collection-(\d+)$/.exec(id);
+    if (!m) return null;
+    try {
+      const c = await this.get<TmdbCollection>(`/collection/${m[1]}?`);
+      const ref = collectionRef({ id: c.id, name: c.name });
+      if (!ref) return null;
+      const today = italianDay();
+      const recent = addDays(today, -120);
+      const parts = await Promise.all(
+        (c.parts ?? [])
+          .filter((p) => (p.title ?? "").trim())
+          .map(async (p): Promise<CollectionPart> => {
+            const title: Movie = { ...(toTitle("movie", p) as Movie), collection: ref };
+            const world = p.release_date || null;
+            // For a film not out yet, or just out, the date that matters is the Italian one.
+            const date = !world || world >= recent ? ((await this.italianReleaseDate(p.id)) ?? world) : world;
+            return { title, releaseDate: date };
+          }),
+      );
+      return {
+        ...ref,
+        overview: c.overview ?? "",
+        artwork: {
+          posterUrl: c.poster_path ? `${IMAGE}/w500${c.poster_path}` : null,
+          backdropUrl: c.backdrop_path ? `${IMAGE}/w1280${c.backdrop_path}` : null,
+          palette: paletteFor(c.id),
+        },
+        parts: releaseOrder(parts),
+      };
+    } catch {
+      return null;
     }
   }
 
@@ -709,6 +745,30 @@ export function premiereOf(kind: "movie" | "tv", d: TmdbItem, today: string, ita
   const date = first?.air_date || d.next_episode_to_air?.air_date || d.first_air_date || null;
   if (date && date < today) return null;
   return { title, date, season: null, venue: "streaming" };
+}
+
+interface TmdbCollection {
+  id: number;
+  name?: string;
+  overview?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  parts?: TmdbItem[];
+}
+
+/** A film's saga as CineLoop names it; null for a film of its own. Exported for tests. */
+export function collectionRef(c: { id?: number; name?: string } | null | undefined): CollectionRef | null {
+  if (!c?.id || !c.name?.trim()) return null;
+  return { id: `tmdb-collection-${c.id}`, name: sagaName(c.name) };
+}
+
+/** "Il Signore degli Anelli - Collezione" → "Il Signore degli Anelli": the word "saga" is said by the app. */
+export function sagaName(name: string): string {
+  const short = name
+    .trim()
+    .replace(/\s*[-–—:]?\s*\(?(?:la\s+|the\s+)?(?:collezione|collection|saga|trilogia|trilogy)\)?$/i, "")
+    .trim();
+  return short || name.trim();
 }
 
 function parseId(id: string): { kind: "movie" | "tv"; tmdbId: string } | null {
