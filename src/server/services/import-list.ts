@@ -6,8 +6,8 @@ import { getRepository } from "@/server/data";
 import { cacheTitles } from "./explore";
 
 export interface ListItem {
-  /** Netflix's id from the card's link. */
-  id: string;
+  /** Netflix's id from the card's link; absent for titles from the data export. */
+  id?: string;
   title: string;
 }
 
@@ -19,7 +19,8 @@ export interface ImportResult {
 }
 
 /**
- * "La mia lista" read from the Netflix page the user has open: each title
+ * "La mia lista", read from the Netflix page the user has open or from
+ * Netflix's data export the user uploaded: each title
  * goes to the wishlist, unless it is already there or in the library.
  * Matched by a known Netflix id first, then by name (preferring what is on Netflix).
  */
@@ -53,7 +54,7 @@ export async function importNetflixList(userId: string, items: readonly ListItem
 
 async function match(item: ListItem): Promise<Title | null> {
   const repo = getRepository();
-  const linked = await repo.findProviderLink("netflix", [item.id]);
+  const linked = item.id ? await repo.findProviderLink("netflix", [item.id]) : null;
   if (linked) {
     const [title] = await repo.getTitlesByIds([linked]);
     if (title) return title;

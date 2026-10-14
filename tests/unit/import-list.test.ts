@@ -15,3 +15,11 @@ describe("importing La mia lista from Netflix", () => {
     expect((await importNetflixList("u_marco", [{ id: "80114855", title: "Squid Game" }])).already).toBe(1);
   });
 });
+
+describe("importing La mia lista from Netflix's data export", () => {
+  it("matches titles by name alone, without a Netflix id", async () => {
+    const res = await importNetflixList("u_luca", [{ title: "Mindhunter" }]);
+    expect(res.notFound).toEqual([]);
+    expect(res.added.length + res.already).toBe(1);
+  });
+});

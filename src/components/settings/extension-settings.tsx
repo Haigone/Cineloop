@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
 /**
- * Install and pair the CineLoop extension: download, load it in Chrome, then
+ * Install and pair the CineLoop extension: download, load it in Chrome or Firefox, then
  * type the site address and a one-time code into its popup.
  */
 export function ExtensionSettings({ devices }: { devices: ExtensionDevice[] }) {
@@ -50,18 +50,36 @@ export function ExtensionSettings({ devices }: { devices: ExtensionDevice[] }) {
         <li className="flex gap-3">
           <Step n={1} />
           <span>
-            Scarica l’estensione e decomprimi il file.{" "}
+            Scarica l’estensione per il tuo browser:{" "}
             <a href="/cineloop-extension.zip" download className="inline-flex items-center gap-1 font-medium text-fg underline decoration-white/25 underline-offset-4 hover:decoration-white/60">
               <Download aria-hidden className="size-3.5" />
-              cineloop-extension.zip
+              Chrome, Edge o Brave
+            </a>{" "}
+            oppure{" "}
+            <a href="/cineloop-extension-firefox.zip" download className="inline-flex items-center gap-1 font-medium text-fg underline decoration-white/25 underline-offset-4 hover:decoration-white/60">
+              <Download aria-hidden className="size-3.5" />
+              Firefox
             </a>
+            .
           </span>
         </li>
         <li className="flex gap-3">
           <Step n={2} />
-          <span>
-            In Chrome, Edge o Brave apri <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[13px] text-fg">chrome://extensions</code>, attiva la
-            modalità sviluppatore e scegli “Carica estensione non pacchettizzata”, selezionando la cartella.
+          <span className="flex flex-col gap-1.5">
+            <span>
+              <strong className="font-medium text-fg">Chrome, Edge o Brave:</strong> decomprimi il file, apri{" "}
+              <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[13px] text-fg">chrome://extensions</code>, attiva la modalità sviluppatore e scegli “Carica estensione non
+              pacchettizzata”, selezionando la cartella.
+            </span>
+            <span>
+              <strong className="font-medium text-fg">Firefox:</strong> apri <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[13px] text-fg">about:debugging#/runtime/this-firefox</code>,
+              scegli “Carica componente aggiuntivo temporaneo…” e seleziona il file .zip così com’è. Firefox la tiene finché non lo chiudi: dopo un
+              riavvio va caricata di nuovo, finché non è pubblicata su addons.mozilla.org.
+            </span>
+            <span>
+              All’installazione il browser ti chiede una volta sola il permesso di leggere i dati su netflix.com: è l’unico che serve, non dovrai
+              autorizzare Netflix pagina per pagina.
+            </span>
           </span>
         </li>
         <li className="flex gap-3">
@@ -111,8 +129,8 @@ export function ExtensionSettings({ devices }: { devices: ExtensionDevice[] }) {
       </div>
 
       <p className="max-w-[64ch] text-[13px] leading-relaxed text-fg-3">
-        L’estensione legge solo l’indirizzo e il titolo della scheda Netflix in cui stai guardando. Non legge password, cookie o il player, e non
-        tocca altri siti. Puoi metterla in pausa dal suo pannello o scollegarla da qui in qualsiasi momento.
+        L’estensione legge solo l’indirizzo e il titolo della scheda Netflix in cui stai guardando, e dal player il nome della serie e
+        l’episodio. Non legge password né cookie, e non tocca altri siti senza il tuo consenso. Puoi metterla in pausa dal suo pannello o scollegarla da qui in qualsiasi momento.
       </p>
     </div>
   );

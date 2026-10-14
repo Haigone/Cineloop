@@ -1,0 +1,19 @@
+body.page { width: auto; max-width: 620px; margin: 0 auto; padding: 24px 16px 40px; font-size: 14px; }
+body.page h1 { font-size: 20px; margin: 4px 0 6px; }
+body.page > p.muted { margin-bottom: 16px; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--fg-2); }
+.steps strong { color: var(--fg); font-weight: 500; }
+code { background: rgb(255 255 255 / 0.06); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; }
+a.button {
+  justify-self: start; display: inline-flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line-strong); background: rgb(255 255 255 / 0.04); color: var(--fg); text-decoration: none; font-weight: 500;
+}
+a.button:hover { background: rgb(255 255 255 / 0.08); }
+input[type="file"] { height: auto; padding: 8px 10px; }
+select {
+  width: 100%; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--fg); font: inherit;
+}
+#preview, #profile-row { display: grid; gap: 6px; margin-top: 6px; }
+#preview button { justify-self: start; }
+.missing { max-height: 240px; }
