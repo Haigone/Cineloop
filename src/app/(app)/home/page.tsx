@@ -15,6 +15,7 @@ import { LiveFriends } from "@/components/social/live-friends";
 import { Hero } from "@/components/home/hero";
 import { InProgressCard } from "@/components/home/in-progress-card";
 import { TogetherPlaceholder } from "@/components/home/together-placeholder";
+import { UpcomingNightCard } from "@/components/home/upcoming-night";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
 import { reasonLabel } from "@/components/home/tonight";
@@ -139,7 +140,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
           )}
         </RevealItem>
 
-        {view.together.length > 0 && (
+        {(view.together.length > 0 || view.upcomingNights.length > 0) && (
           <RevealItem as="section" className="order-2 min-w-0">
             <SectionHeader
               title="Serate insieme"
@@ -159,6 +160,11 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
                   ) : (
                     <TogetherPlaceholder group={group} />
                   )}
+                </li>
+              ))}
+              {view.upcomingNights.map((night) => (
+                <li key={night.party.id} className="min-w-0">
+                  <UpcomingNightCard night={night} />
                 </li>
               ))}
             </ul>

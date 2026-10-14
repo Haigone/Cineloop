@@ -38,3 +38,9 @@ export function formatDay(day: string, today: string): string {
   const sameYear = day.slice(0, 4) === today.slice(0, 4);
   return d.toLocaleDateString("it-IT", { day: "numeric", month: "long", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" });
 }
+
+/** When a night together is set for, as "Venerdì 17 ottobre alle ore 21:00" in Italian time. */
+export function nightDate(iso: string): string {
+  const s = new Date(iso).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

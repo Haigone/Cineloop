@@ -19,6 +19,7 @@ import type {
   UserPreferences,
   WatchEvent,
   WatchParty,
+  WatchPartyStatus,
   WatchProgress,
   WatchStatus,
   WishlistItem,
@@ -125,6 +126,7 @@ export interface Repository {
   createWatchParty(party: Omit<WatchParty, "id" | "createdAt">): Promise<WatchParty>;
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;
+  setWatchPartyStatus(partyId: string, status: WatchPartyStatus): Promise<void>;
 
   // Serate insieme: shared progress on a series or anime
   /** The groups the user is in, newest first. */
