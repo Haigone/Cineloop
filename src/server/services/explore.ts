@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { getCatalog } from "@/integrations/catalog";
 import type { CatalogSort } from "@/integrations/catalog/types";
 import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
+import { withoutReplaced } from "@/domain/duplicates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
@@ -380,7 +381,9 @@ function withKnownSeasons(fresh: Title, known: Title | undefined): Title {
   return { ...fresh, seasons: known.seasons, episodeRuntimeMinutes: fresh.episodeRuntimeMinutes || known.episodeRuntimeMinutes };
 }
 
-export async function cacheTitles(repo: Repository, titles: readonly Title[]): Promise<void> {
+export async function cacheTitles(repo: Repository, all: readonly Title[]): Promise<void> {
+  // A duplicate of another title is never stored again.
+  const titles = withoutReplaced(all);
   if (titles.length === 0) return;
   try {
     // Search and list results carry no seasons: keep the ones already known.

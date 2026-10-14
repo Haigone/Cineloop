@@ -1,4 +1,5 @@
 import type { FilmCollection, MediaType, Release, Title } from "@/domain/types";
+import { isKeptTitle, isReplaced } from "@/domain/duplicates";
 import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, CastMember, PersonDetails, PersonHit } from "@/integrations/catalog/types";
 import { addDays, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
@@ -6,7 +7,7 @@ import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
 import { AL_ID, AniListClient, type AniListAnime, alSeries, alDate, alNames } from "./anilist";
 import { JikanClient, MAL_ID, airDate, namesOf, toSeries } from "./jikan";
-import { ANIME_ID, buildFranchise, collectEntries, kindOf, runOffset, withinEntry, type Franchise } from "./franchise";
+import { ANIME_ID, animeId, buildFranchise, collectEntries, kindOf, runOffset, withinEntry, type Franchise } from "./franchise";
 import type { AnimeEntry } from "./types";
 
 /** A built franchise is reused for this long before the sources are asked again. */
@@ -229,10 +230,12 @@ export class AnimeFirstCatalog implements CatalogService {
       const f = await this.franchise(seed.id, entries);
       if (f && !franchises.some((x) => x.title.id === f.title.id)) franchises.push(f);
     }
-    if (franchises.length === 0) return found;
+    // A franchise that repeats a title kept from the catalogue (JoJo) is not shown; the catalogue's title is.
+    const shown = franchises.filter((f) => !isReplaced(f.title.id) && ![...f.entries.keys()].some((id) => isReplaced(animeId(id))));
+    if (shown.length === 0) return found;
     // A franchise stands for its series and its films: TMDB's own anime results would repeat them.
-    const rest = found.filter((t) => !isAnimeish(t) && !(t.type === "movie" && (t.partOf || franchises.some((f) => isPartOf(t, f)))));
-    return [...franchises.map((f) => f.title), ...rest].slice(0, limit);
+    const rest = found.filter((t) => isKeptTitle(t.id) || (!isAnimeish(t) && !(t.type === "movie" && (t.partOf || shown.some((f) => isPartOf(t, f))))));
+    return [...shown.map((f) => f.title), ...rest].slice(0, limit);
   }
 
   async getTitle(id: string): Promise<Title | null> {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { migrateAnimeTitle } from "@/server/services/anime-migration";
+import { retireDuplicate } from "@/server/services/duplicates";
 import { Suspense } from "react";
 import { ExternalLink } from "lucide-react";
 import { STATUS_LABEL } from "@/domain/library";
@@ -97,6 +98,9 @@ export default function TitlePage({ params }: PageProps<"/title/[id]">) {
 
 async function TitleContent({ params }: { params: PageProps<"/title/[id]">["params"] }) {
   const { id } = await params;
+  // A duplicate of another title opens the one kept in its place, with what was saved on it.
+  const kept = await retireDuplicate(id);
+  if (kept) redirect(`/title/${kept}`);
   // An anime that still has its TMDB id moves to its franchise card (for everyone) and the page follows.
   const moved = await migrateAnimeTitle(id);
   if (moved) redirect(`/title/${moved}`);
