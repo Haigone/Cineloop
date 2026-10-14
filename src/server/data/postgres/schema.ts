@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -216,6 +216,8 @@ export const watchParties = pgTable(
     candidateTitleIds: text("candidate_title_ids").array().notNull(),
     pickedTitleId: text("picked_title_id").references(() => titles.id, { onDelete: "set null" }),
     createdAt: ts("created_at").notNull().defaultNow(),
+    status: text("status").$type<WatchPartyStatus>().notNull().default("done"),
+    scheduledFor: ts("scheduled_for"),
   },
   (t) => [index("watch_parties_host_idx").on(t.hostId, t.createdAt)],
 );

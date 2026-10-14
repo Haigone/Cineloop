@@ -329,7 +329,15 @@ export interface WatchParty {
   candidateTitleIds: string[];
   pickedTitleId: string | null;
   createdAt: string;
+  /**
+   * "done": saved only (older nights). "started": being watched, with a Serata insieme on Home.
+   * "scheduled": starts at `scheduledFor`. "queued": starts when the host's current nights are finished.
+   */
+  status?: WatchPartyStatus;
+  scheduledFor?: string | null;
 }
+
+export type WatchPartyStatus = "done" | "started" | "scheduled" | "queued";
 
 export type NotificationKind = "friend-activity" | "suggestion" | "watch-party" | "system";
 

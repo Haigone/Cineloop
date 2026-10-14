@@ -22,6 +22,7 @@ import type {
   UserPreferences,
   WatchEvent,
   WatchParty,
+  WatchPartyStatus,
   WatchProgress,
   WatchStatus,
   WishlistItem,
@@ -605,9 +606,10 @@ export class PostgresRepository implements Repository {
   }
 
   async createWatchParty(input: Omit<WatchParty, "id" | "createdAt">) {
+    const { scheduledFor, ...rest } = input;
     const [row] = await this.db
       .insert(schema.watchParties)
-      .values({ ...input, id: `wp_${crypto.randomUUID()}` })
+      .values({ ...rest, scheduledFor: scheduledFor ? new Date(scheduledFor) : null, id: `wp_${crypto.randomUUID()}` })
       .returning();
     return toParty(row!);
   }
@@ -617,6 +619,10 @@ export class PostgresRepository implements Repository {
       .update(schema.watchParties)
       .set({ pickedTitleId: titleId })
       .where(and(eq(schema.watchParties.id, partyId), eq(schema.watchParties.hostId, hostId)));
+  }
+
+  async setWatchPartyStatus(partyId: string, status: WatchPartyStatus) {
+    await this.db.update(schema.watchParties).set({ status }).where(eq(schema.watchParties.id, partyId));
   }
 
   async listWatchParties(userId: string, limit: number) {
@@ -890,6 +896,8 @@ function toParty(r: typeof schema.watchParties.$inferSelect): WatchParty {
     candidateTitleIds: r.candidateTitleIds,
     pickedTitleId: r.pickedTitleId,
     createdAt: iso(r.createdAt),
+    status: r.status,
+    scheduledFor: r.scheduledFor ? iso(r.scheduledFor) : null,
   };
 }
 

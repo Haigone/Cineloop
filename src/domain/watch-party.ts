@@ -1,4 +1,4 @@
-import type { Genre, LibraryEntry, PublicUser, Title, WatchPartyFilter, WishlistItem } from "./types";
+import { sectionOf, type Genre, type LibraryEntry, type MediaType, type PublicUser, type Title, type WatchPartyFilter, type WishlistItem } from "./types";
 
 /** The minimum the matcher needs per person: serialisable, so it can run in the browser. */
 export interface PartyMember {
@@ -29,8 +29,11 @@ export interface PartySource {
   /** "<userId>:wishlist" or "<userId>:<playlistId>". */
   key: string;
   ownerId: string;
-  kind: "wishlist" | "playlist";
+  /** "community": published in Community by anyone, usable by whoever organises the night. */
+  kind: "wishlist" | "playlist" | "community";
   label: string;
+  /** Whose list it is, for Community playlists. */
+  ownerName?: string;
   titleIds: string[];
 }
 
@@ -106,4 +109,42 @@ export function wheelSample<T>(all: readonly T[], winnerIndex: number, max: numb
   const index = Math.min(items.length, Math.floor(random() * max));
   items.splice(index, 0, all[winnerIndex]!);
   return { items, index };
+}
+
+/** Whose wishlist a night draws from: nobody's, everybody's, or one person's (their user id). */
+export type WishlistChoice = "none" | "all" | (string & {});
+
+/**
+ * The titles of a night built step by step: the wishlists chosen (titles everyone
+ * wants, or anyone wants) plus the playlists picked, in the chosen categories and
+ * genre, leaving out whatever someone in the group has already seen or is watching.
+ */
+export function nightCandidates(input: {
+  members: readonly PartyMember[];
+  titles: readonly Title[];
+  categories: ReadonlySet<MediaType>;
+  genre: Genre | null;
+  wishlist: WishlistChoice;
+  /** "common": in every chosen wishlist; "any": in at least one. */
+  match: "common" | "any";
+  sources: readonly PartySource[];
+  pickedSources: ReadonlySet<string>;
+}): PartyCandidate[] {
+  const { members } = input;
+  const fromWishlist = input.wishlist === "none" ? [] : input.wishlist === "all" ? members : members.filter((m) => m.user.id === input.wishlist);
+  const wanted = new Map<string, PublicUser[]>();
+  for (const m of fromWishlist) for (const id of m.wantedIds) wanted.set(id, [...(wanted.get(id) ?? []), m.user]);
+  const ids = new Set<string>();
+  for (const [id, by] of wanted) if (input.match === "any" || by.length === fromWishlist.length) ids.add(id);
+  for (const s of input.sources) if (input.pickedSources.has(s.key)) for (const id of s.titleIds) ids.add(id);
+  const seen = new Set(members.flatMap((m) => m.seenIds));
+  const out: PartyCandidate[] = [];
+  for (const title of input.titles) {
+    if (!ids.has(title.id) || seen.has(title.id)) continue;
+    if (!input.categories.has(sectionOf(title))) continue;
+    if (input.genre && !title.genres.includes(input.genre)) continue;
+    const wantedBy = wanted.get(title.id) ?? [];
+    out.push({ title, wantedBy, match: members.length ? wantedBy.length / members.length : 0 });
+  }
+  return out.sort((a, b) => b.match - a.match || (b.title.communityRating ?? 0) - (a.title.communityRating ?? 0));
 }

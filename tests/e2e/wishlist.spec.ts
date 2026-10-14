@@ -118,6 +118,8 @@ test("make a playlist, fill it, and load it into a night together", async ({ pag
   await expect(card.getByRole("list", { name: "Titoli di Natale" })).toBeVisible();
 
   await page.goto("/watch-party");
+  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Avanti" }).click();
+  await expect(page.getByRole("heading", { name: "Aggiungi playlist" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Natale/ })).toBeVisible();
 
   // Tidy up: the demo account is shared with the other tests.

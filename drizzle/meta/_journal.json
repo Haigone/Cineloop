@@ -120,6 +120,13 @@
       "when": 1791983036723,
       "tag": "0016_film_collections",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791986284005,
+      "tag": "0017_party_schedule",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,8 @@ import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, ty
 import { listLiveFriends, type LiveFriend } from "./sync";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
 import { listOpenSagas, notifySagas } from "./collections";
+import { activateNights } from "./nights";
+import { listUpcomingNights, type UpcomingNight } from "./watch-party";
 import type { SagaStatus } from "@/domain/collections";
 import { getCatalog } from "@/integrations/catalog";
 
@@ -60,6 +62,8 @@ export interface HomeView {
   together: { group: SharedWatchView; item: ContinueItem | null }[];
   /** The group of the hero's title, when it is watched together. */
   nowWatchingGroup: SharedWatchView | null;
+  /** Nights together of this section planned for another day or waiting in the queue. */
+  upcomingNights: UpcomingNight[];
   recentlyWatched: RecentWatchItem[];
   /** Friends watching right now through the extension; they can be joined. */
   liveFriends: LiveFriend[];
@@ -89,6 +93,12 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   const repo = getRepository();
   const now = new Date();
 
+  // Nights whose time has come start now, so Home shows them already in "Serate insieme".
+  const parties = await repo.listWatchParties(viewer.id, 100);
+  const hosts = new Set(parties.filter((p) => p.status === "scheduled" || p.status === "queued").map((p) => p.hostId));
+  let activated = false;
+  for (const host of hosts) activated = (await activateNights(repo, host, now).catch((err) => (console.error("nights failed", err), false))) || activated;
+
   const [library, wishlist, events, friends, presence, allTitles] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
@@ -99,11 +109,12 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   ]);
   const friendIds = friends.map((f) => f.user.id);
   const titles = new Map(allTitles.map((t) => [t.id, t]));
-  const [activity, prefs, liveFriends, groups] = await Promise.all([
+  const [activity, prefs, liveFriends, groups, upcoming] = await Promise.all([
     listSharedActivity(repo, friendIds, 30),
     repo.getPreferences(viewer.id),
     listLiveFriends(repo, viewer.id, friendIds),
     listSharedWatchViews(repo, viewer.id, titles),
+    listUpcomingNights(repo, viewer.id, activated ? undefined : parties),
   ]);
   const liveIds = new Set(liveFriends.map((l) => l.user.id));
 
@@ -205,6 +216,7 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     background: sectionBackground(prefs, category, library, inSection),
     nowWatching: continueWatching[0] ?? null,
     nowWatchingGroup: continueWatching[0] ? (sectionGroups.find((g) => g.title.id === continueWatching[0]!.title.id) ?? null) : null,
+    upcomingNights: upcoming.filter((n) => sectionOf(n.title) === category),
     continueWatching: continueWatching.slice(1).filter((item) => !sectionGroups.some((g) => g.title.id === item.title.id)),
     together: sectionGroups
       .filter((g) => g.title.id !== continueWatching[0]?.title.id)

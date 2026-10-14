@@ -19,6 +19,7 @@ import type {
   UserPreferences,
   WatchEvent,
   WatchParty,
+  WatchPartyStatus,
   WatchProgress,
   WatchStatus,
   WishlistItem,
@@ -543,6 +544,11 @@ export class MemoryRepository implements Repository {
   async setWatchPartyPick(partyId: string, hostId: string, titleId: string) {
     const party = this.parties.find((p) => p.id === partyId && p.hostId === hostId);
     if (party) party.pickedTitleId = titleId;
+  }
+
+  async setWatchPartyStatus(partyId: string, status: WatchPartyStatus) {
+    const party = this.parties.find((p) => p.id === partyId);
+    if (party) party.status = status;
   }
 
   async listWatchParties(userId: string, limit: number) {
