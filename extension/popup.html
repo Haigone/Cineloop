@@ -62,7 +62,6 @@
     <section id="main" hidden>
       <div class="tabs" role="tablist" aria-label="Sezioni">
         <button id="tab-now" role="tab" aria-controls="panel-now" aria-selected="true">Sto guardando</button>
-        <button id="tab-list" role="tab" aria-controls="panel-list" aria-selected="false" tabindex="-1">Watchlist</button>
         <button id="tab-together" role="tab" aria-controls="panel-together" aria-selected="false" tabindex="-1">
           Guarda insieme <span id="together-dot" class="dot" aria-hidden="true" hidden></span>
         </button>
@@ -117,16 +116,6 @@
 
       </div>
 
-      <div id="panel-list" role="tabpanel" aria-labelledby="tab-list" hidden>
-        <div id="my-list" class="card" hidden>
-          <ul id="list-items" class="list"></ul>
-        </div>
-        <div id="list-empty" class="card" hidden>
-          <p class="title">La tua watchlist è vuota</p>
-          <p class="muted">Aggiungi titoli su CineLoop, oppure importa la tua lista di Netflix dalla scheda Importa.</p>
-        </div>
-      </div>
-
       <div id="panel-import" role="tabpanel" aria-labelledby="tab-import" hidden>
         <div class="card">
           <p class="title">La mia lista di Netflix</p>
@@ -135,6 +124,17 @@
           <button id="import-btn" type="button" class="primary" hidden></button>
           <p id="import-status" class="muted small" role="status" hidden></p>
           <ul id="import-missing" class="missing" hidden></ul>
+        </div>
+        <div class="card">
+          <p class="title">Dall’export dei dati di Netflix</p>
+          <p class="muted">Funziona senza aprire La mia lista e anche con liste lunghe. Netflix prepara i tuoi dati su richiesta:</p>
+          <ol class="steps">
+            <li>Su Netflix apri Account › Sicurezza e privacy › Scarica le tue informazioni personali e invia la richiesta.</li>
+            <li>Conferma dall’email di Netflix.</li>
+            <li>Quando i dati sono pronti (di solito entro un giorno), scarica lo .zip e caricalo qui.</li>
+          </ol>
+          <button id="export-request" type="button">Richiedi i dati su Netflix</button>
+          <button id="export-upload" type="button" class="primary">Carica il file di Netflix</button>
         </div>
       </div>
 
@@ -175,7 +175,7 @@
 
       <details id="provider-settings" class="card">
         <summary>Servizi collegati</summary>
-        <p class="muted small">Puoi attivare o disattivare ogni sito anche dopo il primo consenso.</p>
+        <p class="muted small">Netflix è attivo dall’installazione: per non farti vedere usa “Metti in pausa”. Gli altri siti li attivi o disattivi qui.</p>
         <div class="row"><span>Netflix</span><button id="manage-netflix" type="button"></button></div>
         <div class="row"><span>AnimeUnity</span><button id="manage-au" type="button"></button></div>
         <div class="row"><span>StreamingCommunity</span><button id="manage-sc" type="button"></button></div>
