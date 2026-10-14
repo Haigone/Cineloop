@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
+import Link from "next/link";
 import { LogOut } from "lucide-react";
+import { isGuest } from "@/domain/types";
 import { logout } from "@/server/actions/auth";
 import { getSettingsView } from "@/server/services/settings";
 import { Button } from "@/components/ui/button";
@@ -79,14 +81,35 @@ async function SettingsContent() {
       </Section>
 
       <Section id="account" title="Account">
-        <dl className="mb-6 flex flex-col gap-1">
-          <dt className="text-[13px] font-medium text-fg">Email</dt>
-          <dd className="text-sm text-fg-2">{user.email}</dd>
-        </dl>
-        <h3 className="mb-3 text-sm font-medium text-fg">Cambia password</h3>
-        <PasswordForm />
+        {isGuest(user) ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-[52ch] text-sm text-fg-2">
+              Stai usando CineLoop solo con l’username <span className="text-fg">@{user.username}</span>. Aggiungi email e password per non perdere i tuoi
+              salvataggi e ritrovarli su altri dispositivi.
+            </p>
+            <Link
+              href="/register"
+              className="rounded-md bg-accent-fill px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-fill-hover"
+            >
+              Completa la registrazione
+            </Link>
+          </div>
+        ) : (
+          <>
+            <dl className="mb-6 flex flex-col gap-1">
+              <dt className="text-[13px] font-medium text-fg">Email</dt>
+              <dd className="text-sm text-fg-2">{user.email}</dd>
+            </dl>
+            <h3 className="mb-3 text-sm font-medium text-fg">Cambia password</h3>
+            <PasswordForm />
+          </>
+        )}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          <p className="text-sm text-fg-2">Esci da CineLoop su questo dispositivo.</p>
+          <p className="text-sm text-fg-2">
+            {isGuest(user)
+              ? "Esci da CineLoop su questo dispositivo. Senza registrazione non potrai rientrare in questo account."
+              : "Esci da CineLoop su questo dispositivo."}
+          </p>
           <form action={logout}>
             <Button type="submit" variant="ghost" icon={<LogOut aria-hidden className="size-4" />}>
               Esci

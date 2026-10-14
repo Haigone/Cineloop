@@ -1,10 +1,41 @@
 import { expect, test } from "@playwright/test";
 import { DEMO, signIn } from "./helpers";
 
-test("signed-out visitors are sent to the login page", async ({ page }) => {
+test("signed-out visitors start by picking a username, with a way to sign in", async ({ page }) => {
   await page.goto("/wishlist");
+  await expect(page).toHaveURL(/\/start\?next=%2Fwishlist/);
+  await expect(page.getByRole("heading", { level: 1, name: "Scegli un username" })).toBeVisible();
+  await expect(page.getByText("Ti servirà l’estensione CineLoop.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Scarica per Chrome, Edge o Brave" })).toHaveAttribute("href", "/cineloop-extension.zip");
+  await expect(page.getByRole("link", { name: "Scarica per Firefox" })).toHaveAttribute("href", "/cineloop-extension-firefox.zip");
+  await page.getByRole("link", { name: "Accedi" }).click();
   await expect(page).toHaveURL(/\/login\?next=%2Fwishlist/);
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("a guest uses the site with only a username, then registers and keeps everything", async ({ page }) => {
+  const id = Date.now().toString(36);
+  await page.goto("/start");
+  await page.getByLabel("Username").fill(`ospite${id}`);
+  await page.getByRole("button", { name: "Inizia" }).click();
+  await expect(page).toHaveURL(/\/welcome$/);
+  await page.getByRole("button", { name: "Dark" }).click();
+  await expect(page.getByRole("button", { name: "Dark" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.goto("/library");
+  const banner = page.getByRole("status").filter({ hasText: "Non sei ancora registrato." });
+  await expect(banner).toBeVisible();
+  await banner.getByRole("link", { name: "Registrati" }).click();
+
+  await expect(page.getByRole("heading", { level: 1, name: "Completa la registrazione" })).toBeVisible();
+  await expect(page.getByLabel("Username")).toHaveValue(`ospite${id}`);
+  await page.getByLabel("Nome").fill("Ospite Registrato");
+  await page.getByLabel("Email").fill(`ospite${id}@example.com`);
+  await page.getByLabel("Password").fill("una-password-lunga");
+  await page.getByRole("button", { name: "Completa la registrazione" }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByText("Non sei ancora registrato.")).toHaveCount(0);
+  await page.goto("/library");
+  await expect(page.getByRole("heading", { level: 3, name: "Dark" })).toBeVisible();
 });
 
 test("a wrong password shows a clear error", async ({ page }) => {
@@ -23,7 +54,7 @@ test("sign in returns to the requested page, sign out ends the session", async (
   await page.getByRole("button", { name: "Esci" }).click();
   await expect(page).toHaveURL(/\/login/);
   await page.goto("/home");
-  await expect(page).toHaveURL(/\/login/);
+  await expect(page).toHaveURL(/\/start/);
 });
 
 test("the demo button signs in without typing", async ({ page }) => {

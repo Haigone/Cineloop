@@ -41,8 +41,9 @@ export const users = pgTable("users", {
   id: text("id").primaryKey(),
   username: text("username").notNull().unique(),
   displayName: text("display_name").notNull(),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  /** Both null for a guest (username only) until they register. */
+  email: text("email").unique(),
+  passwordHash: text("password_hash"),
   avatarUrl: text("avatar_url"),
   bio: text("bio"),
   createdAt: ts("created_at").notNull().defaultNow(),

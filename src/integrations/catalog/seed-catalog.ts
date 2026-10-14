@@ -2,7 +2,7 @@ import type { MediaType, Release, Title } from "@/domain/types";
 import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
-import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonDetails, PersonHit } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, CastMember, PersonDetails, PersonHit } from "./types";
 import { franchiseKey } from "@/domain/franchise";
 
 /**
@@ -39,6 +39,10 @@ export class SeedCatalog implements CatalogService {
 
   async person(_id: string): Promise<PersonDetails | null> {
     return null;
+  }
+
+  async cast(_title: Title, _limit: number): Promise<CastMember[]> {
+    return [];
   }
 
   async getTitle(id: string): Promise<Title | null> {
