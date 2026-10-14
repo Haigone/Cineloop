@@ -2,12 +2,38 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import sys
 import threading
 from urllib.parse import urlparse
 
 HOST = "127.0.0.1"
 PORT = 32145
-APP_ID = os.environ.get("CINELOOP_DISCORD_APP_ID", "").strip()
+def load_app_id():
+    value = os.environ.get("CINELOOP_DISCORD_APP_ID", "").strip()
+    if value:
+        return value
+    # In modalita silenziosa legge l'ID dal file start.bat, senza duplicarlo altrove.
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.bat"), "r", encoding="utf-8-sig") as config:
+            for line in config:
+                line = line.strip()
+                prefix = "set CINELOOP_DISCORD_APP_ID="
+                if line.lower().startswith(prefix.lower()):
+                    value = line[len(prefix):].strip().strip('"')
+                    if value and value.upper() != "INSERISCI_QUI_APPLICATION_ID":
+                        return value
+    except OSError:
+        pass
+    return ""
+
+
+# pythonw.exe non dispone di console: conserva diagnostica ed errori nel file bridge.log.
+if sys.stdout is None or sys.stderr is None:
+    _log = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge.log"), "a", encoding="utf-8", buffering=1)
+    sys.stdout = _log
+    sys.stderr = _log
+
+APP_ID = load_app_id()
 RPC = None
 RPC_LOCK = threading.Lock()
 LAST_ACTIVITY_KEY = None
