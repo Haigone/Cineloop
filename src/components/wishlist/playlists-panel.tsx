@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
-import { Globe, ListPlus, Lock, Trash2, X } from "lucide-react";
+import { useOptimistic, useState, useTransition } from "react";
+import { ArrowRight, Globe, ListPlus, Lock, Trash2, X } from "lucide-react";
 import type { PlaylistVisibility } from "@/domain/types";
 import type { PlaylistView, WishlistRow } from "@/server/services/wishlist";
+import type { CommunityPlaylistView } from "@/server/services/community";
 import {
   createPlaylist,
   deletePlaylist,
@@ -17,6 +18,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { MEDIA_TYPE_LABEL } from "@/lib/format";
 import { PlaylistCover } from "./playlist-cover";
+import { CommunityPlaylistCard } from "@/components/community/community-playlist-card";
 
 const VISIBILITY: Record<PlaylistVisibility, { label: string; hint: string }> =
   {
@@ -31,12 +33,14 @@ const VISIBILITY: Record<PlaylistVisibility, { label: string; hint: string }> =
     },
   };
 
-/** The viewer's playlists: create, rename, choose who can use them, add and remove titles. */
+/** The viewer's playlists: create, rename, choose who can use them, add and remove titles. Then the ones saved from Community. */
 export function PlaylistsPanel({
   playlists,
+  saved,
   wishlist,
 }: {
   playlists: PlaylistView[];
+  saved: CommunityPlaylistView[];
   wishlist: WishlistRow[];
 }) {
   const [name, setName] = useState("");
@@ -124,6 +128,32 @@ export function PlaylistsPanel({
           ))}
         </ul>
       )}
+
+      <section aria-labelledby="saved-playlists" className="flex flex-col gap-3 border-t border-line pt-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="saved-playlists" className="text-[17px] font-semibold tracking-[-0.01em] text-fg">
+              Salvate dalla Community
+            </h2>
+            <p className="mt-1 text-sm text-fg-2">
+              Restano separate dalla tua wishlist: aggiungi i titoli che ti mancano quando vuoi, senza doppioni.
+            </p>
+          </div>
+          <Link href="/community" className="inline-flex shrink-0 items-center gap-1 rounded-sm text-[13px] text-fg-2 transition-colors hover:text-fg">
+            Esplora la Community
+            <ArrowRight aria-hidden className="size-4" />
+          </Link>
+        </div>
+        {saved.length === 0 ? (
+          <p className="text-sm text-fg-2">Nessuna playlist salvata. Trovi quelle pubblicate dagli altri nella Community.</p>
+        ) : (
+          <ul className="grid items-start gap-4 lg:grid-cols-2">
+            {saved.map((view) => (
+              <CommunityPlaylistCard key={view.playlist.id} view={view} where="wishlist" />
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -139,6 +169,7 @@ function PlaylistCard({
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(playlist.name);
   const [confirming, setConfirming] = useState(false);
+  const [published, setPublished] = useOptimistic(playlist.publishedAt !== null);
   const toast = useToast();
   const inside = new Set(playlist.titleIds);
   const addable = wishlist.filter((r) => !inside.has(r.title.id));
@@ -256,6 +287,38 @@ function PlaylistCard({
             <Globe aria-hidden className="size-3" />
           )}
           {VISIBILITY[playlist.visibility].hint}
+        </p>
+      )}
+      {!owner && (
+        <label className="mt-2 flex w-fit items-center gap-2 text-sm text-fg">
+          <input
+            type="checkbox"
+            checked={published}
+            disabled={pending}
+            aria-describedby={`${hintId}-community`}
+            onChange={(e) => {
+              const next = e.target.checked;
+              act(
+                () => {
+                  setPublished(next);
+                  return updatePlaylist(playlist.id, { published: next });
+                },
+                next ? "Pubblicata nella Community" : "Tolta dalla Community",
+              );
+            }}
+            className="size-4 accent-[var(--color-accent)]"
+          />
+          Pubblica nella Community
+        </label>
+      )}
+      {!owner && (
+        <p id={`${hintId}-community`} className="mt-1 text-xs text-fg-3">
+          {published ? "Chiunque su CineLoop può vederla e salvarla, anche se sopra è “Solo io”. " : "Chiunque su CineLoop potrà vederla e salvarla. "}
+          {published && (
+            <Link href="/community" className="rounded-sm underline underline-offset-4 hover:text-fg">
+              Vedila nella Community
+            </Link>
+          )}
         </p>
       )}
 
