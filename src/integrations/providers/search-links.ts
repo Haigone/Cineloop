@@ -9,7 +9,7 @@ export function providerSearchUrl(providerId: ProviderId, title: string): string
     case "netflix":
       return `https://www.netflix.com/search?q=${encoded}`;
     case "animeunity":
-      return `https://www.animeunity.so/filter?search=${encoded}`;
+      return `https://www.animeunity.so/archivio?title=${encoded}`;
     default:
       return null;
   }

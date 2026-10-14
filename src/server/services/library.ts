@@ -11,7 +11,7 @@ import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { cacheTitles, ensureTitle } from "./explore";
-import { loadFriendBundles } from "./shared";
+import { animeUnityResumeUrl, loadFriendBundles } from "./shared";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
 
 export interface LibraryView {
@@ -121,9 +121,13 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
         id: p.id,
         name: p.name,
         tint: p.tint,
-        url: pid === "animeunity" || pid === "netflix"
-          ? providerSearchUrl(pid, title.title)
-          : getAdapter(pid).getContentUrl({ providerId: pid, externalId: null, title: title.title, type: title.type, season: null, episode: null, titleId: id }),
+        url: pid === "animeunity"
+          ? progress?.providerId === "animeunity" && progress.url
+            ? animeUnityResumeUrl(progress.url, 0)
+            : providerSearchUrl(pid, title.title)
+          : pid === "netflix"
+            ? providerSearchUrl(pid, title.title)
+            : getAdapter(pid).getContentUrl({ providerId: pid, externalId: null, title: title.title, type: title.type, season: null, episode: null, titleId: id }),
       };
     }),
     friends: friendRows,
