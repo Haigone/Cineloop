@@ -7,7 +7,7 @@ import { logout } from "@/server/actions/auth";
 import { Avatar } from "@/components/ui/avatar";
 import { Popover } from "@/components/ui/popover";
 
-export function UserMenu({ user }: { user: PublicUser }) {
+export function UserMenu({ user, guest = false }: { user: PublicUser; guest?: boolean }) {
   return (
     <Popover
       label="Menu account"
@@ -34,7 +34,13 @@ export function UserMenu({ user }: { user: PublicUser }) {
           <MenuLink href="/settings" icon={<Settings className="size-4" />} onClick={close}>
             Impostazioni
           </MenuLink>
-          <form action={logout}>
+          <form
+            action={logout}
+            onSubmit={(e) => {
+              // A guest has no password to sign back in with.
+              if (guest && !window.confirm("Non sei registrato: se esci perdi l'accesso a questo account e a tutti i salvataggi. Uscire comunque?")) e.preventDefault();
+            }}
+          >
             <button type="submit" className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-fg-2 hover:bg-white/[0.05] hover:text-fg">
               <LogOut aria-hidden className="size-4" />
               Esci

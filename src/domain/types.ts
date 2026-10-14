@@ -145,10 +145,16 @@ export interface User {
   id: string;
   username: string;
   displayName: string;
-  email: string;
+  /** Null for a guest: an account started with only a username, not registered yet. */
+  email: string | null;
   avatarUrl: string | null;
   bio: string | null;
   createdAt: string;
+}
+
+/** A guest picked only a username; their saves live on until they register. */
+export function isGuest(user: Pick<User, "email">): boolean {
+  return user.email === null;
 }
 
 /** What other users may see about someone. */

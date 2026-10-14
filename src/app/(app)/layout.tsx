@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GuestBanner } from "@/components/layout/guest-banner";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -10,6 +11,7 @@ import { ApplyMotionPreference } from "@/components/settings/apply-motion-prefer
 import { UserMenu } from "@/components/layout/user-menu";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { filterNotifications } from "@/domain/notifications";
+import { isGuest } from "@/domain/types";
 import { getRepository } from "@/server/data";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -37,6 +39,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             </Suspense>
           }
         />
+        <Suspense>
+          <GuestBanner />
+        </Suspense>
         <main id="main" tabIndex={-1} className="mx-auto max-w-[1480px] px-4 pt-6 pb-28 outline-none md:px-6 md:pb-16 lg:px-8">
           {children}
           {process.env.TMDB_READ_TOKEN && (
@@ -74,7 +79,7 @@ async function TopBarActions() {
     <>
       <ApplyMotionPreference reduce={prefs.reduceMotion} />
       <NotificationsMenu notifications={notifications} />
-      <UserMenu user={{ id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, bio: user.bio }} />
+      <UserMenu user={{ id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, bio: user.bio }} guest={isGuest(user)} />
     </>
   );
 }

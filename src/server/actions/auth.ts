@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { createSession, destroySession } from "@/server/auth/session";
+import { getOptionalUser } from "@/server/auth/current-user";
+import { createSession, destroySession, GUEST_SESSION_TTL_MS } from "@/server/auth/session";
 import { getRepository } from "@/server/data";
+import { isGuest } from "@/domain/types";
 
 export interface AuthFormState {
   error?: string;
@@ -37,16 +39,73 @@ export async function login(_prev: AuthFormState, formData: FormData): Promise<A
   redirect(safeRedirect(formData.get("next")));
 }
 
+const usernameField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9_]{3,20}$/, "3–20 caratteri: lettere, numeri o underscore.");
+
 const registerSchema = z.object({
   displayName: z.string().trim().min(2, "Usa almeno 2 caratteri.").max(48, "Massimo 48 caratteri."),
-  username: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .regex(/^[a-z0-9_]{3,20}$/, "3–20 caratteri: lettere, numeri o underscore."),
+  username: usernameField,
   email: z.string().trim().toLowerCase().email("Inserisci un indirizzo email valido."),
   password: z.string().min(10, "Usa almeno 10 caratteri.").max(128),
 });
+
+/**
+ * Use CineLoop with just a username: the account is created right away with
+ * no email or password, and everything saved goes on it. Registering later
+ * fills those in and keeps it all.
+ */
+export async function startAsGuest(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const values = { username: String(formData.get("username") ?? "") };
+  const parsed = usernameField.safeParse(formData.get("username") ?? "");
+  if (!parsed.success) return { fieldErrors: { username: parsed.error.issues[0]?.message }, values };
+
+  const repo = getRepository();
+  try {
+    if (await repo.getUserByUsername(parsed.data)) {
+      return { fieldErrors: { username: "Questo username è già preso." }, values };
+    }
+    const user = await repo.createUser({ username: parsed.data, displayName: parsed.data, email: null, passwordHash: null });
+    await createSession(user.id, GUEST_SESSION_TTL_MS);
+  } catch (err) {
+    console.error("startAsGuest failed", err);
+    return { error: "Non siamo riusciti a iniziare. Riprova tra un momento.", values };
+  }
+  redirect("/welcome");
+}
+
+const completeSchema = registerSchema.omit({ username: true });
+
+/** A guest registers: same account, same saves, now with email and password. */
+export async function completeRegistration(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const raw = Object.fromEntries(formData);
+  const values = { email: String(raw.email ?? ""), displayName: String(raw.displayName ?? "") };
+  const viewer = await getOptionalUser();
+  if (!viewer || !isGuest(viewer)) redirect(viewer ? "/home" : "/register");
+  const parsed = completeSchema.safeParse(raw);
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
+
+  const repo = getRepository();
+  try {
+    if (await repo.getCredentialsByEmail(parsed.data.email)) {
+      return { fieldErrors: { email: "Esiste già un account con questa email. Prova ad accedere." }, values };
+    }
+    await repo.completeRegistration(viewer.id, {
+      displayName: parsed.data.displayName,
+      email: parsed.data.email,
+      passwordHash: await hashPassword(parsed.data.password),
+    });
+    // Swap the year-long guest session for a regular one.
+    await destroySession();
+    await createSession(viewer.id);
+  } catch (err) {
+    console.error("completeRegistration failed", err);
+    return { error: "Non siamo riusciti a completare la registrazione. Riprova tra un momento.", values };
+  }
+  redirect("/home");
+}
 
 export async function register(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const raw = Object.fromEntries(formData);

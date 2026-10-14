@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { hashPassword, hashPasswordSync, verifyPassword } from "@/server/auth/password";
 import { MemoryRepository } from "@/server/data/memory-repository";
 import { DEMO_EMAIL } from "@/server/data/seed/people";
+import { isGuest } from "@/domain/types";
 
 describe("password hashing", () => {
   it("verifies the right password and rejects others", async () => {
@@ -40,6 +41,17 @@ describe("MemoryRepository", () => {
     await repo.removeFromWishlist("u_marco", before[0]!.titleId);
     list = await repo.listWishlist("u_marco");
     expect(list.map((w) => w.position)).toEqual(list.map((_, i) => i));
+  });
+
+  it("turns a username-only guest into a registered account without losing it", async () => {
+    const repo = new MemoryRepository();
+    const guest = await repo.createUser({ username: "Ospite", displayName: "ospite", email: null, passwordHash: null });
+    expect(isGuest(guest)).toBe(true);
+    expect(await repo.getPasswordHash(guest.id)).toBeNull();
+    const done = await repo.completeRegistration(guest.id, { displayName: "Ospite Vero", email: "O@x.it", passwordHash: "h" });
+    expect(done).toMatchObject({ id: guest.id, username: "ospite", displayName: "Ospite Vero", email: "o@x.it" });
+    expect(isGuest(done)).toBe(false);
+    expect((await repo.getCredentialsByEmail("o@x.it"))?.user.id).toBe(guest.id);
   });
 
   it("keeps friendships symmetric", async () => {

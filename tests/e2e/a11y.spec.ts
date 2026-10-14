@@ -10,6 +10,17 @@ test("login page has no serious accessibility violations", async ({ page }) => {
   expect(serious(results.violations)).toEqual([]);
 });
 
+test("username-only start page and the guest banner have no serious accessibility violations", async ({ page }) => {
+  await page.goto("/start");
+  expect(serious((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations)).toEqual([]);
+  await page.getByLabel("Username").fill(`a11y${Date.now().toString(36)}`);
+  await page.getByRole("button", { name: "Inizia" }).click();
+  await expect(page).toHaveURL(/\/welcome$/);
+  await page.goto("/library");
+  await expect(page.getByText("Non sei ancora registrato.")).toBeVisible();
+  expect(serious((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations)).toEqual([]);
+});
+
 test("app pages have no serious accessibility violations", async ({ page }) => {
   await signIn(page);
   for (const path of PAGES) {

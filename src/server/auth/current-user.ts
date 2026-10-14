@@ -12,9 +12,9 @@ import { readSessionUserId } from "./session";
  */
 export const getCurrentUser = cache(async (): Promise<User> => {
   const userId = await readSessionUserId();
-  if (!userId) redirect("/login");
+  if (!userId) redirect("/start");
   const user = await getRepository().getUserById(userId);
-  if (!user) redirect("/login");
+  if (!user) redirect("/start");
   return user;
 });
 

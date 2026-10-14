@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "cineloop_session";
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/start", "/login", "/register"];
 
 /**
  * Optimistic auth gate: only checks that a session cookie exists, so it stays
@@ -14,7 +14,8 @@ export function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!hasSession && !isPublic) {
-    const url = new URL("/login", request.url);
+    // No account needed to start: newcomers pick a username, returning users can still sign in from there.
+    const url = new URL("/start", request.url);
     if (pathname !== "/" && pathname !== "/home") url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
