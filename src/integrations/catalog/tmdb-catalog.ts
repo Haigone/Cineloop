@@ -3,7 +3,7 @@ import { addDays } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
 import { searchKey } from "@/lib/text";
 import { franchiseHead, franchiseKey, franchiseNames, withoutSeriesFilms } from "@/domain/franchise";
-import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonCredit, PersonDetails, PersonHit } from "./types";
+import type { CastMember, CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonCredit, PersonDetails, PersonHit } from "./types";
 
 /**
  * TMDB (themoviedb.org) catalog, via its official public API v3.
@@ -199,6 +199,33 @@ export function filmography(credits: { cast?: TmdbCredit[]; crew?: TmdbCredit[] 
   return [...rows.values()];
 }
 
+/** One actor in a film's credits, or a series' aggregate credits (roles across seasons). */
+interface TmdbCastCredit {
+  id: number;
+  name?: string;
+  profile_path?: string | null;
+  character?: string;
+  roles?: { character?: string; episode_count?: number }[];
+  order?: number;
+}
+
+/** The first actors by billing order, with their character. Exported for tests. */
+export function mainCast(cast: TmdbCastCredit[], limit: number): CastMember[] {
+  return [...cast]
+    .filter((c) => c.name?.trim())
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+    .slice(0, limit)
+    .map((c) => {
+      const role = c.character ?? [...(c.roles ?? [])].sort((a, b) => (b.episode_count ?? 0) - (a.episode_count ?? 0))[0]?.character;
+      return {
+        id: `tmdb-person-${c.id}`,
+        name: c.name!.trim(),
+        character: role?.trim() || null,
+        photoUrl: c.profile_path ? `${IMAGE}/w185${c.profile_path}` : null,
+      };
+    });
+}
+
 interface TmdbList {
   results?: TmdbItem[];
   total_pages?: number;
@@ -260,6 +287,19 @@ export class TmdbCatalog implements CatalogService {
       };
     } catch {
       return null;
+    }
+  }
+
+  async cast(title: Title, limit: number): Promise<CastMember[]> {
+    const own = parseId(title.id) ?? parseId((await this.match(title).catch(() => null))?.id ?? "");
+    if (!own) return [];
+    try {
+      // A series' cast across all its seasons, not just the latest episode's guests.
+      const path = own.kind === "movie" ? `/movie/${own.tmdbId}/credits?` : `/tv/${own.tmdbId}/aggregate_credits?`;
+      const data = await this.get<{ cast?: TmdbCastCredit[] }>(path);
+      return mainCast(data.cast ?? [], limit);
+    } catch {
+      return [];
     }
   }
 

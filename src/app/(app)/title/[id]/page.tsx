@@ -24,6 +24,7 @@ import { WatchOrder } from "@/components/title/watch-order";
 import { FillerGuide } from "@/components/title/filler-guide";
 import { Rail } from "@/components/media/rail";
 import { TitleCard } from "@/components/media/title-card";
+import { MainCast } from "@/components/title/main-cast";
 
 export const metadata: Metadata = { title: "Titolo" };
 
@@ -290,24 +291,31 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
           )}
         </div>
 
-        <aside className="h-fit rounded-xl border border-line bg-surface p-5 lg:sticky lg:top-[calc(var(--topbar-height)+24px)]">
-          <TitleActions
-            titleId={title.id}
-            titleName={title.title}
-            status={entry?.status ?? null}
-            rating={entry?.rating ?? null}
-            wishlisted={view.wishlisted}
-          />
-          <div className="mt-3">
-            <SuggestDialog titleId={title.id} titleName={title.title} friends={view.allFriends} alreadyHave={friends.map((f) => f.user.id)} />
-          </div>
-          {title.type !== "movie" && title.watchOrder && <FillerGuide parts={title.watchOrder} />}
-          {title.communityRating && (
-            <p className="mt-5 border-t border-line pt-4 text-[13px] text-fg-3">
-              Voto della community: <span className="text-fg tabular">{title.communityRating.toLocaleString("it-IT")}</span>/10
-            </p>
+        <div className="h-fit space-y-6">
+          <aside className="h-fit rounded-xl border border-line bg-surface p-5">
+            <TitleActions
+              titleId={title.id}
+              titleName={title.title}
+              status={entry?.status ?? null}
+              rating={entry?.rating ?? null}
+              wishlisted={view.wishlisted}
+            />
+            <div className="mt-3">
+              <SuggestDialog titleId={title.id} titleName={title.title} friends={view.allFriends} alreadyHave={friends.map((f) => f.user.id)} />
+            </div>
+            {title.type !== "movie" && title.watchOrder && <FillerGuide parts={title.watchOrder} />}
+            {title.communityRating && (
+              <p className="mt-5 border-t border-line pt-4 text-[13px] text-fg-3">
+                Voto della community: <span className="text-fg tabular">{title.communityRating.toLocaleString("it-IT")}</span>/10
+              </p>
+            )}
+          </aside>
+          {sectionOf(title) !== "anime" && (
+            <Suspense fallback={<Skeleton className="h-72 rounded-xl" />}>
+              <MainCast titleId={title.id} />
+            </Suspense>
           )}
-        </aside>
+        </div>
       </div>
     </article>
   );

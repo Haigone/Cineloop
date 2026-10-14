@@ -41,6 +41,16 @@ export interface PersonHit {
   knownFor: Title[];
 }
 
+/** Someone in a title's main cast. */
+export interface CastMember {
+  /** Their page: "tmdb-person-6193". */
+  id: string;
+  name: string;
+  /** The character they play, when the source says. */
+  character: string | null;
+  photoUrl: string | null;
+}
+
 /** One title in a person's filmography. */
 export interface PersonCredit {
   title: Title;
@@ -110,6 +120,8 @@ export interface CatalogService {
   episodes(id: string, season: number): Promise<EpisodeInfo[] | null>;
   /** Actors and directors by name, best known first. Empty when the source has no people. */
   searchPeople(query: string, limit: number): Promise<PersonHit[]>;
+  /** A film's or series' main actors, in billing order. Empty when the source has no cast. */
+  cast(title: Title, limit: number): Promise<CastMember[]>;
   /** A person with their whole filmography, or null when unknown. */
   person(id: string): Promise<PersonDetails | null>;
   /** Films and new series coming out after `today`, soonest first. */
