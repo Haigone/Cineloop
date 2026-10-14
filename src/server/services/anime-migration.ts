@@ -1,5 +1,6 @@
 import "server-only";
 import type { Title } from "@/domain/types";
+import { isKeptTitle, isReplaced } from "@/domain/duplicates";
 import { getCatalog } from "@/integrations/catalog";
 import { ANIME_ID } from "@/integrations/anime/franchise";
 import { AniListClient, alNames } from "@/integrations/anime/anilist";
@@ -12,8 +13,10 @@ const noMatch = new Set<string>();
 
 /** The franchise card of the anime sources that stands for this TMDB anime, when one clearly does. */
 export async function franchiseFor(old: Title): Promise<Title | null> {
+  // A title kept in place of duplicates stays as it is; a franchise that repeats one is never the answer.
+  if (isKeptTitle(old.id)) return null;
   const hit = await findFranchise(old);
-  if (!hit) return null;
+  if (!hit || isReplaced(hit.id)) return null;
   // A picture the anime sources lack comes from the TMDB title it replaces.
   const a = hit.artwork;
   return { ...hit, artwork: { ...a, posterUrl: a.posterUrl ?? old.artwork.posterUrl, backdropUrl: a.backdropUrl ?? old.artwork.backdropUrl } };
@@ -55,7 +58,7 @@ const MOVABLE = /^(tmdb-tv-\d+|anime-(al|mal)-\d+)$/;
 
 /** The franchise card for an anime found under a TMDB, MyAnimeList or AniList id, else the title itself. */
 export async function asFranchise(title: Title): Promise<Title> {
-  if (title.type !== "anime" || !MOVABLE.test(title.id) || noMatch.has(title.id)) return title;
+  if (title.type !== "anime" || !MOVABLE.test(title.id) || isKeptTitle(title.id) || noMatch.has(title.id)) return title;
   const hit = await franchiseFor(title).catch(() => null);
   if (!hit) noMatch.add(title.id);
   return hit ?? title;
@@ -66,7 +69,7 @@ export async function asFranchise(title: Title): Promise<Title> {
  * new id, or null when the title is not a TMDB anime or has no clear match.
  */
 export async function migrateAnimeTitle(id: string): Promise<string | null> {
-  if (!MOVABLE.test(id) || noMatch.has(id)) return null;
+  if (!MOVABLE.test(id) || isKeptTitle(id) || noMatch.has(id)) return null;
   try {
     const old = await ensureTitle(id);
     if (!old || old.type !== "anime") return null;

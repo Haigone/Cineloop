@@ -4,16 +4,18 @@
  *
  * `npm run build` runs this with --if-configured, so a deploy with a database
  * is self-setting-up and a build without one (in-memory demo) skips it.
- * It never touches user data.
+ * User data is only touched to move what was saved on a duplicate title
+ * (src/domain/duplicates.ts) onto the title kept in its place.
  */
-import { sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import type { Title } from "@/domain/types";
 import { TmdbCatalog } from "@/integrations/catalog/tmdb-catalog";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
-import { titleToRow } from "@/server/data/postgres/postgres-repository";
+import { PostgresRepository, titleToRow } from "@/server/data/postgres/postgres-repository";
+import { REPLACED_TITLES } from "@/domain/duplicates";
 import * as schema from "@/server/data/postgres/schema";
 
 const url = process.env.DATABASE_URL;
@@ -40,10 +42,35 @@ async function main(databaseUrl: string) {
     const set = title.artwork.posterUrl ? row : { ...row, posterUrl: undefined, backdropUrl: undefined };
     await db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set });
   }
+  await retireDuplicates(db);
   const [count] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.titles);
   console.log(`Catalog ready: ${count?.n ?? 0} titles.`);
 
   await client.end();
+}
+
+/**
+ * Duplicates still cached go, and what anyone saved on them (lists, progress, ratings, groups) moves
+ * to the title kept in their place. The kept title comes from the database, else from TMDB; without
+ * either it waits for the next build (its page still moves it when opened).
+ */
+async function retireDuplicates(db: ConstructorParameters<typeof PostgresRepository>[0]) {
+  const cached = await db.select({ id: schema.titles.id }).from(schema.titles).where(inArray(schema.titles.id, Object.keys(REPLACED_TITLES)));
+  if (cached.length === 0) return;
+  const repo = new PostgresRepository(db);
+  const token = process.env.TMDB_READ_TOKEN;
+  const tmdb = token ? new TmdbCatalog(token) : null;
+  for (const { id } of cached) {
+    const keep = REPLACED_TITLES[id]!;
+    const [local] = await repo.getTitlesByIds([keep]);
+    const kept = local ?? (await tmdb?.getTitle(keep).catch(() => null)) ?? null;
+    if (!kept) {
+      console.log(`Duplicate ${id} kept: ${keep} is not available yet.`);
+      continue;
+    }
+    const { moved, merged } = await repo.replaceTitle(id, kept);
+    console.log(`Duplicate ${id} moved to ${keep} (${moved} library entries moved, ${merged} merged).`);
+  }
 }
 
 /**

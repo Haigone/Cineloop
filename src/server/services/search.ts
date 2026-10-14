@@ -3,6 +3,7 @@ import { sectionOf, type MediaType, type Title, type User } from "@/domain/types
 import { getCatalog } from "@/integrations/catalog";
 import { getRepository } from "@/server/data";
 import { withoutSeriesFilms } from "@/domain/franchise";
+import { withFirst, withoutReplaced } from "@/domain/duplicates";
 import type { PersonHit } from "@/integrations/catalog/types";
 import { namesPerson, searchKey } from "@/lib/text";
 import { cacheTitles, canonical } from "./explore";
@@ -23,12 +24,14 @@ export async function search(viewer: User, query: string): Promise<SearchResults
   if (q.length < 2) return { titles: [], cast: [], people: [] };
   const repo = getRepository();
   const [local, people, friends, cast] = await Promise.all([
-    repo.searchTitles(q, 6),
+    // Copies of duplicates cached before they were retired are never shown.
+    repo.searchTitles(q, 6).then(withoutReplaced),
     repo.searchUsers(q, 4),
     repo.listFriends(viewer.id),
     searchCast(q, 3),
   ]);
-  const titles = await withCast(await withRemote(local, q, 6), cast, q, 6);
+  // A title this search should open with ("jojo") stays on top, whatever else matched first.
+  const titles = withFirst(q, await withCast(await withRemote(local, q, 6), cast, q, 6));
   const friendIds = new Set(friends.map((f) => f.user.id));
   return {
     titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, section: sectionOf(t), palette: t.artwork.palette, posterUrl: t.artwork.posterUrl })),
@@ -58,7 +61,7 @@ async function withRemote(local: Title[], q: string, limit: number): Promise<Tit
     const merged = [...found.filter((t) => t.id.startsWith("anime-ann-")), ...kept.map((t) => fresh.get(t.id) ?? t), ...found.filter((t) => !t.id.startsWith("anime-ann-") && !kept.some((l) => l.id === t.id))];
     // One row per title: a bundled copy and the catalogue's copy of the same film are the same row.
     const repo = getRepository();
-    const one = await canonical(repo, withoutSeriesFilms(merged));
+    const one = withFirst(q, await canonical(repo, withoutSeriesFilms(merged)));
     await cacheTitles(repo, one.filter((t) => t.artwork.posterUrl));
     return one.slice(0, limit);
   } catch (err) {
