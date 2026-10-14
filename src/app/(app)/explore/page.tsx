@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Compass, SearchX } from "lucide-react";
+import Image from "next/image";
+import { Compass, SearchX, UserRound } from "lucide-react";
 import { GENRES } from "@/domain/genres";
 import { BROWSABLE_PROVIDERS, PROVIDERS } from "@/domain/providers";
 import type { Genre, MediaType, ProviderId } from "@/domain/types";
 import { getExploreView, getForYouView, getReleasesView, TASTE_TARGET, type ExploreFilters as Filters } from "@/server/services/explore";
+import { searchCast } from "@/server/services/search";
+import type { PersonHit } from "@/integrations/catalog/types";
 import { getCommunityNetflixTop, getNetflixTop10, type RankedTitle } from "@/server/services/charts";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Reveal, RevealItem } from "@/components/ui/reveal";
@@ -75,12 +78,14 @@ async function Results({ searchParams }: { searchParams: PageProps<"/explore">["
 }
 
 async function BrowseResults({ filters, bare = false }: { filters: Filters; bare?: boolean }) {
-  const view = await getExploreView(filters);
+  const searching = filters.q.length >= 2 && filters.page === 1;
+  const [view, cast] = await Promise.all([getExploreView(filters), searching ? searchCast(filters.q, 8) : Promise.resolve([])]);
   const wishlistIds = new Set(view.wishlistIds);
 
   if (view.titles.length === 0) {
     return (
       <div className="mt-8">
+        {cast.length > 0 && <CastStrip cast={cast} />}
         <EmptyState
           icon={<SearchX />}
           title={filters.q ? `Nessun risultato per “${filters.q}”.` : "Nessun titolo con questi filtri."}
@@ -123,6 +128,7 @@ async function BrowseResults({ filters, bare = false }: { filters: Filters; bare
         ) : (
           <h2 className="sr-only">Risultati</h2>
         ))}
+      {cast.length > 0 && <CastStrip cast={cast} />}
       <TitleGrid titles={view.titles} wishlistIds={wishlistIds} label="Risultati della ricerca" />
       {(view.hasMore || filters.page > 1) && (
         <nav aria-label="Pagine dei risultati" className="mt-10 flex items-center justify-center gap-4 text-sm">
@@ -340,4 +346,33 @@ async function parseFilters(searchParams: PageProps<"/explore">["searchParams"])
 function formatWeek(isoDate: string): string {
   const d = new Date(`${isoDate}T12:00:00Z`);
   return Number.isNaN(d.getTime()) ? isoDate : d.toLocaleDateString("it-IT", { day: "numeric", month: "long" });
+}
+
+/** Actors and directors matching the search: each opens their whole filmography. */
+function CastStrip({ cast }: { cast: PersonHit[] }) {
+  return (
+    <section aria-labelledby="cast-h" className="mb-8">
+      <h3 id="cast-h" className="mb-3 text-[13px] text-fg-3">
+        Attori e registi
+      </h3>
+      <ul className="flex flex-wrap gap-2.5">
+        {cast.map((p) => (
+          <li key={p.id}>
+            <Link
+              href={`/person/${p.id}`}
+              className="flex items-center gap-2.5 rounded-full border border-line bg-white/[0.035] py-1 pr-4 pl-1 transition-colors hover:border-line-strong hover:bg-white/[0.06]"
+            >
+              <span aria-hidden className="relative size-8 shrink-0 overflow-hidden rounded-full bg-white/[0.06]">
+                {p.photoUrl ? <Image src={p.photoUrl} alt="" fill sizes="32px" className="object-cover" /> : <UserRound className="absolute inset-0 m-auto size-4 text-fg-3" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm text-fg">{p.name}</span>
+                {p.role && <span className="block text-xs text-fg-3">{p.role}</span>}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

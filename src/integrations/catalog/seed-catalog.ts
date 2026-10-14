@@ -2,7 +2,7 @@ import type { MediaType, Release, Title } from "@/domain/types";
 import { addDays } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
-import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonDetails, PersonHit } from "./types";
 import { franchiseKey } from "@/domain/franchise";
 
 /**
@@ -30,6 +30,15 @@ export class SeedCatalog implements CatalogService {
     const q = searchKey(query);
     if (!q) return [];
     return [...this.titles.values()].filter((t) => searchKey(t.title).includes(q)).slice(0, limit);
+  }
+
+  /** The demo titles carry no cast. */
+  async searchPeople(_query: string, _limit: number): Promise<PersonHit[]> {
+    return [];
+  }
+
+  async person(_id: string): Promise<PersonDetails | null> {
+    return null;
   }
 
   async getTitle(id: string): Promise<Title | null> {

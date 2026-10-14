@@ -3,10 +3,14 @@ import type { MediaType, Title, User } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getRepository } from "@/server/data";
 import { withoutSeriesFilms } from "@/domain/franchise";
+import type { PersonHit } from "@/integrations/catalog/types";
+import { namesPerson, searchKey } from "@/lib/text";
 import { cacheTitles, canonical } from "./explore";
 
 export interface SearchResults {
   titles: { id: string; title: string; year: number; type: MediaType; palette: readonly [string, string, string]; posterUrl: string | null }[];
+  /** Actors and directors: each opens their whole filmography. */
+  cast: { id: string; name: string; role: string | null; photoUrl: string | null; knownFor: string[] }[];
   people: { id: string; username: string; displayName: string; isFriend: boolean }[];
 }
 
@@ -16,17 +20,19 @@ export interface SearchResults {
  */
 export async function search(viewer: User, query: string): Promise<SearchResults> {
   const q = query.trim().slice(0, 80);
-  if (q.length < 2) return { titles: [], people: [] };
+  if (q.length < 2) return { titles: [], cast: [], people: [] };
   const repo = getRepository();
-  const [local, people, friends] = await Promise.all([
+  const [local, people, friends, cast] = await Promise.all([
     repo.searchTitles(q, 6),
     repo.searchUsers(q, 4),
     repo.listFriends(viewer.id),
+    searchCast(q, 3),
   ]);
-  const titles = await withRemote(local, q, 6);
+  const titles = await withCast(await withRemote(local, q, 6), cast, q, 6);
   const friendIds = new Set(friends.map((f) => f.user.id));
   return {
     titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, palette: t.artwork.palette, posterUrl: t.artwork.posterUrl })),
+    cast: cast.map((p) => ({ id: p.id, name: p.name, role: p.role, photoUrl: p.photoUrl, knownFor: p.knownFor.map((t) => t.title) })),
     people: people
       .filter((p) => p.id !== viewer.id)
       .map((p) => ({ id: p.id, username: p.username, displayName: p.displayName, isFriend: friendIds.has(p.id) })),
@@ -59,4 +65,29 @@ async function withRemote(local: Title[], q: string, limit: number): Promise<Tit
     console.error("catalog search failed", err);
     return withoutSeriesFilms(local);
   }
+}
+
+/** Actors and directors by name. A remote failure never breaks search. */
+export async function searchCast(q: string, limit: number): Promise<PersonHit[]> {
+  try {
+    return await getCatalog().searchPeople(q, limit);
+  } catch (err) {
+    console.error("people search failed", err);
+    return [];
+  }
+}
+
+/**
+ * When the query is an actor's or director's name, their best-known titles come
+ * first among the titles (a title literally named like the query stays on top).
+ */
+async function withCast(titles: Title[], cast: PersonHit[], q: string, limit: number): Promise<Title[]> {
+  const named = cast.find((p) => namesPerson(q, p.name));
+  if (!named || named.knownFor.length === 0) return titles;
+  const key = searchKey(q);
+  const exact = titles.filter((t) => searchKey(t.title) === key);
+  const merged = [...exact, ...named.knownFor, ...titles.filter((t) => !exact.includes(t))];
+  const seen = new Set<string>();
+  const one = (await canonical(getRepository(), merged)).filter((t) => !seen.has(t.id) && seen.add(t.id));
+  return one.slice(0, limit);
 }
