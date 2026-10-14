@@ -268,6 +268,23 @@ export interface Playlist {
   publishedAt: string | null;
 }
 
+/**
+ * "Serata insieme": a series or anime a group of friends watches together. Its
+ * progress is shared: when one member moves on, every member's place moves too.
+ */
+export interface SharedWatch {
+  id: string;
+  titleId: string;
+  /** Who started it. */
+  hostId: string;
+  /** Everyone in it, the host included. */
+  memberIds: string[];
+  createdAt: string;
+  /** The member who moved the shared place last, and when. */
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
 export type WatchPartyFilter = "common" | "movie" | "series" | "anime" | "all";
 
 export interface WatchParty {

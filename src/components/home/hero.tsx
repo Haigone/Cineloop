@@ -4,6 +4,9 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { MapPin, Play } from "lucide-react";
 import type { ContinueItem } from "@/server/services/shared";
+import type { SharedWatchView } from "@/server/services/shared-watch";
+import { cn } from "@/lib/cn";
+import { TogetherLine } from "./together-line";
 import { episodeLabel, formatDuration, percent } from "@/lib/format";
 import { ButtonAnchor, ButtonLink } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -36,7 +39,7 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
  * title opened: the single most important thing on Home. CineLoop does
  * not play anything; the primary action hands the user back to the provider.
  */
-export function Hero({ item }: { item: ContinueItem }) {
+export function Hero({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
   const { title, progress, providerName, continueUrl, continueOnSite, live, seriesFraction, seasonEpisodes } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
@@ -46,7 +49,7 @@ export function Hero({ item }: { item: ContinueItem }) {
     : continueUrl;
 
   return (
-    <section aria-labelledby="hero-title" className="relative isolate overflow-hidden rounded-xl border border-line bg-surface">
+    <section aria-labelledby="hero-title" className={cn("relative isolate overflow-hidden rounded-xl border bg-surface", together ? "border-violet/60 ring-1 ring-violet/30" : "border-line")}>
       <motion.div
         className="absolute inset-0 -z-10"
         initial={{ opacity: 0, scale: 1.06 }}
@@ -85,6 +88,7 @@ export function Hero({ item }: { item: ContinueItem }) {
           {ep && <span className="text-fg">{ep}</span>}
           {seasonEpisodes && progress.episode && <span>di {seasonEpisodes}</span>}
         </div>
+        {together && <TogetherLine group={together} named className="mt-2 max-w-[420px] text-[13px]" />}
         <p className="mt-3 line-clamp-2 max-w-[48ch] text-sm leading-relaxed text-fg-2 max-sm:hidden">{title.overview}</p>
 
         <div className="mt-5 max-w-[420px]">

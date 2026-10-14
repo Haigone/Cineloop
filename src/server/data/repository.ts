@@ -12,6 +12,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  SharedWatch,
   Title,
   User,
   UserPreferences,
@@ -123,6 +124,14 @@ export interface Repository {
   createWatchParty(party: Omit<WatchParty, "id" | "createdAt">): Promise<WatchParty>;
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;
+
+  // Serate insieme: shared progress on a series or anime
+  /** The groups the user is in, newest first. */
+  listSharedWatches(userId: string): Promise<SharedWatch[]>;
+  getSharedWatch(id: string): Promise<SharedWatch | null>;
+  createSharedWatch(input: { titleId: string; hostId: string; memberIds: string[] }): Promise<SharedWatch>;
+  updateSharedWatch(id: string, patch: { memberIds?: string[]; hostId?: string; updatedBy?: string; updatedAt?: string }): Promise<void>;
+  deleteSharedWatch(id: string): Promise<void>;
 
   // Browser extension: pairing, devices, live presence
   /** One-time pairing code, stored hashed, valid until `expiresAt`. */

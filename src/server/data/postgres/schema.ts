@@ -217,6 +217,25 @@ export const watchParties = pgTable(
   (t) => [index("watch_parties_host_idx").on(t.hostId, t.createdAt)],
 );
 
+/** "Serate insieme": a series or anime followed by a group, with one shared place. */
+export const sharedWatches = pgTable(
+  "shared_watches",
+  {
+    id: text("id").primaryKey(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => titles.id, { onDelete: "cascade" }),
+    hostId: text("host_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    memberIds: text("member_ids").array().notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: ts("updated_at"),
+  },
+  (t) => [index("shared_watches_title_idx").on(t.titleId), index("shared_watches_members_idx").using("gin", t.memberIds)],
+);
+
 export const notifications = pgTable(
   "notifications",
   {
