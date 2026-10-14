@@ -1,5 +1,5 @@
 import "server-only";
-import type { MediaType, Title, User } from "@/domain/types";
+import { sectionOf, type MediaType, type Title, type User } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getRepository } from "@/server/data";
 import { withoutSeriesFilms } from "@/domain/franchise";
@@ -8,7 +8,7 @@ import { namesPerson, searchKey } from "@/lib/text";
 import { cacheTitles, canonical } from "./explore";
 
 export interface SearchResults {
-  titles: { id: string; title: string; year: number; type: MediaType; palette: readonly [string, string, string]; posterUrl: string | null }[];
+  titles: { id: string; title: string; year: number; type: MediaType; section: MediaType; palette: readonly [string, string, string]; posterUrl: string | null }[];
   /** Actors and directors: each opens their whole filmography. */
   cast: { id: string; name: string; role: string | null; photoUrl: string | null; knownFor: string[] }[];
   people: { id: string; username: string; displayName: string; isFriend: boolean }[];
@@ -31,7 +31,7 @@ export async function search(viewer: User, query: string): Promise<SearchResults
   const titles = await withCast(await withRemote(local, q, 6), cast, q, 6);
   const friendIds = new Set(friends.map((f) => f.user.id));
   return {
-    titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, palette: t.artwork.palette, posterUrl: t.artwork.posterUrl })),
+    titles: titles.map((t) => ({ id: t.id, title: t.title, year: t.year, type: t.type, section: sectionOf(t), palette: t.artwork.palette, posterUrl: t.artwork.posterUrl })),
     cast: cast.map((p) => ({ id: p.id, name: p.name, role: p.role, photoUrl: p.photoUrl, knownFor: p.knownFor.map((t) => t.title) })),
     people: people
       .filter((p) => p.id !== viewer.id)

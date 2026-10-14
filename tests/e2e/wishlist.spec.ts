@@ -89,6 +89,14 @@ test("Home has a section each for films, series and anime, and reopens on the la
   await page.goto("/home");
   await expect(page.getByRole("link", { name: "Sfondo: Interstellar" })).toBeVisible();
 
+  // The menu lists only the rankings; any other film comes from the search under it.
+  await page.goto("/settings#sfondi");
+  await expect(page.getByLabel("Sfondo Film").locator("option", { hasText: "Dune - Parte due" })).toHaveCount(0);
+  await page.getByLabel("Cerca un altro titolo per lo sfondo di Film").fill("Dune");
+  await page.getByRole("list", { name: "Risultati per lo sfondo di Film" }).getByRole("button", { name: /Dune - Parte due/ }).click();
+  await expect(page.getByText("Sfondo di Film salvato")).toBeVisible();
+  await expect(page.getByLabel("Sfondo Film")).toHaveValue("dune-part-two");
+
   // Back to the default for the other tests.
   await page.goto("/settings#sfondi");
   await page.getByLabel("Sfondo Film").selectOption("");
