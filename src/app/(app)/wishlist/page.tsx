@@ -6,7 +6,7 @@ import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
-export default function WishlistPage() {
+export default function WishlistPage({ searchParams }: PageProps<"/wishlist">) {
   return (
     <Suspense
       fallback={
@@ -18,12 +18,12 @@ export default function WishlistPage() {
         </LoadingRegion>
       }
     >
-      <WishlistContent />
+      <WishlistContent searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function WishlistContent() {
-  const { rows, playlists, releases } = await getWishlistView();
-  return <WishlistBoard initialRows={rows} playlists={playlists} releases={releases} />;
+async function WishlistContent({ searchParams }: Pick<PageProps<"/wishlist">, "searchParams">) {
+  const [{ rows, playlists, saved, releases }, { tab }] = await Promise.all([getWishlistView(), searchParams]);
+  return <WishlistBoard initialRows={rows} playlists={playlists} saved={saved} releases={releases} initialTab={tab === "playlists" ? "playlists" : "list"} />;
 }

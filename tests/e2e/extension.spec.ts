@@ -6,9 +6,9 @@ import { DEMO } from "./helpers";
 
 /**
  * The real extension, loaded into Chromium, against this server. netflix.com
- * is answered by the test itself: nothing reaches Netflix. The test copy
- * grants the netflix.com permission up front, because a headless browser
- * cannot click the permission prompt the popup normally shows.
+ * is answered by the test itself: nothing reaches Netflix. netflix.com is
+ * granted at install time; the test copy grants the optional sites up front
+ * too, because a headless browser cannot click a permission prompt.
  */
 test("pair the extension, watch on Netflix, and a friend joins", async ({ baseURL }) => {
   test.slow();
@@ -16,7 +16,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   const ext = path.join(dir, "extension");
   cpSync("extension", ext, { recursive: true });
   const manifest = JSON.parse(readFileSync(path.join(ext, "manifest.json"), "utf8"));
-  manifest.host_permissions = manifest.optional_host_permissions;
+  manifest.host_permissions = [...manifest.host_permissions, ...manifest.optional_host_permissions];
   delete manifest.optional_host_permissions;
   writeFileSync(path.join(ext, "manifest.json"), JSON.stringify(manifest));
 
@@ -199,13 +199,24 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await expect(popup.getByRole("status")).toContainText("Già su CineLoop: 1.");
   await expect(popup.getByRole("status")).toContainText("Non trovati nel catalogo: 1.");
   await expect(popup.locator("#import-missing")).toContainText("Un titolo che non esiste");
-  // The test has polled a lot: the list may wait for the per-minute request budget.
-  await expect(async () => {
-    await popup.reload();
-    await popup.getByRole("tab", { name: "Watchlist" }).click();
-    await expect(popup.locator("#panel-list")).toContainText("Squid Game", { timeout: 2000 });
-  }).toPass({ timeout: 90_000, intervals: [5000] });
+  await site.goto(`${baseURL}/wishlist`);
+  await expect(site.getByText("Squid Game").first()).toBeVisible();
   await list.close();
+
+  // Netflix's data export: the .csv (or the whole .zip) goes in a tab of the extension.
+  const upload = await ctx.newPage();
+  await upload.goto(`chrome-extension://${extId}/import.html`);
+  await upload.getByLabel("File di Netflix").setInputFiles({
+    name: "MyList.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Profile Name,Title Name,Country,Utc Title Add Date\nMarco,Mindhunter,IT,2025-01-01\nGiulia,Mindhunter,IT,2025-01-02\nGiulia,Un altro titolo che non esiste,IT,2025-01-03\n"),
+  });
+  await expect(upload.getByLabel("Profilo")).toHaveValue("Marco");
+  await upload.getByLabel("Profilo").selectOption({ label: "Tutti i profili (2)" });
+  await upload.getByRole("button", { name: "Importa 2 titoli" }).click();
+  await expect(upload.getByRole("status")).toContainText("Già su CineLoop: 1.", { timeout: 90_000 });
+  await expect(upload.getByRole("status")).toContainText("Non trovati nel catalogo: 1.");
+  await upload.close();
 
   await other.close();
   await ctx.close();

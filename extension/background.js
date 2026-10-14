@@ -1,3 +1,4 @@
+import "./compat.js";
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
 import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
@@ -63,7 +64,7 @@ async function disableUnauthorizedScripts() {
 const PLAYER_SCRIPT = "player-title";
 const SC_SCRIPT = "sc-page";
 const AU_SCRIPT = "au-page";
-const PAGE_SCRIPTS = ["player-title.js", "party-sync.js"];
+const PAGE_SCRIPTS = ["compat.js", "player-title.js", "party-sync.js"];
 
 /**
  * Una volta concesso netflix.com, fa girare player-title.js sulle sue pagine
@@ -93,10 +94,10 @@ async function enableScPage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: SC_SCRIPT, matches: [match], js: ["sc-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js"], runAt: "document_idle", persistAcrossSessions: true },
   ]);
   for (const tab of await chrome.tabs.query({ url: match })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["sc-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "sc-page.js"] }).catch(() => {});
   }
 }
 
@@ -106,10 +107,10 @@ async function enableAnimePage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["au-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js"], runAt: "document_idle", persistAcrossSessions: true },
   ]);
   for (const tab of await chrome.tabs.query({ url: "https://www.animeunity.so/*" })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["au-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js"] }).catch(() => {});
   }
 }
 

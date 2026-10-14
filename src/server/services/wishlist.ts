@@ -5,6 +5,7 @@ import { getRepository } from "@/server/data";
 import { italianDay } from "@/lib/dates";
 import { awaitedReleases, type AwaitedRelease } from "./awaited";
 import { loadFriendBundles } from "./shared";
+import { getSavedPlaylistsView, type CommunityPlaylistView } from "./community";
 
 export interface WishlistRow {
   item: WishlistItem;
@@ -24,10 +25,10 @@ export interface PlaylistView {
 }
 
 /** The wishlist from the database; when each title comes back asks outside services and follows as a promise. */
-export async function getWishlistView(): Promise<{ rows: WishlistRow[]; playlists: PlaylistView[]; releases: Promise<Record<string, AwaitedRelease>> }> {
+export async function getWishlistView(): Promise<{ rows: WishlistRow[]; playlists: PlaylistView[]; saved: CommunityPlaylistView[]; releases: Promise<Record<string, AwaitedRelease>> }> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
-  const [wishlist, friends, own] = await Promise.all([repo.listWishlist(viewer.id), loadFriendBundles(repo, viewer.id), repo.listPlaylists(viewer.id)]);
+  const [wishlist, friends, own, saved] = await Promise.all([repo.listWishlist(viewer.id), loadFriendBundles(repo, viewer.id), repo.listPlaylists(viewer.id), getSavedPlaylistsView(viewer.id)]);
   // The friends' collaborative playlists are the viewer's to add to as well.
   const collaborative = (await repo.listSharedPlaylists(friends.map((f) => f.user.id))).filter((p) => p.visibility === "collaborative");
   const playlists = [...own, ...collaborative];
@@ -38,6 +39,7 @@ export async function getWishlistView(): Promise<{ rows: WishlistRow[]; playlist
     .catch((): Record<string, AwaitedRelease> => ({}));
   return {
     releases,
+    saved,
     playlists: playlists.map((playlist) => ({ playlist, titles: playlist.titleIds.flatMap((id) => titles.get(id) ?? []), owner: playlist.ownerId === viewer.id ? null : (byId.get(playlist.ownerId) ?? null) })),
     rows: wishlist
       .filter((w) => titles.has(w.titleId))

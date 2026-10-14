@@ -1,3 +1,4 @@
+import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
@@ -37,8 +38,6 @@ async function render() {
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
   const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
-  // No answer from CineLoop: keep the list on screen rather than calling it empty.
-  if (statusNow) await renderList(statusNow.list ?? []);
   await renderTogether(statusNow, w);
   if (!w) return;
 
@@ -115,42 +114,6 @@ async function playerReading() {
   return ["Letto dal player:", [player.title || "titolo non indicato", ep, seen].filter(Boolean).join(" · ")].join(" ");
 }
 
-/** In progress (with the episode) and wishlist; each opens a search for it on its provider. */
-async function renderList(items) {
-  show("my-list", items.length > 0);
-  show("list-empty", items.length === 0);
-  const scOrigin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
-  const rows = [];
-  let section = null;
-  for (const item of items) {
-    if (item.status !== section) {
-      section = item.status;
-      const h = document.createElement("li");
-      h.className = "heading";
-      h.textContent = section === "watching" ? "In corso" : "Wishlist";
-      rows.push(h);
-    }
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = item.provider === "streamingcommunity" && scOrigin
-      ? `${scOrigin}/search?q=${encodeURIComponent(item.title)}`
-      : item.provider === "animeunity"
-        ? `${AU_SEARCH}${encodeURIComponent(item.title)}`
-        : `https://www.netflix.com/search?q=${encodeURIComponent(item.title)}`;
-    a.target = "_blank";
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = item.title;
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    meta.textContent = item.season && item.episode ? `S${item.season}E${item.episode}` : String(item.year);
-    a.append(name, meta);
-    li.append(a);
-    rows.push(li);
-  }
-  $("list-items").replaceChildren(...rows);
-}
-
 /** "Guarda insieme": visibility, who is in the room, and whether you are in step. */
 async function renderTogether(status, w) {
   const visible = status?.visible ?? true;
@@ -190,7 +153,7 @@ async function renderTogether(status, w) {
   );
 }
 
-const TABS = ["tab-now", "tab-list", "tab-together", "tab-import"];
+const TABS = ["tab-now", "tab-together", "tab-import"];
 
 function selectTab(which) {
   if (!TABS.includes(which)) return;
@@ -225,6 +188,13 @@ $("visible").addEventListener("change", async () => {
 });
 
 
+/**
+ * What the site permissions were at the last render. Firefox shows a permission
+ * prompt only if it is requested straight from the click, before any await,
+ * so the click handler decides from this.
+ */
+let perms = { netflix: false, anime: false, directory: false, streaming: false, resolved: null };
+
 /** Provider permissions remain manageable after the first site is enabled. */
 async function renderProviderPermissions() {
   const netflix = await hasNetflixAccess();
@@ -232,12 +202,15 @@ async function renderProviderPermissions() {
   const directory = await hasDirectoryAccess();
   const streaming = await hasStreamingAccess();
   const resolved = await getResolved();
+  perms = { netflix, anime, directory, streaming, resolved };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
     $(id).setAttribute("aria-pressed", String(active));
   };
-  setButton("manage-netflix", netflix, "Netflix");
+  // Netflix is granted at install time and cannot be switched off from here (only paused).
+  $("manage-netflix").textContent = netflix ? "Attivo ✓" : "Attiva Netflix";
+  $("manage-netflix").disabled = netflix;
   setButton("manage-au", anime, "AnimeUnity");
   setButton("manage-sc", streaming, "StreamingCommunity");
   $("manage-sc-status").textContent = sc
@@ -247,15 +220,13 @@ async function renderProviderPermissions() {
 
 async function togglePermission(provider) {
   if (provider === "netflix") {
-    if (await hasNetflixAccess()) await chrome.permissions.remove({ origins: [NETFLIX_ORIGIN] });
-    else await chrome.permissions.request({ origins: [NETFLIX_ORIGIN] });
+    // Only when it was revoked from the browser's settings (Firefox allows that).
+    if (!perms.netflix) await chrome.permissions.request({ origins: [NETFLIX_ORIGIN] });
   } else if (provider === "animeunity") {
-    if (await hasAnimeAccess()) await chrome.permissions.remove({ origins: AU_ORIGINS });
+    if (perms.anime) await chrome.permissions.remove({ origins: AU_ORIGINS });
     else await chrome.permissions.request({ origins: AU_ORIGINS });
   } else {
-    const resolved = await getResolved();
-    const directory = await hasDirectoryAccess();
-    const streaming = await hasStreamingAccess();
+    const { resolved, directory, streaming } = perms;
     if (streaming) {
       const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
       await chrome.permissions.remove({ origins });
@@ -386,7 +357,7 @@ $("pair-form").addEventListener("submit", async (e) => {
   const submit = e.submitter;
   submit.disabled = true;
   try {
-    const label = `${navigator.userAgentData?.brands?.find((b) => !/Not.A.Brand|Chromium/i.test(b.brand))?.brand ?? "Browser"} su ${navigator.userAgentData?.platform || "computer"}`;
+    const label = deviceLabel();
     const res = await request(server, "/api/extension/pair", { method: "POST", body: { code: $("code").value, label } });
     await chrome.storage.local.set({ server, token: res.token, user: res.user, paused: false });
     $("code").value = "";
@@ -403,6 +374,17 @@ $("pair-form").addEventListener("submit", async (e) => {
     submit.disabled = false;
   }
 });
+
+/** "Google Chrome su Windows", "Firefox su macOS"… for the list in Impostazioni. */
+function deviceLabel() {
+  const ua = navigator.userAgent;
+  const firefox = /Firefox\//.test(ua);
+  const brand = firefox ? "Firefox" : navigator.userAgentData?.brands?.find((b) => !/Not.A.Brand|Chromium/i.test(b.brand))?.brand ?? "Browser";
+  const platform =
+    navigator.userAgentData?.platform ||
+    (/Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Android/.test(ua) ? "Android" : /Linux/.test(ua) ? "Linux" : "computer");
+  return `${brand} su ${platform}`;
+}
 
 $("change-btn").addEventListener("click", async () => {
   changing = true;
@@ -519,7 +501,7 @@ async function renderImport() {
   show("import-btn", Boolean(tab));
   if (!tab) {
     $("import-help").textContent =
-      "Apri La mia lista su Netflix e scorri fino in fondo, così tutte le copertine sono caricate. Poi riapri questo pannello: i titoli finiscono nella tua wishlist di CineLoop.";
+      "Apri La mia lista su Netflix e scorri fino in fondo, così tutte le copertine sono caricate. Poi riapri questo pannello: i titoli finiscono nella tua wishlist di CineLoop, senza doppioni.";
     return;
   }
   const [{ result: items = [] } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readMyList }).catch(() => []);
@@ -573,5 +555,8 @@ async function importItems(items) {
 }
 
 $("import-open").addEventListener("click", () => chrome.tabs.create({ url: MY_LIST }));
+$("export-request").addEventListener("click", () => chrome.tabs.create({ url: "https://www.netflix.com/account/getmyinfo" }));
+// A file picker would close the popup, so the upload happens in a tab of the extension.
+$("export-upload").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("import.html") }));
 
 render();

@@ -46,3 +46,4 @@ next-env.d.ts
 
 # built from extension/ by scripts/pack-extension.ts
 /public/cineloop-extension.zip
+/public/cineloop-extension-firefox.zip

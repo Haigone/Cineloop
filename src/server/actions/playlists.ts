@@ -7,6 +7,7 @@ import { getRepository } from "@/server/data";
 import { ensureTitle } from "@/server/services/explore";
 import type { PlaylistVisibility } from "@/domain/types";
 import type { ActionResult } from "./library";
+import { missingFromWishlist } from "@/domain/community";
 
 /** Mutations for the viewer's own playlists (the owner is always the signed-in user, never an argument). */
 
@@ -47,10 +48,11 @@ export async function createPlaylist(input: { name: string; visibility: Playlist
   }
 }
 
-export async function updatePlaylist(playlistId: string, patch: { name?: string; visibility?: PlaylistVisibility }): Promise<ActionResult> {
+export async function updatePlaylist(playlistId: string, patch: { name?: string; visibility?: PlaylistVisibility; published?: boolean }): Promise<ActionResult> {
   const user = await getCurrentUser();
   const pid = id.safeParse(playlistId);
-  const next: { name?: string; visibility?: PlaylistVisibility } = {};
+  const next: { name?: string; visibility?: PlaylistVisibility; published?: boolean } = {};
+  if (patch.published !== undefined) next.published = patch.published === true;
   if (patch.name !== undefined) {
     const n = name.safeParse(patch.name);
     if (!n.success) return { ok: false, error: n.error.issues[0]?.message ?? "Nome non valido." };
@@ -88,4 +90,56 @@ export async function setInPlaylist(playlistId: string, titleId: string, present
     if (!friends.some((f) => f.user.id === playlist.ownerId)) return { ok: false, error: "Playlist non trovata." };
   }
   return run(() => repo.setPlaylistItem(playlist.ownerId, playlist.id, tid.data, present), "Non siamo riusciti ad aggiornare la playlist.");
+}
+
+/** Who may read a playlist: its owner, anyone once it is in Community, the owner's friends when shared with them. */
+async function visiblePlaylist(viewerId: string, playlistId: string) {
+  const repo = getRepository();
+  const playlist = await repo.getPlaylist(playlistId);
+  if (!playlist) return null;
+  if (playlist.ownerId === viewerId || playlist.publishedAt) return playlist;
+  if (playlist.visibility === "private") return null;
+  const friends = await repo.listFriends(viewerId);
+  return friends.some((f) => f.user.id === playlist.ownerId) ? playlist : null;
+}
+
+/** Saves a Community playlist in the viewer's wishlist area, or takes it out. It stays the owner's: the saver only reads it. */
+export async function setPlaylistSaved(playlistId: string, saved: boolean): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const pid = id.safeParse(playlistId);
+  if (!pid.success) return { ok: false, error: "Playlist non trovata." };
+  const repo = getRepository();
+  if (saved) {
+    const playlist = await repo.getPlaylist(pid.data);
+    if (!playlist?.publishedAt) return { ok: false, error: "Questa playlist non è più nella Community." };
+    if (playlist.ownerId === user.id) return { ok: false, error: "È già una tua playlist." };
+  }
+  return run(async () => {
+    await repo.setPlaylistSaved(user.id, pid.data, saved);
+    return true;
+  }, "Non siamo riusciti a salvare la playlist.");
+}
+
+/**
+ * Puts in the viewer's wishlist every title of the playlist that is not there yet, in the playlist's
+ * order, so nothing ends up twice. Titles already being watched or seen are left out too.
+ */
+export async function addPlaylistToWishlist(playlistId: string): Promise<ActionResult & { added?: number }> {
+  const user = await getCurrentUser();
+  const pid = id.safeParse(playlistId);
+  if (!pid.success) return { ok: false, error: "Playlist non trovata." };
+  const playlist = await visiblePlaylist(user.id, pid.data);
+  if (!playlist) return { ok: false, error: "Playlist non trovata." };
+  const repo = getRepository();
+  try {
+    const [wishlist, library] = await Promise.all([repo.listWishlist(user.id), repo.listLibrary(user.id)]);
+    const missing = missingFromWishlist(playlist.titleIds, wishlist.map((w) => w.titleId), library.map((e) => e.titleId));
+    // The wishlist puts new titles on top: adding from the last keeps the playlist's order up there.
+    for (const titleId of [...missing].reverse()) await repo.addToWishlist(user.id, titleId);
+    if (missing.length > 0) refresh();
+    return { ok: true, added: missing.length };
+  } catch (err) {
+    console.error("addPlaylistToWishlist failed", err);
+    return { ok: false, error: "Non siamo riusciti ad aggiungere i titoli alla wishlist." };
+  }
 }
