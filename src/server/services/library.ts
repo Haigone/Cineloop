@@ -12,6 +12,7 @@ import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { cacheTitles, ensureTitle } from "./explore";
 import { loadFriendBundles } from "./shared";
+import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
 
 export interface LibraryView {
   items: LibraryItem[];
@@ -65,6 +66,8 @@ export interface TitleView {
   related: Title[];
   /** The season this series is waiting on, when it has not come out yet. */
   awaited: AwaitedRelease | null;
+  /** The "Serata insieme" the viewer follows this title with. */
+  together: SharedWatchView | null;
 }
 
 export async function getTitleView(id: string): Promise<TitleView | null> {
@@ -72,11 +75,12 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
   const repo = getRepository();
   const title = await ensureTitle(id);
   if (!title) return null;
-  const [library, wishlist, friends, related] = await Promise.all([
+  const [library, wishlist, friends, related, groups] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
     sectionOf(title) === "anime" ? getCatalog().related(title, 12).catch(() => []) : Promise.resolve([]),
+    title.type === "movie" ? Promise.resolve([]) : listSharedWatchViews(repo, viewer.id, new Map([[title.id, title]])),
   ]);
   if (related.length) await cacheTitles(repo, related);
   const awaited = title.type === "movie" ? null : ((await awaitedReleases([title], italianDay())).get(title.id) ?? null);
@@ -126,5 +130,6 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     allFriends: friends.map((f) => f.user),
     offersUrl: tmdb ? `https://www.themoviedb.org/${tmdb[1]}/${tmdb[2]}/watch?locale=IT` : null,
     related,
+    together: groups.find((g) => g.title.id === title.id) ?? null,
   };
 }

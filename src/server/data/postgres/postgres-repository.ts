@@ -15,6 +15,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  SharedWatch,
   Title,
   User,
   UserPreferences,
@@ -214,6 +215,7 @@ export class PostgresRepository implements Repository {
       await tx.update(schema.providerTitleLinks).set({ titleId: next.id }).where(eq(schema.providerTitleLinks.titleId, oldId));
       await tx.update(schema.presence).set({ titleId: next.id }).where(eq(schema.presence.titleId, oldId));
       await tx.update(schema.watchParties).set({ pickedTitleId: next.id }).where(eq(schema.watchParties.pickedTitleId, oldId));
+      await tx.update(schema.sharedWatches).set({ titleId: next.id }).where(eq(schema.sharedWatches.titleId, oldId));
       await tx.execute(sql`update watch_parties set candidate_title_ids = array_replace(candidate_title_ids, ${oldId}, ${next.id}) where ${oldId} = any(candidate_title_ids)`);
       await tx.update(schema.titles).set({ partOf: next.id }).where(eq(schema.titles.partOf, oldId));
       await tx.delete(schema.titles).where(eq(schema.titles.id, oldId));
@@ -557,6 +559,40 @@ export class PostgresRepository implements Repository {
 
   // Watch parties -----------------------------------------------------------
 
+  async listSharedWatches(userId: string) {
+    const rows = await this.db
+      .select()
+      .from(schema.sharedWatches)
+      .where(sql`${userId} = any(${schema.sharedWatches.memberIds})`)
+      .orderBy(desc(schema.sharedWatches.createdAt));
+    return rows.map(toSharedWatch);
+  }
+
+  async getSharedWatch(id: string) {
+    const [row] = await this.db.select().from(schema.sharedWatches).where(eq(schema.sharedWatches.id, id));
+    return row ? toSharedWatch(row) : null;
+  }
+
+  async createSharedWatch(input: { titleId: string; hostId: string; memberIds: string[] }) {
+    const [row] = await this.db
+      .insert(schema.sharedWatches)
+      .values({ ...input, id: `sw_${crypto.randomUUID()}` })
+      .returning();
+    return toSharedWatch(row!);
+  }
+
+  async updateSharedWatch(id: string, patch: { memberIds?: string[]; hostId?: string; updatedBy?: string; updatedAt?: string }) {
+    const { updatedAt, ...rest } = patch;
+    await this.db
+      .update(schema.sharedWatches)
+      .set({ ...rest, ...(updatedAt ? { updatedAt: new Date(updatedAt) } : {}) })
+      .where(eq(schema.sharedWatches.id, id));
+  }
+
+  async deleteSharedWatch(id: string) {
+    await this.db.delete(schema.sharedWatches).where(eq(schema.sharedWatches.id, id));
+  }
+
   async createWatchParty(input: Omit<WatchParty, "id" | "createdAt">) {
     const [row] = await this.db
       .insert(schema.watchParties)
@@ -789,6 +825,18 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     seenThrough: r.seenThrough,
     askRating: r.askRating,
     partOverrides: r.partOverrides,
+  };
+}
+
+function toSharedWatch(r: typeof schema.sharedWatches.$inferSelect): SharedWatch {
+  return {
+    id: r.id,
+    titleId: r.titleId,
+    hostId: r.hostId,
+    memberIds: r.memberIds,
+    createdAt: r.createdAt.toISOString(),
+    updatedBy: r.updatedBy,
+    updatedAt: r.updatedAt?.toISOString() ?? null,
   };
 }
 

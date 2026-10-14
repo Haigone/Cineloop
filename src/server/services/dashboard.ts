@@ -13,6 +13,7 @@ import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
 import { listLiveFriends, type LiveFriend } from "./sync";
+import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
 
 export interface FriendActivityItem {
   event: ActivityEvent;
@@ -48,6 +49,10 @@ export interface HomeView {
   background: Title | null;
   nowWatching: ContinueItem | null;
   continueWatching: ContinueItem[];
+  /** "Serate insieme" of this section, the ones with a place to resume first; their titles are not repeated in `continueWatching`. */
+  together: { group: SharedWatchView; item: ContinueItem | null }[];
+  /** The group of the hero's title, when it is watched together. */
+  nowWatchingGroup: SharedWatchView | null;
   recentlyWatched: RecentWatchItem[];
   /** Friends watching right now through the extension; they can be joined. */
   liveFriends: LiveFriend[];
@@ -86,17 +91,18 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     repo.listTitles(),
   ]);
   const friendIds = friends.map((f) => f.user.id);
-  const [activity, prefs, liveFriends] = await Promise.all([
+  const titles = new Map(allTitles.map((t) => [t.id, t]));
+  const [activity, prefs, liveFriends, groups] = await Promise.all([
     listSharedActivity(repo, friendIds, 30),
     repo.getPreferences(viewer.id),
     listLiveFriends(repo, viewer.id, friendIds),
+    listSharedWatchViews(repo, viewer.id, titles),
   ]);
   const liveIds = new Set(liveFriends.map((l) => l.user.id));
 
   const category = asked ?? prefs.homeCategory;
   if (asked && asked !== prefs.homeCategory) after(() => repo.updatePreferences(viewer.id, { homeCategory: asked }));
 
-  const titles = new Map(allTitles.map((t) => [t.id, t]));
   // Everything about titles below stays within the section.
   const inSection = new Map(allTitles.filter((t) => sectionOf(t) === category).map((t) => [t.id, t]));
 
@@ -147,6 +153,8 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     ...friends.filter((f) => partyFriends.some((p) => p.id === f.user.id)).map((f) => toPartyMember(f.user, f.library, f.wishlist)),
   ];
 
+  const sectionGroups = groups.filter((g) => sectionOf(g.title) === category);
+
   const fillerRuns: Record<string, FillerRun> = {};
   for (const item of continueWatching) {
     const entry = library.find((e) => e.titleId === item.title.id);
@@ -180,7 +188,12 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     later,
     background: sectionBackground(prefs, category, library, inSection),
     nowWatching: continueWatching[0] ?? null,
-    continueWatching: continueWatching.slice(1),
+    nowWatchingGroup: continueWatching[0] ? (sectionGroups.find((g) => g.title.id === continueWatching[0]!.title.id) ?? null) : null,
+    continueWatching: continueWatching.slice(1).filter((item) => !sectionGroups.some((g) => g.title.id === item.title.id)),
+    together: sectionGroups
+      .filter((g) => g.title.id !== continueWatching[0]?.title.id)
+      .map((group) => ({ group, item: continueWatching.find((i) => i.title.id === group.title.id) ?? null }))
+      .sort((a, b) => Number(Boolean(b.item)) - Number(Boolean(a.item))),
     recentlyWatched,
     liveFriends,
     friendsActivity,

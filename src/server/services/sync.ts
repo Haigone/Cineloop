@@ -11,6 +11,7 @@ import { finishesTitle } from "@/domain/library";
 import { getRepository, type Repository } from "@/server/data";
 import { cacheTitles, canonical, ensureTitle } from "./explore";
 import { toPublicUser } from "./shared";
+import { shareProgress } from "./shared-watch";
 
 /**
  * Everything the browser extension drives: turning the page a user is on
@@ -491,6 +492,7 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today, entry?.partOverrides) && (fraction === null || fraction >= 0.5)) return;
     if (finishesTitle(title, at, today, entry?.partOverrides)) {
       await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
+      await shareProgress(repo, presence.userId, titleId, "finished");
       await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });
       return;
     }
@@ -506,6 +508,7 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     url: presence.url,
     updatedAt: new Date().toISOString(),
   });
+  await shareProgress(repo, presence.userId, titleId);
 }
 
 async function storeMinutes(repo: Repository, p: Presence, minutes: number, now: Date): Promise<void> {

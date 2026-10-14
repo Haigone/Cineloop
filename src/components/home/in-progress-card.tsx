@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Play } from "lucide-react";
 import type { ContinueItem } from "@/server/services/shared";
+import type { SharedWatchView } from "@/server/services/shared-watch";
+import { cn } from "@/lib/cn";
+import { TogetherLine } from "./together-line";
 import { episodeLabel, percent } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ProviderBadge } from "@/components/ui/provider-badge";
@@ -31,7 +34,7 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
  * A smaller rectangle under the hero for the other titles in progress: where
  * you are (episode, or how much of the film) and how far through the series.
  */
-export function InProgressCard({ item }: { item: ContinueItem }) {
+export function InProgressCard({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
   const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live } = item;
   const ep = episodeLabel(progress, "short");
   const fraction = seriesFraction ?? progress.fraction;
@@ -46,7 +49,13 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
 
   // The card as a whole continues; the title inside opens the title's own page.
   return (
-    <div className="group/card relative flex items-center gap-3 rounded-lg border border-line bg-surface p-2 pr-3 transition-colors hover:border-line-strong hover:bg-surface-2">
+    <div
+      className={cn(
+        "group/card relative flex items-center gap-3 rounded-lg border p-2 pr-3 transition-colors",
+        // Watched together: a violet frame, so it reads as shared at a glance.
+        together ? "border-violet/55 bg-violet/[0.07] hover:border-violet/80 hover:bg-violet/[0.11]" : "border-line bg-surface hover:border-line-strong hover:bg-surface-2",
+      )}
+    >
       <Wrapper
         href={destination ?? `/title/${title.id}`}
         aria-label={label}
@@ -75,6 +84,7 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
             </>
           )}
         </div>
+        {together && <TogetherLine group={together} />}
         <div className="mt-2 flex items-center gap-2">
           <ProgressBar value={fraction} label={`Avanzamento ${title.title}`} size="xs" className="flex-1" />
           <span className="text-[11px] tabular text-fg-2">{percent(fraction)}</span>
@@ -86,3 +96,4 @@ export function InProgressCard({ item }: { item: ContinueItem }) {
     </div>
   );
 }
+

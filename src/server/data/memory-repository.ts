@@ -12,6 +12,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  SharedWatch,
   Title,
   User,
   UserPreferences,
@@ -44,6 +45,7 @@ export class MemoryRepository implements Repository {
   private watchEvents: WatchEvent[] = [];
   private activity: ActivityEvent[] = [];
   private parties: WatchParty[] = [];
+  private sharedWatches: SharedWatch[] = [];
   private playlists: Playlist[] = [];
   private savedPlaylists: { userId: string; playlistId: string; savedAt: string }[] = [];
   private notifications = new Map<string, AppNotification[]>();
@@ -97,6 +99,13 @@ export class MemoryRepository implements Repository {
       { id: "pl_demo_animazione", ownerId: "u_elena", name: "Notti d'animazione", visibility: "private", titleIds: ["spirited-away", "your-name", "frieren", "cowboy-bebop", "arcane"], createdAt: daysAgo(5), publishedAt: daysAgo(3) },
     );
     this.savedPlaylists.push({ userId: "u_sara", playlistId: "pl_demo_animazione", savedAt: daysAgo(2) });
+    // Demo: Marco and Luca watch The Boys together, so "Serate insieme" on Home has something in it.
+    const shared = this.library.find((e) => e.userId === "u_marco" && e.titleId === "the-boys");
+    const theirs = this.library.find((e) => e.userId === "u_luca" && e.titleId === "the-boys");
+    if (shared?.progress && theirs) {
+      theirs.progress = { ...shared.progress };
+      this.sharedWatches.push({ id: "sw_demo_the_boys", titleId: "the-boys", hostId: "u_luca", memberIds: ["u_luca", "u_marco"], createdAt: daysAgo(6), updatedBy: "u_luca", updatedAt: shared.progress.updatedAt });
+    }
   }
 
   // Catalog -----------------------------------------------------------------
@@ -256,6 +265,7 @@ export class MemoryRepository implements Repository {
       }
     }
     for (const pl of this.playlists) pl.titleIds = [...new Set(pl.titleIds.map((t) => (t === oldId ? next.id : t)))];
+    for (const g of this.sharedWatches) if (g.titleId === oldId) g.titleId = next.id;
     this.titles.delete(oldId);
     return { moved, merged };
   }
@@ -480,6 +490,35 @@ export class MemoryRepository implements Repository {
     const has = this.savedPlaylists.some((s) => s.userId === userId && s.playlistId === playlistId);
     if (saved && !has) this.savedPlaylists.push({ userId, playlistId, savedAt: new Date().toISOString() });
     if (!saved) this.savedPlaylists = this.savedPlaylists.filter((s) => !(s.userId === userId && s.playlistId === playlistId));
+  }
+
+  // Serate insieme ----------------------------------------------------------
+
+  async listSharedWatches(userId: string) {
+    return this.sharedWatches
+      .filter((g) => g.memberIds.includes(userId))
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .map((g) => ({ ...g, memberIds: [...g.memberIds] }));
+  }
+
+  async getSharedWatch(id: string) {
+    const g = this.sharedWatches.find((x) => x.id === id);
+    return g ? { ...g, memberIds: [...g.memberIds] } : null;
+  }
+
+  async createSharedWatch(input: { titleId: string; hostId: string; memberIds: string[] }) {
+    const group: SharedWatch = { ...input, memberIds: [...input.memberIds], id: `sw_${crypto.randomUUID()}`, createdAt: new Date().toISOString(), updatedBy: null, updatedAt: null };
+    this.sharedWatches.push(group);
+    return { ...group, memberIds: [...group.memberIds] };
+  }
+
+  async updateSharedWatch(id: string, patch: { memberIds?: string[]; hostId?: string; updatedBy?: string; updatedAt?: string }) {
+    const g = this.sharedWatches.find((x) => x.id === id);
+    if (g) Object.assign(g, patch, patch.memberIds ? { memberIds: [...patch.memberIds] } : {});
+  }
+
+  async deleteSharedWatch(id: string) {
+    this.sharedWatches = this.sharedWatches.filter((g) => g.id !== id);
   }
 
   // Watch parties -----------------------------------------------------------

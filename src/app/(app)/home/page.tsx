@@ -14,6 +14,7 @@ import { FriendActivityList } from "@/components/social/friend-activity-list";
 import { LiveFriends } from "@/components/social/live-friends";
 import { Hero } from "@/components/home/hero";
 import { InProgressCard } from "@/components/home/in-progress-card";
+import { TogetherPlaceholder } from "@/components/home/together-placeholder";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
 import { PartyTeaser } from "@/components/home/party-teaser";
 import { reasonLabel } from "@/components/home/tonight";
@@ -88,7 +89,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
         <RevealItem className="order-1">
           {view.nowWatching ? (
             <>
-              <Hero item={view.nowWatching} />
+              <Hero item={view.nowWatching} together={view.nowWatchingGroup} />
               {view.fillerRuns[view.nowWatching.title.id] && (
                 <FillerNotice titleId={view.nowWatching.title.id} titleName={view.nowWatching.title.title} run={view.fillerRuns[view.nowWatching.title.id]!} />
               )}
@@ -108,6 +109,32 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
             </section>
           )}
         </RevealItem>
+
+        {view.together.length > 0 && (
+          <RevealItem as="section" className="order-2 min-w-0">
+            <SectionHeader
+              title="Serate insieme"
+              description="Le guardi con gli amici: quando uno di voi va avanti, il punto si aggiorna per tutti."
+            />
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+              {view.together.map(({ group, item }) => (
+                <li key={group.id} className="min-w-0">
+                  {item ? (
+                    <>
+                      <InProgressCard item={item} together={group} />
+                      {view.fillerRuns[item.title.id] && <FillerNotice titleId={item.title.id} titleName={item.title.title} run={view.fillerRuns[item.title.id]!} />}
+                      <Suspense fallback={null}>
+                        <NextEpisode later={view.later} titleId={item.title.id} />
+                      </Suspense>
+                    </>
+                  ) : (
+                    <TogetherPlaceholder group={group} />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </RevealItem>
+        )}
 
         {view.continueWatching.length > 0 && (
           <RevealItem as="section" className="order-2 min-w-0">

@@ -10,6 +10,7 @@ import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
+import { shareProgress } from "@/server/services/shared-watch";
 import { getCatalog } from "@/integrations/catalog";
 import type { EpisodeInfo } from "@/integrations/catalog/types";
 
@@ -92,8 +93,10 @@ export async function setStatus(id: string, status: string): Promise<ActionResul
     const title = await cacheRemoteTitle(parsedId.data);
     const latest = title ? airedSeasons(title, italianDay(), await overridesFor(user.id, parsedId.data)).at(-1) : undefined;
     // A series marked as seen is seen up to its latest season: a later one will be "Novità".
-    if (parsedStatus.data === "completed" && latest) await repo.markSeenThrough(user.id, parsedId.data, latest.number);
-    else await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
+    if (parsedStatus.data === "completed" && latest) {
+      await repo.markSeenThrough(user.id, parsedId.data, latest.number);
+      await shareProgress(repo, user.id, parsedId.data, "seenThrough");
+    } else await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
       await repo.removeFromWishlist(user.id, parsedId.data);
@@ -152,6 +155,7 @@ export async function finishTitle(id: string): Promise<ActionResult> {
   return run(async () => {
     const repo = getRepository();
     await repo.markFinished(user.id, title.id, title.type === "movie" ? null : (airedSeasons(title, italianDay(), await overridesFor(user.id, title.id)).at(-1)?.number ?? null));
+    await shareProgress(repo, user.id, title.id, "finished");
     await repo.removeFromWishlist(user.id, title.id);
     await record(user.id, "completed", title.id);
   }, "Non siamo riusciti a segnarlo come visto.");
@@ -229,6 +233,7 @@ export async function saveManualProgress(
     return run(async () => {
       const repo = getRepository();
       await repo.markSeenThrough(user.id, title.id, season);
+      await shareProgress(repo, user.id, title.id, "seenThrough");
       await repo.removeFromWishlist(user.id, title.id);
     }, "Non siamo riusciti a salvare dove sei arrivato.");
   }
@@ -256,6 +261,7 @@ export async function saveManualProgress(
     return run(async () => {
       const repo = getRepository();
       await repo.markFinished(user.id, title.id, season);
+      await shareProgress(repo, user.id, title.id, "finished");
       await repo.removeFromWishlist(user.id, title.id);
       await record(user.id, "completed", title.id);
     }, "Non siamo riusciti a salvare dove sei arrivato.");
@@ -265,6 +271,7 @@ export async function saveManualProgress(
     return run(async () => {
       const repo = getRepository();
       await repo.markSeenThrough(user.id, title.id, season!);
+      await shareProgress(repo, user.id, title.id, "seenThrough");
       await repo.removeFromWishlist(user.id, title.id);
     }, "Non siamo riusciti a salvare dove sei arrivato.");
   }
@@ -282,6 +289,7 @@ export async function saveManualProgress(
       url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : null,
       updatedAt: new Date().toISOString(),
     });
+    await shareProgress(repo, user.id, title.id);
     await repo.removeFromWishlist(user.id, title.id);
     await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season, episode, rating: null });
   }, "Non siamo riusciti a salvare dove sei arrivato.");
@@ -367,6 +375,7 @@ export async function skipFillers(id: string): Promise<ActionResult> {
       url: null,
       updatedAt: new Date().toISOString(),
     });
+    await shareProgress(repo, user.id, title.id);
     await repo.recordActivity({ userId: user.id, kind: "watching", titleId: title.id, at: new Date().toISOString(), season: runAhead.season, episode: runAhead.after, rating: null });
   }, "Non siamo riusciti a saltare i filler.");
 }
