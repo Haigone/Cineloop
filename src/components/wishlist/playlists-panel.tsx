@@ -18,6 +18,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { MEDIA_TYPE_LABEL } from "@/lib/format";
 import { PlaylistCover } from "./playlist-cover";
+import { PlaylistSearch } from "./playlist-search";
+import { TitleThumb } from "./title-thumb";
 import { CommunityPlaylistCard } from "@/components/community/community-playlist-card";
 
 const VISIBILITY: Record<PlaylistVisibility, { label: string; hint: string }> =
@@ -324,8 +326,8 @@ function PlaylistCard({
 
       {titles.length === 0 ? (
         <p className="mt-3 text-sm text-fg-2">
-          Vuota. Aggiungi titoli dalla wishlist qui sotto o dal pulsante
-          “Playlist” di ogni titolo.
+          Vuota. Cerca un titolo nel catalogo qui sotto, sceglilo dalla
+          wishlist o usa il pulsante “Playlist” di ogni titolo.
         </p>
       ) : (
         <ul
@@ -334,6 +336,7 @@ function PlaylistCard({
         >
           {titles.map((t) => (
             <li key={t.id} className="flex items-center gap-3 py-2">
+              <TitleThumb posterUrl={t.artwork.posterUrl} palette={t.artwork.palette} />
               <Link
                 href={`/title/${t.id}`}
                 className="min-w-0 flex-1 truncate rounded-sm text-sm text-fg hover:underline hover:underline-offset-4"
@@ -356,6 +359,8 @@ function PlaylistCard({
           ))}
         </ul>
       )}
+
+      <PlaylistSearch playlistId={playlist.id} playlistName={playlist.name} inside={inside} />
 
       {addable.length > 0 && (
         <label className="mt-3 flex flex-col gap-1 text-[13px] font-medium text-fg">

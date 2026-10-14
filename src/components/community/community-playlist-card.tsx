@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { MEDIA_TYPE_LABEL } from "@/lib/format";
 import { PlaylistCover } from "@/components/wishlist/playlist-cover";
+import { TitleThumb } from "@/components/wishlist/title-thumb";
 
 function titlesLabel(n: number) {
   return n === 1 ? "1 titolo" : `${n} titoli`;
@@ -58,7 +59,8 @@ export function CommunityPlaylistCard({ view, where }: { view: CommunityPlaylist
           <summary className="cursor-pointer rounded-sm text-[13px] text-fg-2 hover:text-fg">Mostra i titoli</summary>
           <ul className="mt-2 divide-y divide-line" aria-label={`Titoli di ${playlist.name}`}>
             {titles.map((t) => (
-              <li key={t.id} className="flex items-center gap-2 py-2">
+              <li key={t.id} className="flex items-center gap-3 py-2">
+                <TitleThumb posterUrl={t.artwork.posterUrl} palette={t.artwork.palette} />
                 <Link href={`/title/${t.id}`} className="min-w-0 flex-1 truncate rounded-sm text-sm text-fg hover:underline hover:underline-offset-4">
                   {t.title}
                   <span className="ml-2 text-xs text-fg-3">
