@@ -81,6 +81,15 @@ interface TmdbEpisodeRef {
 }
 
 /** Shape shared by list items and full records; details add the rest. */
+/** Same-name results, the one with a poster and the most votes first; ties keep TMDB's order. */
+export function rankNamesakes<T extends Pick<TmdbItem, "poster_path" | "vote_count">>(items: T[]): T[] {
+  const score = (i: T) => (i.poster_path ? 1 : 0) * 1e9 + (i.vote_count ?? 0);
+  return items
+    .map((item, n) => ({ item, n }))
+    .sort((a, b) => score(b.item) - score(a.item) || a.n - b.n)
+    .map(({ item }) => item);
+}
+
 interface TmdbItem {
   id: number;
   media_type?: "movie" | "tv" | "person";
@@ -555,7 +564,8 @@ export class TmdbCatalog implements CatalogService {
     );
     const named = (i: TmdbItem) =>
       [i.title, i.name, i.original_title, i.original_name].some((n) => n && searchKey(n) === key);
-    const exact = items.filter(named);
+    // Namesakes in TMDB's order can put a stub first (no poster, no votes): the known one wins.
+    const exact = rankNamesakes(items.filter(named));
     if (!exact.length) {
       // "Show: Part" or "PART - Show" (Netflix writes both): with no title of the
       // whole name, the show is whichever side has a title of exactly that name.

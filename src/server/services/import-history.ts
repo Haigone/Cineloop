@@ -3,6 +3,7 @@ import type { Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { searchKey } from "@/lib/text";
 import { getRepository } from "@/server/data";
+import { asFranchise } from "./anime-migration";
 import { cacheTitles } from "./explore";
 import { nameKey, ownedNames } from "./import-list";
 
@@ -44,9 +45,10 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const result: HistoryResult = { added: [], already: 0, notFound: [] };
 
   const found: (Title | null)[] = [];
-  // A few at a time: each name can take several catalogue lookups.
+  // A few at a time: each name can take several catalogue lookups. An anime found under its TMDB id
+  // is filed under its franchise card, as the title page does, so the same show is there once.
   for (let i = 0; i < items.length; i += 4) {
-    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item).catch(() => null)))));
+    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item).then((t) => t && asFranchise(t)).catch(() => null)))));
   }
   await cacheTitles(repo, found.filter((t): t is Title => t !== null));
 
@@ -71,9 +73,11 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
 async function byName(name: string, series: boolean): Promise<Title | null> {
   const key = searchKey(name);
   if (!key) return null;
-  const local = (await getRepository().searchTitles(name, 8)).find((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
-  if (local) return local;
-  return getCatalog().findByName(name, { series, provider: "netflix" });
+  const local = (await getRepository().searchTitles(name, 8)).filter((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
+  // A namesake cached without a poster is often the wrong one (a stub): only a title with artwork counts.
+  const known = local.find((t) => t.artwork.posterUrl);
+  if (known) return known;
+  return (await getCatalog().findByName(name, { series, provider: "netflix" })) ?? local[0] ?? null;
 }
 
 async function match(item: HistoryItem): Promise<Title | null> {

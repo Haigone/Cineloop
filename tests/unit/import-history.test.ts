@@ -40,3 +40,20 @@ describe("importing the history never duplicates a show", () => {
     expect((await repo.listLibrary("u_davide")).filter((e) => e.titleId === "arcane" || e.titleId === "tmdb-tv-94605")).toHaveLength(1);
   });
 });
+
+describe("importing the history picks the right namesake", () => {
+  it("takes the cached title with a poster over a poster-less stub of the same name", async () => {
+    const repo = getRepository();
+    const [parasite] = await repo.getTitlesByIds(["parasite"]);
+    const art = parasite!.artwork;
+    await cacheTitles(repo, [
+      { ...parasite!, id: "tmdb-movie-900001", artwork: { ...art, posterUrl: null } },
+      { ...parasite!, id: "tmdb-movie-496243", artwork: { ...art, posterUrl: "https://image.tmdb.org/t/p/w500/p.jpg" } },
+    ]);
+    const res = await importNetflixHistory("u_namesake", [{ title: "Parasite", kind: "film", sample: "Parasite" }]);
+    expect(res.added).toHaveLength(1);
+    const ids = (await repo.listLibrary("u_namesake")).map((e) => e.titleId);
+    expect(ids).toContain("tmdb-movie-496243");
+    expect(ids).not.toContain("tmdb-movie-900001");
+  });
+});

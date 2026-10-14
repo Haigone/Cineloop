@@ -51,12 +51,22 @@ async function findFranchise(old: Title): Promise<Title | null> {
   return null;
 }
 
+const MOVABLE = /^(tmdb-tv-\d+|anime-(al|mal)-\d+)$/;
+
+/** The franchise card for an anime found under a TMDB, MyAnimeList or AniList id, else the title itself. */
+export async function asFranchise(title: Title): Promise<Title> {
+  if (title.type !== "anime" || !MOVABLE.test(title.id) || noMatch.has(title.id)) return title;
+  const hit = await franchiseFor(title).catch(() => null);
+  if (!hit) noMatch.add(title.id);
+  return hit ?? title;
+}
+
 /**
  * An anime that still has a TMDB, MyAnimeList or AniList id is moved, for every profile, to its franchise card. Returns the
  * new id, or null when the title is not a TMDB anime or has no clear match.
  */
 export async function migrateAnimeTitle(id: string): Promise<string | null> {
-  if (!/^(tmdb-tv-\d+|anime-(al|mal)-\d+)$/.test(id) || noMatch.has(id)) return null;
+  if (!MOVABLE.test(id) || noMatch.has(id)) return null;
   try {
     const old = await ensureTitle(id);
     if (!old || old.type !== "anime") return null;

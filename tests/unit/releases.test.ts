@@ -204,6 +204,20 @@ describe("recognising what the player names", () => {
     expect((await tmdb.findByName("Money Heist", { series: true, provider: "netflix" }))?.id).toBe("tmdb-tv-71446");
   });
 
+  it("among namesakes on no service, takes the known one over a stub without poster or votes", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      if (url.includes("/search/multi"))
+        return {
+          results: [
+            { id: 1306381, media_type: "movie", title: "Il padrino", release_date: "2024-01-01", poster_path: null, vote_count: 0 },
+            { id: 238, media_type: "movie", title: "Il padrino", original_title: "The Godfather", release_date: "1972-03-14", poster_path: "/p.jpg", vote_count: 21000 },
+          ],
+        };
+      return { results: {} };
+    });
+    expect((await tmdb.findByName("Il padrino", { series: false, provider: "netflix" }))?.id).toBe("tmdb-movie-238");
+  });
+
   it("reads \"Show: Part\" as the show when the part has no title of its own, and the part as its season", async () => {
     const { tmdb } = tmdbWith((url) => {
       if (url.includes("/search/multi") && /steel/i.test(url)) return { results: [] };

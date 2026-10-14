@@ -3,6 +3,7 @@ import type { Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { searchKey } from "@/lib/text";
 import { getRepository } from "@/server/data";
+import { asFranchise } from "./anime-migration";
 import { cacheTitles } from "./explore";
 
 export interface ListItem {
@@ -45,7 +46,7 @@ export async function importNetflixList(userId: string, items: readonly ListItem
   const found: (Title | null)[] = [];
   // A few at a time: each name can take several catalogue lookups.
   for (let i = 0; i < items.length; i += 4) {
-    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item)))));
+    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item).then((t) => t && asFranchise(t))))));
   }
   const titles = found.filter((t): t is Title => t !== null);
   await cacheTitles(repo, titles);
@@ -73,9 +74,12 @@ async function match(item: ListItem): Promise<Title | null> {
     if (title) return title;
   }
   const key = searchKey(item.title);
-  const local = (await repo.searchTitles(item.title, 8)).find((t) => searchKey(t.title) === key);
-  if (local) return local;
-  return getCatalog()
+  const local = (await repo.searchTitles(item.title, 8)).filter((t) => searchKey(t.title) === key);
+  // A namesake cached without a poster is often the wrong one (a stub): only a title with artwork counts.
+  const known = local.find((t) => t.artwork.posterUrl);
+  if (known) return known;
+  const found = await getCatalog()
     .findByName(item.title, { series: false, provider: "netflix" })
     .catch(() => null);
+  return found ?? local[0] ?? null;
 }
