@@ -1,11 +1,19 @@
 # Estensione browser
 
-Stato: **disponibile per Netflix, AnimeUnity e StreamingCommunity** (Chrome, Edge, Brave e altri browser Chromium). Il codice è in `extension/`; `npm run build` lo impacchetta in `public/cineloop-extension.zip`, che il sito offre in Impostazioni > Estensione Netflix.
+Stato: **disponibile per Netflix, AnimeUnity e StreamingCommunity** su Chrome, Edge, Brave e altri browser Chromium, e su **Firefox 140+** (dalla 0.6.0). Il codice è in `extension/`; `npm run build` lo impacchetta in `public/cineloop-extension.zip` (Chromium) e `public/cineloop-extension-firefox.zip` (Firefox), che il sito offre in Impostazioni > Estensione Netflix.
+
+Il codice è lo stesso per i due browser. Il pacchetto Firefox cambia solo il manifest (`scripts/pack-extension.ts`): pagina di background invece del service worker, id del componente aggiuntivo (`cineloop@cineloop-one.vercel.app`) e dichiarazione dei dati raccolti. `compat.js`, caricato per primo in ogni pagina e script, fa usare a Firefox il suo namespace `browser.*` dove il codice scrive `chrome.*`.
+
+## Permessi
+
+- **netflix.com è chiesto all'installazione** (dalla 0.6.0, `host_permissions`): il browser lo mostra una volta quando aggiungi l'estensione e poi non serve autorizzare nulla dal pannello. Per non farsi vedere si usa "Metti in pausa".
+- AnimeUnity e StreamingCommunity restano facoltativi e si attivano dal pannello, come prima.
+- Su Firefox l'utente può revocare netflix.com da about:addons: in quel caso il pannello mostra di nuovo il pulsante "Consenti su netflix.com".
 
 ## Cosa fa
 
 - **Aggiorna CineLoop mentre guardi.** Il titolo passa a "In corso" con il link per riprendere sul provider rilevato, sparisce dalla wishlist e il tempo di visione entra nelle statistiche.
-- **Ti mostra agli amici, se vuoi.** Il pannello ha quattro sezioni. In *Sto guardando* c'è cosa stai guardando (con stagione ed episodio). In *Watchlist* c'è la tua lista: in corso e tutta la wishlist, nel tuo ordine. In *Importa* puoi portare su CineLoop *La mia lista* di Netflix (vedi sotto). In *Guarda insieme* c'è l'interruttore **Visibile agli amici** (anche in Impostazioni > Privacy): se è attivo, nella loro dashboard compari in "I tuoi amici stanno guardando" con il pulsante **Guarda insieme**.
+- **Ti mostra agli amici, se vuoi.** Il pannello ha tre sezioni (dalla 0.6.0 la Watchlist non c'è più: la wishlist si gestisce sul sito). In *Sto guardando* c'è cosa stai guardando (con stagione ed episodio). In *Importa* puoi portare su CineLoop *La mia lista* di Netflix (vedi sotto). In *Guarda insieme* c'è l'interruttore **Visibile agli amici** (anche in Impostazioni > Privacy): se è attivo, nella loro dashboard compari in "I tuoi amici stanno guardando" con il pulsante **Guarda insieme**.
 - **Guardare insieme** (dalla 0.3.0). Chi preme "Guarda insieme" apre lo stesso episodio dal proprio account Netflix. Finché siete nella stanza, `party-sync.js` riporta ogni 2 secondi posizione e play/pausa del video di ciascuno a `POST /api/extension/party`; un play o una pausa premuti da uno vengono applicati al video degli altri. La posizione non viene spostata (Netflix non lo permette da fuori del suo player): il pannello dice chi è avanti o indietro e di quanti secondi, e ci si allinea con le frecce del player. Chi preferisce un'estensione watch party esterna può ancora condividerne il link.
 
 ## Cosa legge
@@ -76,14 +84,15 @@ Tutte le chiamate usano `Authorization: Bearer <token>`. CORS è aperto solo all
 
 ## Installazione
 
-Finché l'estensione non è sul Chrome Web Store:
+Finché l'estensione non è sul Chrome Web Store e su addons.mozilla.org:
 
-1. Impostazioni > Estensione browser > scarica `cineloop-extension.zip` e decomprimilo.
-2. Apri `chrome://extensions`, attiva "Modalità sviluppatore", scegli "Carica estensione non pacchettizzata" e seleziona la cartella `cineloop-extension`.
+1. Impostazioni > Estensione browser > scarica il pacchetto per il tuo browser.
+2. **Chrome, Edge, Brave**: decomprimi `cineloop-extension.zip`, apri `chrome://extensions`, attiva "Modalità sviluppatore", scegli "Carica estensione non pacchettizzata" e seleziona la cartella `cineloop-extension`.
+   **Firefox**: apri `about:debugging#/runtime/this-firefox`, scegli "Carica componente aggiuntivo temporaneo…" e seleziona `cineloop-extension-firefox.zip` così com'è. Un componente temporaneo resta finché Firefox non si chiude. Per un'installazione permanente il pacchetto va firmato da Mozilla: si carica su addons.mozilla.org come "distribuzione autonoma" (firma gratuita e automatica, serve un account sviluppatore) e si installa il file `.xpi` firmato. Su Firefox Developer Edition o Nightly, in alternativa, si può impostare `xpinstall.signatures.required` a `false` in `about:config`.
 3. Apri l’estensione, inserisci il codice e premi Collega. L’indirizzo precompilato è `https://cineloop-one.vercel.app`.
 4. Puoi attivare o disattivare Netflix, AnimeUnity e StreamingCommunity dalla sezione **Servizi collegati** del pannello; il consenso di un sito non nasconde più gli altri. Per StreamingCommunity l’estensione segue il pulsante della directory anche attraverso il reindirizzamento al dominio finale, poi chiede il permesso per quel dominio.
 
-Per aggiornarla basta sostituire la cartella e premere "Ricarica" in `chrome://extensions`.
+Per aggiornarla basta sostituire la cartella e premere "Ricarica" in `chrome://extensions` (su Firefox, "Ricarica" in `about:debugging`).
 
 ## Test
 
@@ -93,3 +102,14 @@ Per aggiornarla basta sostituire la cartella e premere "Ricarica" in `chrome://e
 ## Importare "La mia lista" di Netflix
 
 Dalla sezione *Importa* del pannello. L'utente apre netflix.com/browse/my-list e scorre fino in fondo; il pannello legge, solo su sua richiesta e solo in quella scheda, il nome e l'id delle copertine già presenti nella pagina (`chrome.scripting.executeScript`, permesso netflix.com già concesso). Nessuna richiesta a Netflix, nessuno scorrimento automatico, nessuna API interna. I titoli vanno a `POST /api/extension/import-list` a gruppi di 20: ognuno è riconosciuto dall'id Netflix già noto, poi per nome (preferendo quello disponibile su Netflix) e finisce in wishlist, se non è già in wishlist o in libreria. Il pannello mostra quanti sono stati aggiunti e quali non sono stati trovati nel catalogo.
+
+### Dall'export ufficiale dei dati di Netflix
+
+Per liste lunghe, o per importare la lista di un altro profilo, il pannello offre anche l'export dei dati personali:
+
+1. Su netflix.com: Account > Sicurezza e privacy > Scarica le tue informazioni personali (`netflix.com/account/getmyinfo`) e invia la richiesta.
+2. Conferma dall'email di Netflix.
+3. Quando arriva l'email che i dati sono pronti (Netflix dice fino a 30 giorni, di solito un giorno), scarica lo .zip.
+4. Dal pannello, *Importa* > "Carica il file di Netflix": si apre `import.html` in una scheda (un selettore di file chiuderebbe il pannello). Si carica lo .zip così com'è oppure solo `MyList.csv`.
+
+`netflix-export.js` legge lo .zip nel browser: apre solo la voce `CONTENT_INTERACTION/MyList.csv` (anche negli archivi ZIP64), ne prende profilo e titolo, e toglie i doppioni. Se ci sono più profili si sceglie quale importare (o tutti). I titoli vanno a `POST /api/extension/import-list` senza id Netflix, a gruppi di 20; al limite di richieste la pagina aspetta un minuto e riprende da sola. Se si carica la cronologia (`NetflixViewingHistory.csv` o `ViewingActivity.csv`) la pagina lo dice invece di importarla.

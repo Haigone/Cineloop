@@ -1,5 +1,5 @@
 import type { MediaType, Release, Title } from "@/domain/types";
-import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "@/integrations/catalog/types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonDetails, PersonHit } from "@/integrations/catalog/types";
 import { addDays, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { AnnClient } from "./ann";
@@ -417,6 +417,12 @@ export class AnimeFirstCatalog implements CatalogService {
   }
   similarTo(seeds: readonly Title[], limit: number): Promise<Title[]> {
     return this.base.similarTo(seeds, limit);
+  }
+  searchPeople(query: string, limit: number): Promise<PersonHit[]> {
+    return this.base.searchPeople(query, limit);
+  }
+  person(id: string): Promise<PersonDetails | null> {
+    return this.base.person(id);
   }
   match(title: Title): Promise<Title | null> {
     return this.base.match(title);

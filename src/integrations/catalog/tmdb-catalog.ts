@@ -3,7 +3,7 @@ import { addDays } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
 import { searchKey } from "@/lib/text";
 import { franchiseHead, franchiseKey, franchiseNames, withoutSeriesFilms } from "@/domain/franchise";
-import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference } from "./types";
+import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonCredit, PersonDetails, PersonHit } from "./types";
 
 /**
  * TMDB (themoviedb.org) catalog, via its official public API v3.
@@ -126,6 +126,79 @@ function servicesIn(results: Record<string, WatchOffers> | undefined): ProviderI
   return [...new Set(ids.filter((p): p is ProviderId => Boolean(p)))];
 }
 
+/** A person as search lists them; details and credits add the rest. */
+interface TmdbPerson {
+  id: number;
+  name?: string;
+  /** 1 female, 2 male, 0 or 3 unknown / non-binary. */
+  gender?: number;
+  known_for_department?: string;
+  profile_path?: string | null;
+  known_for?: TmdbItem[];
+  biography?: string;
+  birthday?: string | null;
+  place_of_birth?: string | null;
+  combined_credits?: { cast?: TmdbCredit[]; crew?: TmdbCredit[] };
+}
+
+/** A film or series in someone's credits, with the part they had in it. */
+type TmdbCredit = TmdbItem & { character?: string; job?: string };
+
+/** Jobs behind the camera that make a title part of someone's filmography. */
+const CREW_JOBS: Record<string, string> = { Director: "Regia", Creator: "Ideazione", Screenplay: "Sceneggiatura", Writer: "Sceneggiatura", Novel: "Romanzo" };
+
+/** Talk shows and news: guest appearances, not filmography. */
+const NOT_FILMOGRAPHY_GENRES = [10763, 10767];
+
+/** Playing themselves (interviews, award shows, documentaries about them). */
+const SELF = /^(self|himself|herself|themselves|se stess[oa]|s[eé]\s*mism[oa]|narrator)\b/i;
+
+/** What a person is known for, in Italian. */
+export function personRole(department: string | undefined, gender?: number): string | null {
+  if (department === "Acting") return gender === 1 ? "Attrice" : "Attore";
+  const roles: Record<string, string> = {
+    Directing: "Regia",
+    Writing: "Sceneggiatura",
+    Production: "Produzione",
+    Sound: "Musiche",
+    Camera: "Fotografia",
+    Editing: "Montaggio",
+    Creator: "Ideazione",
+  };
+  return (department && roles[department]) || null;
+}
+
+/**
+ * One row per title of a person's credits: the films and series they acted in
+ * (not as themselves, not talk shows or news) or directed, wrote or created.
+ * Exported for tests.
+ */
+export function filmography(credits: { cast?: TmdbCredit[]; crew?: TmdbCredit[] } | undefined): PersonCredit[] {
+  const rows = new Map<string, PersonCredit>();
+  const add = (c: TmdbCredit, role: string | null) => {
+    if (c.media_type !== "movie" && c.media_type !== "tv") return;
+    if ((c.genre_ids ?? []).some((g) => NOT_FILMOGRAPHY_GENRES.includes(g))) return;
+    const title = toTitle(c.media_type, c);
+    if (!title.title) return;
+    const known = rows.get(title.id);
+    if (known) {
+      if (role && !known.role?.split(" · ").includes(role)) known.role = known.role ? `${known.role} · ${role}` : role;
+      return;
+    }
+    rows.set(title.id, { title, role, votes: c.vote_count ?? 0 });
+  };
+  for (const c of credits?.cast ?? []) {
+    const character = c.character?.trim() ?? "";
+    if (SELF.test(character)) continue;
+    add(c, character || null);
+  }
+  for (const c of credits?.crew ?? []) {
+    const job = c.job && CREW_JOBS[c.job];
+    if (job) add(c, job);
+  }
+  return [...rows.values()];
+}
+
 interface TmdbList {
   results?: TmdbItem[];
   total_pages?: number;
@@ -151,6 +224,43 @@ export class TmdbCatalog implements CatalogService {
     const titles = await this.withSeries(mapItems(items, limit + 10), items);
     // A film from an anime series found along with that series sits on the series' page instead.
     return withoutSeriesFilms(titles).slice(0, limit);
+  }
+
+  async searchPeople(query: string, limit: number): Promise<PersonHit[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const people = (await this.listPage(`/search/person?query=${encodeURIComponent(q)}&include_adult=false`)).results as TmdbPerson[] | undefined;
+    return (people ?? [])
+      // Someone with no picture and no known title is a namesake nobody is looking for.
+      .filter((p) => p.name && (p.profile_path || p.known_for?.length))
+      .slice(0, limit)
+      .map((p) => ({
+        id: `tmdb-person-${p.id}`,
+        name: p.name!.trim(),
+        role: personRole(p.known_for_department, p.gender),
+        photoUrl: p.profile_path ? `${IMAGE}/w185${p.profile_path}` : null,
+        knownFor: mapItems(p.known_for ?? [], 3),
+      }));
+  }
+
+  async person(id: string): Promise<PersonDetails | null> {
+    const m = /^tmdb-person-(\d+)$/.exec(id);
+    if (!m) return null;
+    try {
+      const p = await this.get<TmdbPerson>(`/person/${m[1]}?append_to_response=combined_credits`);
+      return {
+        id,
+        name: (p.name ?? "").trim(),
+        role: personRole(p.known_for_department, p.gender),
+        photoUrl: p.profile_path ? `${IMAGE}/w342${p.profile_path}` : null,
+        biography: p.biography?.trim() ?? "",
+        birthday: p.birthday || null,
+        placeOfBirth: p.place_of_birth || null,
+        credits: filmography(p.combined_credits),
+      };
+    } catch {
+      return null;
+    }
   }
 
   /** Marks the anime films among `titles` with the series they come from. */

@@ -29,6 +29,39 @@ export interface EpisodeInfo {
   runtimeMinutes: number | null;
 }
 
+/** An actor, director or writer found by name. */
+export interface PersonHit {
+  /** Namespaced like titles: "tmdb-person-6193". */
+  id: string;
+  name: string;
+  /** What they are known for, in Italian ("Attore", "Regia"), when the source says. */
+  role: string | null;
+  photoUrl: string | null;
+  /** Their best-known titles, most famous first. */
+  knownFor: Title[];
+}
+
+/** One title in a person's filmography. */
+export interface PersonCredit {
+  title: Title;
+  /** The character they play, or their job behind the camera ("Regia"). */
+  role: string | null;
+  /** How well known the title is: used to put the famous ones first. */
+  votes: number;
+}
+
+export interface PersonDetails {
+  id: string;
+  name: string;
+  role: string | null;
+  photoUrl: string | null;
+  biography: string;
+  birthday: string | null;
+  placeOfBirth: string | null;
+  /** Every film and series they acted in or directed, one row per title. */
+  credits: PersonCredit[];
+}
+
 export interface DiscoverPage {
   titles: Title[];
   /** True when the source has another page after this one. */
@@ -75,6 +108,10 @@ export interface CatalogService {
   related(title: Title, limit: number): Promise<Title[]>;
   /** A season's episodes, or null when the source does not list them. */
   episodes(id: string, season: number): Promise<EpisodeInfo[] | null>;
+  /** Actors and directors by name, best known first. Empty when the source has no people. */
+  searchPeople(query: string, limit: number): Promise<PersonHit[]>;
+  /** A person with their whole filmography, or null when unknown. */
+  person(id: string): Promise<PersonDetails | null>;
   /** Films and new series coming out after `today`, soonest first. */
   upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]>;
 }

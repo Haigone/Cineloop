@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CineLoop · Importa La mia lista di Netflix</title>
+    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="import.css" />
+  </head>
+  <body class="page">
+    <header>
+      <img src="icons/32.png" alt="" width="20" height="20" />
+      <span class="brand">CineLoop</span>
+      <span id="who" class="muted"></span>
+    </header>
+
+    <h1>Importa La mia lista di Netflix</h1>
+    <p class="muted">I titoli finiscono nella tua wishlist di CineLoop, senza doppioni: quelli che hai già in wishlist o in libreria restano dove sono.</p>
+
+    <section class="card">
+      <p class="title">1. Chiedi i tuoi dati a Netflix</p>
+      <ol class="steps">
+        <li>Su netflix.com apri <strong>Account</strong>, poi <strong>Sicurezza e privacy</strong>, poi <strong>Scarica le tue informazioni personali</strong>, e invia la richiesta.</li>
+        <li>Conferma dal link nell’email che ti manda Netflix.</li>
+        <li>Quando arriva l’email che i dati sono pronti (di solito entro un giorno, al massimo 30), scarica il file <code>.zip</code>.</li>
+      </ol>
+      <a class="button" href="https://www.netflix.com/account/getmyinfo" target="_blank" rel="noopener">Apri la pagina di Netflix</a>
+    </section>
+
+    <section class="card">
+      <p class="title">2. Carica il file qui</p>
+      <p class="muted">Va bene lo <code>.zip</code> così com’è, oppure solo <code>CONTENT_INTERACTION/MyList.csv</code>. L’estensione legge solo La mia lista (nome del profilo e titolo); il resto dell’archivio non viene aperto e non lascia il tuo computer.</p>
+      <label for="file">File di Netflix</label>
+      <input id="file" type="file" accept=".zip,.csv,application/zip,text/csv" />
+      <p id="file-error" class="error" role="alert" hidden></p>
+
+      <div id="preview" hidden>
+        <div id="profile-row" hidden>
+          <label for="profile">Profilo</label>
+          <select id="profile"></select>
+        </div>
+        <p id="count" class="muted"></p>
+        <button id="import-btn" type="button" class="primary"></button>
+      </div>
+      <p id="import-status" class="muted" role="status" hidden></p>
+      <ul id="import-missing" class="missing" hidden></ul>
+    </section>
+
+    <p id="not-paired" class="error" role="alert" hidden>Prima collega l’estensione al tuo account dal pannello di CineLoop, poi torna qui.</p>
+
+    <script type="module" src="import.js"></script>
+  </body>
+</html>

@@ -29,6 +29,8 @@ Le due implementazioni rispettano lo stesso contratto e la stessa semantica (wis
 
 Il catalogo segue lo stesso schema: i titoli vivono nella tabella `titles` (una cache) e un `CatalogService` la riempie. Con `TMDB_READ_TOKEN` la ricerca integra i risultati di TMDB e li salva in cache, così si possono aggiungere a liste e wishlist.
 
+La ricerca trova anche attori e registi (`searchPeople`, TMDB `/search/person`): nella barra in alto compaiono nel gruppo "Attori e registi" e, quando la ricerca è il loro nome, i loro titoli più noti salgono in cima ai titoli. In Esplora la griglia mostra tutta la loro filmografia, dal titolo più noto. La pagina `/person/[id]` (`person`, TMDB `/person/{id}?append_to_response=combined_credits`) elenca film e serie in cui hanno recitato (non talk show né apparizioni come se stessi) o che hanno diretto, scritto o ideato. Con il catalogo demo non ci sono persone.
+
 ## Autenticazione
 
 - Password con scrypt (`node:crypto`), salt per utente, confronto a tempo costante.

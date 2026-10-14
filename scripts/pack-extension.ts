@@ -1,6 +1,7 @@
 /**
- * Zips extension/ into public/cineloop-extension.zip, so the site serves the
- * exact extension that matches its API. Runs as part of `npm run build`.
+ * Zips extension/ into public/cineloop-extension.zip (Chrome, Edge, Brave) and
+ * public/cineloop-extension-firefox.zip, so the site serves the exact
+ * extension that matches its API. Runs as part of `npm run build`.
  * A tiny ZIP writer (deflate + CRC-32) keeps this free of dependencies.
  */
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -8,9 +9,10 @@ import { join, relative } from "node:path";
 import { deflateRawSync } from "node:zlib";
 
 const SOURCE = "extension";
-const TARGET = "public/cineloop-extension.zip";
-/** Everything lands in one folder, which is what "Load unpacked" asks for. */
-const ROOT = "cineloop-extension/";
+const CHROME_TARGET = "public/cineloop-extension.zip";
+const FIREFOX_TARGET = "public/cineloop-extension-firefox.zip";
+/** Everything lands in one folder, which is what Chrome's "Load unpacked" asks for. */
+const CHROME_ROOT = "cineloop-extension/";
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -33,7 +35,27 @@ function files(dir: string): string[] {
     });
 }
 
-function main() {
+/**
+ * The same extension for Firefox (140+, which grants host permissions at
+ * install time): an event page instead of a service worker, and the add-on id
+ * Firefox needs for storage and signing.
+ */
+function firefoxManifest(chrome: Buffer): Buffer {
+  const manifest = JSON.parse(chrome.toString("utf8"));
+  delete manifest.minimum_chrome_version;
+  manifest.background = { scripts: ["background.js"], type: "module" };
+  manifest.browser_specific_settings = {
+    gecko: {
+      id: "cineloop@cineloop-one.vercel.app",
+      strict_min_version: "140.0",
+      data_collection_permissions: { required: ["browsingActivity", "websiteContent"] },
+    },
+  };
+  return Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+/** Firefox loads the .zip itself, so its files sit at the root. */
+function pack(target: string, root: string, transform: (name: string, data: Buffer) => Buffer = (_, data) => data) {
   const locals: Buffer[] = [];
   const central: Buffer[] = [];
   let offset = 0;
@@ -42,8 +64,9 @@ function main() {
   const dosDate = ((2026 - 1980) << 9) | (1 << 5) | 1;
 
   for (const path of files(SOURCE)) {
-    const name = Buffer.from(ROOT + relative(SOURCE, path).split("\\").join("/"));
-    const data = readFileSync(path);
+    const relativeName = relative(SOURCE, path).split("\\").join("/");
+    const name = Buffer.from(root + relativeName);
+    const data = transform(relativeName, readFileSync(path));
     const packed = deflateRawSync(data, { level: 9 });
     const crc = crc32(data);
 
@@ -87,8 +110,9 @@ function main() {
   end.writeUInt32LE(offset, 16);
 
   mkdirSync("public", { recursive: true });
-  writeFileSync(TARGET, Buffer.concat([...locals, dir, end]));
-  console.log(`Packed ${central.length / 2} files into ${TARGET}.`);
+  writeFileSync(target, Buffer.concat([...locals, dir, end]));
+  console.log(`Packed ${central.length / 2} files into ${target}.`);
 }
 
-main();
+pack(CHROME_TARGET, CHROME_ROOT);
+pack(FIREFOX_TARGET, "", (name, data) => (name === "manifest.json" ? firefoxManifest(data) : data));
