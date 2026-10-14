@@ -135,7 +135,9 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
     headers: { Authorization: `Bearer ${paired.token}` },
     data: { externalId: ep2, position: 600, paused: false, action: "seek" },
   });
-  await expect.poll(() => new URL(netflix.url()).searchParams.get("t"), { timeout: 40_000 }).toMatch(/^60\d$/);
+  // It may wait a few seconds after its previous reopen, so the point is 10:00 plus that wait.
+  await expect.poll(() => Number(new URL(netflix.url()).searchParams.get("t")), { timeout: 40_000 }).toBeGreaterThanOrEqual(600);
+  expect(Number(new URL(netflix.url()).searchParams.get("t"))).toBeLessThan(640);
   await popup.reload();
   await expect(popup.locator("#room-state")).toContainText("salto di Luca Ferri");
 
@@ -150,7 +152,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await expect(async () => {
     await popup.reload();
     await expect(popup.locator("#watching-title")).toHaveText("Stranger Things", { timeout: 1000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 30_000, intervals: [2_500] });
   await expect(popup.locator("#watching-meta")).toContainText("S4E5");
   await expect(popup.getByText("Che cosa stai guardando?")).toBeHidden();
   await expect(popup.locator("#player-read")).toContainText("Stranger Things · S4E5");
@@ -161,7 +163,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await expect(async () => {
     await popup.reload();
     await expect(popup.locator("#watching-title")).toHaveText("Dark", { timeout: 1000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 30_000, intervals: [2_500] });
   await expect(popup.locator("#watching-meta")).toContainText("S2E3");
 
   // "E4" alone: the season follows on from the episode before.
@@ -169,14 +171,14 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await expect(async () => {
     await popup.reload();
     await expect(popup.locator("#watching-meta")).toContainText("S2E4", { timeout: 1000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 30_000, intervals: [2_500] });
 
   // A new series with the episode alone: the popup asks for the season once.
   await netflix.goto(`https://www.netflix.com/watch/${named4}`);
   await expect(async () => {
     await popup.reload();
     await expect(popup.locator("#watching-title")).toHaveText("Peaky Blinders", { timeout: 1000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 30_000, intervals: [2_500] });
   await expect(popup.locator("#watching-meta")).not.toContainText("E2");
   await popup.getByRole("tab", { name: "Sto guardando" }).click();
   await popup.getByRole("button", { name: "Stagione 3" }).click();

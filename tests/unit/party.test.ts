@@ -58,6 +58,30 @@ describe("room clock", () => {
     expect(p).toMatchObject({ paused: true, position: 2436, seq: 1 });
   });
 
+  it("keeps a guest's pause when the host's extension hears of the room late", () => {
+    let p = applyReport(null, "guest", { externalId: "1", position: 3, paused: true, action: "pause" }, t0, "host");
+    // The host's first report, long after, still says "playing": it hasn't seen the pause yet.
+    p = applyReport(p, "host", { externalId: "1", position: 40, paused: false }, after(12), "host");
+    expect(p.paused).toBe(true);
+    // Its next report follows the room it was told about.
+    p = applyReport(p, "host", { externalId: "1", position: 41, paused: true }, after(14), "host");
+    expect(p).toMatchObject({ paused: true, position: 41 });
+  });
+
+  it("ignores the host's autoplay right after it reopened the episode", () => {
+    let p = applyReport(null, "host", { externalId: "1", position: 40, paused: false }, t0, "host");
+    p = applyReport(p, "guest", { externalId: "1", position: 41, paused: true, action: "pause" }, after(1), "host");
+    p = applyReport(p, "host", { externalId: "1", position: 41, paused: true }, after(3), "host");
+    p = applyReport(p, "host", { externalId: "1", position: 0.5, paused: false, following: false }, after(9), "host");
+    expect(p).toMatchObject({ paused: true, position: 41 });
+  });
+
+  it("starts again from the host when the host moves to another episode", () => {
+    let p = applyReport(null, "host", { externalId: "1", position: 2500, paused: false }, t0, "host");
+    p = applyReport(p, "host", { externalId: "2", position: 4, paused: false, following: false }, after(5), "host");
+    expect(roomPosition(p, after(5))).toBe(4);
+  });
+
   it("stands still while paused", () => {
     const p = applyReport(null, "host", { externalId: "1", position: 50, paused: false, action: "pause" }, t0, "host");
     expect(roomPosition({ ...p, paused: true }, after(30))).toBe(50);

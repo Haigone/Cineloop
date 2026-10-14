@@ -8,6 +8,12 @@ export interface PlaybackReport {
   paused: boolean;
   /** Set when the member themselves pressed play or pause, or moved to another point. */
   action?: "play" | "pause" | "seek";
+  /**
+   * False while the player is not on the room's clock: it has not yet had the
+   * room's state (it just opened, or reopened the episode, and is autoplaying)
+   * or it is still too far from it. The host's player leads only when true.
+   */
+  following?: boolean;
 }
 
 /** A report older than this no longer says where someone is. */
@@ -30,6 +36,8 @@ const ACTION_GRACE_MS = 4_000;
 export function applyReport(prev: PartyState | null, userId: string, report: PlaybackReport, now: Date, hostId?: string): PartyState {
   const at = now.toISOString();
   const base: PartyState = prev ?? { paused: report.paused, position: report.position, at, by: userId, seq: 0, members: {} };
+  // The host moved to another episode: the room starts again from there.
+  const newEpisode = userId === hostId && prev?.members[userId] !== undefined && prev.members[userId]!.externalId !== report.externalId;
   const next: PartyState = {
     ...base,
     members: { ...base.members, [userId]: { externalId: report.externalId, position: report.position, paused: report.paused, at } },
@@ -44,12 +52,26 @@ export function applyReport(prev: PartyState | null, userId: string, report: Pla
     next.by = userId;
     next.last = report.action;
     next.seq = base.seq + 1;
-  } else if (userId === hostId && now.getTime() - Date.parse(base.at) >= ACTION_GRACE_MS) {
+  } else if (newEpisode) {
+    next.paused = report.paused;
+    next.position = report.position;
+    next.at = at;
+  } else if (userId === hostId && report.following !== false && hostHasSeen(base, userId) && now.getTime() - Date.parse(base.at) >= ACTION_GRACE_MS) {
     next.paused = report.paused;
     next.position = report.position;
     next.at = at;
   }
   return next;
+}
+
+/**
+ * Has the host reported since the room's clock last moved? Only then did its
+ * extension get the new state back, so its player can lead again. A host that
+ * hears of the room late must not undo a guest's pause with its old state.
+ */
+function hostHasSeen(base: PartyState, hostId: string): boolean {
+  const prev = base.members[hostId];
+  return Boolean(prev) && Date.parse(prev!.at) >= Date.parse(base.at);
 }
 
 /** Where the room's clock is now. */

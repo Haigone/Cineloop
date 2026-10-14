@@ -44,6 +44,8 @@
   let inStep = false;
   /** Has this player had the room's state since it appeared? */
   let heard = false;
+  /** Was it too far from the room at the last check (waiting to reopen the episode)? */
+  let lagging = false;
   let nudging = false;
 
   const watchId = () => /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
@@ -56,6 +58,7 @@
     boundAt = Date.now();
     inStep = false;
     heard = false;
+    lagging = false;
     nudging = false;
     // Netflix starts, and seeks, by itself while the episode loads: only what
     // happens after this player has heard from the room counts as the user's.
@@ -74,7 +77,7 @@
     if (action) freshFrom = n;
     const t0 = performance.now();
     const res = await chrome.runtime
-      .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, ...(action ? { action } : {}) })
+      .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
       .catch(() => null);
     if (n < freshFrom) return;
     if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000);
@@ -108,6 +111,7 @@
     const target = party.position + (party.paused ? 0 : rtt / 2);
     const gap = v.currentTime - target;
     inStep = Math.abs(gap) < 3;
+    lagging = Math.abs(gap) >= JUMP_SECONDS;
     if (Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
     if (party.paused) return setRate(v, 1);
     if (Math.abs(gap) >= NUDGE_SECONDS) setRate(v, gap > 0 ? 0.8 : 1.25);
