@@ -163,8 +163,25 @@ export const playlists = pgTable(
     name: text("name").notNull(),
     visibility: text("visibility").$type<PlaylistVisibility>().notNull().default("private"),
     createdAt: ts("created_at").notNull().defaultNow(),
+    /** Set while the playlist is published in Community. */
+    publishedAt: ts("published_at"),
   },
-  (t) => [index("playlists_owner_idx").on(t.ownerId)],
+  (t) => [index("playlists_owner_idx").on(t.ownerId), index("playlists_published_idx").on(t.publishedAt)],
+);
+
+/** Community playlists a user saved: a bookmark, so the saver always sees the owner's current list. */
+export const savedPlaylists = pgTable(
+  "saved_playlists",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playlistId: text("playlist_id")
+      .notNull()
+      .references(() => playlists.id, { onDelete: "cascade" }),
+    savedAt: ts("saved_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.playlistId] }), index("saved_playlists_playlist_idx").on(t.playlistId)],
 );
 
 export const playlistItems = pgTable(

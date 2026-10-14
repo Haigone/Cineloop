@@ -45,6 +45,7 @@ export class MemoryRepository implements Repository {
   private activity: ActivityEvent[] = [];
   private parties: WatchParty[] = [];
   private playlists: Playlist[] = [];
+  private savedPlaylists: { userId: string; playlistId: string; savedAt: string }[] = [];
   private notifications = new Map<string, AppNotification[]>();
   private preferences = new Map<string, UserPreferences>();
   private pairingCodes = new Map<string, { userId: string; expiresAt: Date }>();
@@ -89,6 +90,13 @@ export class MemoryRepository implements Repository {
       pendingMinutes: 0,
     });
     this.demoLive.add("u_luca");
+    // Demo: two playlists published in Community, so the page has something to save.
+    const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+    this.playlists.push(
+      { id: "pl_demo_adrenalina", ownerId: "u_luca", name: "Adrenalina pura", visibility: "friends", titleIds: ["mad-max-fury-road", "narcos", "the-boys", "dune-part-two", "the-batman", "peaky-blinders"], createdAt: daysAgo(9), publishedAt: daysAgo(8) },
+      { id: "pl_demo_animazione", ownerId: "u_elena", name: "Notti d'animazione", visibility: "private", titleIds: ["spirited-away", "your-name", "frieren", "cowboy-bebop", "arcane"], createdAt: daysAgo(5), publishedAt: daysAgo(3) },
+    );
+    this.savedPlaylists.push({ userId: "u_sara", playlistId: "pl_demo_animazione", savedAt: daysAgo(2) });
   }
 
   // Catalog -----------------------------------------------------------------
@@ -420,21 +428,24 @@ export class MemoryRepository implements Repository {
   }
 
   async createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility) {
-    const playlist: Playlist = { id: `pl_${crypto.randomUUID()}`, ownerId, name, visibility, titleIds: [], createdAt: new Date().toISOString() };
+    const playlist: Playlist = { id: `pl_${crypto.randomUUID()}`, ownerId, name, visibility, titleIds: [], createdAt: new Date().toISOString(), publishedAt: null };
     this.playlists.push(playlist);
     return { ...playlist };
   }
 
-  async updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility }) {
+  async updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility; published?: boolean }) {
     const playlist = this.playlists.find((p) => p.id === id && p.ownerId === ownerId);
     if (!playlist) return false;
-    Object.assign(playlist, patch);
+    const { published, ...rest } = patch;
+    Object.assign(playlist, rest);
+    if (published !== undefined) playlist.publishedAt = published ? (playlist.publishedAt ?? new Date().toISOString()) : null;
     return true;
   }
 
   async deletePlaylist(ownerId: string, id: string) {
     const before = this.playlists.length;
     this.playlists = this.playlists.filter((p) => !(p.id === id && p.ownerId === ownerId));
+    this.savedPlaylists = this.savedPlaylists.filter((s) => this.playlists.some((p) => p.id === s.playlistId));
     return this.playlists.length < before;
   }
 
@@ -445,6 +456,30 @@ export class MemoryRepository implements Repository {
     if (present && !has) playlist.titleIds.push(titleId);
     if (!present && has) playlist.titleIds = playlist.titleIds.filter((t) => t !== titleId);
     return true;
+  }
+
+  async listCommunityPlaylists(limit: number) {
+    return this.playlists
+      .filter((p) => p.publishedAt)
+      .sort((a, b) => Date.parse(b.publishedAt!) - Date.parse(a.publishedAt!))
+      .slice(0, limit)
+      .map((p) => ({ playlist: { ...p, titleIds: [...p.titleIds] }, saves: this.savedPlaylists.filter((s) => s.playlistId === p.id).length }));
+  }
+
+  async listSavedPlaylists(userId: string) {
+    return this.savedPlaylists
+      .filter((s) => s.userId === userId)
+      .sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt))
+      .flatMap((s) => {
+        const p = this.playlists.find((x) => x.id === s.playlistId && x.publishedAt);
+        return p ? [{ ...p, titleIds: [...p.titleIds] }] : [];
+      });
+  }
+
+  async setPlaylistSaved(userId: string, playlistId: string, saved: boolean) {
+    const has = this.savedPlaylists.some((s) => s.userId === userId && s.playlistId === playlistId);
+    if (saved && !has) this.savedPlaylists.push({ userId, playlistId, savedAt: new Date().toISOString() });
+    if (!saved) this.savedPlaylists = this.savedPlaylists.filter((s) => !(s.userId === userId && s.playlistId === playlistId));
   }
 
   // Watch parties -----------------------------------------------------------

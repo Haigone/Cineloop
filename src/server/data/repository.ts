@@ -108,9 +108,14 @@ export interface Repository {
   listSharedPlaylists(ownerIds: readonly string[]): Promise<Playlist[]>;
   createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility): Promise<Playlist>;
   /** Only the owner's own playlist changes; false when it is not theirs. */
-  updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility }): Promise<boolean>;
+  updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility; published?: boolean }): Promise<boolean>;
   deletePlaylist(ownerId: string, id: string): Promise<boolean>;
   setPlaylistItem(ownerId: string, id: string, titleId: string, present: boolean): Promise<boolean>;
+  /** Playlists published in Community, most recently published first, with how many people saved each. */
+  listCommunityPlaylists(limit: number): Promise<{ playlist: Playlist; saves: number }[]>;
+  /** Community playlists the user saved that are still published, most recently saved first. */
+  listSavedPlaylists(userId: string): Promise<Playlist[]>;
+  setPlaylistSaved(userId: string, playlistId: string, saved: boolean): Promise<void>;
 
   createWatchParty(party: Omit<WatchParty, "id" | "createdAt">): Promise<WatchParty>;
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
