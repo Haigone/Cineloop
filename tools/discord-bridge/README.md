@@ -13,18 +13,17 @@ Piccolo programma locale che riceve lo stato di CineLoop dall'estensione e lo pu
 
 1. Installa Python 3.11+ da https://www.python.org/downloads/windows/ e durante l'installazione seleziona **Add Python to PATH**.
 2. Scarica la cartella `tools/discord-bridge` dal repository CineLoop (Code → Download ZIP, oppure scarica i singoli file).
-3. Estrai la cartella, poi fai doppio clic su `install.bat`.
-4. Configura l'Application ID in `start.bat` come descritto sopra.
-5. Apri Discord desktop e fai doppio clic su `start.bat` per verificare che la Rich Presence funzioni.
+3. Estrai la cartella e configura l'Application ID in `start.bat` come descritto sopra.
+4. Fai doppio clic su `install_silent.bat`: installa le dipendenze, prepara il launcher silenzioso, programma l'avvio automatico e prova ad avviare subito il bridge.
+
+Se preferisci installare manualmente e fare debug con una finestra di comando, puoi ancora usare `install.bat` e `start.bat`.
 
 ## 3. Avvio automatico silenzioso (consigliato)
 
 Dopo aver verificato che il bridge funzioni:
 
-1. Fai doppio clic su `install_startup.bat`. Questa operazione registra il bridge nell'avvio automatico del tuo utente Windows; non richiede privilegi amministrativi.
-2. Per avviarlo subito senza una finestra CMD, fai doppio clic su `start_silent.vbs`.
-3. Dal prossimo accesso a Windows, il bridge partirà in background. Discord desktop deve comunque essere aperto e l'estensione CineLoop deve essere attiva.
-4. Se necessario, gli eventuali messaggi di errore del processo silenzioso vengono scritti in `bridge.log`.
+1. Normalmente basta eseguire una sola volta `install_silent.bat`: registra il bridge nell'avvio automatico del tuo utente Windows e tenta di avviarlo subito, senza privilegi amministrativi.
+2. Dal prossimo accesso a Windows, il bridge partirà in background. Discord desktop deve comunque essere aperto e l'estensione CineLoop deve essere attiva.
 
 Comandi utili:
 - `stop_bridge.bat`: arresta il bridge silenzioso.
