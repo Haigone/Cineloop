@@ -558,5 +558,6 @@ $("import-open").addEventListener("click", () => chrome.tabs.create({ url: MY_LI
 $("export-request").addEventListener("click", () => chrome.tabs.create({ url: "https://www.netflix.com/account/getmyinfo" }));
 // A file picker would close the popup, so the upload happens in a tab of the extension.
 $("export-upload").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("import.html") }));
+$("history-upload").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("import.html?mode=history") }));
 
 render();

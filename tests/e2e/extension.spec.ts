@@ -220,6 +220,22 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await expect(upload.getByRole("status")).toContainText("Non trovati nel catalogo: 1.");
   await upload.close();
 
+  // The viewing history: what is missing from the library is added, the rest goes in the error log.
+  const history = await ctx.newPage();
+  await history.goto(`chrome-extension://${extId}/import.html?mode=history`);
+  await expect(history.getByLabel("Storico visioni")).toBeChecked();
+  await history.getByLabel("File di Netflix").setInputFiles({
+    name: "NetflixViewingHistory.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from('Title,Date\n"Arcane: Stagione 2: Atto I","1/2/25"\n"Arcane: Stagione 1: Benvenuti","1/1/25"\n"Una serie inventata: Stagione 1: Pilota","3/1/25"\n'),
+  });
+  await expect(history.getByText("2 titoli nello storico.")).toBeVisible();
+  await history.getByRole("button", { name: "Importa 2 titoli" }).click();
+  await expect(history.getByRole("status")).toContainText("Non trovati nel catalogo: 1.", { timeout: 90_000 });
+  await expect(history.locator("#import-missing")).toContainText("Una serie inventata");
+  await expect(history.getByRole("link", { name: "Scarica il log degli errori" })).toBeVisible();
+  await history.close();
+
   await other.close();
   await ctx.close();
 });

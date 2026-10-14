@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   // Its own budget: a long list takes several requests in a row.
   const auth = await authenticate(request, 20, "import");
   if (!("userId" in auth)) return auth;
-  const parsed = body.safeParse(await readJson(request));
+  const parsed = body.safeParse(await readJson(request, 32_768));
   if (!parsed.success) return json(request, { error: "invalid_request" }, 400);
   return json(request, await importNetflixList(auth.userId, parsed.data.items));
 }

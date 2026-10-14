@@ -1,6 +1,17 @@
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { isMyListFile, listFromFile, parseCsv, readMyList, readZipEntry, uniqueTitles } from "../../extension/netflix-export.js";
+import {
+  groupHistory,
+  isMyListFile,
+  listFromFile,
+  parseCsv,
+  parseHistoryTitle,
+  readHistory,
+  readMyList,
+  readNetflixFile,
+  readZipEntry,
+  uniqueTitles,
+} from "../../extension/netflix-export.js";
 
 const MY_LIST = '﻿Profile Name,Title Name,Country,Utc Title Add Date\r\nMarco,Squid Game,IT,2025-01-02\r\nMarco,"Lupin, la serie",IT,2025-01-03\r\nGiulia,Squid  game,IT,2025-02-01\r\nGiulia,Dark,IT,2025-02-02\r\n';
 
@@ -73,5 +84,38 @@ describe("Netflix data export", () => {
     const fromCsv = await listFromFile(new Blob([MY_LIST]));
     expect(fromZip).toEqual(fromCsv);
     expect(await listFromFile(new Blob([zip({ "other.csv": "x" }, false)]))).toBe("no_list");
+  });
+});
+
+describe("Netflix viewing history", () => {
+  it("tells series, films and ambiguous rows apart", () => {
+    expect(parseHistoryTitle("Stranger Things: Stagione 4: Capitolo uno: Il club Hellfire")).toMatchObject({ title: "Stranger Things", kind: "series", season: 4 });
+    expect(parseHistoryTitle("La casa di carta: Parte 3: Episodio 1")).toMatchObject({ title: "La casa di carta", kind: "series", season: 3 });
+    expect(parseHistoryTitle("Breaking Bad: Season 5: Felina")).toMatchObject({ title: "Breaking Bad", kind: "series", season: 5 });
+    expect(parseHistoryTitle("La regina degli scacchi: Serie limitata: Aperture")).toMatchObject({ title: "La regina degli scacchi", kind: "series", season: 1 });
+    expect(parseHistoryTitle("Il buco")).toMatchObject({ title: "Il buco", kind: "film" });
+    expect(parseHistoryTitle("Black Mirror: Bandersnatch")).toMatchObject({ title: "Black Mirror", kind: "unknown", sample: "Black Mirror: Bandersnatch" });
+  });
+
+  it("reads the history page download and groups it by title", () => {
+    const history = readHistory('Title,Date\n"Dark: Stagione 1: Segreti","1/2/25"\n"Dark: Stagione 3: Deja-vu","3/2/25"\n"Il buco","4/2/25"\n');
+    if (!history) throw new Error("no history");
+    expect(groupHistory(history.items)).toEqual([
+      { title: "Dark", kind: "series", season: 3, sample: "Dark: Stagione 1: Segreti", rows: 2 },
+      { title: "Il buco", kind: "film", sample: "Il buco", rows: 1 },
+    ]);
+    expect(readMyList('Title,Date\nDark,1/2/25\n')).toBe("history");
+  });
+
+  it("reads the export's ViewingActivity.csv, without trailers and short plays", async () => {
+    const csv =
+      "Profile Name,Start Time,Duration,Attributes,Title,Supplemental Video Type,Device Type,Bookmark,Latest Bookmark,Country\n" +
+      "Marco,2025-01-02 21:00:00,00:45:10,,Dark: Stagione 2: Fantasmi,,TV,00:45:10,00:45:10,IT (Italy)\n" +
+      "Marco,2025-01-02 20:58:00,00:01:10,,Dark: Stagione 2: Fantasmi,TRAILER,TV,00:01:10,00:01:10,IT (Italy)\n" +
+      "Giulia,2025-01-03 21:00:00,00:00:40,Autoplayed: user action: None;,Il buco,,TV,00:00:40,00:00:40,IT (Italy)\n";
+    const found = await readNetflixFile(new Blob([zip({ "CONTENT_INTERACTION/MyList.csv": MY_LIST, "CONTENT_INTERACTION/ViewingActivity.csv": csv }, true)]), "history");
+    expect(found).toMatchObject({ type: "history", profiles: ["Marco"], skipped: 2, items: [{ profile: "Marco", title: "Dark: Stagione 2: Fantasmi" }] });
+    expect(await readNetflixFile(new Blob([zip({ "CONTENT_INTERACTION/MyList.csv": MY_LIST }, true)]), "list")).toMatchObject({ type: "list" });
+    expect(await readNetflixFile(new Blob([zip({ "CONTENT_INTERACTION/MyList.csv": MY_LIST }, true)]), "history")).toEqual({ type: "missing" });
   });
 });
