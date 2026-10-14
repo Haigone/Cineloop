@@ -22,6 +22,7 @@ import { StopWatching } from "@/components/title/stop-watching";
 import { ProgressEditor } from "@/components/title/progress-editor";
 import { SeasonList } from "@/components/title/season-list";
 import { WatchOrder } from "@/components/title/watch-order";
+import { SagaSection } from "@/components/title/saga-section";
 import { FillerGuide } from "@/components/title/filler-guide";
 import { Rail } from "@/components/media/rail";
 import { TitleCard } from "@/components/media/title-card";
@@ -232,6 +233,12 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               <p className="mt-2 text-xs text-fg-3">CineLoop non riproduce i contenuti: ti porta direttamente sulla piattaforma. Le offerte vengono da JustWatch tramite TMDB.</p>
             </div>
           </section>
+
+          {title.type === "movie" && title.collection && !title.partOf && (
+            <Suspense fallback={<Skeleton className="h-48 rounded-xl" />}>
+              <SagaSection title={title} />
+            </Suspense>
+          )}
 
           {title.type !== "movie" && title.seasons.length > 0 && (
             <section aria-labelledby="seasons-h">

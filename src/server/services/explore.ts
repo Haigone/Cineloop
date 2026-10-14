@@ -370,8 +370,12 @@ export async function canonical(repo: Repository, titles: Title[]): Promise<Titl
  * must exist here before it can be added to one.
  */
 function withKnownSeasons(fresh: Title, known: Title | undefined): Title {
-  // A list result does not say which series a film belongs to: keep what is known.
-  if (fresh.type === "movie") return fresh.partOf === undefined && known?.type === "movie" && known.partOf ? { ...fresh, partOf: known.partOf } : fresh;
+  // A list result does not say which series or saga a film belongs to: keep what is known.
+  if (fresh.type === "movie") {
+    if (known?.type !== "movie") return fresh;
+    const out = fresh.partOf === undefined && known.partOf ? { ...fresh, partOf: known.partOf } : fresh;
+    return out.collection === undefined && known.collection !== undefined ? { ...out, collection: known.collection } : out;
+  }
   if (fresh.seasons.length > 0 || !known || known.type === "movie" || known.seasons.length === 0) return fresh;
   return { ...fresh, seasons: known.seasons, episodeRuntimeMinutes: fresh.episodeRuntimeMinutes || known.episodeRuntimeMinutes };
 }
@@ -410,7 +414,7 @@ export async function ensureTitle(id: string): Promise<Title | null> {
 function needsDetails(t: Title): boolean {
   if (!/^tmdb-/.test(t.id)) return false;
   if (t.providers.length === 0) return true;
-  return t.type === "movie" ? t.partOf === undefined : t.seasons.length === 0;
+  return t.type === "movie" ? t.partOf === undefined || t.collection === undefined : t.seasons.length === 0;
 }
 
 

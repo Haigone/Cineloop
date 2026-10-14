@@ -1,6 +1,7 @@
 import type {
   ActivityEvent,
   AppNotification,
+  CollectionChoice,
   ChartEntry,
   ExtensionDevice,
   Friend,
@@ -153,6 +154,11 @@ export interface Repository {
   /** Catalog title a provider id was matched to, trying ids in order. */
   findProviderLink(providerId: ProviderId, externalIds: readonly string[]): Promise<string | null>;
   saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }): Promise<void>;
+
+  // Sagas: each user's watching order and the films they leave out
+  listCollectionChoices(userId: string): Promise<CollectionChoice[]>;
+  /** Saves the user's choice for a saga; an empty order with nothing left out goes back to the default. */
+  saveCollectionChoice(userId: string, choice: CollectionChoice): Promise<void>;
 
   // Notifications & preferences
   listNotifications(userId: string): Promise<AppNotification[]>;

@@ -1,4 +1,4 @@
-import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
+import type { FilmCollection, Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
 
 export type CatalogSort = "popular" | "top" | "recent";
 
@@ -131,4 +131,6 @@ export interface CatalogService {
    * release, a series before its first episode. Titles already out are left out.
    */
   premieres(titles: readonly Title[], today: string): Promise<Release[]>;
+  /** A saga with all its films and their release dates ("tmdb-collection-119"), or null when unknown. */
+  collection(id: string): Promise<FilmCollection | null>;
 }

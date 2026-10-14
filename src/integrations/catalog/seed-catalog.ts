@@ -1,7 +1,7 @@
-import type { MediaType, Release, Title } from "@/domain/types";
-import { addDays } from "@/lib/dates";
+import type { FilmCollection, MediaType, Movie, Release, Title } from "@/domain/types";
+import { addDays, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
-import { SEED_TITLES } from "@/server/data/seed/catalog";
+import { DUNE_SAGA, SEED_TITLES } from "@/server/data/seed/catalog";
 import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, CastMember, PersonDetails, PersonHit } from "./types";
 import { franchiseKey } from "@/domain/franchise";
 
@@ -15,6 +15,26 @@ const DEMO_NEXT_SEASONS: Record<string, { season: number; inDays: number | null 
   "the-last-of-us": { season: 3, inDays: 210 },
   severance: { season: 3, inDays: null },
 };
+
+/** The demo saga's third film: not out yet, its date (made up) moves with today. */
+const DUNE_THREE_IN_DAYS = 65;
+
+function duneThree(today: string): Movie {
+  const date = addDays(today, DUNE_THREE_IN_DAYS);
+  return {
+    id: "dune-part-three",
+    type: "movie",
+    title: "Dune - Parte tre",
+    year: Number(date.slice(0, 4)),
+    runtimeMinutes: 0,
+    genres: ["Fantascienza", "Avventura", "Dramma"],
+    providers: [],
+    communityRating: null,
+    overview: "Anni dopo la guerra santa, l'imperatore Paul Atreides deve fare i conti con il prezzo del potere che ha preso.",
+    artwork: { posterUrl: null, backdropUrl: null, palette: ["#8a5a2b", "#120904", "#e0b878"] },
+    collection: DUNE_SAGA,
+  };
+}
 
 /**
  * The bundled demo catalog: a few dozen titles, no keys, works offline.
@@ -46,7 +66,24 @@ export class SeedCatalog implements CatalogService {
   }
 
   async getTitle(id: string): Promise<Title | null> {
+    if (id === "dune-part-three") return duneThree(italianDay());
     return this.titles.get(id) ?? null;
+  }
+
+  async collection(id: string): Promise<FilmCollection | null> {
+    if (id !== DUNE_SAGA.id) return null;
+    const today = italianDay();
+    const films = [...this.titles.values()].filter((t): t is Movie => t.type === "movie" && t.collection?.id === id);
+    const third = duneThree(today);
+    return {
+      ...DUNE_SAGA,
+      overview: "La saga di Paul Atreides su Arrakis.",
+      artwork: films[0]?.artwork ?? third.artwork,
+      parts: [
+        ...films.map((title) => ({ title, releaseDate: `${title.year}-09-15` })).sort((a, b) => a.releaseDate.localeCompare(b.releaseDate)),
+        { title: third, releaseDate: addDays(today, DUNE_THREE_IN_DAYS) },
+      ],
+    };
   }
 
   async related(title: Title, limit: number): Promise<Title[]> {

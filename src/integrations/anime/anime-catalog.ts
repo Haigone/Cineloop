@@ -1,4 +1,4 @@
-import type { MediaType, Release, Title } from "@/domain/types";
+import type { FilmCollection, MediaType, Release, Title } from "@/domain/types";
 import type { CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, CastMember, PersonDetails, PersonHit } from "@/integrations/catalog/types";
 import { addDays, italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
@@ -450,6 +450,9 @@ export class AnimeFirstCatalog implements CatalogService {
   }
   match(title: Title): Promise<Title | null> {
     return this.base.match(title);
+  }
+  collection(id: string): Promise<FilmCollection | null> {
+    return this.base.collection(id);
   }
   /**
    * The catalogue's releases, plus anime of the coming seasons from MyAnimeList's calendar that the

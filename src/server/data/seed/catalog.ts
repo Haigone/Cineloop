@@ -1,4 +1,4 @@
-import type { Genre, Movie, ProviderId, SeasonSummary, Series, Title } from "@/domain/types";
+import type { CollectionRef, Genre, Movie, ProviderId, SeasonSummary, Series, Title } from "@/domain/types";
 
 /**
  * Demo catalog used by the seed data source and by the database seed script.
@@ -31,6 +31,13 @@ function movie(
     overview,
     artwork: { posterUrl: null, backdropUrl: null, palette },
   };
+}
+
+/** The demo saga: its films carry it, as TMDB's films carry their collection. */
+export const DUNE_SAGA: CollectionRef = { id: "demo-collection-dune", name: "Dune" };
+
+function inSaga(saga: CollectionRef, film: Movie): Movie {
+  return { ...film, collection: saga };
 }
 
 function show(
@@ -84,9 +91,12 @@ export const SEED_TITLES: Title[] = [
   movie("interstellar", "Interstellar", 2014, 169, ["Fantascienza", "Dramma", "Avventura"], ["prime-video", "now"], 8.7,
     ["#2c4a6e", "#05070c", "#d7c39a"],
     "La Terra sta morendo. Un ex pilota lascia i figli per attraversare un wormhole alla ricerca di un nuovo pianeta, sapendo che il tempo scorrerà diversamente per loro."),
-  movie("dune-part-two", "Dune - Parte due", 2024, 166, ["Fantascienza", "Avventura", "Dramma"], ["now"], 8.5,
+  inSaga(DUNE_SAGA, movie("dune", "Dune", 2021, 155, ["Fantascienza", "Avventura", "Dramma"], ["now", "netflix"], 8.0,
+    ["#b9772f", "#140a04", "#e9c98d"],
+    "Paul Atreides arriva con la sua famiglia su Arrakis, il pianeta più pericoloso dell'universo e l'unica fonte della spezia, e scopre di essere al centro di una guerra.")),
+  inSaga(DUNE_SAGA, movie("dune-part-two", "Dune - Parte due", 2024, 166, ["Fantascienza", "Avventura", "Dramma"], ["now"], 8.5,
     ["#c46d2b", "#1a0c05", "#f0d29a"],
-    "Paul Atreides si unisce ai Fremen e scala la loro fede, mentre la profezia che lo precede rischia di trasformarlo in ciò che teme."),
+    "Paul Atreides si unisce ai Fremen e scala la loro fede, mentre la profezia che lo precede rischia di trasformarlo in ciò che teme.")),
   movie("the-batman", "The Batman", 2022, 176, ["Crime", "Mistero", "Azione"], ["now"], 7.8,
     ["#a3141f", "#070608", "#3b3f52"],
     "Al secondo anno da vigilante, Batman segue gli enigmi di un assassino che colpisce l'élite di Gotham e lo costringe a guardare la corruzione della propria famiglia."),

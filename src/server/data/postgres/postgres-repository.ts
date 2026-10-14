@@ -4,6 +4,7 @@ import postgres from "postgres";
 import type {
   ActivityEvent,
   AppNotification,
+  CollectionChoice,
   ChartEntry,
   ExtensionDevice,
   Friend,
@@ -725,6 +726,26 @@ export class PostgresRepository implements Repository {
       });
   }
 
+  // Sagas -------------------------------------------------------------------
+
+  async listCollectionChoices(userId: string) {
+    const rows = await this.db.select().from(schema.collectionChoices).where(eq(schema.collectionChoices.userId, userId));
+    return rows.map((r): CollectionChoice => ({ collectionId: r.collectionId, order: r.order, excluded: r.excluded }));
+  }
+
+  async saveCollectionChoice(userId: string, choice: CollectionChoice) {
+    const key = and(eq(schema.collectionChoices.userId, userId), eq(schema.collectionChoices.collectionId, choice.collectionId));
+    if (choice.order.length === 0 && choice.excluded.length === 0) {
+      await this.db.delete(schema.collectionChoices).where(key);
+      return;
+    }
+    const row = { userId, collectionId: choice.collectionId, order: [...choice.order], excluded: [...choice.excluded], updatedAt: new Date() };
+    await this.db
+      .insert(schema.collectionChoices)
+      .values(row)
+      .onConflictDoUpdate({ target: [schema.collectionChoices.userId, schema.collectionChoices.collectionId], set: { order: row.order, excluded: row.excluded, updatedAt: row.updatedAt } });
+  }
+
   // Notifications & preferences --------------------------------------------
 
   async listNotifications(userId: string) {
@@ -788,7 +809,13 @@ function toTitle(r: typeof schema.titles.$inferSelect): Title {
     providers: r.providers,
   };
   return r.type === "movie"
-    ? { ...base, type: "movie", runtimeMinutes: r.runtimeMinutes ?? 0, ...(r.partOf === null ? {} : { partOf: r.partOf || null }) }
+    ? {
+        ...base,
+        type: "movie",
+        runtimeMinutes: r.runtimeMinutes ?? 0,
+        ...(r.partOf === null ? {} : { partOf: r.partOf || null }),
+        ...(r.collectionId === null ? {} : { collection: r.collectionId ? { id: r.collectionId, name: r.collectionName ?? "" } : null }),
+      }
     : { ...base, type: r.type, seasons: r.seasons ?? [], episodeRuntimeMinutes: r.episodeRuntimeMinutes ?? 0, ...(r.watchOrder ? { watchOrder: r.watchOrder } : {}) };
 }
 
@@ -812,6 +839,9 @@ export function titleToRow(t: Title): typeof schema.titles.$inferInsert {
     episodeRuntimeMinutes: t.type === "movie" ? null : t.episodeRuntimeMinutes,
     seasons: t.type === "movie" ? null : t.seasons,
     watchOrder: t.type === "movie" ? null : (t.watchOrder ?? null),
+    // Same convention as partOf: "" is "checked, no saga", null is "not checked yet".
+    collectionId: t.type === "movie" && t.collection !== undefined ? (t.collection?.id ?? "") : null,
+    collectionName: t.type === "movie" ? (t.collection?.name ?? null) : null,
   };
 }
 
