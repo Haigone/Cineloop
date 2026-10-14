@@ -14,7 +14,7 @@ import { useToast } from "@/components/ui/toast";
 /**
  * Friends watching right now (reported by their CineLoop extension) who chose
  * to be visible, each with "Guarda insieme": open the same thing on the
- * provider; both extensions then keep play and pause in step.
+ * provider; on Netflix both extensions then keep position, play and pause in step.
  */
 export function LiveFriends({ items }: { items: LiveFriend[] }) {
   return (
@@ -29,6 +29,9 @@ export function LiveFriends({ items }: { items: LiveFriend[] }) {
 function LiveRow({ item }: { item: LiveFriend }) {
   const [open, setOpen] = useState(false);
   const [joined, setJoined] = useState(item.joined);
+  // After joining, the Netflix link starts where the friend is right now.
+  const [url, setUrl] = useState(item.url);
+  const synced = item.providerId === "netflix";
   const [pending, startTransition] = useTransition();
   const toast = useToast();
   const what = item.title?.title ?? item.label ?? "qualcosa";
@@ -42,6 +45,7 @@ function LiveRow({ item }: { item: LiveFriend }) {
       const res = await joinWatching(item.user.id);
       if (res.ok) {
         setJoined(true);
+        setUrl(res.url);
         setOpen(true);
       } else toast.show(res.error, { tone: "error" });
     });
@@ -87,13 +91,15 @@ function LiveRow({ item }: { item: LiveFriend }) {
               <span className="text-white/70">({new URL(item.partyUrl).hostname.replace(/^www\./, "")})</span>
             </ButtonAnchor>
           )}
-          <ButtonAnchor href={item.url} variant={item.partyUrl ? "secondary" : "primary"} size="lg" icon={<ExternalLink aria-hidden className="size-4" />}>
+          <ButtonAnchor href={url} variant={item.partyUrl ? "secondary" : "primary"} size="lg" icon={<ExternalLink aria-hidden className="size-4" />}>
             Apri su {provider}
           </ButtonAnchor>
           <p className="text-[13px] leading-relaxed text-fg-3">
             {item.partyUrl
               ? "La stanza tiene play, pausa e posizione allineati per tutti."
-              : `Con l'estensione CineLoop attiva, play e pausa restano allineati tra te e ${name}. Nel pannello dell'estensione, in “Guarda insieme”, vedi se siete sfasati.`}
+              : synced
+                ? `Con l'estensione CineLoop attiva entri nel punto in cui è ${name}, e posizione, play e pausa restano allineati tra voi. Nel pannello dell'estensione, in “Guarda insieme”, vedi se siete sfasati.`
+                : `Per ora CineLoop sincronizza posizione, play e pausa solo su Netflix: su ${provider} allineatevi a mano.`}
           </p>
         </div>
       </Modal>

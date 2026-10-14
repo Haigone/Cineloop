@@ -1,5 +1,5 @@
 import "server-only";
-import { applyReport, driftBetween, IN_SYNC_SECONDS, type PlaybackReport } from "@/domain/party";
+import { applyReport, driftBetween, hostPosition, IN_SYNC_SECONDS, roomPosition, watchAt, type PlaybackReport } from "@/domain/party";
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
@@ -212,11 +212,14 @@ export interface PartyView {
   isHost: boolean;
   /** Everyone else in the room. */
   members: string[];
-  /** The room's play/pause state and its sequence number, applied once by each player. */
+  /** Where every player should be: the room's clock, now, in seconds. */
+  position: number;
+  /** Whether the room is paused, and how many play/pause/seek there were. */
   paused: boolean;
   seq: number;
   byYou: boolean;
   byName: string;
+  lastAction: "play" | "pause" | "seek" | null;
   /** False when you are on a different episode than the host: nothing is applied. */
   sameEpisode: boolean;
   /** Who is noticeably ahead (+ seconds) or behind (−) you. */
@@ -239,9 +242,10 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
     const presences = await repo.listPresence(friends.map((f) => f.user.id));
     host = presences.find((p) => isLive(p, now) && p.guestIds.includes(userId)) ?? null;
   }
-  if (!host) return { party: null };
+  // Watching together is synced on Netflix only, for now.
+  if (!host || host.providerId !== "netflix") return { party: null };
 
-  const party = applyReport(await repo.getParty(host.userId), userId, report, now);
+  const party = applyReport(await repo.getParty(host.userId), userId, report, now, host.userId);
   await repo.saveParty(host.userId, party);
 
   const memberIds = [host.userId, ...host.guestIds];
@@ -257,10 +261,12 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
       hostName: name(host.userId),
       isHost: host.userId === userId,
       members: memberIds.filter((id) => id !== userId).map(name),
+      position: roomPosition(party, now),
       paused: party.paused,
       seq: party.seq,
       byYou: party.by === userId,
       byName: name(party.by),
+      lastAction: party.last ?? null,
       sameEpisode: report.externalId === host.externalId,
       offsets,
     },
@@ -367,7 +373,9 @@ export async function joinFriend(viewer: PublicUser, hostId: string): Promise<Jo
       });
     }
   }
-  return { ok: true, url: presence.url, partyUrl: presence.partyUrl, hostName: host.displayName };
+  // On Netflix the link starts where the host is now; the extension keeps you there.
+  const url = presence.providerId === "netflix" ? watchAt(presence.url, hostPosition(await repo.getParty(hostId), hostId, presence.externalId, new Date())) : presence.url;
+  return { ok: true, url, partyUrl: presence.partyUrl, hostName: host.displayName };
 }
 
 // Internals ------------------------------------------------------------------

@@ -171,19 +171,20 @@ async function renderTogether(status, w) {
 
   $("room-title").textContent = party && !party.isHost ? `Guardi con ${party.hostName}` : "Guardate insieme";
   $("room-members").textContent = `Con te: ${members.join(", ")}`;
+  const lastAction = { play: "play", pause: "pausa", seek: "salto" }[party?.lastAction] ?? (party?.paused ? "pausa" : "play");
   $("room-state").textContent = !party
-    ? "Apri lo stesso episodio: play e pausa si allineano appena parte il video."
+    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video (solo su Netflix)."
     : !party.sameEpisode
-      ? `Sei su un altro episodio rispetto a ${party.hostName}: play e pausa non vengono sincronizzati.`
+      ? `Sei su un altro episodio rispetto a ${party.hostName}: posizione, play e pausa non vengono sincronizzati.`
       : party.seq > 0
-        ? `Play e pausa sincronizzati. Ultimo: ${party.paused ? "pausa" : "play"} di ${party.byYou ? "te" : party.byName}.`
-        : "Play e pausa sincronizzati.";
+        ? `Posizione, play e pausa sincronizzati. Ultimo: ${lastAction} di ${party.byYou ? "te" : party.byName}.`
+        : "Posizione, play e pausa sincronizzati.";
   $("room-offsets").replaceChildren(
     ...(party?.offsets ?? []).map((o) => {
       const li = document.createElement("li");
       const s = Math.abs(o.seconds);
       const amount = s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
-      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: usa ← o → nel player di Netflix per allinearti.`;
+      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: CineLoop vi riallinea in pochi secondi. Se resta così, usa ← o → nel player di Netflix.`;
       return li;
     }),
   );
