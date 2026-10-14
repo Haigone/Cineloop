@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 if not exist .venv\Scripts\python.exe (
-  echo Esegui prima install.bat
+  echo Esegui prima install_silent.bat
   pause
   exit /b 1
 )
