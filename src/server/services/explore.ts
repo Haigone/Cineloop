@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
 import { countdownLabel, formatDay, italianDay } from "@/lib/dates";
-import { searchKey } from "@/lib/text";
+import { namesPerson, searchKey } from "@/lib/text";
 import { loadFriendBundles } from "./shared";
 
 export const PAGE_SIZE = 20;
@@ -51,7 +51,10 @@ export async function getExploreView(filters: ExploreFilters): Promise<ExploreVi
   let hasMore: boolean;
   if (searching) {
     // Search has no server-side paging here: ask for everything up to this page and slice.
-    const all = await catalog.search(filters.q.trim(), PAGE_SIZE * filters.page + 1);
+    const [titles, filmography] = await Promise.all([catalog.search(filters.q.trim(), PAGE_SIZE * filters.page + 1), namedFilmography(filters.q.trim())]);
+    // An actor's or director's name: their films and series first, best known on top.
+    const seen = new Set(filmography.map((t) => t.id));
+    const all = [...filmography, ...titles.filter((t) => !seen.has(t.id))];
     const matching = filters.provider ? all.filter((t) => t.providers.includes(filters.provider!)) : all;
     found = matching.slice((filters.page - 1) * PAGE_SIZE, filters.page * PAGE_SIZE);
     hasMore = matching.length > filters.page * PAGE_SIZE;
@@ -296,6 +299,23 @@ const identity = (t: Pick<Title, "title" | "year">) => `${searchKey(t.title)}|${
 function withoutKnown(titles: Title[], known: readonly Title[]): Title[] {
   const isKnown = knownMatcher(known);
   return titles.filter((t) => !isKnown(t));
+}
+
+/**
+ * When the query is a person's name ("dicaprio"), everything they acted in or
+ * directed, best known first. A remote failure only costs these extra rows.
+ */
+async function namedFilmography(q: string): Promise<Title[]> {
+  try {
+    const catalog = getCatalog();
+    const named = (await catalog.searchPeople(q, 3)).find((p) => namesPerson(q, p.name));
+    if (!named) return [];
+    const person = await catalog.person(named.id);
+    return [...(person?.credits ?? [])].sort((a, b) => b.votes - a.votes).map((c) => c.title);
+  } catch (err) {
+    console.error("filmography search failed", err);
+    return [];
+  }
 }
 
 /** Recognises a title the viewer already has, even under another source's id. */

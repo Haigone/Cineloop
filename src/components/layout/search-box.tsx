@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { LoaderCircle, Search, X } from "lucide-react";
+import { LoaderCircle, Search, UserRound, X } from "lucide-react";
 import type { SearchResults } from "@/server/services/search";
 import { cn } from "@/lib/cn";
 import { MEDIA_TYPE_LABEL } from "@/lib/format";
@@ -12,11 +12,14 @@ import { Avatar } from "@/components/ui/avatar";
 
 type Option =
   | { kind: "title"; id: string; href: string; label: string; meta: string; palette: readonly [string, string, string]; posterUrl: string | null }
+  | { kind: "cast"; id: string; href: string; label: string; meta: string; photoUrl: string | null }
   | { kind: "person"; id: string; href: string; label: string; meta: string };
+
+const GROUP_LABEL: Record<Option["kind"], string> = { title: "Titoli", cast: "Attori e registi", person: "Persone" };
 
 type Status = "idle" | "loading" | "ready" | "error";
 
-const EMPTY: SearchResults = { titles: [], people: [] };
+const EMPTY: SearchResults = { titles: [], cast: [], people: [] };
 
 /**
  * Global search (ARIA combobox). Groups results by kind so people, friends
@@ -89,6 +92,15 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
         palette: t.palette,
         posterUrl: t.posterUrl,
       })),
+      // Older responses (a cached page during a deploy) have no cast group.
+      ...(results.cast ?? []).map((p) => ({
+        kind: "cast" as const,
+        id: p.id,
+        href: `/person/${p.id}`,
+        label: p.name,
+        meta: [p.role, p.knownFor.join(", ")].filter(Boolean).join(" · ") || "Vedi tutti i suoi titoli",
+        photoUrl: p.photoUrl,
+      })),
       ...results.people.map((p) => ({
         kind: "person" as const,
         id: p.id,
@@ -113,7 +125,7 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
   return (
     <div className="relative w-full">
       <label htmlFor={`${listId}-input`} className="sr-only">
-        Cerca film, serie, anime e persone
+        Cerca film, serie, anime, attori e persone
       </label>
       <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-fg-3" />
       <input
@@ -127,7 +139,7 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
         aria-activedescendant={active >= 0 ? optionId(active) : undefined}
         autoComplete="off"
         spellCheck={false}
-        placeholder="Cerca film, serie, anime..."
+        placeholder="Cerca film, serie, anime, attori..."
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -193,7 +205,7 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
                   <li key={`${opt.kind}-${opt.id}`} role="none">
                     {firstOfGroup && (
                       <div role="presentation" className="px-2.5 pt-2 pb-1 text-xs text-fg-3">
-                        {opt.kind === "title" ? "Titoli" : "Persone"}
+                        {GROUP_LABEL[opt.kind]}
                       </div>
                     )}
                     <div
@@ -215,6 +227,14 @@ export function SearchBox({ autoFocus = false, onNavigate }: { autoFocus?: boole
                           style={{ background: `linear-gradient(160deg, ${opt.palette[0]}, ${opt.palette[1]})` }}
                         >
                           {opt.posterUrl && <Image src={opt.posterUrl} alt="" fill sizes="32px" className="object-cover" />}
+                        </span>
+                      ) : opt.kind === "cast" ? (
+                        <span aria-hidden className="relative size-8 shrink-0 overflow-hidden rounded-full bg-white/[0.06]">
+                          {opt.photoUrl ? (
+                            <Image src={opt.photoUrl} alt="" fill sizes="32px" className="object-cover" />
+                          ) : (
+                            <UserRound className="absolute inset-0 m-auto size-4 text-fg-3" />
+                          )}
                         </span>
                       ) : (
                         <Avatar user={{ id: opt.id, displayName: opt.label, avatarUrl: null }} size="sm" decorative />

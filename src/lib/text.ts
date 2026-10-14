@@ -11,3 +11,15 @@ export function searchKey(s: string): string {
     .replace(/[̀-ͯ]/g, "")
     .trim();
 }
+
+/**
+ * True when the query names this person ("dicaprio", "leonardo dicaprio"),
+ * not just a few letters that happen to be in their name.
+ */
+export function namesPerson(query: string, name: string): boolean {
+  const key = (s: string) => searchKey(s).replace(/\s+/g, " ");
+  const q = key(query);
+  const full = key(name);
+  if (q.length < 3) return false;
+  return full === q || full.split(" ").includes(q) || (q.includes(" ") && full.startsWith(q));
+}
