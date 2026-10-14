@@ -66,6 +66,18 @@ async function News({ later, wishlistIds }: { later: Promise<HomeLater>; wishlis
   );
 }
 
+/** Wishlist titles not out yet, with the time left: asks the catalogue, so it arrives after the page. */
+async function ComingFromWishlist({ later }: { later: Promise<HomeLater> }) {
+  const { premieres } = await later;
+  if (premieres.length === 0) return null;
+  return (
+    <RevealItem as="section" className="order-4 min-w-0">
+      <SectionHeader title="In uscita dalla tua wishlist" id="home-premieres" description="Titoli che hai messo in wishlist e che non sono ancora usciti: ti avvisiamo il giorno dell’uscita." href="/explore" hrefLabel="Apri Esplora" />
+      <AwaitingList items={premieres} label="In uscita dalla tua wishlist" />
+    </RevealItem>
+  );
+}
+
 async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">["searchParams"] }) {
   const params = await searchParams;
   const view = await getHomeView(sectionFromSlug(params.c));
@@ -151,6 +163,10 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
             />
           )}
         </RevealItem>
+
+        <Suspense fallback={null}>
+          <ComingFromWishlist later={view.later} />
+        </Suspense>
 
         <Suspense fallback={null}>
           <News later={view.later} wishlistIds={wishlistIds} />

@@ -4,10 +4,10 @@ import type { AwaitedRelease } from "@/server/services/awaited";
 import { KeyArt } from "@/components/media/key-art";
 import { ReleaseTimer } from "@/components/media/release-timer";
 
-/** Finished series waiting on a new season, each with the time left. */
-export function AwaitingList({ items }: { items: { title: Title; release: AwaitedRelease }[] }) {
+/** Titles waiting on a release (by default, finished series waiting on a new season), each with the time left. */
+export function AwaitingList({ items, label = "Serie in attesa di nuove stagioni" }: { items: { title: Title; release: AwaitedRelease }[]; label?: string }) {
   return (
-    <ul aria-label="Serie in attesa di nuove stagioni" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <ul aria-label={label} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {items.map(({ title, release }) => (
         <li key={title.id} className="flex items-center gap-3 rounded-lg border border-line p-2.5">
           <Link href={`/title/${title.id}`} className="shrink-0 rounded-md">

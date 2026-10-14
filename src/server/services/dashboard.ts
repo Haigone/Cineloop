@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { isLive } from "@/domain/presence";
 import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
-import { awaitedReleases, type AwaitedRelease } from "./awaited";
+import { awaitedReleases, wishedPremieres, type AwaitedRelease } from "./awaited";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
 import { fillerRunAfter, type FillerRun } from "@/domain/watch-order";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
@@ -38,6 +38,8 @@ export interface HomeLater {
   upcomingEpisodes: Record<string, AwaitedRelease>;
   /** Finished series waiting on a season or, for those airing weekly, the next episode; soonest first. */
   awaiting: { title: Title; release: AwaitedRelease }[];
+  /** Wishlist titles of the section that are not out yet, with their release date; soonest first. */
+  premieres: { title: Title; release: AwaitedRelease }[];
 }
 
 export interface HomeView {
@@ -160,19 +162,21 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     awaitedReleases(finished, today),
     awaitedReleases(watching, today),
     category === "movie" ? Promise.resolve([]) : listNewSeasons(repo, library.filter((e) => inSection.has(e.titleId)), inSection, today),
+    wishedPremieres(wishlist.map((w) => inSection.get(w.titleId)).filter((t): t is Title => Boolean(t)), today),
   ])
-    .then(([awaited, watchingAhead, newSeasons]) => {
+    .then(([awaited, watchingAhead, newSeasons, premieres]) => {
       const upcomingEpisodes: Record<string, AwaitedRelease> = {};
       for (const [id, r] of watchingAhead) if (r.episode) upcomingEpisodes[id] = r;
       return {
         newSeasons,
         upcomingEpisodes,
+        premieres,
         awaiting: finished
           .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
           .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
       };
     })
-    .catch((): HomeLater => ({ newSeasons: [], upcomingEpisodes: {}, awaiting: [] }));
+    .catch((): HomeLater => ({ newSeasons: [], upcomingEpisodes: {}, awaiting: [], premieres: [] }));
   return {
     viewer: toPublicUser(viewer),
     category,
