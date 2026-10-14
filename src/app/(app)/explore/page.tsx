@@ -65,7 +65,7 @@ async function Results({ searchParams }: { searchParams: PageProps<"/explore">["
         <ForYou type={filters.type} hideKnown={filters.hideKnown} />
       </Suspense>
       <Suspense fallback={<Skeleton className="mt-10 h-64 rounded-xl" />}>
-        <Releases type={filters.type} hideKnown={filters.hideKnown} />
+        <Releases type={filters.type} />
       </Suspense>
       <section aria-labelledby="catalog-h" className="mt-12">
         <SectionHeader as="h2" title={TYPE_PLURAL[filters.type]} id="catalog-h" description="Usa genere e ordine qui sopra per restringere." />
@@ -253,8 +253,8 @@ async function Charts({
   );
 }
 
-async function Releases({ type, hideKnown }: { type: Filters["type"]; hideKnown: boolean }) {
-  const view = await getReleasesView(type, hideKnown);
+async function Releases({ type }: { type: Filters["type"] }) {
+  const view = await getReleasesView(type);
   const wishlistIds = new Set(view.wishlistIds);
   // On the Anime tab a single row: the platforms' few announcements and the calendars are one list by date.
   const animeUpcoming = [...view.upcoming, ...view.seasonal].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));

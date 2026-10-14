@@ -92,6 +92,11 @@ export class SeedCatalog implements CatalogService {
     return [];
   }
 
+  async premieres(_titles: readonly Title[], _today: string): Promise<Release[]> {
+    // Every bundled title is already out.
+    return [];
+  }
+
   async findByName(name: string, prefer: NamePreference): Promise<Title | null> {
     const key = searchKey(name);
     const hits = [...this.titles.values()].filter((t) => searchKey(t.title) === key && (!prefer.series || t.type !== "movie"));

@@ -52,7 +52,7 @@ const base = (results: Title[]): CatalogService =>
     name: "tmdb", complete: true,
     search: vi.fn(async () => results), getTitle: vi.fn(async () => null), trending: vi.fn(async () => []), discover: vi.fn(async () => ({ titles: [], hasMore: false })),
     similarTo: vi.fn(async () => []), match: vi.fn(async () => null), findByName: vi.fn(async () => null), nextSeasons: vi.fn(async () => []),
-    related: vi.fn(async () => []), episodes: vi.fn(async () => null), upcoming: vi.fn(async () => []),
+    related: vi.fn(async () => []), episodes: vi.fn(async () => null), upcoming: vi.fn(async () => []), premieres: vi.fn(async () => []),
     searchPeople: vi.fn(async () => []), person: vi.fn(async () => null), cast: vi.fn(async () => []),
   }) as CatalogService;
 

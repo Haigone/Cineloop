@@ -50,7 +50,7 @@ Nelle impostazioni l'utente può indicare i servizi che usa ("I tuoi servizi"). 
 
 ## Nuove stagioni e uscite
 
-Da TMDB, aggiornati al massimo una volta al giorno: per le serie viste o in corso, `next_episode_to_air` e l'elenco delle stagioni dicono se ne è annunciata una nuova e quando esce; "In uscita" usa `/discover/movie` (data di uscita italiana da `/movie/{id}/release_dates`) e `/discover/tv` sui prossimi sei mesi. Il giorno dell'uscita CineLoop lascia una notifica a chi segue la serie o ha il titolo in wishlist. Nel catalogo di prova le date sono esempi.
+Da TMDB, aggiornati al massimo una volta al giorno: per le serie viste o in corso, `next_episode_to_air` e l'elenco delle stagioni dicono se ne è annunciata una nuova e quando esce; "In uscita" usa `/discover/movie` (data di uscita italiana da `/movie/{id}/release_dates`) e `/discover/tv` sui prossimi sei mesi, più i titoli in wishlist non ancora usciti (fino a 30, chiesti uno per uno a TMDB o ai calendari anime), che compaiono anche se il filtro nasconde quelli che conosci. Il giorno dell'uscita CineLoop lascia una notifica a chi segue la serie o ha il titolo in wishlist. Nel catalogo di prova le date sono esempi.
 
 ## Anime Unity e Streaming Community
 

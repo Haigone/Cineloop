@@ -126,4 +126,9 @@ export interface CatalogService {
   person(id: string): Promise<PersonDetails | null>;
   /** Films and new series coming out after `today`, soonest first. */
   upcoming(type: MediaType | "all", today: string, limit: number): Promise<Release[]>;
+  /**
+   * Of these titles (a viewer's wishlist), the ones that are not out yet: a film before its
+   * release, a series before its first episode. Titles already out are left out.
+   */
+  premieres(titles: readonly Title[], today: string): Promise<Release[]>;
 }

@@ -505,7 +505,28 @@ export class TmdbCatalog implements CatalogService {
     return [...upcoming.filter((r) => r.venue === "streaming").slice(0, limit), ...upcoming.filter((r) => r.venue === "cinema").slice(0, limit)];
   }
 
+  async premieres(titles: readonly Title[], today: string): Promise<Release[]> {
+    const found = await Promise.all(
+      titles.map(async (title): Promise<Release | null> => {
+        const id = parseId(title.id);
+        if (!id) return null;
+        try {
+          const details = await this.get<TmdbItem>(`/${id.kind}/${id.tmdbId}?`);
+          return premiereOf(id.kind, details, today, id.kind === "movie" ? await this.italianRelease(details.id) : null);
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return found.filter((r): r is Release => r !== null).map((r) => ({ ...r, title: titles.find((t) => t.id === r.title.id) ?? r.title }));
+  }
+
   private async italianReleaseDate(movieId: number): Promise<string | null> {
+    return (await this.italianRelease(movieId)).date;
+  }
+
+  /** A film's first release in Italy (cinema or digital), and whether it is announced for streaming. */
+  private async italianRelease(movieId: number): Promise<ItalianRelease> {
     try {
       const data = await this.get<{ results?: { iso_3166_1: string; release_dates: { release_date: string; type: number }[] }[] }>(
         `/movie/${movieId}/release_dates?`,
@@ -515,9 +536,9 @@ export class TmdbCatalog implements CatalogService {
         .filter((d) => d.type >= 2 && d.type <= 4)
         .map((d) => d.release_date.slice(0, 10))
         .sort()[0];
-      return first ?? null;
+      return { date: first ?? null, known: dates.length > 0, digital: dates.some((d) => d.type === 4) };
     } catch {
-      return null;
+      return { date: null, known: false, digital: false };
     }
   }
 
@@ -647,6 +668,37 @@ export function nextSeasonOf(d: TmdbItem, today: string): { season: number; date
     .filter((s) => s.season_number > lastAired && s.season_number > 0 && (!s.air_date || s.air_date > today))
     .sort((a, b) => a.season_number - b.season_number)[0];
   return announced ? { season: announced.season_number, date: announced.air_date || null } : null;
+}
+
+interface ItalianRelease {
+  date: string | null;
+  /** False when TMDB has no Italian dates at all. */
+  known: boolean;
+  digital: boolean;
+}
+
+/**
+ * A wished-for title that is not out yet (or comes out today): a film before its Italian
+ * release, a series before its first episode. Null when it is already out, or will never come. Exported for tests.
+ */
+export function premiereOf(kind: "movie" | "tv", d: TmdbItem, today: string, italy: ItalianRelease | null): Release | null {
+  const title = toTitle(kind, d);
+  if (kind === "movie") {
+    if (d.status === "Canceled") return null;
+    const date = italy?.date ?? d.release_date ?? null;
+    // Release day still counts: that is when the viewer is told it is out.
+    if (date ? date < today : d.status === "Released") return null;
+    // Only cinema dates in Italy: it goes with the films in cinemas, like the other releases.
+    const venue = italy?.known && !italy.digital ? "cinema" : "streaming";
+    return { title, date: date || null, season: null, venue };
+  }
+  if (d.status === "Ended" || d.status === "Canceled") return null;
+  const first = d.last_episode_to_air?.season_number === 1 && d.last_episode_to_air.episode_number === 1 ? d.last_episode_to_air : null;
+  // An episode out before today means the series has started (on its first day, episode 1 may already be "last aired").
+  if (d.last_episode_to_air && !(first && first.air_date === today)) return null;
+  const date = first?.air_date || d.next_episode_to_air?.air_date || d.first_air_date || null;
+  if (date && date < today) return null;
+  return { title, date, season: null, venue: "streaming" };
 }
 
 function parseId(id: string): { kind: "movie" | "tv"; tmdbId: string } | null {
