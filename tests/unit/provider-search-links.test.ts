@@ -9,13 +9,13 @@ describe("provider title search links", () => {
     );
   });
 
-  it("opens Anime Unity's title search instead of its homepage", () => {
-    expect(providerSearchUrl("animeunity", "Bleach")).toBe("https://www.animeunity.so/filter?search=Bleach");
+  it("opens Anime Unity archive search when the canonical anime ID is unknown", () => {
+    expect(providerSearchUrl("animeunity", "Bleach")).toBe("https://www.animeunity.so/archivio?title=Bleach");
   });
 
   it("does not append a playback seek hint to a search page", () => {
-    expect(animeUnityResumeUrl("https://www.animeunity.so/filter?search=Bleach", 0.7)).toBe(
-      "https://www.animeunity.so/filter?search=Bleach",
+    expect(animeUnityResumeUrl("https://www.animeunity.so/archivio?title=Bleach", 0.7)).toBe(
+      "https://www.animeunity.so/archivio?title=Bleach",
     );
   });
 
