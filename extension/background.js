@@ -53,7 +53,7 @@ async function rememberOpenTabs() {
 
 async function disableUnauthorizedScripts() {
   const removals = [];
-  if (!(await hasNetflixAccess())) removals.push("player-title");
+  if (!(await hasNetflixAccess())) removals.push("player-title", NETFLIX_PLAYER_SCRIPT);
   if (!(await hasAnimeAccess())) removals.push("au-page");
   if (!(await hasStreamingAccess())) removals.push("sc-page");
   if (removals.length) {
@@ -65,6 +65,8 @@ const PLAYER_SCRIPT = "player-title";
 const SC_SCRIPT = "sc-page";
 const AU_SCRIPT = "au-page";
 const PAGE_SCRIPTS = ["compat.js", "player-title.js", "party-sync.js"];
+/** Runs in the page itself, where Netflix's player lives: seeks for watching together. */
+const NETFLIX_PLAYER_SCRIPT = "netflix-player";
 
 /**
  * Una volta concesso netflix.com, fa girare player-title.js sulle sue pagine
@@ -77,8 +79,17 @@ async function enablePlayerTitle() {
   await chrome.scripting.registerContentScripts([
     { id: PLAYER_SCRIPT, matches: ["https://www.netflix.com/*"], js: PAGE_SCRIPTS, runAt: "document_idle", persistAcrossSessions: true },
   ]);
+  const main = await chrome.scripting.getRegisteredContentScripts({ ids: [NETFLIX_PLAYER_SCRIPT] });
+  if (main.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [NETFLIX_PLAYER_SCRIPT] });
+  await chrome.scripting
+    .registerContentScripts([
+      { id: NETFLIX_PLAYER_SCRIPT, matches: ["https://www.netflix.com/*"], js: ["netflix-player.js"], world: "MAIN", runAt: "document_idle", persistAcrossSessions: true },
+    ])
+    .catch(() => {});
   for (const tab of await chrome.tabs.query({ url: "https://www.netflix.com/*" })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: PAGE_SCRIPTS }).catch(() => {});
+    if (!tab.id) continue;
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: PAGE_SCRIPTS }).catch(() => {});
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["netflix-player.js"], world: "MAIN" }).catch(() => {});
   }
 }
 

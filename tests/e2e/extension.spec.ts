@@ -40,6 +40,12 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
     setInterval(() => { g.fillStyle = "#" + Math.floor(Math.random() * 4095).toString(16); g.fillRect(0, 0, 10, 10); }, 100);
     const v = document.querySelector("video"); v.srcObject = c.captureStream(10); v.play();
   </script>`;
+  // Netflix's own player object, as watch-party extensions use it: it records the seeks it is asked for.
+  const netflixPlayer = `<script>
+    window.seeks = [];
+    const p = { seek: (ms) => window.seeks.push(ms), play: () => document.querySelector("video").play(), pause: () => document.querySelector("video").pause() };
+    window.netflix = { appContext: { state: { playerApp: { getAPI: () => ({ videoPlayer: { getAllPlayerSessionIds: () => ["watch-1"], getVideoPlayerBySessionId: () => p } }) } } } };
+  </script>`;
   await ctx.route("https://www.netflix.com/**", (route) => {
     const url = route.request().url();
     // "La mia lista": three cards, as Netflix links them.
@@ -50,7 +56,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
         body: `<title>Netflix</title>${card("80114855", "Squid Game")}${card("80117715", "Mindhunter")}${card("81234567", "Un titolo che non esiste")}`,
       });
     }
-    const body = `<title>Netflix</title>${[[named, player], [named2, player2], [named3, player3], [named4, player4]].find(([n]) => url.includes(n!))?.[1] ?? ""}${url.includes("/watch/") ? video : ""}`;
+    const body = `<title>Netflix</title>${[[named, player], [named2, player2], [named3, player3], [named4, player4]].find(([n]) => url.includes(n!))?.[1] ?? ""}${url.includes("/watch/") ? video : ""}${url.includes(`/watch/${ep2}`) ? netflixPlayer : ""}`;
     return route.fulfill({ contentType: "text/html", body });
   });
   const worker = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent("serviceworker"));
@@ -130,14 +136,15 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await popup.reload();
   await expect(popup.locator("#room-state")).toContainText("pausa di Luca Ferri");
 
-  // Luca jumps to 10:00: Marco's tab reopens the episode there, with Netflix's own ?t= link.
+  // Luca jumps to 10:00: Marco's Netflix player is asked to seek there.
   await luca.request.post(`${baseURL}/api/extension/party`, {
     headers: { Authorization: `Bearer ${paired.token}` },
     data: { externalId: ep2, position: 600, paused: false, action: "seek" },
   });
-  // It may wait a few seconds after its previous reopen, so the point is 10:00 plus that wait.
-  await expect.poll(() => Number(new URL(netflix.url()).searchParams.get("t")), { timeout: 40_000 }).toBeGreaterThanOrEqual(600);
-  expect(Number(new URL(netflix.url()).searchParams.get("t"))).toBeLessThan(640);
+  await expect
+    .poll(() => netflix.evaluate(() => (window as unknown as { seeks: number[] }).seeks.some((ms) => ms >= 600_000 && ms < 610_000)), { timeout: 20_000 })
+    .toBe(true);
+  expect(new URL(netflix.url()).searchParams.get("t")).toBeNull();
   await popup.reload();
   await expect(popup.locator("#room-state")).toContainText("salto di Luca Ferri");
 
@@ -181,8 +188,13 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   }).toPass({ timeout: 30_000, intervals: [2_500] });
   await expect(popup.locator("#watching-meta")).not.toContainText("E2");
   await popup.getByRole("tab", { name: "Sto guardando" }).click();
-  await popup.getByRole("button", { name: "Stagione 3" }).click();
-  await expect(popup.locator("#watching-meta")).toContainText("S3E2");
+  // The extension API allows 30 requests a minute and this test goes past it: retry until the minute is over.
+  await expect(async () => {
+    await popup.reload();
+    await popup.getByRole("tab", { name: "Sto guardando" }).click();
+    if (await popup.getByRole("button", { name: "Stagione 3" }).isVisible()) await popup.getByRole("button", { name: "Stagione 3" }).click();
+    await expect(popup.locator("#watching-meta")).toContainText("S3E2", { timeout: 2000 });
+  }).toPass({ timeout: 75_000, intervals: [5_000] });
   await expect(popup.locator("#season-ask")).toBeHidden();
 
   // Closing Netflix ends the session.
