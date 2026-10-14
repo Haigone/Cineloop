@@ -1,9 +1,4 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { Download, Puzzle } from "lucide-react";
-
-/** The Firefox package ships with the Firefox build of the extension; offer it only once it is served. */
-const HAS_FIREFOX = existsSync(path.join(process.cwd(), "public", "cineloop-extension-firefox.zip"));
 
 /**
  * Shown while a newcomer picks a username: progress is tracked by the
@@ -24,19 +19,15 @@ export function ExtensionNotice() {
         </p>
       </div>
       <div className="mt-3 flex flex-wrap gap-2 pl-7">
-        <DownloadLink href="/cineloop-extension.zip">{HAS_FIREFOX ? "Scarica per Chrome, Edge o Brave" : "Scarica l’estensione"}</DownloadLink>
-        {HAS_FIREFOX && <DownloadLink href="/cineloop-extension-firefox.zip">Scarica per Firefox</DownloadLink>}
+        <DownloadLink href="/cineloop-extension.zip">Scarica per Chrome, Edge o Brave</DownloadLink>
+        <DownloadLink href="/cineloop-extension-firefox.zip">Scarica per Firefox</DownloadLink>
       </div>
       <ol className="mt-3 flex list-decimal flex-col gap-1.5 pl-11 marker:text-fg-3">
         <li>
-          {HAS_FIREFOX ? "Chrome, Edge o Brave: decomprimi" : "Decomprimi"} il file, apri <Code>chrome://extensions</Code>, attiva la modalità sviluppatore e
+          Chrome, Edge o Brave: decomprimi il file, apri <Code>chrome://extensions</Code>, attiva la modalità sviluppatore e
           scegli “Carica estensione non pacchettizzata” selezionando la cartella.
-          {HAS_FIREFOX && (
-            <>
-              {" "}
-              Firefox: apri <Code>about:debugging#/runtime/this-firefox</Code> e scegli “Carica componente aggiuntivo temporaneo…” con il file .zip.
-            </>
-          )}
+{" "}
+          Firefox: apri <Code>about:debugging#/runtime/this-firefox</Code> e scegli “Carica componente aggiuntivo temporaneo…” con il file .zip.
         </li>
         <li>Torna qui, scegli l’username e premi Inizia.</li>
         <li>

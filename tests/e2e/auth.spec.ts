@@ -6,7 +6,8 @@ test("signed-out visitors start by picking a username, with a way to sign in", a
   await expect(page).toHaveURL(/\/start\?next=%2Fwishlist/);
   await expect(page.getByRole("heading", { level: 1, name: "Scegli un username" })).toBeVisible();
   await expect(page.getByText("Ti servirà l’estensione CineLoop.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Scarica l’estensione" })).toHaveAttribute("href", "/cineloop-extension.zip");
+  await expect(page.getByRole("link", { name: "Scarica per Chrome, Edge o Brave" })).toHaveAttribute("href", "/cineloop-extension.zip");
+  await expect(page.getByRole("link", { name: "Scarica per Firefox" })).toHaveAttribute("href", "/cineloop-extension-firefox.zip");
   await page.getByRole("link", { name: "Accedi" }).click();
   await expect(page).toHaveURL(/\/login\?next=%2Fwishlist/);
 });
