@@ -36,6 +36,8 @@ const VISIBILITY: Record<PlaylistVisibility, { label: string; hint: string }> =
   };
 
 /** The viewer's playlists: create, rename, choose who can use them, add and remove titles. Then the ones saved from Community. */
+const WISHLIST_MENU_SIZE = 10;
+
 export function PlaylistsPanel({
   playlists,
   saved,
@@ -175,6 +177,8 @@ function PlaylistCard({
   const toast = useToast();
   const inside = new Set(playlist.titleIds);
   const addable = wishlist.filter((r) => !inside.has(r.title.id));
+  // A short menu: the top of the wishlist by priority; the rest is one search away.
+  const quick = addable.slice(0, WISHLIST_MENU_SIZE);
 
   function act(
     fn: () => Promise<{ ok: boolean; error?: string }>,
@@ -374,12 +378,17 @@ function PlaylistCard({
             className="h-10 max-w-sm rounded-md border border-line-strong bg-surface-2 px-3 text-sm font-normal text-fg"
           >
             <option value="">Scegli un titolo</option>
-            {addable.map((r) => (
+            {quick.map((r) => (
               <option key={r.title.id} value={r.title.id}>
                 {r.title.title} ({r.title.year})
               </option>
             ))}
           </select>
+          {addable.length > quick.length && (
+            <span className="text-xs font-normal text-fg-3">
+              I primi {quick.length} per priorità. Gli altri {addable.length - quick.length} li trovi con “Cerca nel catalogo”.
+            </span>
+          )}
         </label>
       )}
     </li>
