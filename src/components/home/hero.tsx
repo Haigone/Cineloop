@@ -88,7 +88,7 @@ export function Hero({ item, together }: { item: ContinueItem; together?: Shared
           {ep && <span className="text-fg">{ep}</span>}
           {seasonEpisodes && progress.episode && <span>di {seasonEpisodes}</span>}
         </div>
-        {together && <TogetherLine group={together} className="mt-2 text-[13px]" />}
+        {together && <TogetherLine group={together} named className="mt-2 max-w-[420px] text-[13px]" />}
         <p className="mt-3 line-clamp-2 max-w-[48ch] text-sm leading-relaxed text-fg-2 max-sm:hidden">{title.overview}</p>
 
         <div className="mt-5 max-w-[420px]">

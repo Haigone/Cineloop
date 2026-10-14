@@ -80,7 +80,7 @@ export function SharedWatchPanel({ titleId, titleName, friends, together }: { ti
           </div>
         </div>
       ) : (
-        <Button variant="secondary" size="lg" className="w-full" icon={<Users aria-hidden className="size-4" />} onClick={() => setOpen(true)}>
+        <Button variant="secondary" size="lg" icon={<Users aria-hidden className="size-4" />} onClick={() => setOpen(true)}>
           Guardala insieme
         </Button>
       )}
