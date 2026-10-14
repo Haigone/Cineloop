@@ -347,14 +347,14 @@ export interface Presence {
  * applied by the others' extensions.
  */
 export interface PartyState {
-  /** The room's state after the last play or pause. */
+  /** The room's clock: paused or running from `position` (seconds) at `at`. Set by the last play, pause or seek, otherwise by the host's player. */
   paused: boolean;
-  /** Player position (seconds) when that happened. */
   position: number;
   at: string;
-  /** Who pressed it. */
+  /** Who last pressed play, pause or moved the bar, and which. */
   by: string;
-  /** Increases with every play or pause, so each one is applied once. */
+  last?: "play" | "pause" | "seek";
+  /** Increases with every play, pause or seek. */
   seq: number;
   /** Each member's last report, to say who is ahead or behind. */
   members: Record<string, { externalId: string; position: number; paused: boolean; at: string }>;

@@ -6,17 +6,28 @@ export interface PlaybackReport {
   externalId: string;
   position: number;
   paused: boolean;
-  /** Set when the member themselves pressed play or pause. */
-  action?: "play" | "pause";
+  /** Set when the member themselves pressed play or pause, or moved to another point. */
+  action?: "play" | "pause" | "seek";
 }
 
 /** A report older than this no longer says where someone is. */
 const STALE_MS = 15_000;
 /** Below this gap two players count as in sync. */
 export const IN_SYNC_SECONDS = 4;
+/**
+ * After someone presses play, pause or moves the bar, the host's player needs a
+ * report or two to follow: until then its reports don't move the room back.
+ */
+const ACTION_GRACE_MS = 4_000;
 
-/** Folds a member's report into the room. Pure. */
-export function applyReport(prev: PartyState | null, userId: string, report: PlaybackReport, now: Date): PartyState {
+/**
+ * Folds a member's report into the room. Pure.
+ *
+ * The room's clock (`position` at `at`, running unless `paused`) is where every
+ * player should be. A member's own play, pause or seek moves it; otherwise it
+ * follows the host's player, so a friend who joins lands where the host is.
+ */
+export function applyReport(prev: PartyState | null, userId: string, report: PlaybackReport, now: Date, hostId?: string): PartyState {
   const at = now.toISOString();
   const base: PartyState = prev ?? { paused: report.paused, position: report.position, at, by: userId, seq: 0, members: {} };
   const next: PartyState = {
@@ -24,13 +35,27 @@ export function applyReport(prev: PartyState | null, userId: string, report: Pla
     members: { ...base.members, [userId]: { externalId: report.externalId, position: report.position, paused: report.paused, at } },
   };
   if (report.action) {
-    next.paused = report.action === "pause";
-    next.position = report.position;
+    next.paused = report.action === "seek" ? report.paused : report.action === "pause";
+    // Play or pause from a player far from the room (just opened, still catching
+    // up) changes the state only: the room stays where it is.
+    const far = report.action !== "seek" && Math.abs(report.position - roomPosition(base, now)) > 2 * IN_SYNC_SECONDS;
+    next.position = far ? roomPosition(base, now) : report.position;
     next.at = at;
     next.by = userId;
+    next.last = report.action;
     next.seq = base.seq + 1;
+  } else if (userId === hostId && now.getTime() - Date.parse(base.at) >= ACTION_GRACE_MS) {
+    next.paused = report.paused;
+    next.position = report.position;
+    next.at = at;
   }
   return next;
+}
+
+/** Where the room's clock is now. */
+export function roomPosition(party: Pick<PartyState, "paused" | "position" | "at">, now: Date): number {
+  const s = party.paused ? party.position : party.position + (now.getTime() - Date.parse(party.at)) / 1000;
+  return Math.round(Math.max(0, s) * 10) / 10;
 }
 
 /** Where a member's player is now, from their last report. */
@@ -48,4 +73,19 @@ export function driftBetween(party: PartyState, userId: string, otherId: string,
   if (!a || !b || a.externalId !== b.externalId) return null;
   if (now.getTime() - Date.parse(a.at) > STALE_MS || now.getTime() - Date.parse(b.at) > STALE_MS) return null;
   return Math.round(positionNow(a, now) - positionNow(b, now));
+}
+
+/** The host's position for a "join me" link, when their player reported recently. */
+export function hostPosition(party: PartyState | null, hostId: string, externalId: string | null, now: Date): number | null {
+  const m = party?.members[hostId];
+  if (!m || m.externalId !== externalId || now.getTime() - Date.parse(m.at) > STALE_MS) return null;
+  return Math.floor(positionNow(m, now));
+}
+
+/** A Netflix /watch link that starts at `seconds` (Netflix reads `t`, in seconds). */
+export function watchAt(url: string, seconds: number | null): string {
+  if (seconds === null || seconds < 1) return url;
+  const u = new URL(url);
+  u.searchParams.set("t", String(Math.floor(seconds)));
+  return u.toString();
 }

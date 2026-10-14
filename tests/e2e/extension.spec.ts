@@ -130,6 +130,15 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await popup.reload();
   await expect(popup.locator("#room-state")).toContainText("pausa di Luca Ferri");
 
+  // Luca jumps to 10:00: Marco's tab reopens the episode there, with Netflix's own ?t= link.
+  await luca.request.post(`${baseURL}/api/extension/party`, {
+    headers: { Authorization: `Bearer ${paired.token}` },
+    data: { externalId: ep2, position: 600, paused: false, action: "seek" },
+  });
+  await expect.poll(() => new URL(netflix.url()).searchParams.get("t"), { timeout: 40_000 }).toMatch(/^60\d$/);
+  await popup.reload();
+  await expect(popup.locator("#room-state")).toContainText("salto di Luca Ferri");
+
   // Not visible: Luca no longer sees Marco live.
   await popup.locator("#visible").uncheck();
   await luca.goto(`${baseURL}/home`);

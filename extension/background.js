@@ -264,7 +264,7 @@ async function partyReport(m) {
   const { party: known = null } = await chrome.storage.session.get("party");
   if (!known && !m.action && Date.now() - soloCheckedAt < SOLO_CHECK_MS) return null;
   soloCheckedAt = Date.now();
-  const body = { externalId: m.externalId, position: Math.max(0, m.position), paused: m.paused, ...(m.action === "play" || m.action === "pause" ? { action: m.action } : {}) };
+  const body = { externalId: m.externalId, position: Math.max(0, m.position), paused: m.paused, ...(["play", "pause", "seek"].includes(m.action) ? { action: m.action } : {}) };
   const { party } = await api("/api/extension/party", { method: "POST", body }).catch(() => ({ party: null }));
   await chrome.storage.session.set({ party: party ?? null });
   return { party };

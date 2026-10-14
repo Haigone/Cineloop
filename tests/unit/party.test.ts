@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyReport, driftBetween } from "@/domain/party";
+import { applyReport, driftBetween, roomPosition, watchAt } from "@/domain/party";
 import { getRepository } from "@/server/data";
 import { endPresence, getExtensionStatus, handleObservation, joinFriend, listLiveFriends, reportPlayback, setLiveVisible } from "@/server/services/sync";
 import { toPublicUser } from "@/server/services/shared";
@@ -29,6 +29,47 @@ describe("party state", () => {
   });
 });
 
+describe("room clock", () => {
+  it("follows the host's player, so someone joining lands where the host is", () => {
+    let p = applyReport(null, "host", { externalId: "1", position: 2434, paused: false }, t0, "host");
+    expect(roomPosition(p, after(1))).toBe(2435);
+    p = applyReport(p, "guest", { externalId: "1", position: 12, paused: false }, after(5), "host");
+    // A guest who just opened the episode does not move the room.
+    expect(roomPosition(p, after(5))).toBe(2439);
+    // The host's player buffered for a second: the room follows it.
+    p = applyReport(p, "host", { externalId: "1", position: 2440, paused: false }, after(7), "host");
+    expect(roomPosition(p, after(7))).toBe(2440);
+  });
+
+  it("moves for everyone when a member seeks, and the host's late report does not undo it", () => {
+    let p = applyReport(null, "host", { externalId: "1", position: 100, paused: false }, t0, "host");
+    p = applyReport(p, "guest", { externalId: "1", position: 600, paused: false, action: "seek" }, after(10), "host");
+    expect(p).toMatchObject({ seq: 1, by: "guest", last: "seek" });
+    p = applyReport(p, "host", { externalId: "1", position: 111, paused: false }, after(11), "host");
+    expect(roomPosition(p, after(11))).toBe(601);
+    // Once the host has had time to follow, its player leads again.
+    p = applyReport(p, "host", { externalId: "1", position: 605, paused: false }, after(15), "host");
+    expect(roomPosition(p, after(15))).toBe(605);
+  });
+
+  it("lets a player that just opened the episode pause the room without moving it", () => {
+    let p = applyReport(null, "host", { externalId: "1", position: 2434, paused: false }, t0, "host");
+    p = applyReport(p, "guest", { externalId: "1", position: 3, paused: true, action: "pause" }, after(2), "host");
+    expect(p).toMatchObject({ paused: true, position: 2436, seq: 1 });
+  });
+
+  it("stands still while paused", () => {
+    const p = applyReport(null, "host", { externalId: "1", position: 50, paused: false, action: "pause" }, t0, "host");
+    expect(roomPosition({ ...p, paused: true }, after(30))).toBe(50);
+  });
+
+  it("builds a Netflix link that starts at the host's point", () => {
+    expect(watchAt("https://www.netflix.com/watch/81000001", 2434.7)).toBe("https://www.netflix.com/watch/81000001?t=2434");
+    expect(watchAt("https://www.netflix.com/watch/81000001?trackId=1", 90)).toBe("https://www.netflix.com/watch/81000001?trackId=1&t=90");
+    expect(watchAt("https://www.netflix.com/watch/81000001", null)).toBe("https://www.netflix.com/watch/81000001");
+  });
+});
+
 describe("watch together", () => {
   const repo = getRepository();
   const watch = (id: string) => ({ providerId: "netflix" as const, url: `https://www.netflix.com/watch/${id}`, documentTitle: "Netflix", observedAt: new Date().toISOString() });
@@ -54,7 +95,20 @@ describe("watch together", () => {
     expect(guest.party!.offsets[0]!.seconds).toBeGreaterThan(50);
 
     const back = await reportPlayback("u_marco", { externalId: "81000001", position: 301, paused: false });
-    expect(back.party).toMatchObject({ seq: 1, paused: true, byYou: false, byName: "Giulia Romano" });
+    expect(back.party).toMatchObject({ seq: 1, paused: true, byYou: false, byName: "Giulia Romano", lastAction: "pause" });
+    // Giulia was a minute behind: her pause stops the room where Marco is.
+    expect(back.party!.position).toBeGreaterThanOrEqual(300);
+    expect(back.party!.position).toBeLessThan(302);
+  });
+
+  it("gives a joining friend a link at the host's point", async () => {
+    await handleObservation("u_marco", watch("81000004"));
+    const luca = toPublicUser((await repo.getUserById("u_luca"))!);
+    const giulia = toPublicUser((await repo.getUserById("u_giulia"))!);
+    expect((await joinFriend(giulia, "u_marco")).ok).toBe(true);
+    await reportPlayback("u_marco", { externalId: "81000004", position: 2434, paused: true });
+    const res = await joinFriend(luca, "u_marco");
+    expect(res).toMatchObject({ ok: true, url: "https://www.netflix.com/watch/81000004?t=2434" });
   });
 
   it("is not a room for someone watching alone", async () => {

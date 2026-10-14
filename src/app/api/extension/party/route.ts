@@ -10,13 +10,13 @@ const report = z
     externalId: z.string().regex(/^\d{1,12}$/),
     position: z.number().min(0).max(24 * 3600),
     paused: z.boolean(),
-    action: z.enum(["play", "pause"]).optional(),
+    action: z.enum(["play", "pause", "seek"]).optional(),
   })
   .strict();
 
 /** The member's player, every couple of seconds while watching together; answers with the room. */
 export async function POST(request: NextRequest) {
-  // Reports come every 2 seconds plus each play/pause.
+  // Reports come every 2 seconds plus each play/pause/seek.
   const auth = await authenticate(request, 90, "party");
   if (!("userId" in auth)) return auth;
   const parsed = report.safeParse(await readJson(request));
