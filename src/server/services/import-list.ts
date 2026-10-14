@@ -3,12 +3,24 @@ import type { Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { searchKey } from "@/lib/text";
 import { getRepository } from "@/server/data";
+import { asFranchise } from "./anime-migration";
 import { cacheTitles } from "./explore";
 
 export interface ListItem {
   /** Netflix's id from the card's link; absent for titles from the data export. */
   id?: string;
   title: string;
+}
+
+/** "s:jujutsu kaisen" / "m:parasite": the same show under another catalogue id (seed, TMDB, ANN) has the same key. */
+export function nameKey(title: Pick<Title, "title" | "type">): string {
+  return `${title.type === "movie" ? "m" : "s"}:${searchKey(title.title)}`;
+}
+
+/** The names of titles the user already has, so an import never adds the same show twice under another id. */
+export async function ownedNames(ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  return new Set((await getRepository().getTitlesByIds([...new Set(ids)])).map(nameKey));
 }
 
 export interface ImportResult {
@@ -28,12 +40,13 @@ export async function importNetflixList(userId: string, items: readonly ListItem
   const repo = getRepository();
   const [library, wishlist] = await Promise.all([repo.listLibrary(userId), repo.listWishlist(userId)]);
   const have = new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId)]);
+  const names = await ownedNames([...have]);
   const result: ImportResult = { added: [], already: 0, notFound: [] };
 
   const found: (Title | null)[] = [];
   // A few at a time: each name can take several catalogue lookups.
   for (let i = 0; i < items.length; i += 4) {
-    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item)))));
+    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item).then((t) => t && asFranchise(t))))));
   }
   const titles = found.filter((t): t is Title => t !== null);
   await cacheTitles(repo, titles);
@@ -41,11 +54,12 @@ export async function importNetflixList(userId: string, items: readonly ListItem
   for (const [i, title] of found.entries()) {
     if (!title) {
       result.notFound.push(items[i]!.title);
-    } else if (have.has(title.id)) {
+    } else if (have.has(title.id) || names.has(nameKey(title))) {
       result.already += 1;
     } else {
       await repo.addToWishlist(userId, title.id);
       have.add(title.id);
+      names.add(nameKey(title));
       result.added.push(title.title);
     }
   }
@@ -60,9 +74,12 @@ async function match(item: ListItem): Promise<Title | null> {
     if (title) return title;
   }
   const key = searchKey(item.title);
-  const local = (await repo.searchTitles(item.title, 8)).find((t) => searchKey(t.title) === key);
-  if (local) return local;
-  return getCatalog()
+  const local = (await repo.searchTitles(item.title, 8)).filter((t) => searchKey(t.title) === key);
+  // A namesake cached without a poster is often the wrong one (a stub): only a title with artwork counts.
+  const known = local.find((t) => t.artwork.posterUrl);
+  if (known) return known;
+  const found = await getCatalog()
     .findByName(item.title, { series: false, provider: "netflix" })
     .catch(() => null);
+  return found ?? local[0] ?? null;
 }
