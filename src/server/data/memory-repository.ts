@@ -147,20 +147,29 @@ export class MemoryRepository implements Repository {
     this.passwords.set(userId, passwordHash);
   }
 
-  async createUser(input: { username: string; displayName: string; email: string; passwordHash: string }) {
+  async createUser(input: { username: string; displayName: string; email: string | null; passwordHash: string | null }) {
     const user: User = {
       id: `u_${crypto.randomUUID()}`,
       username: input.username.toLowerCase(),
       displayName: input.displayName,
-      email: input.email.toLowerCase(),
+      email: input.email?.toLowerCase() ?? null,
       avatarUrl: null,
       bio: null,
       createdAt: new Date().toISOString(),
     };
     this.users.set(user.id, user);
-    this.passwords.set(user.id, input.passwordHash);
+    if (input.passwordHash) this.passwords.set(user.id, input.passwordHash);
     this.preferences.set(user.id, defaultPreferences(user.id));
     return user;
+  }
+
+  async completeRegistration(userId: string, input: { displayName: string; email: string; passwordHash: string }) {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const updated: User = { ...user, displayName: input.displayName, email: input.email.toLowerCase() };
+    this.users.set(userId, updated);
+    this.passwords.set(userId, input.passwordHash);
+    return updated;
   }
 
   async searchUsers(query: string, limit: number) {

@@ -94,7 +94,7 @@ export class PostgresRepository implements Repository {
 
   async getCredentialsByEmail(email: string) {
     const [row] = await this.db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase()));
-    return row ? { user: toUser(row), passwordHash: row.passwordHash } : null;
+    return row?.passwordHash ? { user: toUser(row), passwordHash: row.passwordHash } : null;
   }
 
   async getPasswordHash(userId: string) {
@@ -106,17 +106,27 @@ export class PostgresRepository implements Repository {
     await this.db.update(schema.users).set({ passwordHash }).where(eq(schema.users.id, userId));
   }
 
-  async createUser(input: { username: string; displayName: string; email: string; passwordHash: string }) {
+  async createUser(input: { username: string; displayName: string; email: string | null; passwordHash: string | null }) {
     const id = `u_${crypto.randomUUID()}`;
     const [row] = await this.db.transaction(async (tx) => {
       const inserted = await tx
         .insert(schema.users)
-        .values({ id, username: input.username.toLowerCase(), displayName: input.displayName, email: input.email.toLowerCase(), passwordHash: input.passwordHash })
+        .values({ id, username: input.username.toLowerCase(), displayName: input.displayName, email: input.email?.toLowerCase() ?? null, passwordHash: input.passwordHash })
         .returning();
       await tx.insert(schema.preferences).values({ userId: id });
       return inserted;
     });
     return toUser(row!);
+  }
+
+  async completeRegistration(userId: string, input: { displayName: string; email: string; passwordHash: string }) {
+    const [row] = await this.db
+      .update(schema.users)
+      .set({ displayName: input.displayName, email: input.email.toLowerCase(), passwordHash: input.passwordHash })
+      .where(eq(schema.users.id, userId))
+      .returning();
+    if (!row) throw new Error("User not found");
+    return toUser(row);
   }
 
   async searchUsers(query: string, limit: number) {

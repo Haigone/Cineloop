@@ -35,6 +35,7 @@ Il catalogo segue lo stesso schema: i titoli vivono nella tabella `titles` (una 
 - Sessione: token casuale da 256 bit in un cookie `httpOnly`, `sameSite=lax`, `secure` in produzione. Il database salva solo lo SHA-256 del token.
 - `proxy.ts` fa un controllo ottimistico del cookie per reindirizzare presto. Il controllo vero è `getCurrentUser()`, chiamato da ogni servizio e da ogni Server Action, che non si fidano mai di id passati dal client.
 - Cambiare password disconnette tutte le altre sessioni.
+- Ospiti: chi arriva senza sessione finisce su `/start` e sceglie solo un username. L'account viene creato subito con `email` e `password_hash` nulli (migrazione 0013) e una sessione di un anno; un banner fisso sotto la barra in alto ricorda di registrarsi. `/register`, aperto da un ospite, completa lo stesso account (`completeRegistration`) e tiene tutti i salvataggi.
 
 ## Preferenze che cambiano il comportamento
 

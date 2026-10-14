@@ -58,6 +58,10 @@ export function LoginForm({ demo }: { demo: { email: string; password: string } 
         <Link href="/register" className="font-medium text-fg underline-offset-4 hover:underline">
           Registrati
         </Link>
+        {" o "}
+        <Link href="/start" className="font-medium text-fg underline-offset-4 hover:underline">
+          inizia solo con un username
+        </Link>
       </p>
     </form>
   );

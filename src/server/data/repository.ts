@@ -52,7 +52,10 @@ export interface Repository {
   getCredentialsByEmail(email: string): Promise<{ user: User; passwordHash: string } | null>;
   getPasswordHash(userId: string): Promise<string | null>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
-  createUser(input: { username: string; displayName: string; email: string; passwordHash: string }): Promise<User>;
+  /** `email` and `passwordHash` are null for a guest account (username only). */
+  createUser(input: { username: string; displayName: string; email: string | null; passwordHash: string | null }): Promise<User>;
+  /** Turns a guest into a registered account, keeping everything it saved. */
+  completeRegistration(userId: string, input: { displayName: string; email: string; passwordHash: string }): Promise<User>;
   searchUsers(query: string, limit: number): Promise<PublicUser[]>;
 
   // Sessions (token is stored hashed)
