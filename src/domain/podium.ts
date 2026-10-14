@@ -1,4 +1,4 @@
-import type { LibraryEntry, MediaType, RatingValue, Title, UserPreferences } from "./types";
+import { sectionOf, type LibraryEntry, type MediaType, type RatingValue, type Title, type UserPreferences } from "./types";
 
 export const PODIUM_CATEGORIES = ["movie", "series", "anime"] as const satisfies readonly MediaType[];
 export type PodiumCategory = (typeof PODIUM_CATEGORIES)[number];
@@ -32,4 +32,27 @@ export function buildPodiums(
     out[type] = { picks: ids.map((id) => byId.get(id)).filter((x): x is PodiumPick => x !== undefined), candidates };
   }
   return out;
+}
+
+/**
+ * What a person has put in their rankings for one Home section: the podium first, in its order,
+ * then the best rated titles (the same top list as Classifiche), without repeating the podium.
+ */
+export function rankedInSection(
+  prefs: Pick<UserPreferences, "podium" | "podiums">,
+  library: readonly LibraryEntry[],
+  titles: ReadonlyMap<string, Title>,
+  section: MediaType,
+  limit = 10,
+): { podium: Title[]; rated: Title[] } {
+  const podiums = buildPodiums(prefs, library, titles);
+  const podium = PODIUM_CATEGORIES.flatMap((c) => podiums[c].picks.map((p) => p.title)).filter((t) => sectionOf(t) === section);
+  const onPodium = new Set(podium.map((t) => t.id));
+  const rated = library
+    .filter((e) => e.rating != null && titles.has(e.titleId) && sectionOf(titles.get(e.titleId)!) === section)
+    .sort((a, b) => b.rating! - a.rating! || Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
+    .slice(0, limit)
+    .map((e) => titles.get(e.titleId)!)
+    .filter((t) => !onPodium.has(t.id));
+  return { podium, rated };
 }
