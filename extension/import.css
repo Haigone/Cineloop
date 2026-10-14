@@ -17,3 +17,8 @@ select {
 #preview, #profile-row { display: grid; gap: 6px; margin-top: 6px; }
 #preview button { justify-self: start; }
 .missing { max-height: 240px; }
+.modes { border: 0; padding: 0; margin: 0 0 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mode { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; color: var(--fg); font-size: 14px; }
+.mode:has(input:checked) { border-color: var(--accent-fill); }
+.mode input { width: auto; height: auto; margin: 3px 0 0; accent-color: var(--accent-fill); }
+@media (max-width: 480px) { .modes { grid-template-columns: 1fr; } }

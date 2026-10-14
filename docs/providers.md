@@ -40,7 +40,7 @@ Anime Unity e Streaming Community sono segnati `available` per il rilevamento tr
 
 - **Import dell'export ufficiale dei dati** (14 ottobre 2026, estensione 0.6.0). L'utente chiede a Netflix "Scarica le tue informazioni personali", riceve uno .zip e lo carica nella pagina `import.html` dell'estensione. Il file viene letto sul suo computer: si apre solo `CONTENT_INTERACTION/MyList.csv` (nome del profilo e titolo); i titoli vanno a `POST /api/extension/import-list`, senza id Netflix, e finiscono in wishlist senza doppioni. Nessuna richiesta a Netflix: sono dati che Netflix consegna all'utente per legge (GDPR, art. 20).
 
-**Prossimo passo consigliato**: import del CSV di Netflix per lo storico precedente all'installazione dell'estensione.
+- **Import dello storico visioni** (14 ottobre 2026, estensione 0.6.2): il CSV di "Attività di visione" (o `ViewingActivity.csv` dell'export) viene letto nel browser dell'utente e mai salvato; al server vanno solo i titoli raggruppati, che completano la libreria. Stessa base legale dell'export: dati personali che Netflix consegna all'utente.
 
 ## Prime Video, Disney+, Apple TV+, NOW, Crunchyroll
 
