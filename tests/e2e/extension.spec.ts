@@ -80,6 +80,9 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await popup.getByLabel("Codice").fill(code);
   await popup.locator("#pair-form button[type=submit]").click();
   await expect(popup.locator("#who")).toHaveText("Marco Bianchi");
+  // Once paired, the site stops warning that no extension is there.
+  await site.goto(`${baseURL}/home`);
+  await expect(site.getByText("Estensione non rilevata.")).toHaveCount(0);
 
   // Netflix's tab title doesn't name the show: confirm it once.
   const netflix = await ctx.newPage();

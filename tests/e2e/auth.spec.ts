@@ -24,6 +24,12 @@ test("a guest uses the site with only a username, then registers and keeps every
   await page.goto("/library");
   const banner = page.getByRole("status").filter({ hasText: "Non sei ancora registrato." });
   await expect(banner).toBeVisible();
+  // No extension paired yet, so the extension notice sits under the guest one.
+  const extension = page.getByRole("status").filter({ hasText: "Estensione non rilevata." });
+  await expect(extension).toBeVisible();
+  await extension.getByRole("link", { name: "Collega l’estensione" }).click();
+  await expect(page).toHaveURL(/\/settings#estensione$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Estensione Netflix" })).toBeVisible();
   await banner.getByRole("link", { name: "Registrati" }).click();
 
   await expect(page.getByRole("heading", { level: 1, name: "Completa la registrazione" })).toBeVisible();

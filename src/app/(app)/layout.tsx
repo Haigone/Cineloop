@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExtensionBanner } from "@/components/layout/extension-banner";
 import { GuestBanner } from "@/components/layout/guest-banner";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
@@ -39,9 +40,15 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             </Suspense>
           }
         />
-        <Suspense>
-          <GuestBanner />
-        </Suspense>
+        {/* One sticky stack, so a guest without the extension sees both notices, one under the other. */}
+        <div className="sticky top-[var(--topbar-height)] z-20">
+          <Suspense>
+            <GuestBanner />
+          </Suspense>
+          <Suspense>
+            <ExtensionBanner />
+          </Suspense>
+        </div>
         <main id="main" tabIndex={-1} className="mx-auto max-w-[1480px] px-4 pt-6 pb-28 outline-none md:px-6 md:pb-16 lg:px-8">
           {children}
           {process.env.TMDB_READ_TOKEN && (
