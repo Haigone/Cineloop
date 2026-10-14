@@ -17,8 +17,8 @@ if not errorlevel 1 (
 
 set "STARTUP_KEY=HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 set "STARTUP_NAME=CineLoopDiscordBridge"
-set "LAUNCHER=%~dp0start_silent.vbs"
-reg add "%STARTUP_KEY%" /v "%STARTUP_NAME%" /t REG_SZ /d "wscript.exe "%LAUNCHER%"" /f >nul
+set "LAUNCHER=%~sdp0start_silent.vbs"
+reg add "%STARTUP_KEY%" /v "%STARTUP_NAME%" /t REG_SZ /d "wscript.exe %LAUNCHER%" /f >nul
 if errorlevel 1 (
   echo Impossibile configurare l'avvio automatico.
   pause
