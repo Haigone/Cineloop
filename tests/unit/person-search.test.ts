@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TmdbCatalog, filmography, personRole } from "@/integrations/catalog/tmdb-catalog";
+import { TmdbCatalog, filmography, mainCast, personRole } from "@/integrations/catalog/tmdb-catalog";
 import { namesPerson } from "@/lib/text";
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
@@ -93,5 +93,31 @@ describe("a query that names a person", () => {
     expect(namesPerson("leo", "Leonardo DiCaprio")).toBe(false);
     expect(namesPerson("inception", "Leonardo DiCaprio")).toBe(false);
     expect(namesPerson("penelope cruz", "Penélope Cruz")).toBe(true);
+  });
+});
+
+describe("a title's main cast", () => {
+  it("lists actors in billing order, with a series' most frequent role", () => {
+    const cast = mainCast(
+      [
+        { id: 2, name: "Second", order: 1, profile_path: null, roles: [{ character: "Guest", episode_count: 1 }, { character: "Jesse Pinkman", episode_count: 62 }] },
+        { id: 1, name: "Bryan Cranston", order: 0, profile_path: "/b.jpg", character: "Walter White" },
+        { id: 3, name: " ", order: 2 },
+      ],
+      5,
+    );
+    expect(cast).toEqual([
+      { id: "tmdb-person-1", name: "Bryan Cranston", character: "Walter White", photoUrl: "https://image.tmdb.org/t/p/w185/b.jpg" },
+      { id: "tmdb-person-2", name: "Second", character: "Jesse Pinkman", photoUrl: null },
+    ]);
+  });
+
+  it("asks a series for its cast across all seasons", async () => {
+    const fetcher = vi.fn(async () => json({ cast: [{ id: 1, name: "Bryan Cranston", order: 0, roles: [{ character: "Walter White", episode_count: 62 }] }] }));
+    const tmdb = new TmdbCatalog("secret", "it-IT", fetcher as unknown as typeof fetch);
+    const art = { posterUrl: null, backdropUrl: null, palette: ["#000", "#111", "#222"] as const };
+    const cast = await tmdb.cast({ id: "tmdb-tv-1396", type: "series", title: "Breaking Bad", year: 2008, genres: ["Dramma"], overview: "", communityRating: null, artwork: art, providers: [], seasons: [], episodeRuntimeMinutes: 47 }, 8);
+    expect((fetcher.mock.calls[0] as unknown as [string])[0]).toContain("/tv/1396/aggregate_credits");
+    expect(cast[0]).toMatchObject({ name: "Bryan Cranston", character: "Walter White" });
   });
 });

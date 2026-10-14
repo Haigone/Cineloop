@@ -1,11 +1,11 @@
 import "server-only";
 import { cache } from "react";
-import type { Title } from "@/domain/types";
+import { sectionOf, type Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
-import type { PersonCredit, PersonDetails } from "@/integrations/catalog/types";
+import type { CastMember, PersonCredit, PersonDetails } from "@/integrations/catalog/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
-import { canonical } from "./explore";
+import { canonical, ensureTitle } from "./explore";
 
 export interface PersonView {
   person: Omit<PersonDetails, "credits">;
@@ -51,3 +51,15 @@ export const getPersonView = cache(async (id: string): Promise<PersonView | null
     seenIds: library.map((e) => e.titleId).filter((tid) => seen.has(tid)),
   };
 });
+
+/** A film's or series' main actors; anime show none (the voices are not the point there). */
+export async function getTitleCast(id: string, limit = 8): Promise<CastMember[]> {
+  const title = await ensureTitle(id);
+  if (!title || sectionOf(title) === "anime") return [];
+  try {
+    return await getCatalog().cast(title, limit);
+  } catch (err) {
+    console.error("loading the cast failed", err);
+    return [];
+  }
+}
