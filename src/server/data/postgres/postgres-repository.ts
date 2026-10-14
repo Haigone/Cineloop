@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type {
@@ -464,6 +464,7 @@ export class PostgresRepository implements Repository {
       visibility: r.visibility,
       titleIds: items.filter((i) => i.playlistId === r.id).map((i) => i.titleId),
       createdAt: r.createdAt.toISOString(),
+      publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
     }));
   }
 
@@ -487,13 +488,15 @@ export class PostgresRepository implements Repository {
 
   async createPlaylist(ownerId: string, name: string, visibility: PlaylistVisibility) {
     const [row] = await this.db.insert(schema.playlists).values({ id: `pl_${crypto.randomUUID()}`, ownerId, name, visibility }).returning();
-    return { id: row!.id, ownerId, name, visibility, titleIds: [], createdAt: row!.createdAt.toISOString() };
+    return { id: row!.id, ownerId, name, visibility, titleIds: [], createdAt: row!.createdAt.toISOString(), publishedAt: null };
   }
 
-  async updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility }) {
+  async updatePlaylist(ownerId: string, id: string, patch: { name?: string; visibility?: PlaylistVisibility; published?: boolean }) {
+    const { published, ...rest } = patch;
     const rows = await this.db
       .update(schema.playlists)
-      .set(patch)
+      // Publishing again keeps the first date, so a re-saved playlist does not jump to the top.
+      .set({ ...rest, ...(published === undefined ? {} : { publishedAt: published ? sql`coalesce(${schema.playlists.publishedAt}, now())` : null }) })
       .where(and(eq(schema.playlists.id, id), eq(schema.playlists.ownerId, ownerId)))
       .returning({ id: schema.playlists.id });
     return rows.length > 0;
@@ -528,6 +531,38 @@ export class PostgresRepository implements Repository {
       await this.db.delete(schema.playlistItems).where(and(eq(schema.playlistItems.playlistId, id), eq(schema.playlistItems.titleId, titleId)));
     }
     return true;
+  }
+
+  async listCommunityPlaylists(limit: number) {
+    const rows = await this.db
+      .select()
+      .from(schema.playlists)
+      .where(isNotNull(schema.playlists.publishedAt))
+      .orderBy(desc(schema.playlists.publishedAt))
+      .limit(limit);
+    if (rows.length === 0) return [];
+    const counts = await this.db
+      .select({ playlistId: schema.savedPlaylists.playlistId, saves: count() })
+      .from(schema.savedPlaylists)
+      .where(inArray(schema.savedPlaylists.playlistId, rows.map((r) => r.id)))
+      .groupBy(schema.savedPlaylists.playlistId);
+    const saves = new Map(counts.map((c) => [c.playlistId, Number(c.saves)]));
+    return (await this.withItems(rows)).map((playlist) => ({ playlist, saves: saves.get(playlist.id) ?? 0 }));
+  }
+
+  async listSavedPlaylists(userId: string) {
+    const rows = await this.db
+      .select({ playlist: schema.playlists })
+      .from(schema.savedPlaylists)
+      .innerJoin(schema.playlists, eq(schema.playlists.id, schema.savedPlaylists.playlistId))
+      .where(and(eq(schema.savedPlaylists.userId, userId), isNotNull(schema.playlists.publishedAt)))
+      .orderBy(desc(schema.savedPlaylists.savedAt));
+    return this.withItems(rows.map((r) => r.playlist));
+  }
+
+  async setPlaylistSaved(userId: string, playlistId: string, saved: boolean) {
+    if (saved) await this.db.insert(schema.savedPlaylists).values({ userId, playlistId }).onConflictDoNothing();
+    else await this.db.delete(schema.savedPlaylists).where(and(eq(schema.savedPlaylists.userId, userId), eq(schema.savedPlaylists.playlistId, playlistId)));
   }
 
   // Watch parties -----------------------------------------------------------

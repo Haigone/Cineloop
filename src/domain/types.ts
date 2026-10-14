@@ -264,6 +264,8 @@ export interface Playlist {
   /** In the order the owner put them. */
   titleIds: string[];
   createdAt: string;
+  /** When the owner published it in Community, where anyone can see and save it; null when not published. */
+  publishedAt: string | null;
 }
 
 export type WatchPartyFilter = "common" | "movie" | "series" | "anime" | "all";

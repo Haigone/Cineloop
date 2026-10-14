@@ -6,6 +6,7 @@ import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react"
 import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, Search, SearchX } from "lucide-react";
 import type { Genre, MediaType } from "@/domain/types";
 import type { PlaylistView, WishlistRow } from "@/server/services/wishlist";
+import type { CommunityPlaylistView } from "@/server/services/community";
 import type { AwaitedRelease } from "@/server/services/awaited";
 import { setInPlaylist } from "@/server/actions/playlists";
 import { reorderWishlist, setWishlisted } from "@/server/actions/library";
@@ -54,8 +55,21 @@ const SORT_LABEL: Record<Sort, string> = { rank: "La mia classifica", added: "Da
  * The wishlist is a ranked queue. In "La mia classifica" order it can be
  * reordered by dragging the handle or with the up/down buttons (keyboard).
  */
-export function WishlistBoard({ initialRows, playlists, releases }: { initialRows: WishlistRow[]; playlists: PlaylistView[]; releases: Promise<Record<string, AwaitedRelease>> }) {
-  const [tab, setTab] = useState<"list" | "playlists">("list");
+export function WishlistBoard({
+  initialRows,
+  playlists,
+  saved,
+  releases,
+  initialTab = "list",
+}: {
+  initialRows: WishlistRow[];
+  playlists: PlaylistView[];
+  /** Community playlists the viewer saved: shown apart from their own, and never in the "Playlist" menu. */
+  saved: CommunityPlaylistView[];
+  releases: Promise<Record<string, AwaitedRelease>>;
+  initialTab?: "list" | "playlists";
+}) {
+  const [tab, setTab] = useState<"list" | "playlists">(initialTab);
   const [rows, setRows] = useState(initialRows);
   // Server data wins whenever it changes (e.g. after adding from the dialog).
   const [source, setSource] = useState(initialRows);
@@ -171,12 +185,12 @@ export function WishlistBoard({ initialRows, playlists, releases }: { initialRow
         onChange={setTab}
         options={[
           { value: "list", label: "Wishlist", count: rows.length },
-          { value: "playlists", label: "Playlist", count: playlists.length },
+          { value: "playlists", label: "Playlist", count: playlists.length + saved.length },
         ]}
       />
 
       {tab === "playlists" ? (
-        <PlaylistsPanel playlists={playlists} wishlist={rows} />
+        <PlaylistsPanel playlists={playlists} saved={saved} wishlist={rows} />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<Heart />}
