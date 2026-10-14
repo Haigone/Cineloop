@@ -113,3 +113,15 @@ Per liste lunghe, o per importare la lista di un altro profilo, il pannello offr
 4. Dal pannello, *Importa* > "Carica il file di Netflix": si apre `import.html` in una scheda (un selettore di file chiuderebbe il pannello). Si carica lo .zip così com'è oppure solo `MyList.csv`.
 
 `netflix-export.js` legge lo .zip nel browser: apre solo la voce `CONTENT_INTERACTION/MyList.csv` (anche negli archivi ZIP64), ne prende profilo e titolo, e toglie i doppioni. Se ci sono più profili si sceglie quale importare (o tutti). I titoli vanno a `POST /api/extension/import-list` senza id Netflix, a gruppi di 20; al limite di richieste la pagina aspetta un minuto e riprende da sola. Se si carica la cronologia (`NetflixViewingHistory.csv` o `ViewingActivity.csv`) la pagina lo dice invece di importarla.
+
+### Storico visioni di Netflix (dalla 0.6.2)
+
+Dal pannello, *Importa* > "Carica lo storico" apre `import.html?mode=history`. Si carica uno di questi file:
+
+- `NetflixViewingHistory.csv`: Account > profilo > Attività di visione > "Scarica tutto" (subito, solo il profilo scelto, colonne `Title,Date`);
+- lo .zip di "Scarica le tue informazioni personali": l'estensione apre solo `CONTENT_INTERACTION/ViewingActivity.csv` (tutti i profili, si sceglie quale).
+
+Il file è letto nel browser e **non arriva al server**: `netflix-export.js` scarta trailer, anteprime e visioni sotto i due minuti, poi raggruppa le righe. "Serie: Stagione 4: Episodio" diventa una serie con la stagione più alta vista; una riga senza ":" è un film; "Nome: sottotitolo" è ambiguo e il server prova prima il titolo intero (film) poi "Nome" (serie). A `POST /api/extension/import-history` partono solo nome, tipo, stagione e la riga d'esempio, a gruppi di 20.
+
+Il server (`src/server/services/import-history.ts`) aggiunge solo ciò che manca dalla libreria: un film come visto, una serie come vista fino a quella stagione (`seenThrough`, così una stagione successiva compare in "Novità"). Ciò che è già in libreria non cambia; un titolo aggiunto esce dalla wishlist. Non crea eventi di visione, quindi le statistiche dei minuti non cambiano. I titoli non collegati al catalogo sono elencati nella pagina e scaricabili come `cineloop-import-errori.txt`, con la riga originale di Netflix accanto.
+

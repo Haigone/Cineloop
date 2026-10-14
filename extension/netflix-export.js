@@ -153,3 +153,101 @@ export async function listFromFile(file) {
   if (text === null) return "no_list";
   return readMyList(text);
 }
+
+// Viewing history -------------------------------------------------------------
+
+/** "CONTENT_INTERACTION/ViewingActivity.csv" in Netflix's export. */
+export const isHistoryFile = (name) => /(^|\/)viewingactivity\.csv$/i.test(name);
+
+/** The words Netflix puts before a season number in a history row, in the languages it uses most. */
+const SEASON = /^(?:stagione|season|temporada|staffel|saison|seizoen|sezon|parte|part|partie|teil|volume|vol\.|libro|book|capitolo|chapter|collection|collezione)\s*(\d{1,2})\b/i;
+const LIMITED = /^(?:serie limitata|miniserie|miniseries|limited series|serie documentaria|docuseries|docuserie)\b/i;
+
+/**
+ * "Stranger Things: Stagione 4: Capitolo uno" → a series, season 4.
+ * "Il buco" → a film. "Black Mirror: Bandersnatch" → either, the server tries both.
+ */
+export function parseHistoryTitle(raw) {
+  const sample = raw.trim().slice(0, 300);
+  const parts = sample.split(": ");
+  for (let i = 1; i < parts.length; i++) {
+    const season = SEASON.exec(parts[i]);
+    if (season || LIMITED.test(parts[i])) {
+      return { title: parts.slice(0, i).join(": ").slice(0, 200), kind: "series", season: season ? Number(season[1]) || 1 : 1, sample };
+    }
+  }
+  if (parts.length >= 2) return { title: parts[0].slice(0, 200), kind: "unknown", sample };
+  return { title: sample.slice(0, 200), kind: "film", sample };
+}
+
+/** "00:01:30" → 90 seconds; null when the column is missing or unreadable. */
+function seconds(duration) {
+  const m = /^(\d+):(\d{2}):(\d{2})$/.exec((duration ?? "").trim());
+  return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null;
+}
+
+/**
+ * The viewing history: NetflixViewingHistory.csv ("Title", "Date", from the
+ * Attività di visione page) or ViewingActivity.csv (from the data export, with
+ * profiles). Trailers, previews and plays under two minutes are left out.
+ * Returns null for any other file.
+ */
+export function readHistory(text) {
+  const [header, ...rows] = parseCsv(text);
+  if (!header) return null;
+  const names = header.map((h) => h.trim().toLowerCase());
+  const titleAt = names.indexOf("title");
+  if (titleAt < 0 || !(names.includes("date") || names.includes("start time"))) return null;
+  const profileAt = names.indexOf("profile name");
+  const durationAt = names.indexOf("duration");
+  const supplementalAt = names.indexOf("supplemental video type");
+  let skipped = 0;
+  const items = [];
+  for (const r of rows) {
+    const title = (r[titleAt] ?? "").trim();
+    if (!title) continue;
+    const short = durationAt >= 0 && (seconds(r[durationAt]) ?? Infinity) < 120;
+    if ((supplementalAt >= 0 && (r[supplementalAt] ?? "").trim()) || short) {
+      skipped += 1;
+      continue;
+    }
+    items.push({ profile: profileAt >= 0 ? (r[profileAt] ?? "").trim() : "", title });
+  }
+  const profiles = [...new Set(items.map((r) => r.profile))].filter(Boolean);
+  return { profiles, items, skipped };
+}
+
+/** One entry per series (with the highest season seen) or film, in the order first watched. */
+export function groupHistory(items) {
+  const byKey = new Map();
+  for (const { title } of items) {
+    const parsed = parseHistoryTitle(title);
+    const key = `${parsed.kind}:${parsed.title.toLowerCase().replace(/\s+/g, " ")}`;
+    const known = byKey.get(key);
+    if (!known) byKey.set(key, { ...parsed, rows: 1 });
+    else {
+      known.rows += 1;
+      if (parsed.season && parsed.season > (known.season ?? 0)) known.season = parsed.season;
+    }
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * What a file the user picked contains: La mia lista, the viewing history, or
+ * neither. A whole export .zip holds both: `want` says which one to open.
+ */
+export async function readNetflixFile(file, want) {
+  const buffer = await file.arrayBuffer();
+  const head = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
+  const isZip = head[0] === 0x50 && head[1] === 0x4b;
+  const text = isZip
+    ? await readZipEntry(buffer, want === "history" ? isHistoryFile : isMyListFile)
+    : new TextDecoder().decode(buffer);
+  if (text === null) return { type: "missing" };
+  const history = readHistory(text);
+  if (history) return { type: "history", ...history };
+  const list = readMyList(text);
+  if (list && list !== "history") return { type: "list", ...list };
+  return { type: "unknown" };
+}
