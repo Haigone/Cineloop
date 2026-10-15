@@ -4,18 +4,15 @@ import { authenticate, json, preflight, readJson } from "@/server/extension/http
 import { importNetflixHistory } from "@/server/services/import-history";
 
 // The extension reads the CSV on the user's computer and sends only the grouped titles, in small batches.
+const item = z.object({
+  title: z.string().trim().min(1).max(200),
+  kind: z.enum(["series", "film", "unknown"]),
+  season: z.number().int().min(1).max(99).optional(),
+  sample: z.string().trim().min(1).max(300),
+});
 const body = z.object({
-  items: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1).max(200),
-        kind: z.enum(["series", "film", "unknown"]),
-        season: z.number().int().min(1).max(99).optional(),
-        sample: z.string().trim().min(1).max(300),
-      }),
-    )
-    .min(1)
-    .max(20),
+  // Checked one by one: a row Netflix wrote without a name (": Episodio 1") must not sink its whole batch.
+  items: z.array(z.unknown()).min(1).max(20),
   // Sent by extension 0.6.4+: it sends again whatever comes back as pending.
   partial: z.boolean().optional(),
 });
@@ -33,5 +30,15 @@ export async function POST(request: NextRequest) {
   if (!("userId" in auth)) return auth;
   const parsed = body.safeParse(await readJson(request, 32_768));
   if (!parsed.success) return json(request, { error: "invalid_request" }, 400);
-  return json(request, await importNetflixHistory(auth.userId, parsed.data.items, parsed.data.partial ? BUDGET_MS : undefined));
+  const items = parsed.data.items.map((i) => item.safeParse(i));
+  const valid = items.flatMap((r) => (r.success ? [r.data] : []));
+  const unreadable = parsed.data.items
+    .filter((_, n) => !items[n]!.success)
+    .map((i) => {
+      const sample = typeof i === "object" && i && "sample" in i ? String(i.sample).slice(0, 300) : "";
+      return { title: sample || "(riga senza nome)", sample };
+    });
+  if (valid.length === 0) return json(request, { added: [], already: 0, notFound: unreadable, ...(parsed.data.partial ? { pending: [] } : {}) });
+  const result = await importNetflixHistory(auth.userId, valid, parsed.data.partial ? BUDGET_MS : undefined);
+  return json(request, { ...result, notFound: [...result.notFound, ...unreadable] });
 }
