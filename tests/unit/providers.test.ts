@@ -138,3 +138,48 @@ describe("Streaming Community", () => {
     expect(PROVIDERS.streamingcommunity.integration).toBe("available");
   });
 });
+
+describe("Prime Video adapter", () => {
+  const prime = getAdapter("prime-video");
+  const playing: SyncObservation = {
+    providerId: "prime-video",
+    url: "https://www.primevideo.com/-/it/detail/The-Boys/0KRGHGZCHKS920ZQGY5LBRF7MA/ref=atv_dp?autoplay=1",
+    documentTitle: "Prime Video: The Boys",
+    hints: { title: "The Boys", season: 4, episode: 3, progress: 0.25 },
+    observedAt: "2026-10-15T20:00:00Z",
+  };
+
+  it("reads the title page id, the player's names and the progress", async () => {
+    expect(await prime.getCurrentContent(ctx(playing))).toMatchObject({
+      providerId: "prime-video",
+      externalId: "0KRGHGZCHKS920ZQGY5LBRF7MA",
+      title: "The Boys",
+      season: 4,
+      episode: 3,
+      url: "https://www.primevideo.com/detail/0KRGHGZCHKS920ZQGY5LBRF7MA/",
+    });
+    expect(await prime.getWatchProgress(ctx(playing))).toMatchObject({ fraction: 0.25 });
+    const amazon = await prime.getCurrentContent(ctx({ ...playing, url: "https://www.amazon.it/gp/video/detail/B0B8TNM3H2/ref=x" }));
+    expect(amazon?.externalId).toBe("B0B8TNM3H2");
+  });
+
+  it("falls back to the player's name when the page has no id", async () => {
+    const current = await prime.getCurrentContent(ctx({ ...playing, url: "https://www.primevideo.com/storefront/home" }));
+    expect(current).toMatchObject({ externalId: "title:the boys", url: "https://www.primevideo.com/search/?phrase=The%20Boys" });
+    expect(await prime.getCurrentContent(ctx({ ...playing, url: "https://www.primevideo.com/storefront/home", hints: {} }))).toBeNull();
+  });
+
+  it("ignores other sites and lookalike hosts", async () => {
+    expect(await prime.getCurrentContent(ctx({ ...playing, url: "https://www.amazon.it/dp/B0B8TNM3H2" }))).toBeNull();
+    expect(await prime.getCurrentContent(ctx({ ...playing, url: "https://www.primevideo.com.evil.test/detail/B0B8TNM3H2" }))).toBeNull();
+    expect(await prime.getCurrentContent(ctx({ ...playing, url: "http://www.primevideo.com/detail/B0B8TNM3H2" }))).toBeNull();
+    expect(await prime.getCurrentContent(ctx({ ...playing, providerId: "netflix" }))).toBeNull();
+  });
+
+  it("links back to the title page, a search, or the homepage", () => {
+    const content = { providerId: "prime-video" as const, externalId: "B0B8TNM3H2", title: "The Boys", type: null, season: null, episode: null, titleId: null };
+    expect(prime.getContentUrl(content)).toBe("https://www.primevideo.com/detail/B0B8TNM3H2/");
+    expect(prime.getContentUrl({ ...content, externalId: "title:the boys" })).toBe("https://www.primevideo.com/search/?phrase=The%20Boys");
+    expect(prime.getContentUrl({ ...content, externalId: "javascript:alert(1)" })).toBe("https://www.primevideo.com");
+  });
+});

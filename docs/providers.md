@@ -7,7 +7,8 @@ CineLoop non riproduce contenuti, non usa le credenziali dell'utente presso i pr
 | Servizio | Stato in CineLoop | Cosa fa oggi | Percorso legittimo |
 |---|---|---|---|
 | Netflix | Rilevamento tramite estensione | "Ora in visione", libreria e tempo aggiornati dall'estensione dell'utente; link "Continua su Netflix" | Estensione CineLoop (URL e titolo della scheda); in futuro anche l'import del CSV "Attività di visione" |
-| Prime Video, Disney+, Apple TV+, NOW, Crunchyroll | In arrivo | Link alla homepage del servizio | Da studiare caso per caso (API ufficiali, export dei dati, partnership) |
+| Prime Video | Rilevamento tramite estensione (dalla 0.6.6) | Titolo, stagione, episodio e punto raggiunto letti dal player nella scheda dell'utente; "Continua" riapre la pagina del titolo | Estensione CineLoop, permesso concesso all'installazione |
+| Disney+, Apple TV+, NOW, Crunchyroll | In arrivo | Link alla homepage del servizio | Da studiare caso per caso (API ufficiali, export dei dati, partnership) |
 | Anime Unity | Disponibile tramite estensione CineLoop | Rileva titolo, episodio e frazione del video; salva il progresso e riapre la pagina al punto registrato | Permesso host opzionale, concesso dall'utente nel popup |
 | Streaming Community | Rilevamento tramite estensione | Titolo, episodio e progresso quando leggibili; salva il link della pagina osservata | Permesso host opzionale per la directory e il dominio corrente, concessi dall’utente |
 
@@ -42,7 +43,26 @@ Anime Unity e Streaming Community sono segnati `available` per il rilevamento tr
 
 - **Import dello storico visioni** (14 ottobre 2026, estensione 0.6.2): il CSV di "Attività di visione" (o `ViewingActivity.csv` dell'export) viene letto nel browser dell'utente e mai salvato; al server vanno solo i titoli raggruppati, che completano la libreria. Stessa base legale dell'export: dati personali che Netflix consegna all'utente.
 
-## Prime Video, Disney+, Apple TV+, NOW, Crunchyroll
+## Prime Video
+
+**Fatti verificati** (15 ottobre 2026)
+
+- Amazon non offre un'API pubblica e gratuita per Prime Video: niente cronologia, niente "continua a guardare", niente stato del player. Le API di Amazon legate a Prime Video sono per chi pubblica contenuti (Prime Video Direct, partner e canali), non per app di terzi che leggono l'account di un utente. Il catalogo "dove si guarda" lo abbiamo già da TMDB/JustWatch (provider 119 per l'Italia).
+- L'utente può chiedere ad Amazon i propri dati (Account > "Richiedi i tuoi dati", GDPR art. 15/20): l'archivio contiene anche la cronologia di Prime Video. È la stessa base legale dello storico Netflix e un possibile import futuro; il formato del file non è stato verificato da qui.
+
+**Decisioni**
+
+- Dal 15 ottobre 2026 (estensione 0.6.6, richiesta di Riccardo) il rilevamento è **attivo tramite l'estensione**, come per Netflix: `prime-page.js` gira su `www.primevideo.com` e `www.amazon.it/gp/video`, e solo quando il player è aperto legge la riga del titolo (`.atvwebplayersdk-title-text` e `-subtitle-text`), i metadati `mediaSession` e il punto del video. Non fa richieste ad Amazon, non legge cookie né altro della pagina, non comanda il player.
+- Prime Video apre il player sopra la pagina del titolo, senza un indirizzo di riproduzione: l'id è quello di `/detail/{id}`; se il player parte da un'altra pagina, vale il nome letto nel player (`title:<nome>`) e "Continua" apre la ricerca di Prime Video.
+- I selettori del player non sono stati verificati su Prime Video vero (il sito non è raggiungibile dalla sandbox di sviluppo): se Amazon li cambia, resta il nome dei metadati `mediaSession`.
+- Guardare insieme resta solo Netflix.
+- Lo stato del provider è `under-review`, come Netflix: nessuna integrazione ufficiale.
+
+## Paramount+
+
+**Fatti verificati** (15 ottobre 2026): nessuna API pubblica per sviluppatori, né gratuita né a pagamento, per cronologia o riproduzione. Il catalogo è su TMDB/JustWatch (Paramount+ è il provider 531 in Italia). Non è ancora tra i servizi di CineLoop: il rilevamento si può aggiungere con lo stesso schema di Prime Video (estensione, permesso all'installazione) se Riccardo lo chiede.
+
+## Disney+, Apple TV+, NOW, Crunchyroll
 
 Servizi con licenza. Nessuna integrazione costruita: l'adapter `HomepageAdapter` porta solo alla homepage ufficiale, così "Continua su…" funziona senza pretendere di sapere a che punto è l'utente. Prima di implementare qualsiasi rilevamento serve la stessa verifica fatta per Netflix (API ufficiali, termini, export dei dati).
 

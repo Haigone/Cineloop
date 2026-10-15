@@ -23,6 +23,8 @@ import { shareProgress } from "./shared-watch";
 export interface ExtensionStatus {
   user: { displayName: string; username: string };
   watching: null | {
+    /** Where the user is watching, so the popup can name the service. */
+    providerId: Presence["providerId"];
     label: string | null;
     title: { id: string; title: string; year: number; artwork?: { posterUrl: string | null } } | null;
     season: number | null;
@@ -180,6 +182,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
     const hosts = live.titleId ? await hostsWatching(repo, userId, live.titleId) : [];
     const title = live.titleId ? titles.get(live.titleId) : undefined;
     watching = {
+      providerId: live.providerId,
       label: live.label,
       title: title ? { ...brief(title), artwork: { posterUrl: title.artwork.posterUrl } } : null,
       season: live.season,

@@ -3,6 +3,7 @@ import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
 import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
+import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
 const DEFAULT_SERVER = "https://cineloop-one.vercel.app";
@@ -21,7 +22,8 @@ async function render() {
   const netflixOk = await hasNetflixAccess();
   const animeOk = await hasAnimeAccess();
   const streamingOk = await hasStreamingAccess();
-  if (!netflixOk && !animeOk && !streamingOk) {
+  const primeOk = await hasPrimeAccess();
+  if (!netflixOk && !primeOk && !animeOk && !streamingOk) {
     showOnly("grant");
     await renderGrant();
     return;
@@ -49,7 +51,11 @@ async function render() {
   const otherProvider = w.provider === "streamingcommunity" || w.providerId === "streamingcommunity"
     ? "streamingcommunity"
     : w.provider === "animeunity" || w.providerId === "animeunity" ? "animeunity" : null;
-  const providerLabel = otherProvider === "streamingcommunity" ? "su StreamingCommunity" : otherProvider === "animeunity" ? "su AnimeUnity" : "su Netflix";
+  const providerLabel = otherProvider === "streamingcommunity"
+    ? "su StreamingCommunity"
+    : otherProvider === "animeunity"
+      ? "su AnimeUnity"
+      : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
   $("watching-meta").textContent = [w.title?.year, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
   if (otherProvider === "streamingcommunity") {
@@ -193,16 +199,17 @@ $("visible").addEventListener("change", async () => {
  * prompt only if it is requested straight from the click, before any await,
  * so the click handler decides from this.
  */
-let perms = { netflix: false, anime: false, directory: false, streaming: false, resolved: null };
+let perms = { netflix: false, prime: false, anime: false, directory: false, streaming: false, resolved: null };
 
 /** Provider permissions remain manageable after the first site is enabled. */
 async function renderProviderPermissions() {
   const netflix = await hasNetflixAccess();
+  const prime = await hasPrimeAccess();
   const anime = await hasAnimeAccess();
   const directory = await hasDirectoryAccess();
   const streaming = await hasStreamingAccess();
   const resolved = await getResolved();
-  perms = { netflix, anime, directory, streaming, resolved };
+  perms = { netflix, prime, anime, directory, streaming, resolved };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
@@ -211,6 +218,8 @@ async function renderProviderPermissions() {
   // Netflix is granted at install time and cannot be switched off from here (only paused).
   $("manage-netflix").textContent = netflix ? "Attivo ✓" : "Attiva Netflix";
   $("manage-netflix").disabled = netflix;
+  $("manage-prime").textContent = prime ? "Attivo ✓" : "Attiva Prime Video";
+  $("manage-prime").disabled = prime;
   setButton("manage-au", anime, "AnimeUnity");
   setButton("manage-sc", streaming, "StreamingCommunity");
   $("manage-sc-status").textContent = sc
@@ -222,6 +231,9 @@ async function togglePermission(provider) {
   if (provider === "netflix") {
     // Only when it was revoked from the browser's settings (Firefox allows that).
     if (!perms.netflix) await chrome.permissions.request({ origins: [NETFLIX_ORIGIN] });
+  } else if (provider === "prime-video") {
+    // Come Netflix: concesso all'installazione, si richiede solo se revocato.
+    if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
     if (perms.anime) await chrome.permissions.remove({ origins: AU_ORIGINS });
     else await chrome.permissions.request({ origins: AU_ORIGINS });
@@ -244,7 +256,7 @@ async function togglePermission(provider) {
   await render();
 }
 
-for (const [id, provider] of [["manage-netflix", "netflix"], ["manage-au", "animeunity"], ["manage-sc", "streamingcommunity"]]) {
+for (const [id, provider] of [["manage-netflix", "netflix"], ["manage-prime", "prime-video"], ["manage-au", "animeunity"], ["manage-sc", "streamingcommunity"]]) {
   $(id).addEventListener("click", () => togglePermission(provider).catch(() => render()));
 }
 
