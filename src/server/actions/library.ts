@@ -22,6 +22,37 @@ import type { EpisodeInfo } from "@/integrations/catalog/types";
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 const titleId = z.string().min(1).max(120);
+/** Resolve a saved AnimeUnity episode URL after changing the episode manually.
+ * Episode IDs are advanced only within the same season; otherwise use archive search.
+ */
+async function animeUnityEpisodeUrl(
+  storedUrl: string | null | undefined,
+  titleName: string,
+  offset: number | null,
+): Promise<string | null> {
+  const { providerSearchUrl } = await import("@/integrations/providers/search-links");
+  const fallback = providerSearchUrl("animeunity", titleName);
+  if (storedUrl && offset !== null && offset > 0) {
+    try {
+      const current = new URL(storedUrl);
+      const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
+      if (
+        current.protocol === "https:" &&
+        (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") &&
+        match
+      ) {
+        current.pathname = `/anime/${match[1]}/${Number(match[2]) + offset}`;
+        current.search = "";
+        current.hash = "";
+        return current.toString();
+      }
+    } catch {
+      // Invalid/stale stored URL: use the archive fallback.
+    }
+  }
+  return fallback;
+}
+
 
 /** Catalog titles are cached on demand, so anything browsable can be saved. */
 async function ensureTitle(id: string) {
@@ -278,15 +309,29 @@ export async function saveManualProgress(
   return run(async () => {
     const repo = getRepository();
     const prev = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id)?.progress ?? null;
+    const nextProvider = chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null);
     const sameEpisode = prev?.season === season && prev?.episode === episode;
+    let nextUrl: string | null = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId)
+      ? (prev?.url ?? null)
+      : null;
+    if (nextProvider === "animeunity") {
+      const sameSeason = prev?.season === season;
+      const offset = sameSeason && prev?.episode !== null && prev?.episode !== undefined && episode !== null
+        ? episode - prev.episode
+        : null;
+      nextUrl = sameEpisode && prev?.url
+        ? prev.url
+        : await animeUnityEpisodeUrl(prev?.url, title.title, offset);
+    }
     await repo.saveProgress(user.id, {
       titleId: title.id,
-      providerId: chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null),
+      providerId: nextProvider,
       season,
       episode,
       fraction: Math.min(0.99, minute / runtime),
-      // A link to another episode, or to another service, would open the wrong one.
-      url: sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) ? (prev?.url ?? null) : null,
+      // For AnimeUnity, retain the title path and advance its episode ID when possible;
+      // otherwise save the archive search URL instead of clearing the destination.
+      url: nextUrl,
       updatedAt: new Date().toISOString(),
     });
     await shareProgress(repo, user.id, title.id);
@@ -369,28 +414,10 @@ export async function skipFillers(id: string): Promise<ActionResult> {
   // page (or the episode offset is unknown), fall back to the title archive search.
   let nextUrl: string | null = null;
   if (progress.providerId === "animeunity") {
-    const { providerSearchUrl } = await import("@/integrations/providers/search-links");
-    const fallback = providerSearchUrl("animeunity", title.title);
     const offset = progress.season === runAhead.season && progress.episode !== null
       ? runAhead.after - progress.episode
       : null;
-    if (progress.url && offset !== null && offset > 0) {
-      try {
-        const current = new URL(progress.url);
-        const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
-        if (current.protocol === "https:" &&
-          (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") &&
-          match) {
-          current.pathname = `/anime/${match[1]}/${Number(match[2]) + offset}`;
-          current.search = "";
-          current.hash = "";
-          nextUrl = current.toString();
-        }
-      } catch {
-        // Use the archive fallback below for invalid stored URLs.
-      }
-    }
-    nextUrl ??= fallback;
+    nextUrl = await animeUnityEpisodeUrl(progress.url, title.title, offset);
   }
   return run(async () => {
     await repo.saveProgress(user.id, {
