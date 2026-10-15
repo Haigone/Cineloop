@@ -5,6 +5,7 @@ import { getCatalog } from "@/integrations/catalog";
 import type { CatalogSort } from "@/integrations/catalog/types";
 import type { Genre, MediaType, ProviderId, Release, Title } from "@/domain/types";
 import { withoutReplaced } from "@/domain/duplicates";
+import { wantsUpdates } from "@/domain/library";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
@@ -243,7 +244,7 @@ export const getReleasesView = cache(async (type: MediaType | "all" = "all"): Pr
   // Series the viewer watched (or is watching): are they coming back?
   const followed = await repo.getTitlesByIds(
     library
-      .filter((e) => e.status === "watching" || e.status === "completed")
+      .filter((e) => (e.status === "watching" || e.status === "completed") && wantsUpdates(e))
       .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
       .map((e) => e.titleId),
   );
@@ -297,7 +298,7 @@ async function canonicalReleases(repo: Repository, list: Release[]): Promise<Rel
   return list.map((r) => ({ ...r, title: byKey.get(identity(r.title)) ?? r.title }));
 }
 
-async function notifyReleases(repo: Repository, userId: string, releases: Release[]) {
+export async function notifyReleases(repo: Repository, userId: string, releases: Release[]) {
   const existing = new Set((await repo.listNotifications(userId)).map((n) => n.message));
   for (const r of releases) {
     const message = r.episode ? `Oggi esce l’episodio ${r.episode} di ${r.title.title}.` : r.season ? `Esce oggi la stagione ${r.season} di ${r.title.title}.` : `Esce oggi ${r.title.title}.`;

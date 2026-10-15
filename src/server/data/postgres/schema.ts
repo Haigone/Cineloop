@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, TitleUpdates, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -84,6 +84,8 @@ export const libraryEntries = pgTable(
     askRating: boolean("ask_rating").notNull().default(false),
     /** Parts of an anime franchise the user included or left out, by part key. */
     partOverrides: jsonb("part_overrides").$type<Record<string, boolean>>().notNull().default({}),
+    /** "all", "releaseDay" or "none": see TitleUpdates. */
+    updates: text("updates").$type<TitleUpdates>().notNull().default("all"),
   },
   (t) => [primaryKey({ columns: [t.userId, t.titleId] }), check("rating_range", sql`${t.rating} is null or ${t.rating} between 1 and 10`)],
 );

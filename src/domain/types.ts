@@ -222,6 +222,13 @@ export interface Rating {
   ratedAt: string;
 }
 
+/**
+ * News about a finished series: "all" = in Novità and a notification on release day;
+ * "releaseDay" = out of Novità, only the notification on the day a season or episode comes out;
+ * "none" = out of Novità, no notification, not shown as awaited.
+ */
+export type TitleUpdates = "all" | "releaseDay" | "none";
+
 export interface LibraryEntry {
   userId: string;
   titleId: string;
@@ -237,6 +244,8 @@ export interface LibraryEntry {
   seenThrough?: number | null;
   /** Just finished (the last episode, or the film to the end): Home asks for a rating. */
   askRating?: boolean;
+  /** What the user still wants to hear about this series; unset = "all". */
+  updates?: TitleUpdates;
   /** Anime: parts the user chose to include (true) or leave out (false), by part key; "filler" = watch filler episodes. */
   partOverrides?: Record<string, boolean>;
 }
