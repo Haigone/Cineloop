@@ -160,7 +160,9 @@ export async function listFromFile(file) {
 export const isHistoryFile = (name) => /(^|\/)viewingactivity\.csv$/i.test(name);
 
 /** The words Netflix puts before a season number in a history row, in the languages it uses most. */
-const SEASON = /^(?:stagione|season|temporada|staffel|saison|seizoen|sezon|parte|part|partie|teil|volume|vol\.|libro|book|capitolo|chapter|collection|collezione)\s*(\d{1,2})\b/i;
+const SEASON = /^(?:stagione|season|temporada|staffel|saison|seizoen|sezon|parte|part|partie|teil|volume|vol\.|libro|book|capitolo|chapter|collection|collezione)\s*(\d{1,2}|prim[oa]|second[oa]|terz[oa]|quart[oa]|quint[oa]|one|two|three|four|five)\b/i;
+const ORDINALS = { primo: 1, prima: 1, secondo: 2, seconda: 2, terzo: 3, terza: 3, quarto: 4, quarta: 4, quinto: 5, quinta: 5, one: 1, two: 2, three: 3, four: 4, five: 5 };
+const seasonNumber = (word) => Number(word) || ORDINALS[word.toLowerCase()] || 1;
 const LIMITED = /^(?:serie limitata|miniserie|miniseries|limited series|serie documentaria|docuseries|docuserie)\b/i;
 
 /**
@@ -168,12 +170,14 @@ const LIMITED = /^(?:serie limitata|miniserie|miniseries|limited series|serie do
  * "Il buco" → a film. "Black Mirror: Bandersnatch" → either, the server tries both.
  */
 export function parseHistoryTitle(raw) {
-  const sample = raw.trim().slice(0, 300);
-  const parts = sample.split(": ");
+  // Netflix sometimes repeats the show's name ("Avatar - La leggenda di Aang: Avatar - La leggenda di Aang: Libro primo: ...").
+  const all = raw.trim().split(": ");
+  const parts = all.filter((p, n) => n === 0 || p.trim().toLowerCase() !== all[n - 1].trim().toLowerCase());
+  const sample = parts.join(": ").slice(0, 300);
   for (let i = 1; i < parts.length; i++) {
     const season = SEASON.exec(parts[i]);
     if (season || LIMITED.test(parts[i])) {
-      return { title: parts.slice(0, i).join(": ").slice(0, 200), kind: "series", season: season ? Number(season[1]) || 1 : 1, sample };
+      return { title: parts.slice(0, i).join(": ").slice(0, 200), kind: "series", season: season ? seasonNumber(season[1]) : 1, sample };
     }
   }
   if (parts.length >= 2) return { title: parts[0].slice(0, 200), kind: "unknown", sample };
@@ -222,6 +226,8 @@ export function groupHistory(items) {
   const byKey = new Map();
   for (const { title } of items) {
     const parsed = parseHistoryTitle(title);
+    // A row with no name before the colon (": Episodio 1") says nothing about what was watched.
+    if (!parsed.title.trim()) continue;
     const key = `${parsed.kind}:${parsed.title.toLowerCase().replace(/\s+/g, " ")}`;
     const known = byKey.get(key);
     if (!known) byKey.set(key, { ...parsed, rows: 1 });

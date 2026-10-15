@@ -94,7 +94,15 @@ describe("Netflix viewing history", () => {
     expect(parseHistoryTitle("Breaking Bad: Season 5: Felina")).toMatchObject({ title: "Breaking Bad", kind: "series", season: 5 });
     expect(parseHistoryTitle("La regina degli scacchi: Serie limitata: Aperture")).toMatchObject({ title: "La regina degli scacchi", kind: "series", season: 1 });
     expect(parseHistoryTitle("Il buco")).toMatchObject({ title: "Il buco", kind: "film" });
-    expect(parseHistoryTitle("Black Mirror: Bandersnatch")).toMatchObject({ title: "Black Mirror", kind: "unknown", sample: "Black Mirror: Bandersnatch" });
+    expect(parseHistoryTitle("Black Mirror: Bandersnatch")).toMatchObject({ title: "Black Mirror", kind: "unknown", sample: "Black Mirror: Bandersnatch" });    // The show's name repeated, and a season written as a word ("Libro primo").
+    expect(
+      parseHistoryTitle("Avatar - La leggenda di Aang: Avatar - La leggenda di Aang: Libro primo: L'assedio del Nord: Parte 2"),
+    ).toMatchObject({ title: "Avatar - La leggenda di Aang", kind: "series", season: 1 });
+    expect(parseHistoryTitle("Avatar - La leggenda di Aang: Libro terzo: Il fuoco")).toMatchObject({ season: 3 });
+  });
+
+  it("leaves out a row with no name before the colon", () => {
+    expect(groupHistory([{ profile: "", title: ": Episodio 1" }, { profile: "", title: "Il buco" }]).map((g) => g.title)).toEqual(["Il buco"]);
   });
 
   it("reads the history page download and groups it by title", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getRepository } from "@/server/data";
 import { cacheTitles } from "@/server/services/explore";
-import { importNetflixHistory } from "@/server/services/import-history";
+import { importNetflixHistory, withoutRepeats } from "@/server/services/import-history";
 
 describe("importing the Netflix viewing history", () => {
   it("adds what is missing from the library, leaves the rest, logs what it cannot match", async () => {
@@ -67,5 +67,12 @@ describe("importing a long history in time", () => {
     expect(res.pending?.map((p) => p.title)).toEqual(["Shogun", "Severance"]);
     // Without a budget (an older extension), everything in one go and no pending.
     expect((await importNetflixHistory("u_budget2", items)).pending).toBeUndefined();
+  });
+});
+
+describe("names Netflix writes twice", () => {
+  it("drops the show's name when Netflix repeats it", () => {
+    expect(withoutRepeats("Avatar - La leggenda di Aang: Avatar - La leggenda di Aang: Libro primo")).toBe("Avatar - La leggenda di Aang: Libro primo");
+    expect(withoutRepeats("Dark: Segreti")).toBe("Dark: Segreti");
   });
 });

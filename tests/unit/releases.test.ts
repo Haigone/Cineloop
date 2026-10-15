@@ -218,6 +218,34 @@ describe("recognising what the player names", () => {
     expect((await tmdb.findByName("Il padrino", { series: false, provider: "netflix" }))?.id).toBe("tmdb-movie-238");
   });
 
+  it("finds \"Parto col folle\" typed as \"parto con il folle\"", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      const q = decodeURIComponent(/query=([^&]*)/.exec(url)?.[1] ?? "");
+      if (url.includes("/search/multi") && q === "parto col folle") return { results: [{ id: 41733, media_type: "movie", title: "Parto col folle", poster_path: "/p.jpg", release_date: "2010-11-05" }] };
+      return { results: [] };
+    });
+    expect((await tmdb.search("parto con il folle", 6)).map((t) => t.id)).toContain("tmdb-movie-41733");
+    expect((await tmdb.findByName("Parto con il folle", { series: false, provider: "netflix" }))?.id).toBe("tmdb-movie-41733");
+  });
+
+  it("finds a title Netflix writes with a subtitle, other punctuation, or shorter", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      const q = decodeURIComponent(/query=([^&]*)/.exec(url)?.[1] ?? "");
+      if (!url.includes("/search/multi")) return { results: {} };
+      if (q === "Gundam: Requiem for Vengeance") return { results: [{ id: 200, media_type: "tv", name: "Gundam: Requiem for Vengeance", poster_path: "/g.jpg" }] };
+      if (q === "Gundam") return { results: [{ id: 201, media_type: "movie", title: "Gundam", poster_path: "/x.jpg" }] };
+      if (q === "Allegiant") return { results: [{ id: 262504, media_type: "movie", title: "Allegiant", poster_path: "/a.jpg" }] };
+      if (q === "Il lato positivo") return { results: [{ id: 82693, media_type: "movie", title: "Il lato positivo - Silver Linings Playbook", poster_path: "/l.jpg" }] };
+      if (q === "c era una volta a hollywood") return { results: [{ id: 466272, media_type: "movie", title: "C'era una volta... a Hollywood", poster_path: "/h.jpg" }] };
+      return { results: [] };
+    });
+    const film = { series: false, provider: "netflix" } as const;
+    expect((await tmdb.findByName("Gundam: Requiem for Vengeance: La foresta stregata", film))?.id).toBe("tmdb-tv-200");
+    expect((await tmdb.findByName("The Divergent Series: Allegiant", film))?.id).toBe("tmdb-movie-262504");
+    expect((await tmdb.findByName("Il lato positivo", film))?.id).toBe("tmdb-movie-82693");
+    expect((await tmdb.findByName("C'era una volta a... Hollywood", film))?.id).toBe("tmdb-movie-466272");
+  });
+
   it("reads \"Show: Part\" as the show when the part has no title of its own, and the part as its season", async () => {
     const { tmdb } = tmdbWith((url) => {
       if (url.includes("/search/multi") && /steel/i.test(url)) return { results: [] };

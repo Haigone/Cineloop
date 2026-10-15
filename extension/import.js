@@ -99,7 +99,8 @@ async function send(endpoint, items) {
     try {
       return await api(endpoint, { method: "POST", body: { items, partial: true } });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) throw err;
+      // Refused as it is (401: not paired, 400: unreadable): sending it again changes nothing.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 400)) throw err;
       if (err instanceof ApiError && err.status === 429) {
         if (++busy > 3) throw err;
         $("import-status").textContent += " Pausa di un minuto per non sovraccaricare CineLoop, poi continuo da solo.";

@@ -2,7 +2,7 @@ import type { CollectionPart, CollectionRef, FilmCollection, Genre, MediaType, M
 import { releaseOrder } from "@/domain/collections";
 import { addDays, italianDay } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
-import { searchKey } from "@/lib/text";
+import { prepositionVariant, searchKey } from "@/lib/text";
 import { franchiseHead, franchiseKey, franchiseNames, withoutSeriesFilms } from "@/domain/franchise";
 import type { CastMember, CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonCredit, PersonDetails, PersonHit } from "./types";
 
@@ -82,6 +82,36 @@ interface TmdbEpisodeRef {
 }
 
 /** Shape shared by list items and full records; details add the rest. */
+/** Lowercase letters and digits only: "C'era una volta a... Hollywood" → "c era una volta a hollywood". */
+export function looseKey(s: string): string {
+  return searchKey(s)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\bcon il\b/g, "col")
+    .replace(/\bcon i\b/g, "coi")
+    .trim();
+}
+
+/** A title without its subtitle: "Il lato positivo - Silver Linings Playbook" → "Il lato positivo". */
+function headOf(s: string): string {
+  return s.split(/\s*:\s+|\s+[-–—]\s+/)[0] ?? s;
+}
+
+/**
+ * The names to try when no title has the whole name ("Show: Part: Episode", "PART - Show"):
+ * after a colon, the longest leading part first ("Gundam: Requiem for Vengeance" before
+ * "Gundam"), then each later part; after a dash the show comes last
+ * ("STEEL BALL RUN - Le bizzarre avventure di JoJo"), so the parts are tried from the end.
+ */
+export function sidesOf(q: string): string[] {
+  const colon = q.split(/\s*:\s+/).filter((p) => p.trim().length >= 2);
+  if (colon.length > 1) {
+    const prefixes = colon.slice(0, -1).map((_, n) => colon.slice(0, colon.length - 1 - n).join(": "));
+    return [...new Set([...prefixes, ...colon.slice(1)])];
+  }
+  const dashed = q.split(/\s+[-–—]\s+/).filter((p) => p.trim().length >= 2);
+  return dashed.length > 1 ? dashed.reverse() : [];
+}
+
 /** Same-name results, the one with a poster and the most votes first; ties keep TMDB's order. */
 export function rankNamesakes<T extends Pick<TmdbItem, "poster_path" | "vote_count">>(items: T[]): T[] {
   const score = (i: T) => (i.poster_path ? 1 : 0) * 1e9 + (i.vote_count ?? 0);
@@ -255,9 +285,17 @@ export class TmdbCatalog implements CatalogService {
   async search(query: string, limit: number): Promise<Title[]> {
     const q = query.trim();
     if (!q) return [];
-    const items = (await this.list(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false`)).filter(
-      (i) => i.media_type === "movie" || i.media_type === "tv",
-    );
+    // "con il" and "col" are both Italian: TMDB matches words literally, so the other spelling is asked too.
+    const variant = prepositionVariant(q);
+    const pages = await Promise.all([q, ...(variant ? [variant] : [])].map((query) => this.list(`/search/multi?query=${encodeURIComponent(query)}&include_adult=false`)));
+    const seen = new Set<string>();
+    const items = pages
+      .flat()
+      .filter((i) => i.media_type === "movie" || i.media_type === "tv")
+      .filter((i) => {
+        const id = `${i.media_type}-${i.id}`;
+        return !seen.has(id) && Boolean(seen.add(id));
+      });
     const titles = await this.withSeries(mapItems(items, limit + 10), items);
     // A film from an anime series found along with that series sits on the series' page instead.
     return withoutSeriesFilms(titles).slice(0, limit);
@@ -588,31 +626,39 @@ export class TmdbCatalog implements CatalogService {
   }
 
   async findByName(name: string, prefer: NamePreference): Promise<Title | null> {
-    return this.byName(name, prefer, true);
+    return this.byName(name, prefer, true, true);
   }
 
-  private async byName(name: string, prefer: NamePreference, fuzzy: boolean): Promise<Title | null> {
+  private async byName(name: string, prefer: NamePreference, fuzzy: boolean, split: boolean): Promise<Title | null> {
     const q = name.trim();
     if (!q) return null;
+    const search = async (query: string) =>
+      (await this.list(`/search/multi?query=${encodeURIComponent(query)}&include_adult=false`)).filter(
+        (i) => i.media_type === "tv" || (i.media_type === "movie" && !prefer.series),
+      );
+    let items = await search(q);
+    // TMDB's search can find nothing for punctuation it does not expect ("C'era una volta a... Hollywood").
+    if (!items.length && looseKey(q) !== searchKey(q).replace(/\s+/g, " ")) items = await search(looseKey(q));
+    const names = (i: TmdbItem) => [i.title, i.name, i.original_title, i.original_name].filter((n): n is string => Boolean(n));
     const key = searchKey(q);
-    const items = (await this.list(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false`)).filter(
-      (i) => i.media_type === "tv" || (i.media_type === "movie" && !prefer.series),
-    );
-    const named = (i: TmdbItem) =>
-      [i.title, i.name, i.original_title, i.original_name].some((n) => n && searchKey(n) === key);
+    const loose = looseKey(q);
     // Namesakes in TMDB's order can put a stub first (no poster, no votes): the known one wins.
-    const exact = rankNamesakes(items.filter(named));
+    let exact = rankNamesakes(items.filter((i) => names(i).some((n) => searchKey(n) === key)));
+    // Then the same words without punctuation, or a title that only adds a subtitle
+    // ("Il lato positivo - Silver Linings Playbook" for "Il lato positivo").
+    if (!exact.length && loose) exact = rankNamesakes(items.filter((i) => names(i).some((n) => looseKey(n) === loose || looseKey(headOf(n)) === loose)));
     if (!exact.length) {
-      // "Show: Part" or "PART - Show" (Netflix writes both): with no title of the
-      // whole name, the show is whichever side has a title of exactly that name.
-      const dashed = /\s[-–—]\s/.test(q);
-      const sides = q.split(/\s*:\s+|\s+[-–—]\s+/).filter((p) => p.length >= 2);
-      // After a dash the show comes last ("STEEL BALL RUN - Le bizzarre avventure di JoJo").
-      if (dashed) sides.reverse();
-      if (sides.length > 1) {
-        for (const side of sides) {
-          const whole = await this.byName(side, { ...prefer, series: true }, false);
+      if (split) {
+        for (const side of sidesOf(q)) {
+          const whole = await this.byName(side, { ...prefer, series: true }, false, false);
           if (whole) return whole;
+        }
+        // A film with a subtitle ("The Divergent Series: Allegiant"): one of its sides is the film's name.
+        if (!prefer.series) {
+          for (const side of sidesOf(q)) {
+            const film = await this.byName(side, prefer, false, false);
+            if (film) return film;
+          }
         }
       }
       if (!fuzzy) return null;

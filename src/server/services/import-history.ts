@@ -79,7 +79,14 @@ async function byName(name: string, series: boolean): Promise<Title | null> {
   return (await getCatalog().findByName(name, { series, provider: "netflix" })) ?? local[0] ?? null;
 }
 
-async function match(item: HistoryItem): Promise<Title | null> {
+/** Netflix sometimes repeats the show's name: "Avatar - La leggenda di Aang: Avatar - La leggenda di Aang: Libro primo". */
+export function withoutRepeats(name: string): string {
+  const parts = name.split(/\s*:\s+/);
+  return parts.filter((p, n) => n === 0 || searchKey(p) !== searchKey(parts[n - 1]!)).join(": ");
+}
+
+async function match(raw: HistoryItem): Promise<Title | null> {
+  const item = { ...raw, title: withoutRepeats(raw.title), sample: withoutRepeats(raw.sample) };
   if (item.kind === "series") return (await byName(item.title, true)) ?? byName(item.title, false);
   if (item.kind === "film") return byName(item.title, false);
   // "Name: something": a film with a subtitle, or a series episode without a season.

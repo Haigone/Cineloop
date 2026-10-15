@@ -23,3 +23,21 @@ export function namesPerson(query: string, name: string): boolean {
   if (q.length < 3) return false;
   return full === q || full.split(" ").includes(q) || (q.includes(" ") && full.startsWith(q));
 }
+
+/**
+ * The same query with "con il"/"con i" written as "col"/"coi", or the other way round: Italian
+ * allows both and titles use either ("Parto col folle" found as "parto con il folle"). Null when
+ * the query has neither.
+ */
+export function prepositionVariant(query: string): string | null {
+  const swaps: [RegExp, string][] = [
+    [/\bcon il\b/gi, "col"],
+    [/\bcon i\b/gi, "coi"],
+    [/\bcol\b/gi, "con il"],
+    [/\bcoi\b/gi, "con i"],
+  ];
+  for (const [from, to] of swaps) {
+    if (from.test(query)) return query.replace(from, to);
+  }
+  return null;
+}
