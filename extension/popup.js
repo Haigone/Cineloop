@@ -142,7 +142,7 @@ async function renderTogether(status, w) {
   $("room-members").textContent = `Con te: ${members.join(", ")}`;
   const lastAction = { play: "play", pause: "pausa", seek: "salto" }[party?.lastAction] ?? (party?.paused ? "pausa" : "play");
   $("room-state").textContent = !party
-    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video (solo su Netflix)."
+    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video (su Netflix e Prime Video)."
     : !party.sameEpisode
       ? `Sei su un altro episodio rispetto a ${party.hostName}: posizione, play e pausa non vengono sincronizzati.`
       : party.seq > 0
@@ -153,7 +153,7 @@ async function renderTogether(status, w) {
       const li = document.createElement("li");
       const s = Math.abs(o.seconds);
       const amount = s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
-      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: CineLoop vi riallinea in pochi secondi. Se resta così, usa ← o → nel player di Netflix.`;
+      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: CineLoop vi riallinea in pochi secondi. Se resta così, usa ← o → nel player.`;
       return li;
     }),
   );

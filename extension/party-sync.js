@@ -1,6 +1,6 @@
-// CineLoop: watch together (Netflix only, for now).
+// CineLoop: watch together, on Netflix and Prime Video.
 //
-// Runs on www.netflix.com after the user granted that site. While the user is
+// Runs on www.netflix.com, and on Prime Video next to prime-page.js. While the user is
 // in a CineLoop room (they hosted friends who joined, or joined a friend), it
 // reports their player's position and play/pause state to the extension's
 // background worker every 2 seconds and keeps this tab on the room's clock:
@@ -13,6 +13,12 @@
 // - if Netflix's player does not answer (Netflix changed it), a big gap reopens
 //   the same episode at the room's point with Netflix's own `?t=` link. Netflix
 //   breaks when a page sets the video's currentTime, so this never does that.
+//
+// On Prime Video there is no player to ask and no `?t=` link: play, pause and
+// seeks go through the <video> element itself (watch-party extensions do the
+// same there), and the position is the one Prime's own time bar shows, so an
+// ad break before one member's episode does not put them out of step. While
+// an ad plays nothing is reported or applied.
 //
 // The room follows the host's player; a member's own play, pause or seek moves
 // it for everyone. It makes no request itself. Outside a room it only reports
@@ -51,8 +57,36 @@
   let lagging = false;
   let nudging = false;
 
-  const watchId = () => /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
-  const video = () => document.querySelector("video");
+  const onNetflix = location.hostname === "www.netflix.com";
+  /**
+   * What is playing here, or null: Netflix's /watch id, or what prime-page.js
+   * (same extension, same isolated world) reads from Prime Video's player.
+   */
+  function playing() {
+    if (onNetflix) {
+      const id = /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1];
+      const v = document.querySelector("video");
+      return id && v ? { id, video: v, offset: 0 } : null;
+    }
+    const now = typeof globalThis.__cineloopPrimeNow === "function" ? globalThis.__cineloopPrimeNow() : null;
+    if (!now || now.ad) return null;
+    return { id: now.watchId, season: now.season, episode: now.episode, video: now.video, offset: primeOffset(now) };
+  }
+
+  /**
+   * Prime Video: seconds between the <video> clock and the episode's own time
+   * (Prime's time bar). They differ, by ads and by how Prime builds the
+   * stream, so positions are exchanged in the episode's time. Kept while it
+   * stays within a second of the bar (whole seconds only), so it does not jitter.
+   */
+  let offset = 0;
+  function primeOffset(now) {
+    if (now.shown === null) return offset;
+    const seen = now.video.currentTime - now.shown;
+    if (Math.abs(seen - offset) > 1.5) offset = Math.round(seen * 10) / 10;
+    return offset;
+  }
+
   const own = () => Date.now() > applyingUntil;
 
   // Netflix's player, through netflix-player.js in the page. Answers false when
@@ -65,6 +99,7 @@
     waiting.delete(e.data.id);
   });
   function netflixPlayer(cmd, ms) {
+    if (!onNetflix) return Promise.resolve(false);
     return new Promise((resolve) => {
       const id = `${Date.now()}-${++asked}`;
       waiting.set(id, resolve);
@@ -91,17 +126,18 @@
   }
 
   async function report(action) {
-    const id = watchId();
-    const v = video();
-    if (!id || !v || !alive()) return;
+    const now = playing();
+    if (!now || now.video !== bound || !alive()) return;
+    const v = now.video;
     const n = ++sent;
     if (action) freshFrom = n;
     const t0 = performance.now();
+    const where = onNetflix ? {} : { season: now.season ?? null, episode: now.episode ?? null };
     const res = await chrome.runtime
-      .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
+      .sendMessage({ type: "party-report", externalId: now.id, ...where, position: Math.max(0, Math.round((v.currentTime - now.offset) * 10) / 10), paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
       .catch(() => null);
     if (n < freshFrom) return;
-    if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000);
+    if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000, now.offset);
     else relax(v);
   }
 
@@ -120,7 +156,8 @@
     } catch {}
   }
 
-  async function apply(party, v, rtt) {
+  /** `offset`: the <video> clock minus the episode's time (Prime Video), else 0. */
+  async function apply(party, v, rtt, offset) {
     if (!party.sameEpisode) return relax(v);
     heard = true;
     if (party.paused !== v.paused) {
@@ -132,7 +169,7 @@
     }
     // The room's clock was read on the server, about half a round trip ago.
     const target = party.position + (party.paused ? 0 : rtt / 2);
-    const gap = v.currentTime - target;
+    const gap = v.currentTime - offset - target;
     inStep = Math.abs(gap) < 3;
     lagging = Math.abs(gap) >= SEEK_SECONDS;
     if (Math.abs(gap) >= SEEK_SECONDS) {
@@ -140,6 +177,8 @@
       // Our own seek fires "seeked" too: it is not the user's.
       applyingUntil = Date.now() + 2500;
       if (await netflixPlayer("seek", Math.round(target * 1000))) return;
+      // Prime Video: its player follows the <video> element's own seek.
+      if (!onNetflix && seekVideo(v, target + offset)) return;
       applyingUntil = 0;
       if (Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
     }
@@ -148,8 +187,18 @@
     else if (Math.abs(gap) < SETTLED_SECONDS || !nudging) setRate(v, 1);
   }
 
-  /** Reopens this episode at `seconds`, unless that was just tried. */
+  function seekVideo(v, seconds) {
+    try {
+      v.currentTime = Math.max(0, seconds);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Reopens this episode at `seconds`, unless that was just tried (Netflix only). */
   function jump(v, seconds) {
+    if (!onNetflix) return;
     setRate(v, 1);
     let last = null;
     try {
@@ -180,9 +229,9 @@
       stopped = true;
       return clearInterval(timer);
     }
-    const v = video();
-    if (!v || !watchId()) return;
-    bind(v);
+    const now = playing();
+    if (!now) return;
+    bind(now.video);
     report(null);
   }, 2000);
 })();

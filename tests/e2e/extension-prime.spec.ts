@@ -68,5 +68,41 @@ test("Prime Video is recognised with no permission to grant", async ({ baseURL }
     .toBe("Dark");
   await expect(popup.locator("#watching-meta")).toHaveText("2017 · S2E3 · su Prime Video");
   await expect(popup.locator("#player-read")).toContainText("25% visto");
+
+  // Watch together: Luca joins Marco and pauses on his side (his extension, here
+  // its API, on the same Prime episode): Marco's Prime video pauses too.
+  const other = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined });
+  const luca = await (await other.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  await luca.goto(`${baseURL}/login`);
+  await luca.getByLabel("Email").fill("luca@cineloop.dev");
+  await luca.getByLabel("Password").fill(DEMO.password);
+  await luca.getByRole("button", { name: "Accedi", exact: true }).click();
+  await luca.waitForURL("**/home");
+  await luca.getByRole("button", { name: "Guarda insieme: Marco, Dark" }).click();
+  await expect(luca.getByRole("dialog")).toContainText("posizione, play e pausa restano allineati");
+  await luca.goto(`${baseURL}/settings#estensione`);
+  await luca.getByRole("button", { name: "Genera codice" }).click();
+  const lucaCode = (await luca.getByText(/^[2-9A-Z]{4}-[2-9A-Z]{4}$/).textContent())!;
+  const paired = await (await luca.request.post(`${baseURL}/api/extension/pair`, { data: { code: lucaCode } })).json();
+  expect(await prime.evaluate(() => document.querySelector("video")!.paused)).toBe(false);
+  await expect(async () => {
+    const res = await luca.request.post(`${baseURL}/api/extension/party`, {
+      headers: { Authorization: `Bearer ${paired.token}` },
+      data: { externalId: "0KRGHGZCHKS920ZQGY5LBRF7MA", season: 2, episode: 3, position: 600, paused: true, action: "pause" },
+    });
+    expect((await res.json()).party).toMatchObject({ sameEpisode: true });
+  }).toPass({ timeout: 10_000 });
+  await expect.poll(() => prime.evaluate(() => document.querySelector("video")!.paused), { timeout: 30_000 }).toBe(true);
+  await popup.reload();
+  await popup.getByRole("tab", { name: "Guarda insieme" }).click();
+  await expect(popup.locator("#room-state")).toContainText("pausa di Luca Ferri");
+  await other.close();
+  // Leave the demo store as it was: Marco stops watching, so the room ends.
+  await prime.close();
+  await popup.evaluate(async () => {
+    const ext = (globalThis as unknown as { chrome: { storage: { local: { get(keys: string[]): Promise<Record<string, string>> } } } }).chrome;
+    const { server, token } = await ext.storage.local.get(["server", "token"]);
+    await fetch(new URL("/api/extension/presence", server), { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+  });
   await ctx.close();
 });

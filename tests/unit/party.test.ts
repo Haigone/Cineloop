@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyReport, driftBetween, roomPosition, watchAt } from "@/domain/party";
+import { applyReport, driftBetween, episodeKey, isSyncedProvider, roomPosition, sameEpisodeAs, watchAt } from "@/domain/party";
 import { getRepository } from "@/server/data";
 import { endPresence, getExtensionStatus, handleObservation, joinFriend, listLiveFriends, reportPlayback, setLiveVisible } from "@/server/services/sync";
 import { toPublicUser } from "@/server/services/shared";
@@ -125,6 +125,23 @@ describe("watch together", () => {
     expect(back.party!.position).toBeLessThan(302);
   });
 
+  it("keeps a Prime Video room in step, episode by episode", async () => {
+    const prime = (hints: Record<string, unknown>) => ({ providerId: "prime-video" as const, url: "https://www.primevideo.com/detail/0ABCDEFGHIJ1234/", documentTitle: "Prime Video", observedAt: new Date().toISOString(), hints });
+    await handleObservation("u_marco", prime({ title: "The Boys", season: 1, episode: 3 }));
+    const giulia = toPublicUser((await repo.getUserById("u_giulia"))!);
+    expect((await joinFriend(giulia, "u_marco")).ok).toBe(true);
+    await handleObservation("u_giulia", prime({ title: "The Boys", season: 1, episode: 3 }));
+
+    const host = await reportPlayback("u_marco", { externalId: "0ABCDEFGHIJ1234", season: 1, episode: 3, position: 600, paused: false });
+    expect(host.party).toMatchObject({ isHost: true, sameEpisode: true });
+    const guest = await reportPlayback("u_giulia", { externalId: "0ABCDEFGHIJ1234", season: 1, episode: 3, position: 10, paused: false });
+    expect(guest.party).toMatchObject({ sameEpisode: true });
+    expect(guest.party!.position).toBeGreaterThanOrEqual(600);
+    // Same show, another episode: not synced.
+    const other = await reportPlayback("u_giulia", { externalId: "0ABCDEFGHIJ1234", season: 1, episode: 4, position: 10, paused: false });
+    expect(other.party).toMatchObject({ sameEpisode: false });
+  });
+
   it("gives a joining friend a link at the host's point", async () => {
     await handleObservation("u_marco", watch("81000004"));
     const luca = toPublicUser((await repo.getUserById("u_luca"))!);
@@ -185,5 +202,24 @@ describe("library follows the player", () => {
     expect(inferSeason(dark, { season: 1, episode: 10 }, 1)).toBe(2);
     expect(inferSeason(dark, null, 1)).toBeNull();
     expect(inferSeason(SEED_TITLE_MAP.get("adolescence")!, null, 2)).toBe(1);
+  });
+});
+
+describe("synced providers", () => {
+  it("syncs Netflix and Prime Video only", () => {
+    expect(isSyncedProvider("netflix")).toBe(true);
+    expect(isSyncedProvider("prime-video")).toBe(true);
+    expect(isSyncedProvider("animeunity")).toBe(false);
+    expect(isSyncedProvider("streamingcommunity")).toBe(false);
+  });
+
+  it("tells Prime Video episodes of one show apart", () => {
+    expect(episodeKey("X1", 1, 3)).toBe("X1#S1E3");
+    expect(episodeKey("X1", null, null)).toBe("X1");
+    const host = { externalId: "X1", season: 1, episode: 3 };
+    expect(sameEpisodeAs(host, { externalId: "X1", season: 1, episode: 3 })).toBe(true);
+    expect(sameEpisodeAs(host, { externalId: "X1", season: 2, episode: 3 })).toBe(false);
+    expect(sameEpisodeAs(host, { externalId: "X1" })).toBe(true);
+    expect(sameEpisodeAs(host, { externalId: "X2", season: 1, episode: 3 })).toBe(false);
   });
 });

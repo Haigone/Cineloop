@@ -7,7 +7,11 @@ export const OPTIONS = preflight;
 
 const report = z
   .object({
-    externalId: z.string().regex(/^\d{1,12}$/),
+    // A Netflix /watch id, a Prime Video title id, or "title:<name>" when Prime
+    // Video's player was opened without a title page.
+    externalId: z.union([z.string().regex(/^\d{1,12}$/), z.string().regex(/^(?:[A-Z0-9]{10,40}|amzn1\.dv\.gti\.[0-9a-f-]{36})$/), z.string().regex(/^title:.{1,200}$/)]),
+    season: z.number().int().min(0).max(999).nullable().optional(),
+    episode: z.number().int().min(0).max(9999).nullable().optional(),
     position: z.number().min(0).max(24 * 3600),
     paused: z.boolean(),
     action: z.enum(["play", "pause", "seek"]).optional(),

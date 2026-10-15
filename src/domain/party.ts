@@ -1,9 +1,27 @@
-import type { PartyState } from "./types";
+import type { PartyState, ProviderId } from "./types";
+
+/**
+ * Providers whose rooms the extension keeps in step. Netflix has its own
+ * player behind the /watch page; Prime Video's player is driven through its
+ * <video> element. AnimeUnity and StreamingCommunity are not synced (see
+ * docs/providers.md).
+ */
+export const SYNCED_PROVIDERS: readonly ProviderId[] = ["netflix", "prime-video"];
+
+export function isSyncedProvider(id: ProviderId): boolean {
+  return SYNCED_PROVIDERS.includes(id);
+}
 
 /** What a member's extension reports every couple of seconds while in a room. */
 export interface PlaybackReport {
-  /** The Netflix /watch id the member is on. */
+  /**
+   * What the member's player is on: the Netflix /watch id, or, on Prime Video,
+   * the title id with the season and episode the player shows (see episodeKey).
+   */
   externalId: string;
+  /** Prime Video: the season and episode the player shows, when it shows them. */
+  season?: number | null;
+  episode?: number | null;
   position: number;
   paused: boolean;
   /** Set when the member themselves pressed play or pause, or moved to another point. */
@@ -72,6 +90,29 @@ export function applyReport(prev: PartyState | null, userId: string, report: Pla
 function hostHasSeen(base: PartyState, hostId: string): boolean {
   const prev = base.members[hostId];
   return Boolean(prev) && Date.parse(prev!.at) >= Date.parse(base.at);
+}
+
+/**
+ * One episode on providers whose id names the whole show (Prime Video): the id
+ * plus "#S1E3" when the player shows a season and episode. Netflix's /watch id
+ * is already one episode.
+ */
+export function episodeKey(externalId: string, season: number | null | undefined, episode: number | null | undefined): string {
+  return episode == null ? externalId : `${externalId}#S${season ?? 0}E${episode}`;
+}
+
+/**
+ * Is a member on the host's episode? Same id, and the same season and episode
+ * when both players show one (a player that does not show it yet counts as
+ * the same, so a room is not dropped while the overlay loads).
+ */
+export function sameEpisodeAs(
+  host: { externalId: string; season: number | null; episode: number | null },
+  member: { externalId: string; season?: number | null; episode?: number | null },
+): boolean {
+  if (host.externalId !== member.externalId) return false;
+  if (host.episode == null || member.episode == null) return true;
+  return host.episode === member.episode && (host.season == null || member.season == null || host.season === member.season);
 }
 
 /** Where the room's clock is now. */

@@ -1,5 +1,5 @@
 import "server-only";
-import { applyReport, driftBetween, hostPosition, IN_SYNC_SECONDS, roomPosition, watchAt, type PlaybackReport } from "@/domain/party";
+import { applyReport, driftBetween, episodeKey, hostPosition, IN_SYNC_SECONDS, isSyncedProvider, roomPosition, sameEpisodeAs, watchAt, type PlaybackReport } from "@/domain/party";
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import type { Presence, PublicUser, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
@@ -246,10 +246,13 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
     const presences = await repo.listPresence(friends.map((f) => f.user.id));
     host = presences.find((p) => isLive(p, now) && p.guestIds.includes(userId)) ?? null;
   }
-  // Watching together is synced on Netflix only, for now.
-  if (!host || host.providerId !== "netflix") return { party: null };
+  // Watching together is synced on Netflix and Prime Video only (see SYNCED_PROVIDERS).
+  if (!host || !isSyncedProvider(host.providerId)) return { party: null };
 
-  const party = applyReport(await repo.getParty(host.userId), userId, report, now, host.userId);
+  const sameEpisode = sameEpisodeAs(host, report);
+  // Prime Video's id names the whole show: members are told apart by episode too.
+  const keyed = host.providerId === "netflix" ? report : { ...report, externalId: episodeKey(report.externalId, report.season, report.episode) };
+  const party = applyReport(await repo.getParty(host.userId), userId, keyed, now, host.userId);
   await repo.saveParty(host.userId, party);
 
   const memberIds = [host.userId, ...host.guestIds];
@@ -271,7 +274,7 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
       byYou: party.by === userId,
       byName: name(party.by),
       lastAction: party.last ?? null,
-      sameEpisode: report.externalId === host.externalId,
+      sameEpisode,
       offsets,
     },
   };
