@@ -58,6 +58,45 @@ async function animeUnityEpisodeUrl(
 }
 
 
+/** Resolve StreamingCommunity's series episode link in both directions.
+ * Its watch URL keeps the series ID in the path and the episode ID in ?e=.
+ * The episode ID is only adjusted inside the same season; otherwise search by title.
+ */
+async function streamingCommunityEpisodeUrl(
+  storedUrl: string | null | undefined,
+  titleName: string,
+  offset: number | null,
+): Promise<string | null> {
+  const { providerSearchUrl } = await import("@/integrations/providers/search-links");
+  const fallback = (origin?: string) => {
+    const query = encodeURIComponent(titleName.trim());
+    if (origin && query) return `${origin}/search?q=${query}`;
+    return providerSearchUrl("streamingcommunity", titleName);
+  };
+  if (storedUrl) {
+    try {
+      const current = new URL(storedUrl);
+      const host = current.hostname.toLowerCase().replace(/^www\\./, "");
+      const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host);
+      const match = /^\\/(?:[a-z]{2}\\/)?watch\\/(\\d{1,9})(?:\\/|$)/i.exec(current.pathname);
+      if (current.protocol === "https:" && validHost) {
+        if (match && offset !== null) {
+          const episodeId = current.searchParams.get("e");
+          const nextEpisodeId = Number(episodeId) + offset;
+          if (episodeId && /^\\d{1,12}$/.test(episodeId) && Number.isSafeInteger(nextEpisodeId) && nextEpisodeId > 0) {
+            current.searchParams.set("e", String(nextEpisodeId));
+            return current.toString();
+          }
+        }
+        return fallback(current.origin);
+      }
+    } catch {
+      // Invalid or stale URL: use the provider's generic fallback.
+    }
+  }
+  return fallback();
+}
+
 /** Catalog titles are cached on demand, so anything browsable can be saved. */
 async function ensureTitle(id: string) {
   return Boolean(await cacheRemoteTitle(id));
@@ -318,14 +357,18 @@ export async function saveManualProgress(
     let nextUrl: string | null = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId)
       ? (prev?.url ?? null)
       : null;
+    const sameSeason = prev?.season === season;
+    const offset = sameSeason && prev?.episode !== null && prev?.episode !== undefined && episode !== null
+      ? episode - prev.episode
+      : null;
     if (nextProvider === "animeunity") {
-      const sameSeason = prev?.season === season;
-      const offset = sameSeason && prev?.episode !== null && prev?.episode !== undefined && episode !== null
-        ? episode - prev.episode
-        : null;
       nextUrl = sameEpisode && prev?.url
         ? prev.url
         : await animeUnityEpisodeUrl(prev?.url, title.title, offset);
+    } else if (nextProvider === "streamingcommunity" && title.type === "series") {
+      nextUrl = sameEpisode && prev?.url
+        ? prev.url
+        : await streamingCommunityEpisodeUrl(prev?.url, title.title, offset);
     }
     await repo.saveProgress(user.id, {
       titleId: title.id,
@@ -413,15 +456,15 @@ export async function skipFillers(id: string): Promise<ActionResult> {
   // Worked out again here from the title's own data, never taken from the page.
   const runAhead = progress ? fillerRunAfter(title, progress, entry?.partOverrides) : null;
   if (!progress || !runAhead || runAhead.after === null) return { ok: false, error: "Non ci sono filler da saltare." };
-  // Keep AnimeUnity's title slug and advance its numeric episode ID by the
-  // number of episodes skipped. If the observed URL is not a canonical episode
-  // page (or the episode offset is unknown), fall back to the title archive search.
+  // Preserve provider-specific episode URLs when skipping fillers.
   let nextUrl: string | null = null;
+  const offset = progress.season === runAhead.season && progress.episode !== null
+    ? runAhead.after - progress.episode
+    : null;
   if (progress.providerId === "animeunity") {
-    const offset = progress.season === runAhead.season && progress.episode !== null
-      ? runAhead.after - progress.episode
-      : null;
     nextUrl = await animeUnityEpisodeUrl(progress.url, title.title, offset);
+  } else if (progress.providerId === "streamingcommunity" && title.type === "series") {
+    nextUrl = await streamingCommunityEpisodeUrl(progress.url, title.title, offset);
   }
   return run(async () => {
     await repo.saveProgress(user.id, {
