@@ -633,6 +633,14 @@ export class PostgresRepository implements Repository {
     await this.db.update(schema.watchParties).set({ status }).where(eq(schema.watchParties.id, partyId));
   }
 
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+    const set: Partial<typeof schema.watchParties.$inferInsert> = {};
+    if (patch.participantIds) set.participantIds = patch.participantIds;
+    if (patch.status) set.status = patch.status;
+    if (patch.scheduledFor !== undefined) set.scheduledFor = patch.scheduledFor ? new Date(patch.scheduledFor) : null;
+    if (Object.keys(set).length) await this.db.update(schema.watchParties).set(set).where(eq(schema.watchParties.id, partyId));
+  }
+
   async listWatchParties(userId: string, limit: number) {
     const rows = await this.db
       .select()

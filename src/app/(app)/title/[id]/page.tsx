@@ -322,14 +322,9 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             <div className="mt-3">
               <SuggestDialog titleId={title.id} titleName={title.title} friends={view.allFriends} alreadyHave={friends.map((f) => f.user.id)} />
             </div>
-            {title.type !== "movie" && (
+            {(title.type !== "movie" || view.together) && (
               <div className="mt-3">
-                <SharedWatchPanel
-                  titleId={title.id}
-                  titleName={title.title}
-                  friends={view.allFriends}
-                  together={view.together && { id: view.together.id, others: view.together.others, updatedBy: view.together.updatedBy }}
-                />
+                <SharedWatchPanel titleId={title.id} titleName={title.title} friends={view.allFriends} together={view.together} />
               </div>
             )}
             {title.type !== "movie" && title.watchOrder && <FillerGuide parts={title.watchOrder} />}

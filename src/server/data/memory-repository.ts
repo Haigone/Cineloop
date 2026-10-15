@@ -557,6 +557,14 @@ export class MemoryRepository implements Repository {
     if (party) party.status = status;
   }
 
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+    const party = this.parties.find((p) => p.id === partyId);
+    if (!party) return;
+    if (patch.participantIds) party.participantIds = [...patch.participantIds];
+    if (patch.status) party.status = patch.status;
+    if (patch.scheduledFor !== undefined) party.scheduledFor = patch.scheduledFor;
+  }
+
   async listWatchParties(userId: string, limit: number) {
     return this.parties
       .filter((p) => p.hostId === userId || p.participantIds.includes(userId))

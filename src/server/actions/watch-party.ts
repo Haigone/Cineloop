@@ -71,3 +71,41 @@ export async function cancelWatchParty(partyId: string): Promise<ActionResult> {
   refresh();
   return { ok: true };
 }
+
+const updateSchema = z.object({
+  participantIds: z.array(z.string().min(1).max(80)).min(1).max(12),
+  when: z.enum(["now", "scheduled", "queued"]),
+  scheduledFor: z.iso.datetime({ offset: true }).nullable().optional(),
+});
+
+/** The host changes a night that has not started yet: who comes, and when (or starts it now). */
+export async function updateWatchParty(partyId: string, input: z.input<typeof updateSchema>): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  const parsed = updateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Dati della serata non validi." };
+  const repo = getRepository();
+  const party = (await repo.listWatchParties(viewer.id, 100)).find((p) => p.id === String(partyId).slice(0, 80));
+  if (!party || party.hostId !== viewer.id || (party.status !== "scheduled" && party.status !== "queued") || !party.pickedTitleId) return { ok: false, error: "Serata non trovata." };
+  const { when, scheduledFor } = parsed.data;
+  if (when === "scheduled" && (!scheduledFor || Date.parse(scheduledFor) < Date.now() - 60_000)) {
+    return { ok: false, error: "Scegli un giorno e un'ora che devono ancora arrivare." };
+  }
+  const friendIds = new Set((await repo.listFriends(viewer.id)).map((f) => f.user.id));
+  const participantIds = [...new Set([viewer.id, ...parsed.data.participantIds.filter((id) => friendIds.has(id))])];
+  const title = await ensureTitle(party.pickedTitleId);
+  if (!title) return { ok: false, error: "Titolo non trovato." };
+  try {
+    const status = when === "now" ? "started" : when;
+    const next = { ...party, participantIds, status, scheduledFor: when === "scheduled" ? new Date(scheduledFor!).toISOString() : null } as const;
+    await repo.updateWatchParty(party.id, { participantIds, status: when === "now" ? party.status : status, scheduledFor: next.scheduledFor });
+    if (when === "now") await startNight(repo, next, title);
+    // Only who was just added hears about it.
+    const added = participantIds.filter((id) => !party.participantIds.includes(id));
+    if (added.length) await announceNight(repo, { ...next, participantIds: added }, title, viewer.displayName);
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("updateWatchParty failed", err);
+    return { ok: false, error: "Non siamo riusciti a salvare le modifiche. Riprova." };
+  }
+}

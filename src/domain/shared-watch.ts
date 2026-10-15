@@ -13,14 +13,17 @@ export function groupFor(groups: readonly SharedWatch[], userId: string, titleId
 
 /**
  * Another member's place after one member moved: the same season, episode and
- * minute. Each keeps their own service, and the link only when it still points
+ * minute. Each keeps their own service unless `takeService` (the host moved:
+ * the host's service is the night's), and the link only when it still points
  * to the right episode (theirs, or the mover's on the same service). Null when
  * nothing would change.
  */
-export function mirroredProgress(moved: WatchProgress, theirs: WatchProgress | null, watching: boolean): WatchProgress | null {
+export function mirroredProgress(moved: WatchProgress, theirs: WatchProgress | null, watching: boolean, takeService = false): WatchProgress | null {
   const sameEpisode = theirs?.season === moved.season && theirs?.episode === moved.episode;
-  if (watching && theirs && sameEpisode && Math.abs(theirs.fraction - moved.fraction) < 0.01) return null;
-  const providerId = theirs?.providerId ?? moved.providerId;
+  // The host's service is everyone's: a change of service alone is worth a write.
+  const sameService = !takeService || !moved.providerId || theirs?.providerId === moved.providerId;
+  if (watching && theirs && sameEpisode && sameService && Math.abs(theirs.fraction - moved.fraction) < 0.01) return null;
+  const providerId = takeService && moved.providerId ? moved.providerId : (theirs?.providerId ?? moved.providerId);
   const url = providerId === moved.providerId ? moved.url : sameEpisode ? (theirs?.url ?? null) : null;
   return { titleId: moved.titleId, providerId, season: moved.season, episode: moved.episode, fraction: moved.fraction, url, updatedAt: moved.updatedAt };
 }
