@@ -5,7 +5,7 @@ import { searchKey } from "@/lib/text";
 import { getRepository } from "@/server/data";
 import { asFranchise } from "./anime-migration";
 import { cacheTitles } from "./explore";
-import { nameKey, ownedNames } from "./import-list";
+import { matchWithin, nameKey, ownedNames } from "./import-list";
 
 /**
  * One title from the user's Netflix viewing history, already grouped by the
@@ -27,6 +27,8 @@ export interface HistoryResult {
   /** Already in the library: left as they are. */
   already: number;
   notFound: { title: string; sample: string }[];
+  /** Not looked at for lack of time: the extension sends them again. Only with a time budget. */
+  pending?: HistoryItem[];
 }
 
 /**
@@ -35,7 +37,7 @@ export interface HistoryResult {
  * season then shows as "Novità"). Titles already in the library are left alone;
  * the ones now in the library leave the wishlist, as when the extension sees them played.
  */
-export async function importNetflixHistory(userId: string, items: readonly HistoryItem[]): Promise<HistoryResult> {
+export async function importNetflixHistory(userId: string, items: readonly HistoryItem[], budgetMs?: number): Promise<HistoryResult> {
   const repo = getRepository();
   const [library, wishlist] = await Promise.all([repo.listLibrary(userId), repo.listWishlist(userId)]);
   const have = new Set(library.map((e) => e.titleId));
@@ -44,12 +46,9 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const wished = new Set(wishlist.map((w) => w.titleId));
   const result: HistoryResult = { added: [], already: 0, notFound: [] };
 
-  const found: (Title | null)[] = [];
-  // A few at a time: each name can take several catalogue lookups. An anime found under its TMDB id
-  // is filed under its franchise card, as the title page does, so the same show is there once.
-  for (let i = 0; i < items.length; i += 4) {
-    found.push(...(await Promise.all(items.slice(i, i + 4).map((item) => match(item).then((t) => t && asFranchise(t)).catch(() => null)))));
-  }
+  // An anime found under its TMDB id is filed under its franchise card, as the title page does, so the same show is there once.
+  const found = await matchWithin(items, (item) => match(item).then((t) => t && asFranchise(t)), budgetMs);
+  if (budgetMs !== undefined) result.pending = items.slice(found.length);
   await cacheTitles(repo, found.filter((t): t is Title => t !== null));
 
   for (const [i, title] of found.entries()) {

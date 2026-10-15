@@ -1,56 +1,33 @@
 import "./compat.js";
 import { api, ApiError, getSettings } from "./api.js";
-import { groupHistory, readNetflixFile, uniqueTitles } from "./netflix-export.js";
+import { groupHistory, readNetflixFile } from "./netflix-export.js";
 
 /*
- * Import from Netflix's own files: "La mia lista" goes to the wishlist, the
- * viewing history fills in the library. The file is read here, on the user's
- * computer; only the titles go to CineLoop, and nothing of the file is kept.
+ * Import of the Netflix viewing history (NetflixViewingHistory.csv): what the user watched and is
+ * missing from the library is added. The file is read here, on the user's computer; only the titles
+ * go to CineLoop, and nothing of the file is kept.
  * It runs in a tab, not in the popup, because a file picker would close the popup.
  */
 
 const $ = (id) => document.getElementById(id);
 const show = (id, visible) => ($(id).hidden = !visible);
 const ALL = "";
-const BATCH = 20;
-
-const MODES = {
-  list: {
-    help: "Va bene lo .zip così com’è, oppure solo CONTENT_INTERACTION/MyList.csv. L’estensione legge solo La mia lista (nome del profilo e titolo); il resto dell’archivio non viene aperto e non lascia il tuo computer.",
-    endpoint: "/api/extension/import-list",
-    noun: ["titolo in La mia lista", "titoli in La mia lista"],
-    added: "Aggiunti alla wishlist",
-  },
-  history: {
-    help: "NetflixViewingHistory.csv, oppure lo .zip dell’export. Il file viene letto qui e non arriva a CineLoop: partono solo i nomi delle serie e dei film. Un film finisce in libreria come visto, una serie come vista fino all’ultima stagione che compare nello storico. Quello che hai già in libreria non cambia.",
-    endpoint: "/api/extension/import-history",
-    noun: ["titolo nello storico", "titoli nello storico"],
-    added: "Aggiunti alla libreria",
-  },
-};
+const BATCH = 10;
+const ENDPOINT = "/api/extension/import-history";
+const HELP =
+  "NetflixViewingHistory.csv, così come lo scarichi. Il file viene letto qui e non arriva a CineLoop: partono solo i nomi delle serie e dei film. Un film finisce in libreria come visto, una serie come vista fino all’ultima stagione che compare nello storico. Quello che hai già in libreria non cambia.";
 
 /** What the chosen file holds, once read. */
 let read = null;
-let mode = new URLSearchParams(location.search).get("mode") === "history" ? "history" : "list";
 
 async function init() {
   const { token, user } = await getSettings();
   $("who").textContent = user?.displayName ?? "";
   show("not-paired", !token);
   $("file").disabled = !token;
-  setMode(mode);
-}
-
-function setMode(next) {
-  mode = next;
-  for (const input of document.querySelectorAll('input[name="mode"]')) input.checked = input.value === mode;
-  for (const card of document.querySelectorAll("[data-mode]")) card.hidden = card.dataset.mode !== mode;
-  $("file-help").textContent = MODES[mode].help;
+  $("file-help").textContent = HELP;
   reset();
-  $("file").value = "";
 }
-
-for (const input of document.querySelectorAll('input[name="mode"]')) input.addEventListener("change", () => setMode(input.value));
 
 function reset() {
   read = null;
@@ -69,25 +46,14 @@ $("file").addEventListener("change", async () => {
   if (!file) return;
   let found;
   try {
-    found = await readNetflixFile(file, mode);
+    const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+    // Only the history CSV: the full data export (.zip) holds much more than CineLoop needs.
+    if (head[0] === 0x50 && head[1] === 0x4b) return fail("Carica solo NetflixViewingHistory.csv (Attività di visione › Scarica tutto), non l’archivio .zip.");
+    found = await readNetflixFile(file, "history");
   } catch {
     return fail("Non riesco ad aprire questo file. Carica il file che hai scaricato da Netflix, senza modificarlo.");
   }
-  if (found.type === "missing") {
-    return fail(
-      mode === "history"
-        ? "In questo archivio non c’è lo storico (ViewingActivity.csv). Controlla che sia l’export di “Scarica le tue informazioni personali”, oppure carica NetflixViewingHistory.csv."
-        : "In questo archivio non c’è La mia lista (MyList.csv). Controlla che sia l’export di “Scarica le tue informazioni personali”.",
-    );
-  }
-  if (found.type === "unknown") return fail("Non riconosco questo file: non sembra né La mia lista né lo storico di Netflix.");
-  if (found.type !== mode) {
-    // The user picked the other kind of file: switch, keep it.
-    mode = found.type;
-    for (const input of document.querySelectorAll('input[name="mode"]')) input.checked = input.value === mode;
-    for (const card of document.querySelectorAll("[data-mode]")) card.hidden = card.dataset.mode !== mode;
-    $("file-help").textContent = MODES[mode].help;
-  }
+  if (found.type !== "history") return fail("Non riconosco questo file: carica NetflixViewingHistory.csv da Attività di visione › Scarica tutto.");
   if (found.items.length === 0) return fail("Il file non contiene titoli.");
   read = found;
 
@@ -111,52 +77,60 @@ $("profile").addEventListener("change", renderCount);
 function chosen(profile = read && read.profiles.length > 1 ? $("profile").value : ALL) {
   if (!read) return [];
   const rows = read.items.filter((i) => profile === ALL || i.profile === profile);
-  if (read.type === "list") return uniqueTitles(rows).map((title) => ({ title }));
   return groupHistory(rows).map(({ title, kind, season, sample }) => ({ title, kind, sample, ...(season ? { season } : {}) }));
 }
 
 function renderCount() {
   const n = chosen().length;
-  const [one, many] = MODES[mode].noun;
-  const skipped = read?.type === "history" && read.skipped ? ` Saltate ${read.skipped} righe tra trailer, anteprime e visioni sotto i due minuti.` : "";
-  $("count").textContent = `${n === 1 ? `1 ${one}` : `${n} ${many}`}.${skipped}`;
+  const skipped = read?.skipped ? ` Saltate ${read.skipped} righe tra trailer, anteprime e visioni sotto i due minuti.` : "";
+  $("count").textContent = `${n === 1 ? "1 titolo nello storico" : `${n} titoli nello storico`}.${skipped}`;
   $("import-btn").textContent = n === 1 ? "Importa 1 titolo" : `Importa ${n} titoli`;
   $("import-btn").disabled = n === 0;
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** One batch; on the per-minute limit it waits and tries again. */
+/**
+ * One batch. On the per-minute limit it waits a minute; when CineLoop does not answer
+ * (a timeout, a hiccup) it tries twice more, then gives up on this batch only.
+ */
 async function send(endpoint, items) {
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 0, busy = 0; ; attempt++) {
     try {
-      return await api(endpoint, { method: "POST", body: { items } });
+      return await api(endpoint, { method: "POST", body: { items, partial: true } });
     } catch (err) {
-      if (!(err instanceof ApiError && err.status === 429) || attempt >= 3) throw err;
-      $("import-status").textContent += " Pausa di un minuto per non sovraccaricare CineLoop, poi continuo da solo.";
-      await wait(61_000);
+      if (err instanceof ApiError && err.status === 401) throw err;
+      if (err instanceof ApiError && err.status === 429) {
+        if (++busy > 3) throw err;
+        $("import-status").textContent += " Pausa di un minuto per non sovraccaricare CineLoop, poi continuo da solo.";
+        await wait(61_000);
+        continue;
+      }
+      if (attempt >= 2) throw err;
+      await wait(5_000 * (attempt + 1));
     }
   }
 }
 
 /** A plain-text log of what could not be matched, to download. */
-function errorLog(kind, notFound) {
+function errorLog(notFound) {
   const lines = [
-    `CineLoop · importazione da Netflix (${kind === "history" ? "storico visioni" : "La mia lista"})`,
+    "CineLoop · importazione dello storico visioni di Netflix",
     new Date().toLocaleString("it-IT"),
     "",
-    `Titoli non collegati al catalogo: ${notFound.length}`,
+    `Titoli non importati: ${notFound.length}`,
     "Puoi aggiungerli a mano cercandoli su CineLoop: spesso il nome su Netflix è diverso da quello del catalogo.",
     "",
-    ...notFound.map((n) => (n.sample && n.sample !== n.title ? `- ${n.title}    (riga di Netflix: "${n.sample}")` : `- ${n.title}`)),
+    ...notFound.map((n) => {
+      const line = n.sample && n.sample !== n.title ? `- ${n.title}    (riga di Netflix: "${n.sample}")` : `- ${n.title}`;
+      return n.failed ? `${line}    [CineLoop non ha risposto: riprova a importare il file]` : line;
+    }),
   ];
   return URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }));
 }
 
 $("import-btn").addEventListener("click", async () => {
   const items = chosen();
-  const kind = read.type;
-  const { endpoint, added } = MODES[kind];
   const btn = $("import-btn");
   btn.disabled = true;
   $("file").disabled = true;
@@ -164,18 +138,40 @@ $("import-btn").addEventListener("click", async () => {
   show("import-missing", false);
   show("log-link", false);
   const total = { added: 0, already: 0, notFound: [] };
+  const queue = [...items];
+  let done = 0;
+  let failedInARow = 0;
   try {
-    for (let i = 0; i < items.length; i += BATCH) {
-      $("import-status").textContent = `Importo… ${Math.min(i + BATCH, items.length)} di ${items.length}`;
-      const res = await send(endpoint, items.slice(i, i + BATCH));
+    while (queue.length > 0) {
+      $("import-status").textContent = `Importo… ${done} di ${items.length}`;
+      const batch = queue.splice(0, BATCH);
+      let res;
+      try {
+        res = await send(ENDPOINT, batch);
+      } catch (err) {
+        // Three batches in a row with no answer: CineLoop is down, stop here.
+        if ((err instanceof ApiError && err.status === 401) || ++failedInARow >= 3) throw err;
+        // This batch failed even after waiting: it goes in the log, the import goes on.
+        total.notFound.push(...batch.map((b) => ({ title: b.title, sample: b.sample, failed: true })));
+        done += batch.length;
+        continue;
+      }
+      failedInARow = 0;
+      // What the server had no time for comes back: it goes first in the next batch.
+      const pending = Array.isArray(res.pending) ? res.pending : [];
+      queue.unshift(...pending);
+      done += batch.length - pending.length;
       total.added += res.added.length;
       total.already += res.already;
       total.notFound.push(...res.notFound.map((n) => (typeof n === "string" ? { title: n } : n)));
     }
+    const failed = total.notFound.filter((n) => n.failed).length;
+    const missing = total.notFound.length - failed;
     $("import-status").textContent = [
-      `${added}: ${total.added}.`,
+      `Aggiunti alla libreria: ${total.added}.`,
       total.already ? `Già su CineLoop: ${total.already}.` : "",
-      total.notFound.length ? `Non trovati nel catalogo: ${total.notFound.length}.` : "",
+      missing ? `Non trovati nel catalogo: ${missing}.` : "",
+      failed ? `Non importati perché CineLoop non ha risposto: ${failed} (sono nel log, riprova più tardi).` : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -189,14 +185,14 @@ $("import-btn").addEventListener("click", async () => {
     );
     show("import-missing", total.notFound.length > 0);
     if (total.notFound.length > 0) {
-      $("log-link").href = errorLog(kind, total.notFound);
+      $("log-link").href = errorLog(total.notFound);
       show("log-link", true);
     }
   } catch (err) {
     $("import-status").textContent =
       err instanceof ApiError && err.status === 401
         ? "L’estensione non è più collegata: ricollegala dal pannello e riprova. I titoli già importati non si duplicano."
-        : "Importazione interrotta: CineLoop non risponde. Riprova, i titoli già importati non si duplicano.";
+        : `Importazione interrotta dopo ${done} titoli su ${items.length}: CineLoop non risponde. Riprova più tardi, i titoli già importati non si duplicano.`;
   } finally {
     btn.disabled = false;
     $("file").disabled = false;

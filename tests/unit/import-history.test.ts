@@ -57,3 +57,15 @@ describe("importing the history picks the right namesake", () => {
     expect(ids).not.toContain("tmdb-movie-900001");
   });
 });
+
+describe("importing a long history in time", () => {
+  it("with its time budget spent, answers with what it did and hands back the rest as pending", async () => {
+    const items = ["Arcane", "Parasite", "Dark", "Frieren", "Shogun", "Severance"].map((title) => ({ title, kind: "film" as const, sample: title }));
+    const res = await importNetflixHistory("u_budget", items, 0);
+    // The first few are always looked at, so every request moves the import forward.
+    expect(res.added.length + res.already + res.notFound.length).toBe(4);
+    expect(res.pending?.map((p) => p.title)).toEqual(["Shogun", "Severance"]);
+    // Without a budget (an older extension), everything in one go and no pending.
+    expect((await importNetflixHistory("u_budget2", items)).pending).toBeUndefined();
+  });
+});

@@ -470,21 +470,52 @@ async function myListTab() {
 }
 
 /**
- * Runs in the "La mia lista" page the user has open: reads the name and id
- * of each card already on screen. No requests to Netflix, no scrolling.
+ * Runs in the "La mia lista" page the user has open: reads the name and id of each card.
+ * With `scroll`, it scrolls the page to the bottom as the user would, so Netflix loads every
+ * card, collecting them on the way, then goes back to the top. No requests to Netflix.
  */
-function readMyList() {
+async function readMyList(scroll) {
   const out = new Map();
-  for (const a of document.querySelectorAll('a[href*="/watch/"], a[href*="/title/"]')) {
-    const m = /\/(?:watch|title)\/(\d+)/.exec(a.getAttribute("href") || "");
-    if (!m || out.has(m[1])) continue;
-    const name = (
-      a.getAttribute("aria-label") ||
-      a.querySelector("img[alt]")?.getAttribute("alt") ||
-      a.querySelector(".fallback-text")?.textContent ||
+  const idOf = (el) => {
+    const href = /\/(?:watch|title)\/(\d+)/.exec(el.getAttribute("href") || "");
+    if (href) return href[1];
+    // Cards in the grid carry their id in Netflix's tracking context, URL-encoded JSON.
+    const ctx = el.getAttribute("data-ui-tracking-context") || "";
+    let text = ctx;
+    try {
+      text = decodeURIComponent(ctx);
+    } catch {}
+    return /"video_id"\s*:\s*(\d+)/.exec(text)?.[1] ?? null;
+  };
+  const nameOf = (el) =>
+    (
+      el.getAttribute("aria-label") ||
+      el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
+      el.querySelector("img[alt]")?.getAttribute("alt") ||
+      el.querySelector(".fallback-text")?.textContent ||
       ""
     ).trim();
-    if (name) out.set(m[1], name);
+  const collect = () => {
+    for (const el of document.querySelectorAll('a[href*="/watch/"], a[href*="/title/"], [data-ui-tracking-context]')) {
+      const id = idOf(el);
+      if (!id || out.has(id)) continue;
+      const name = nameOf(el);
+      if (name) out.set(id, name);
+    }
+  };
+  collect();
+  if (scroll) {
+    const page = document.scrollingElement || document.documentElement;
+    const started = Date.now();
+    for (let still = 0; still < 4 && Date.now() - started < 120_000; ) {
+      const [size, height] = [out.size, page.scrollHeight];
+      window.scrollBy(0, Math.max(400, window.innerHeight * 0.9));
+      await new Promise((r) => setTimeout(r, 700));
+      collect();
+      const atEnd = window.scrollY + window.innerHeight >= page.scrollHeight - 4;
+      still = atEnd && out.size === size && page.scrollHeight === height ? still + 1 : 0;
+    }
+    window.scrollTo(0, 0);
   }
   return [...out].map(([id, title]) => ({ id, title }));
 }
@@ -492,22 +523,42 @@ function readMyList() {
 async function renderImport() {
   if (!(await hasNetflixAccess())) {
     $("import-help").textContent = "Attiva Netflix in “Servizi collegati” per importare la tua lista.";
-    show("import-open", false);
-    show("import-btn", false);
+    for (const id of ["import-open", "import-scroll", "import-btn"]) show(id, false);
     return;
   }
   const tab = await myListTab();
   show("import-open", !tab);
+  show("import-scroll", Boolean(tab));
   show("import-btn", Boolean(tab));
   if (!tab) {
     $("import-help").textContent =
-      "Apri La mia lista su Netflix e scorri fino in fondo, così tutte le copertine sono caricate. Poi riapri questo pannello: i titoli finiscono nella tua wishlist di CineLoop, senza doppioni.";
+      "Apri La mia lista su Netflix, poi riapri questo pannello: i titoli finiscono nella tua wishlist di CineLoop, senza doppioni.";
     return;
   }
-  const [{ result: items = [] } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readMyList }).catch(() => []);
-  $("import-help").textContent = items.length
-    ? `Vedo ${items.length} titoli nella pagina. Se la lista è più lunga, scorri fino in fondo e riapri questo pannello.`
-    : "Non vedo titoli nella pagina: aspetta che le copertine si carichino e riapri questo pannello.";
+  await readTab(tab, false);
+  $("import-scroll").onclick = async () => {
+    $("import-scroll").disabled = true;
+    $("import-help").textContent = "Scorro La mia lista fino in fondo… tieni aperto questo pannello.";
+    await readTab(tab, true);
+    $("import-scroll").disabled = false;
+  };
+}
+
+/** Reads the titles from the tab and shows how many; `scroll` reads the whole list. */
+async function readTab(tab, scroll) {
+  let items = [];
+  let failed = false;
+  try {
+    const [{ result } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readMyList, args: [scroll] });
+    items = Array.isArray(result) ? result : [];
+  } catch {
+    failed = true;
+  }
+  $("import-help").textContent = failed
+    ? "Non riesco a leggere la scheda di Netflix: ricaricala (F5) e riapri questo pannello."
+    : items.length
+      ? `Vedo ${items.length} titoli.${scroll ? "" : " Se la lista è più lunga, premi “Scorri e leggi tutta la lista”."}`
+      : "Non vedo titoli nella pagina: aspetta che le copertine si carichino, poi premi “Scorri e leggi tutta la lista”.";
   $("import-btn").textContent = items.length === 1 ? "Importa 1 titolo" : `Importa ${items.length} titoli`;
   $("import-btn").disabled = items.length === 0;
   $("import-btn").onclick = () => importItems(items);
@@ -521,9 +572,12 @@ async function importItems(items) {
   show("import-missing", false);
   const total = { added: 0, already: 0, notFound: [] };
   try {
-    for (let i = 0; i < items.length; i += 20) {
-      $("import-status").textContent = `Importo… ${Math.min(i + 20, items.length)} di ${items.length}`;
-      const res = await api("/api/extension/import-list", { method: "POST", body: { items: items.slice(i, i + 20) } });
+    const queue = [...items];
+    while (queue.length > 0) {
+      $("import-status").textContent = `Importo… ${items.length - queue.length} di ${items.length}`;
+      const res = await api("/api/extension/import-list", { method: "POST", body: { items: queue.splice(0, 10), partial: true } });
+      // What the server had no time for comes back: it goes first in the next batch.
+      if (Array.isArray(res.pending)) queue.unshift(...res.pending);
       total.added += res.added.length;
       total.already += res.already;
       total.notFound.push(...res.notFound);
@@ -555,9 +609,7 @@ async function importItems(items) {
 }
 
 $("import-open").addEventListener("click", () => chrome.tabs.create({ url: MY_LIST }));
-$("export-request").addEventListener("click", () => chrome.tabs.create({ url: "https://www.netflix.com/account/getmyinfo" }));
 // A file picker would close the popup, so the upload happens in a tab of the extension.
-$("export-upload").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("import.html") }));
 $("history-upload").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("import.html?mode=history") }));
 
 render();

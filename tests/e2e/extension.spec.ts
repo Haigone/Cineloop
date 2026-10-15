@@ -211,6 +211,9 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await list.goto("https://www.netflix.com/browse/my-list");
   await popup.reload();
   await popup.getByRole("tab", { name: "Importa" }).click();
+  // Reading the whole list scrolls the page as the user would, then counts the same cards.
+  await popup.getByRole("button", { name: "Scorri e leggi tutta la lista" }).click();
+  await expect(popup.getByText("Vedo 3 titoli.")).toBeVisible({ timeout: 30_000 });
   await popup.getByRole("button", { name: "Importa 3 titoli" }).click();
   await expect(popup.getByRole("status")).toContainText("Aggiunti alla wishlist: 1.");
   await expect(popup.getByRole("status")).toContainText("Già su CineLoop: 1.");
@@ -220,25 +223,12 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await expect(site.getByText("Squid Game").first()).toBeVisible();
   await list.close();
 
-  // Netflix's data export: the .csv (or the whole .zip) goes in a tab of the extension.
-  const upload = await ctx.newPage();
-  await upload.goto(`chrome-extension://${extId}/import.html`);
-  await upload.getByLabel("File di Netflix").setInputFiles({
-    name: "MyList.csv",
-    mimeType: "text/csv",
-    buffer: Buffer.from("Profile Name,Title Name,Country,Utc Title Add Date\nMarco,Mindhunter,IT,2025-01-01\nGiulia,Mindhunter,IT,2025-01-02\nGiulia,Un altro titolo che non esiste,IT,2025-01-03\n"),
-  });
-  await expect(upload.getByLabel("Profilo")).toHaveValue("Marco");
-  await upload.getByLabel("Profilo").selectOption({ label: "Tutti i profili (2)" });
-  await upload.getByRole("button", { name: "Importa 2 titoli" }).click();
-  await expect(upload.getByRole("status")).toContainText("Già su CineLoop: 1.", { timeout: 90_000 });
-  await expect(upload.getByRole("status")).toContainText("Non trovati nel catalogo: 1.");
-  await upload.close();
-
+  // Only the viewing history can be uploaded: the full data export (.zip) is refused.
   // The viewing history: what is missing from the library is added, the rest goes in the error log.
   const history = await ctx.newPage();
   await history.goto(`chrome-extension://${extId}/import.html?mode=history`);
-  await expect(history.getByLabel("Storico visioni")).toBeChecked();
+  await history.getByLabel("File di Netflix").setInputFiles({ name: "netflix-report.zip", mimeType: "application/zip", buffer: Buffer.from("PK\x03\x04 archivio") });
+  await expect(history.getByRole("alert")).toContainText("non l’archivio .zip");
   await history.getByLabel("File di Netflix").setInputFiles({
     name: "NetflixViewingHistory.csv",
     mimeType: "text/csv",
