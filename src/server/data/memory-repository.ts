@@ -13,6 +13,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -294,6 +295,11 @@ export class MemoryRepository implements Repository {
   async dismissRatingPrompt(userId: string, titleId: string) {
     const entry = this.findEntry(userId, titleId);
     if (entry) entry.askRating = false;
+  }
+
+  async setUpdates(userId: string, titleId: string, updates: TitleUpdates) {
+    const entry = this.findEntry(userId, titleId);
+    if (entry) entry.updates = updates;
   }
 
   async setRating(userId: string, titleId: string, value: RatingValue | null) {

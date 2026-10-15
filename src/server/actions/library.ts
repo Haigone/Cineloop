@@ -3,7 +3,7 @@
 import { getProvider } from "@/domain/providers";
 import { refresh } from "next/cache";
 import { z } from "zod";
-import type { ActivityKind, ProviderId, RatingValue, SeasonSummary } from "@/domain/types";
+import type { ActivityKind, ProviderId, RatingValue, SeasonSummary, TitleUpdates } from "@/domain/types";
 import { airedSeasons, finishesEarlierSeason, finishesTitle } from "@/domain/library";
 import { fillerRunAfter } from "@/domain/watch-order";
 import { italianDay } from "@/lib/dates";
@@ -247,6 +247,21 @@ export async function setPartIncluded(id: string, key: string, included: boolean
     const repo = getRepository();
     if (!(await repo.listLibrary(user.id)).some((e) => e.titleId === parsedId.data)) throw new Error("not in library");
     await repo.setPartOverride(user.id, parsedId.data, parsedKey.data, included);
+  }, "Non siamo riusciti a salvare la scelta.");
+}
+
+const updatesSchema = z.enum(["all", "releaseDay", "none"]);
+
+/** The X on Novità ("Non mi interessa più"), then what the user still wants to hear; "all" puts the series back. */
+export async function setTitleUpdates(id: string, updates: TitleUpdates): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  const parsed = updatesSchema.safeParse(updates);
+  if (!parsedId.success || !parsed.success) return { ok: false, error: "Richiesta non valida." };
+  return run(async () => {
+    const repo = getRepository();
+    if (!(await repo.listLibrary(user.id)).some((e) => e.titleId === parsedId.data)) throw new Error("not in library");
+    await repo.setUpdates(user.id, parsedId.data, parsed.data);
   }, "Non siamo riusciti a salvare la scelta.");
 }
 

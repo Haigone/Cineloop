@@ -13,6 +13,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -81,6 +82,8 @@ export interface Repository {
   dismissRatingPrompt(userId: string, titleId: string): Promise<void>;
   /** Includes or leaves out one part of an anime franchise (or "filler"); null goes back to the default. Needs a library entry. */
   setPartOverride(userId: string, titleId: string, key: string, included: boolean | null): Promise<void>;
+  /** What the user still wants to hear about a series (Novità, release-day notification). Needs a library entry. */
+  setUpdates(userId: string, titleId: string, updates: TitleUpdates): Promise<void>;
   setRating(userId: string, titleId: string, value: RatingValue | null): Promise<void>;
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;

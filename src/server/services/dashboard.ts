@@ -1,10 +1,11 @@
 import "server-only";
 import { after } from "next/server";
 import { isLive } from "@/domain/presence";
+import { wantsNovita } from "@/domain/library";
 import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
 import { awaitedReleases, wishedPremieres, type AwaitedRelease } from "./awaited";
-import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
+import { listNewSeasons, notifyReleaseDay, type NewSeasonItem } from "./new-seasons";
 import { fillerRunAfter, type FillerRun } from "@/domain/watch-order";
 import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
@@ -179,7 +180,8 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     const ahead = fillerRunAfter(item.title, item.progress, entry?.partOverrides);
     if (ahead) fillerRuns[item.title.id] = ahead;
   }
-  const finished = category === "movie" ? [] : library.filter((e) => e.status === "completed" && inSection.has(e.titleId)).map((e) => inSection.get(e.titleId)!);
+  // Novità leaves out the series taken out of it with the X.
+  const finished = category === "movie" ? [] : library.filter((e) => e.status === "completed" && wantsNovita(e) && inSection.has(e.titleId)).map((e) => inSection.get(e.titleId)!);
   const watching = continueWatching.map((i) => i.title);
   const today = italianDay(now);
   const later: Promise<HomeLater> = Promise.all([
@@ -191,6 +193,8 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
       console.error("sagas failed", err);
       return [];
     }),
+    // From every section, like the saga reminders: these series are no longer shown anywhere on Home.
+    notifyReleaseDay(repo, viewer.id, library, titles, today).catch((err) => console.error("release-day notifications failed", err)),
   ])
     .then(async ([awaited, watchingAhead, newSeasons, premieres, sagas]) => {
       // Reminders go out from every section: the films are only shown under Film.

@@ -2,7 +2,7 @@ import "server-only";
 import { italianDay } from "@/lib/dates";
 import { awaitedReleases, type AwaitedRelease } from "./awaited";
 import { listNewSeasons, type NewSeasonItem } from "./new-seasons";
-import type { LibraryItem } from "@/domain/library";
+import { wantsUpdates, type LibraryItem } from "@/domain/library";
 import { sectionOf, type LibraryEntry, type PublicUser, type RatingValue, type Title, type WatchStatus } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getProvider } from "@/domain/providers";
@@ -36,7 +36,7 @@ export async function getLibraryView(): Promise<Omit<LibraryView, "awaiting" | "
   // Finished or still being watched: either way, something scheduled to come out is worth waiting for.
   // The catalogue is asked about 30 at most, so what is being watched goes first.
   const followed = entries
-    .filter((e) => (e.status === "completed" || e.status === "watching") && titles.has(e.titleId))
+    .filter((e) => (e.status === "completed" || e.status === "watching") && wantsUpdates(e) && titles.has(e.titleId))
     .sort((a, b) => Number(b.status === "watching") - Number(a.status === "watching"))
     .map((e) => titles.get(e.titleId)!);
   const extras = Promise.all([awaitedReleases(followed, italianDay()), listNewSeasons(repo, entries, titles, italianDay())])

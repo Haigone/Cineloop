@@ -62,7 +62,7 @@ async function News({ later, wishlistIds }: { later: Promise<HomeLater>; wishlis
       {newSeasons.length > 0 && <NewSeasonsRail items={newSeasons.map((i) => ({ title: i.title, label: newSeasonsLabel(i) }))} wishlistIds={wishlistIds} />}
       {awaiting.length > 0 && (
         <div className={newSeasons.length > 0 ? "mt-4" : ""}>
-          <AwaitingList items={awaiting} />
+          <AwaitingList items={awaiting} dismissible />
         </div>
       )}
     </RevealItem>

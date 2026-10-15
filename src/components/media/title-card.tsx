@@ -12,6 +12,8 @@ interface TitleCardProps {
   meta?: ReactNode;
   /** Small overlay in the poster's top-left corner (rank, status). */
   badge?: ReactNode;
+  /** A control in the poster's top-right corner (the X on Novità); the wishlist heart moves beside it. */
+  corner?: ReactNode;
   wishlisted?: boolean;
   showWishlist?: boolean;
   size?: "sm" | "md";
@@ -27,6 +29,7 @@ export function TitleCard({
   title,
   meta,
   badge,
+  corner,
   wishlisted = false,
   showWishlist = true,
   size = "md",
@@ -56,9 +59,10 @@ export function TitleCard({
             titleId={title.id}
             titleName={title.title}
             wishlisted={wishlisted}
-            className="absolute top-2 right-2 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100 max-md:opacity-100"
+            className={cn("absolute top-2 opacity-0", corner ? "right-12" : "right-2", "transition-opacity duration-200 group-hover/card:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100 max-md:opacity-100")}
           />
         )}
+        {corner && <div className="absolute top-2 right-2">{corner}</div>}
       </div>
       <div className="mt-2.5 px-0.5">
         <h3 className="truncate text-[13px] font-medium text-fg">{title.title}</h3>

@@ -16,6 +16,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -254,6 +255,13 @@ export class PostgresRepository implements Repository {
     await this.db
       .update(schema.libraryEntries)
       .set({ askRating: false })
+      .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+  }
+
+  async setUpdates(userId: string, titleId: string, updates: TitleUpdates) {
+    await this.db
+      .update(schema.libraryEntries)
+      .set({ updates })
       .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
   }
 
@@ -871,6 +879,7 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     seenThrough: r.seenThrough,
     askRating: r.askRating,
     partOverrides: r.partOverrides,
+    updates: r.updates,
   };
 }
 
