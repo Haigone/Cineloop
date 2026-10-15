@@ -76,14 +76,14 @@ async function streamingCommunityEpisodeUrl(
   if (storedUrl) {
     try {
       const current = new URL(storedUrl);
-      const host = current.hostname.toLowerCase().replace(/^www\\./, "");
-      const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\\.[a-z]{2,}$/i.test(host);
-      const match = /^\\/(?:[a-z]{2}\\/)?watch\\/(\\d{1,9})(?:\\/|$)/i.exec(current.pathname);
+      const host = current.hostname.toLowerCase().replace(/^www\./, "");
+      const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
+      const match = /^\/(?:[a-z]{2}\/)?watch\/(\d{1,9})(?:\/|$)/i.exec(current.pathname);
       if (current.protocol === "https:" && validHost) {
         if (match && offset !== null) {
           const episodeId = current.searchParams.get("e");
           const nextEpisodeId = Number(episodeId) + offset;
-          if (episodeId && /^\\d{1,12}$/.test(episodeId) && Number.isSafeInteger(nextEpisodeId) && nextEpisodeId > 0) {
+          if (episodeId && /^\d{1,12}$/.test(episodeId) && Number.isSafeInteger(nextEpisodeId) && nextEpisodeId > 0) {
             current.searchParams.set("e", String(nextEpisodeId));
             return current.toString();
           }
