@@ -218,6 +218,16 @@ describe("recognising what the player names", () => {
     expect((await tmdb.findByName("Il padrino", { series: false, provider: "netflix" }))?.id).toBe("tmdb-movie-238");
   });
 
+  it("finds \"Parto col folle\" typed as \"parto con il folle\"", async () => {
+    const { tmdb } = tmdbWith((url) => {
+      const q = decodeURIComponent(/query=([^&]*)/.exec(url)?.[1] ?? "");
+      if (url.includes("/search/multi") && q === "parto col folle") return { results: [{ id: 41733, media_type: "movie", title: "Parto col folle", poster_path: "/p.jpg", release_date: "2010-11-05" }] };
+      return { results: [] };
+    });
+    expect((await tmdb.search("parto con il folle", 6)).map((t) => t.id)).toContain("tmdb-movie-41733");
+    expect((await tmdb.findByName("Parto con il folle", { series: false, provider: "netflix" }))?.id).toBe("tmdb-movie-41733");
+  });
+
   it("finds a title Netflix writes with a subtitle, other punctuation, or shorter", async () => {
     const { tmdb } = tmdbWith((url) => {
       const q = decodeURIComponent(/query=([^&]*)/.exec(url)?.[1] ?? "");

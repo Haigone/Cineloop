@@ -2,7 +2,7 @@ import type { CollectionPart, CollectionRef, FilmCollection, Genre, MediaType, M
 import { releaseOrder } from "@/domain/collections";
 import { addDays, italianDay } from "@/lib/dates";
 import { hashString } from "@/lib/hash";
-import { searchKey } from "@/lib/text";
+import { prepositionVariant, searchKey } from "@/lib/text";
 import { franchiseHead, franchiseKey, franchiseNames, withoutSeriesFilms } from "@/domain/franchise";
 import type { CastMember, CatalogService, DiscoverPage, DiscoverQuery, EpisodeInfo, NamePreference, PersonCredit, PersonDetails, PersonHit } from "./types";
 
@@ -84,7 +84,11 @@ interface TmdbEpisodeRef {
 /** Shape shared by list items and full records; details add the rest. */
 /** Lowercase letters and digits only: "C'era una volta a... Hollywood" → "c era una volta a hollywood". */
 export function looseKey(s: string): string {
-  return searchKey(s).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return searchKey(s)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\bcon il\b/g, "col")
+    .replace(/\bcon i\b/g, "coi")
+    .trim();
 }
 
 /** A title without its subtitle: "Il lato positivo - Silver Linings Playbook" → "Il lato positivo". */
@@ -281,9 +285,17 @@ export class TmdbCatalog implements CatalogService {
   async search(query: string, limit: number): Promise<Title[]> {
     const q = query.trim();
     if (!q) return [];
-    const items = (await this.list(`/search/multi?query=${encodeURIComponent(q)}&include_adult=false`)).filter(
-      (i) => i.media_type === "movie" || i.media_type === "tv",
-    );
+    // "con il" and "col" are both Italian: TMDB matches words literally, so the other spelling is asked too.
+    const variant = prepositionVariant(q);
+    const pages = await Promise.all([q, ...(variant ? [variant] : [])].map((query) => this.list(`/search/multi?query=${encodeURIComponent(query)}&include_adult=false`)));
+    const seen = new Set<string>();
+    const items = pages
+      .flat()
+      .filter((i) => i.media_type === "movie" || i.media_type === "tv")
+      .filter((i) => {
+        const id = `${i.media_type}-${i.id}`;
+        return !seen.has(id) && Boolean(seen.add(id));
+      });
     const titles = await this.withSeries(mapItems(items, limit + 10), items);
     // A film from an anime series found along with that series sits on the series' page instead.
     return withoutSeriesFilms(titles).slice(0, limit);
