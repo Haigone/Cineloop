@@ -71,7 +71,8 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
   // A new session with nobody in it starts without an old room.
   if (step.started && presence.guestIds.length === 0) await repo.saveParty(userId, null);
   if (!presence.titleId) {
-    const titleId = await recognise(repo, presence, content.parentId ?? null);
+    const recognised = await recognise(repo, presence, content.parentId ?? null);
+    const titleId = recognised && (await inYourNight(repo, userId, recognised));
     if (titleId) {
       presence.titleId = titleId;
       await startWatching(repo, presence, fraction);
@@ -79,7 +80,8 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
   } else if (!step.started) {
     // The player's name arrived after the session was matched (by the show page,
     // which can be out of date): the player wins.
-    const named = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    const label = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
       await startWatching(repo, presence, fraction);
@@ -380,6 +382,22 @@ export async function joinFriend(viewer: PublicUser, hostId: string): Promise<Jo
 }
 
 // Internals ------------------------------------------------------------------
+
+/**
+ * A title the user follows in a "Serata insieme" is that one, even when the
+ * player's name matched another copy of it (another language, another
+ * catalogue entry): otherwise it would be tracked twice, together and alone.
+ */
+async function inYourNight(repo: Repository, userId: string, titleId: string): Promise<string> {
+  const groups = await repo.listSharedWatches(userId);
+  if (groups.length === 0 || groups.some((g) => g.titleId === titleId)) return titleId;
+  const titles = await repo.getTitlesByIds([titleId, ...groups.map((g) => g.titleId)]);
+  const found = titles.find((t) => t.id === titleId);
+  if (!found) return titleId;
+  const key = searchKey(found.title);
+  const same = titles.find((t) => t.id !== titleId && searchKey(t.title) === key && (t.type === "movie") === (found.type === "movie"));
+  return same?.id ?? titleId;
+}
 
 /**
  * This episode's learned link first, then the name the player shows, then the

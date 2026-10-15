@@ -130,6 +130,8 @@ export interface Repository {
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;
   setWatchPartyStatus(partyId: string, status: WatchPartyStatus): Promise<void>;
+  /** Changes who is in a night that has not started yet, and when it starts. */
+  updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }): Promise<void>;
 
   // Serate insieme: shared progress on a series or anime
   /** The groups the user is in, newest first. */

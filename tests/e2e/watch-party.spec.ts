@@ -44,7 +44,7 @@ test("step by step: friends, wishlists, titles, then spin the wheel and plan the
   // With reduced motion the wheel jumps straight to the result.
   await expect(page.getByText("Si guarda", { exact: true })).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: "Programma la serata" }).click();
-  await expect(page.getByRole("status")).toContainText("Serata programmata");
+  await expect(page.getByRole("status").filter({ hasText: "Serata programmata" })).toBeVisible();
 
   // It waits under "In programma"; the host can call it off.
   const cancel = page.getByRole("button", { name: /^Annulla la serata di / });
@@ -63,7 +63,7 @@ test("a title already chosen, planned for tomorrow, shows on Home", async ({ pag
   await page.getByLabel("Cerca il titolo").fill("Dune");
   await page.getByRole("button", { name: /^Scegli Dune - Parte due/ }).click();
   await page.getByRole("button", { name: "Programma la serata" }).click();
-  await expect(page.getByRole("status")).toContainText("Serata programmata");
+  await expect(page.getByRole("status").filter({ hasText: "Serata programmata" })).toBeVisible();
 
   await page.goto("/home?c=film");
   await expect(page.getByRole("link", { name: /Dune - Parte due.*Con Giulia/ })).toBeVisible();
@@ -73,4 +73,40 @@ test("a title already chosen, planned for tomorrow, shows on Home", async ({ pag
   await page.getByRole("button", { name: "Annulla la serata di Dune - Parte due" }).click();
   await expect(page.getByRole("button", { name: "Annulla la serata di Dune - Parte due" })).toHaveCount(0);
   await page.goto("/home?c=serie");
+});
+
+test("a planned night can be changed and deleted after it is made", async ({ page }) => {
+  await signIn(page, "/watch-party?with=giulia");
+  await page.getByRole("button", { name: "Avanti" }).click();
+  await choose(page, "Sappiamo già cosa guardare");
+  await choose(page, "Un altro giorno");
+  await page.getByRole("button", { name: "Avanti" }).click();
+  await page.getByLabel("Cerca il titolo").fill("Dune");
+  await page.getByRole("button", { name: /^Scegli Dune - Parte due/ }).click();
+  await page.getByRole("button", { name: "Programma la serata" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Serata programmata" })).toBeVisible();
+
+  // Bring Luca too.
+  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).click();
+  const dialog = page.getByRole("dialog", { name: "Serata: Dune - Parte due" });
+  await dialog.getByRole("list", { name: "Partecipanti alla serata" }).getByText("Luca").click();
+  await dialog.getByRole("button", { name: "Salva le modifiche" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("listitem").filter({ hasText: "Dune - Parte due" }).getByText("Con Giulia, Luca")).toBeVisible();
+
+  // Delete it: a second, named button confirms.
+  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).click();
+  await dialog.getByRole("button", { name: "Elimina la serata" }).click();
+  await dialog.getByRole("button", { name: "Elimina “Dune - Parte due”" }).click();
+  await expect(page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" })).toHaveCount(0);
+});
+
+test("a night going on can be managed from the nights page", async ({ page }) => {
+  await signIn(page, "/watch-party");
+  await page.getByRole("button", { name: "Gestisci la serata di The Boys" }).click();
+  const dialog = page.getByRole("dialog", { name: "Serata: The Boys" });
+  await expect(dialog.getByRole("list", { name: "Persone nella serata" })).toContainText("Luca");
+  await expect(dialog.getByRole("list", { name: "Amici da aggiungere" })).toContainText("Giulia");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
 });

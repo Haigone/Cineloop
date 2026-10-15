@@ -1,6 +1,6 @@
 import "server-only";
 import { groupFor } from "@/domain/shared-watch";
-import type { Title, WatchParty } from "@/domain/types";
+import type { ProviderId, Title, WatchParty } from "@/domain/types";
 import { firstName } from "@/lib/format";
 import type { Repository } from "@/server/data";
 import { alignMembers } from "./shared-watch";
@@ -12,6 +12,23 @@ import { alignMembers } from "./shared-watch";
  */
 export async function startNight(repo: Repository, party: WatchParty, title: Title): Promise<void> {
   const members = [...new Set([party.hostId, ...party.participantIds])];
+  const now = new Date().toISOString();
+  const placeOf = async (id: string) => (await repo.listLibrary(id)).find((e) => e.titleId === title.id);
+  // The host's place and service are the night's: whoever has none yet starts from the beginning.
+  const start = (id: string, providerId: ProviderId | null) =>
+    repo.saveProgress(id, {
+      titleId: title.id,
+      providerId,
+      season: title.type === "movie" ? null : (title.seasons[0]?.number ?? 1),
+      episode: title.type === "movie" ? null : 1,
+      fraction: 0,
+      url: null,
+      updatedAt: now,
+    });
+  const host = await placeOf(party.hostId);
+  if (!host?.progress || host.status !== "watching") await start(party.hostId, host?.progress?.providerId ?? title.providers[0] ?? null);
+  const hostProvider = (await placeOf(party.hostId))?.progress?.providerId ?? title.providers[0] ?? null;
+
   const existing = groupFor(await repo.listSharedWatches(party.hostId), party.hostId, title.id);
   // Someone already following this title with another group stays in that one.
   const free: string[] = [];
@@ -30,20 +47,9 @@ export async function startNight(repo: Repository, party: WatchParty, title: Tit
     const group = await repo.createSharedWatch({ titleId: title.id, hostId: party.hostId, memberIds: free });
     await alignMembers(repo, group, group.memberIds);
   }
-  const now = new Date().toISOString();
   for (const id of members) {
-    const entry = (await repo.listLibrary(id)).find((e) => e.titleId === title.id);
-    if (!entry?.progress || entry.status !== "watching") {
-      await repo.saveProgress(id, {
-        titleId: title.id,
-        providerId: entry?.progress?.providerId ?? title.providers[0] ?? null,
-        season: title.type === "movie" ? null : (title.seasons[0]?.number ?? 1),
-        episode: title.type === "movie" ? null : 1,
-        fraction: 0,
-        url: null,
-        updatedAt: now,
-      });
-    }
+    const entry = await placeOf(id);
+    if (!entry?.progress || entry.status !== "watching") await start(id, hostProvider);
     await repo.removeFromWishlist(id, title.id);
   }
   await repo.setWatchPartyStatus(party.id, "started");

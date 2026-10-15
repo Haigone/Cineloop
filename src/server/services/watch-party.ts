@@ -5,6 +5,7 @@ import { firstName } from "@/lib/format";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
 import { activateNights } from "./nights";
+import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
 import { loadFriendBundles, toPublicUser } from "./shared";
 
 export interface UpcomingNight {
@@ -24,6 +25,8 @@ export interface WatchPartyView {
   recent: { party: WatchParty; title: Title | null; names: string[] }[];
   /** Nights scheduled or queued, soonest first. */
   upcoming: UpcomingNight[];
+  /** Nights going on now ("Serate insieme"): they can be managed or ended here. */
+  running: SharedWatchView[];
 }
 
 /** Scheduled and queued nights the user is part of, scheduled ones by date, then the queue in order. */
@@ -84,6 +87,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
     titles,
     sources,
     upcoming: await listUpcomingNights(repo, viewer.id, parties),
+    running: await listSharedWatchViews(repo, viewer.id, byId),
     recent: parties
       .filter((p) => p.status !== "scheduled" && p.status !== "queued")
       .slice(0, 5)

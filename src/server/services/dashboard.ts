@@ -4,6 +4,7 @@ import { isLive } from "@/domain/presence";
 import { wantsNovita } from "@/domain/library";
 import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
+import { searchKey } from "@/lib/text";
 import { awaitedReleases, wishedPremieres, type AwaitedRelease } from "./awaited";
 import { listNewSeasons, notifyReleaseDay, type NewSeasonItem } from "./new-seasons";
 import { fillerRunAfter, type FillerRun } from "@/domain/watch-order";
@@ -173,6 +174,11 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   ];
 
   const sectionGroups = groups.filter((g) => sectionOf(g.title) === category);
+  // A title watched in a "Serata insieme" is tracked once: another copy of it under the same name
+  // (the extension matched another catalogue entry) is not shown as watched alone too.
+  const together = new Set(sectionGroups.map((g) => g.title.id));
+  const togetherNames = new Set(sectionGroups.map((g) => `${searchKey(g.title.title)}|${g.title.type === "movie"}`));
+  const shown = continueWatching.filter((i) => together.has(i.title.id) || !togetherNames.has(`${searchKey(i.title.title)}|${i.title.type === "movie"}`));
 
   const fillerRuns: Record<string, FillerRun> = {};
   for (const item of continueWatching) {
@@ -218,12 +224,12 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     fillerRuns,
     later,
     background: sectionBackground(prefs, category, library, inSection),
-    nowWatching: continueWatching[0] ?? null,
-    nowWatchingGroup: continueWatching[0] ? (sectionGroups.find((g) => g.title.id === continueWatching[0]!.title.id) ?? null) : null,
+    nowWatching: shown[0] ?? null,
+    nowWatchingGroup: shown[0] ? (sectionGroups.find((g) => g.title.id === shown[0]!.title.id) ?? null) : null,
     upcomingNights: upcoming.filter((n) => sectionOf(n.title) === category),
-    continueWatching: continueWatching.slice(1).filter((item) => !sectionGroups.some((g) => g.title.id === item.title.id)),
+    continueWatching: shown.slice(1).filter((item) => !together.has(item.title.id)),
     together: sectionGroups
-      .filter((g) => g.title.id !== continueWatching[0]?.title.id)
+      .filter((g) => g.title.id !== shown[0]?.title.id)
       .map((group) => ({ group, item: continueWatching.find((i) => i.title.id === group.title.id) ?? null }))
       .sort((a, b) => Number(Boolean(b.item)) - Number(Boolean(a.item))),
     recentlyWatched,

@@ -61,6 +61,14 @@ describe("nights", () => {
     expect(group?.memberIds.sort()).toEqual(["u_marco", "u_sara"]);
   });
 
+  it("everyone starts on the host's service", async () => {
+    const repo = new MemoryRepository();
+    const t = (await freshTitle(repo, "series", "u_marco", "u_sara")) as Series;
+    await repo.saveProgress("u_marco", { titleId: t.id, providerId: "netflix", season: t.seasons[0]!.number, episode: 2, fraction: 0.1, url: null, updatedAt: new Date().toISOString() });
+    await startNight(repo, await night(repo, t), t);
+    expect((await place(repo, "u_sara", t.id))?.progress).toMatchObject({ providerId: "netflix", episode: 2 });
+  });
+
   it("works for films too", async () => {
     const repo = new MemoryRepository();
     const t = await freshTitle(repo, "movie", "u_marco", "u_sara");

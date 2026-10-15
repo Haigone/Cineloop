@@ -112,3 +112,44 @@ export async function leaveSharedWatch(groupId: string): Promise<ActionResult> {
     return { ok: false, error: "Non siamo riusciti a farti uscire dalla serata. Riprova." };
   }
 }
+
+/** The host takes someone out of the night: they keep their place, it just stops moving with the others. */
+export async function removeFromSharedWatch(groupId: string, memberId: string): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  const repo = getRepository();
+  const group = await repo.getSharedWatch(String(groupId).slice(0, 80));
+  if (!group || group.hostId !== viewer.id) return { ok: false, error: "Solo chi ha organizzato la serata può togliere qualcuno." };
+  if (memberId === viewer.id || !group.memberIds.includes(memberId)) return { ok: false, error: "Questa persona non è nella serata." };
+  const rest = group.memberIds.filter((id) => id !== memberId);
+  try {
+    if (rest.length < 2) await repo.deleteSharedWatch(group.id);
+    else await repo.updateSharedWatch(group.id, { memberIds: rest });
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("removeFromSharedWatch failed", err);
+    return { ok: false, error: "Non siamo riusciti a togliere questa persona. Riprova." };
+  }
+}
+
+/**
+ * The host ends the night for everyone: the group goes away, each person keeps
+ * the place they reached and goes on alone, and the queue can move on.
+ */
+export async function endSharedWatch(groupId: string): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  const repo = getRepository();
+  const group = await repo.getSharedWatch(String(groupId).slice(0, 80));
+  if (!group || group.hostId !== viewer.id) return { ok: false, error: "Solo chi ha organizzato la serata può eliminarla." };
+  try {
+    await repo.deleteSharedWatch(group.id);
+    for (const p of await repo.listWatchParties(viewer.id, 100)) {
+      if (p.hostId === viewer.id && p.status === "started" && p.pickedTitleId === group.titleId) await repo.setWatchPartyStatus(p.id, "done");
+    }
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("endSharedWatch failed", err);
+    return { ok: false, error: "Non siamo riusciti a eliminare la serata. Riprova." };
+  }
+}
