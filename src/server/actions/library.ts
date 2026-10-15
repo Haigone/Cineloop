@@ -32,7 +32,7 @@ async function animeUnityEpisodeUrl(
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const fallback = providerSearchUrl("animeunity", titleName);
-  if (storedUrl && offset !== null && offset > 0) {
+  if (storedUrl && offset !== null) {
     try {
       const current = new URL(storedUrl);
       const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
@@ -41,10 +41,14 @@ async function animeUnityEpisodeUrl(
         (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") &&
         match
       ) {
-        current.pathname = `/anime/${match[1]}/${Number(match[2]) + offset}`;
-        current.search = "";
-        current.hash = "";
-        return current.toString();
+        // Episode IDs move in both directions when the viewer edits progress.
+        const nextEpisodeId = Number(match[2]) + offset;
+        if (Number.isSafeInteger(nextEpisodeId) && nextEpisodeId > 0) {
+          current.pathname = `/anime/${match[1]}/${nextEpisodeId}`;
+          current.search = "";
+          current.hash = "";
+          return current.toString();
+        }
       }
     } catch {
       // Invalid/stale stored URL: use the archive fallback.
