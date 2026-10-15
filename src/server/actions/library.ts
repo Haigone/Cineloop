@@ -364,6 +364,34 @@ export async function skipFillers(id: string): Promise<ActionResult> {
   // Worked out again here from the title's own data, never taken from the page.
   const runAhead = progress ? fillerRunAfter(title, progress, entry?.partOverrides) : null;
   if (!progress || !runAhead || runAhead.after === null) return { ok: false, error: "Non ci sono filler da saltare." };
+  // Keep AnimeUnity's title slug and advance its numeric episode ID by the
+  // number of episodes skipped. If the observed URL is not a canonical episode
+  // page (or the episode offset is unknown), fall back to the title archive search.
+  let nextUrl: string | null = null;
+  if (progress.providerId === "animeunity") {
+    const { providerSearchUrl } = await import("@/integrations/providers/search-links");
+    const fallback = providerSearchUrl("animeunity", title.title);
+    const offset = progress.season === runAhead.season && progress.episode !== null
+      ? runAhead.after - progress.episode
+      : null;
+    if (progress.url && offset !== null && offset > 0) {
+      try {
+        const current = new URL(progress.url);
+        const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
+        if (current.protocol === "https:" &&
+          (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") &&
+          match) {
+          current.pathname = `/anime/${match[1]}/${Number(match[2]) + offset}`;
+          current.search = "";
+          current.hash = "";
+          nextUrl = current.toString();
+        }
+      } catch {
+        // Use the archive fallback below for invalid stored URLs.
+      }
+    }
+    nextUrl ??= fallback;
+  }
   return run(async () => {
     await repo.saveProgress(user.id, {
       titleId: title.id,
@@ -371,8 +399,7 @@ export async function skipFillers(id: string): Promise<ActionResult> {
       season: runAhead.season,
       episode: runAhead.after!,
       fraction: 0,
-      // The link of another episode would open the wrong one.
-      url: null,
+      url: nextUrl,
       updatedAt: new Date().toISOString(),
     });
     await shareProgress(repo, user.id, title.id);
