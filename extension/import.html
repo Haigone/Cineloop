@@ -14,39 +14,23 @@
       <span id="who" class="muted"></span>
     </header>
 
-    <h1>Importa da Netflix</h1>
-    <fieldset class="modes">
-      <legend class="sr-only">Cosa vuoi importare</legend>
-      <label class="mode"><input type="radio" name="mode" value="list" checked /> <span><span class="title">La mia lista</span><span class="muted block">Va nella wishlist, senza doppioni.</span></span></label>
-      <label class="mode"><input type="radio" name="mode" value="history" /> <span><span class="title">Storico visioni</span><span class="muted block">Quello che hai visto e manca dalla libreria viene aggiunto.</span></span></label>
-    </fieldset>
+    <h1>Importa lo storico di Netflix</h1>
+    <p class="muted">Quello che hai visto su Netflix e manca dalla libreria viene aggiunto, senza doppioni.</p>
 
-    <section class="card" data-mode="history" hidden>
+    <section class="card">
       <p class="title">1. Scarica il tuo storico</p>
-      <p class="muted">Il modo più rapido, per il profilo che usi:</p>
       <ol class="steps">
         <li>Su netflix.com apri <strong>Account</strong>, scegli il profilo e apri <strong>Attività di visione</strong>.</li>
         <li>In fondo alla pagina premi <strong>Scarica tutto</strong>: ottieni <code>NetflixViewingHistory.csv</code>.</li>
       </ol>
       <a class="button" href="https://www.netflix.com/viewingactivity" target="_blank" rel="noopener">Apri Attività di visione</a>
-      <p class="muted">Per tutti i profili insieme va bene anche lo <code>.zip</code> di “Scarica le tue informazioni personali” (sotto): l’estensione apre solo <code>CONTENT_INTERACTION/ViewingActivity.csv</code>.</p>
-    </section>
-
-    <section class="card" data-mode="list">
-      <p class="title">1. Chiedi i tuoi dati a Netflix</p>
-      <ol class="steps">
-        <li>Su netflix.com apri <strong>Account</strong>, poi <strong>Sicurezza e privacy</strong>, poi <strong>Scarica le tue informazioni personali</strong>, e invia la richiesta.</li>
-        <li>Conferma dal link nell’email che ti manda Netflix.</li>
-        <li>Quando arriva l’email che i dati sono pronti (di solito entro un giorno, al massimo 30), scarica il file <code>.zip</code>.</li>
-      </ol>
-      <a class="button" href="https://www.netflix.com/account/getmyinfo" target="_blank" rel="noopener">Apri la pagina di Netflix</a>
     </section>
 
     <section class="card">
       <p class="title">2. Carica il file qui</p>
       <p id="file-help" class="muted"></p>
       <label for="file">File di Netflix</label>
-      <input id="file" type="file" accept=".zip,.csv,application/zip,text/csv" />
+      <input id="file" type="file" accept=".csv,text/csv" />
       <p id="file-error" class="error" role="alert" hidden></p>
 
       <div id="preview" hidden>

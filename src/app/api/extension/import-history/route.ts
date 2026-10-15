@@ -16,16 +16,22 @@ const body = z.object({
     )
     .min(1)
     .max(20),
+  // Sent by extension 0.6.4+: it sends again whatever comes back as pending.
+  partial: z.boolean().optional(),
 });
 
 export const OPTIONS = preflight;
 
+// Anime lookups (ANN asks for a pause between requests) can make a batch slow: room to answer, and a budget below it.
+export const maxDuration = 60;
+const BUDGET_MS = 25_000;
+
 /** Titles from the user's Netflix viewing history: the ones missing from the library are added. */
 export async function POST(request: NextRequest) {
   // Same budget as the list import: a long history takes several requests in a row.
-  const auth = await authenticate(request, 20, "import");
+  const auth = await authenticate(request, 40, "import");
   if (!("userId" in auth)) return auth;
   const parsed = body.safeParse(await readJson(request, 32_768));
   if (!parsed.success) return json(request, { error: "invalid_request" }, 400);
-  return json(request, await importNetflixHistory(auth.userId, parsed.data.items));
+  return json(request, await importNetflixHistory(auth.userId, parsed.data.items, parsed.data.partial ? BUDGET_MS : undefined));
 }

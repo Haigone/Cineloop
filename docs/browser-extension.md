@@ -101,27 +101,20 @@ Per aggiornarla basta sostituire la cartella e premere "Ricarica" in `chrome://e
 
 ## Importare "La mia lista" di Netflix
 
-Dalla sezione *Importa* del pannello. L'utente apre netflix.com/browse/my-list e scorre fino in fondo; il pannello legge, solo su sua richiesta e solo in quella scheda, il nome e l'id delle copertine già presenti nella pagina (`chrome.scripting.executeScript`, permesso netflix.com già concesso). Nessuna richiesta a Netflix, nessuno scorrimento automatico, nessuna API interna. I titoli vanno a `POST /api/extension/import-list` a gruppi di 20: ognuno è riconosciuto dall'id Netflix già noto, poi per nome (preferendo quello disponibile su Netflix) e finisce in wishlist, se non è già in wishlist o in libreria. Il pannello mostra quanti sono stati aggiunti e quali non sono stati trovati nel catalogo.
+Dalla sezione *Importa* del pannello. L'utente apre netflix.com/browse/my-list; il pannello legge, solo su sua richiesta e solo in quella scheda, il nome e l'id delle copertine presenti nella pagina (`chrome.scripting.executeScript`, permesso netflix.com già concesso). L'id viene dal link della copertina oppure da `data-ui-tracking-context`. Dalla 0.6.4 il pulsante "Scorri e leggi tutta la lista" fa scorrere la pagina fino in fondo, come farebbe l'utente, così Netflix carica tutte le copertine; poi la riporta in cima. Nessuna richiesta a Netflix e nessuna API interna. I titoli vanno a `POST /api/extension/import-list` a gruppi di 10: ognuno è riconosciuto dall'id Netflix già noto, poi per nome (preferendo quello disponibile su Netflix) e finisce in wishlist, se non è già in wishlist o in libreria. Il pannello mostra quanti sono stati aggiunti e quali non sono stati trovati nel catalogo.
 
-### Dall'export ufficiale dei dati di Netflix
-
-Per liste lunghe, o per importare la lista di un altro profilo, il pannello offre anche l'export dei dati personali:
-
-1. Su netflix.com: Account > Sicurezza e privacy > Scarica le tue informazioni personali (`netflix.com/account/getmyinfo`) e invia la richiesta.
-2. Conferma dall'email di Netflix.
-3. Quando arriva l'email che i dati sono pronti (Netflix dice fino a 30 giorni, di solito un giorno), scarica lo .zip.
-4. Dal pannello, *Importa* > "Carica il file di Netflix": si apre `import.html` in una scheda (un selettore di file chiuderebbe il pannello). Si carica lo .zip così com'è oppure solo `MyList.csv`.
-
-`netflix-export.js` legge lo .zip nel browser: apre solo la voce `CONTENT_INTERACTION/MyList.csv` (anche negli archivi ZIP64), ne prende profilo e titolo, e toglie i doppioni. Se ci sono più profili si sceglie quale importare (o tutti). I titoli vanno a `POST /api/extension/import-list` senza id Netflix, a gruppi di 20; al limite di richieste la pagina aspetta un minuto e riprende da sola. Se si carica la cronologia (`NetflixViewingHistory.csv` o `ViewingActivity.csv`) la pagina lo dice invece di importarla.
+L'import dall'export completo dei dati di Netflix (lo .zip con `MyList.csv`) è stato tolto nella 0.6.4, su richiesta di Riccardo: quell'archivio contiene molti più dati personali del necessario.
 
 ### Storico visioni di Netflix (dalla 0.6.2)
 
-Dal pannello, *Importa* > "Carica lo storico" apre `import.html?mode=history`. Si carica uno di questi file:
+Dal pannello, *Importa* > "Carica lo storico" apre `import.html?mode=history`. Si carica:
 
 - `NetflixViewingHistory.csv`: Account > profilo > Attività di visione > "Scarica tutto" (subito, solo il profilo scelto, colonne `Title,Date`);
-- lo .zip di "Scarica le tue informazioni personali": l'estensione apre solo `CONTENT_INTERACTION/ViewingActivity.csv` (tutti i profili, si sceglie quale).
+- dalla 0.6.4 non si carica più lo .zip di "Scarica le tue informazioni personali": la pagina lo rifiuta. Va ancora bene `ViewingActivity.csv` estratto a mano, con tutti i profili (si sceglie quale importare).
 
-Il file è letto nel browser e **non arriva al server**: `netflix-export.js` scarta trailer, anteprime e visioni sotto i due minuti, poi raggruppa le righe. "Serie: Stagione 4: Episodio" diventa una serie con la stagione più alta vista; una riga senza ":" è un film; "Nome: sottotitolo" è ambiguo e il server prova prima il titolo intero (film) poi "Nome" (serie). A `POST /api/extension/import-history` partono solo nome, tipo, stagione e la riga d'esempio, a gruppi di 20.
+Il file è letto nel browser e **non arriva al server**: `netflix-export.js` scarta trailer, anteprime e visioni sotto i due minuti, poi raggruppa le righe. "Serie: Stagione 4: Episodio" diventa una serie con la stagione più alta vista; una riga senza ":" è un film; "Nome: sottotitolo" è ambiguo e il server prova prima il titolo intero (film) poi "Nome" (serie). A `POST /api/extension/import-history` partono solo nome, tipo, stagione e la riga d'esempio, a gruppi di 20 (10 dalla 0.6.4).
 
 Il server (`src/server/services/import-history.ts`) aggiunge solo ciò che manca dalla libreria: un film come visto, una serie come vista fino a quella stagione (`seenThrough`, così una stagione successiva compare in "Novità"). Ciò che è già in libreria non cambia; un titolo aggiunto esce dalla wishlist. Non crea eventi di visione, quindi le statistiche dei minuti non cambiano. I titoli non collegati al catalogo sono elencati nella pagina e scaricabili come `cineloop-import-errori.txt`, con la riga originale di Netflix accanto.
+
+Dalla 0.6.4 i gruppi sono da 10 e la richiesta porta `partial: true`. Il server smette di cercare dopo circa 25 secondi e rimanda indietro come `pending` i titoli che non ha guardato; l'estensione li rimette in testa alla coda. Le route di import hanno `maxDuration = 60`, perché le ricerche anime su ANN aspettano più di un secondo tra una richiesta e l'altra. Se CineLoop non risponde, un gruppo viene riprovato due volte. Se fallisce ancora finisce nel log come "non ha risposto" e l'import continua; dopo tre gruppi falliti di fila si ferma.
 
