@@ -10,6 +10,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { BackgroundPicker } from "@/components/settings/background-picker";
 import { ExtensionSettings } from "@/components/settings/extension-settings";
+import { ScrollToHash } from "@/components/settings/scroll-to-hash";
 import { PasswordForm } from "@/components/settings/password-form";
 import { PreferenceSwitch } from "@/components/settings/preference-switch";
 import { ProfileForm } from "@/components/settings/profile-form";
@@ -62,7 +63,7 @@ export default function SettingsPage() {
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-[calc(var(--topbar-height)+24px)] rounded-xl border border-line bg-surface p-5 md:p-6">
+    <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-[calc(var(--topbar-height)+var(--notices-height,0px)+24px)] rounded-xl border border-line bg-surface p-5 md:p-6">
       <h2 id={`${id}-h`} className="text-[17px] font-semibold tracking-[-0.01em]">
         {title}
       </h2>
@@ -190,6 +191,7 @@ async function SettingsContent() {
           />
         </div>
       </Section>
+      <ScrollToHash />
     </div>
   );
 }

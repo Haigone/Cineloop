@@ -41,7 +41,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           }
         />
         {/* One sticky stack, so a guest without the extension sees both notices, one under the other. */}
-        <div className="sticky top-[var(--topbar-height)] z-20">
+        <div data-notice-stack className="sticky top-[var(--topbar-height)] z-20">
           <Suspense>
             <GuestBanner />
           </Suspense>
