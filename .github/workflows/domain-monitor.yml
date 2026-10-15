@@ -1,0 +1,48 @@
+name: Domain Availability Monitor
+
+on:
+  schedule:
+    # GitHub Actions uses UTC; minute 17 avoids the busiest top-of-hour window.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domain-availability-monitor
+  cancel-in-progress: false
+
+jobs:
+  check-domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check HTTP status, final URL and redirects
+        shell: bash
+        run: |
+          set -uo pipefail
+          URL="https://www.streaming-community.day/"
+          TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          METRICS="$(curl --silent --show-error --location --max-time 30 --output /dev/null --write-out '%{http_code}\n%{url_effective}\n%{num_redirects}\n' "$URL" 2>curl-error.txt)"
+          CURL_EXIT=$?
+          HTTP_STATUS="$(printf '%s\n' "$METRICS" | sed -n '1p')"
+          FINAL_URL="$(printf '%s\n' "$METRICS" | sed -n '2p')"
+          REDIRECTS="$(printf '%s\n' "$METRICS" | sed -n '3p')"
+
+          echo "Timestamp UTC: $TIMESTAMP"
+          echo "Target URL: $URL"
+          echo "HTTP status: ${HTTP_STATUS:-unavailable}"
+          echo "Final URL: ${FINAL_URL:-unavailable}"
+          echo "Redirect count: ${REDIRECTS:-unavailable}"
+          echo "curl exit code: $CURL_EXIT"
+
+          if [ -s curl-error.txt ]; then
+            echo "curl error:"
+            cat curl-error.txt
+          fi
+
+          if [ "$CURL_EXIT" -ne 0 ] || [ -z "$HTTP_STATUS" ] || [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::error::Domain check failed or returned an HTTP error."
+            exit 1
+          fi
