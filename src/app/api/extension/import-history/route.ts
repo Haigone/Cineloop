@@ -9,10 +9,10 @@ const item = z.object({
   kind: z.enum(["series", "film", "unknown"]),
   season: z.number().int().min(1).max(99).optional(),
   sample: z.string().trim().min(1).max(300),
-  // The days it was watched (one per day and season), from the history's dates: no minutes, no CSV.
+  // The days it was watched (per day and season, with how many episodes), from the history's dates: no minutes, no CSV.
   watched: z
-    .array(z.object({ d: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), s: z.number().int().min(1).max(99).optional() }))
-    .max(120)
+    .array(z.object({ d: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), s: z.number().int().min(1).max(99).optional(), n: z.number().int().min(1).max(60).optional() }))
+    .max(400)
     .optional(),
 });
 const body = z.object({
