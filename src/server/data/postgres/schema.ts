@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import type { ActivityKind, Genre, OAuthProvider, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, TitleUpdates, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
