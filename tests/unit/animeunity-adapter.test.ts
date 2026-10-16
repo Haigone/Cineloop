@@ -31,7 +31,7 @@ describe("Anime Unity part-to-season mapping", () => {
       url,
       hints: { title: "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban", season: 2, episode: 1, episodeId: "36049" },
     }));
-    expect(current).toMatchObject({ season: 1, episode: 1, externalId: "https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049?cineloopResume=0" });
+    expect(current).toMatchObject({ season: 1, episode: 1, externalId: "https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049" });
   });
 });
 
