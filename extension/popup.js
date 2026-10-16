@@ -209,11 +209,12 @@ async function renderProviderPermissions() {
   const netflix = await hasNetflixAccess();
   const prime = await hasPrimeAccess();
   const anime = await hasAnimeAccess();
+  const animeBundle = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
   const directory = await hasDirectoryAccess();
   const streaming = await hasStreamingAccess();
   const vixcloud = await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS });
   const resolved = await getResolved();
-  perms = { netflix, prime, anime, directory, streaming, vixcloud, resolved };
+  perms = { netflix, prime, anime, animeBundle, directory, streaming, vixcloud, resolved };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
@@ -226,9 +227,9 @@ async function renderProviderPermissions() {
   $("manage-prime").disabled = prime;
   // Like Netflix, AnimeUnity and the StreamingCommunity directory are granted at install and
   // switched on or off from CineLoop's own settings; only a revoked grant can be asked again.
-  $("manage-au").textContent = anime ? "Attivo ✓" : "Attiva AnimeUnity";
-  $("manage-au").disabled = anime;
-  $("manage-sc").textContent = streaming ? (vixcloud ? "Attivo ✓" : "Abilita player VixCloud") : "Attiva StreamingCommunity";
+  $("manage-au").textContent = anime ? (animeBundle ? "Attivo ✓" : "Completa permessi AnimeUnity") : "Attiva AnimeUnity";
+  $("manage-au").disabled = anime && animeBundle;
+  $("manage-sc").textContent = streaming ? (vixcloud ? "Attivo ✓" : "Completa permessi StreamingCommunity") : "Attiva StreamingCommunity";
   $("manage-sc").disabled = streaming && vixcloud;
   $("manage-sc-status").textContent = sc
     ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
@@ -248,8 +249,8 @@ async function togglePermission(provider) {
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming && !perms.vixcloud) {
-      // Existing users must be able to grant the new player-frame permission too.
-      await chrome.permissions.request({ origins: SC_VIXCLOUD_ORIGINS });
+      // Complete the StreamingCommunity permission bundle, including its embedded player.
+      await chrome.permissions.request({ origins: [...(resolved?.origin ? [`${resolved.origin}/*`] : []), ...SC_VIXCLOUD_ORIGINS] });
     } else if (streaming) {
       // Already active; it is switched off from CineLoop's settings.
     } else if (resolved?.origin) {
