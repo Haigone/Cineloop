@@ -6,6 +6,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -42,6 +43,8 @@ export class MemoryRepository implements Repository {
   private users = new Map<string, User>();
   private passwords = new Map<string, string>();
   private sessions = new Map<string, { userId: string; expiresAt: Date }>();
+  /** "provider:providerUserId" → user id. */
+  private oauthAccounts = new Map<string, string>();
   private friendships: { a: string; b: string; since: string }[] = [];
   private library: LibraryEntry[] = [];
   private wishlist: WishlistItem[] = [];
@@ -200,6 +203,32 @@ export class MemoryRepository implements Repository {
       .filter((u) => searchKey(u.displayName).includes(q) || u.username.includes(q))
       .slice(0, limit)
       .map(toPublic);
+  }
+
+  async getUserByEmail(email: string) {
+    const e = email.toLowerCase();
+    return [...this.users.values()].find((x) => x.email === e) ?? null;
+  }
+
+  async setUserEmail(userId: string, email: string) {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const updated: User = { ...user, email: email.toLowerCase() };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async getUserByOAuth(provider: OAuthProvider, providerUserId: string) {
+    const userId = this.oauthAccounts.get(`${provider}:${providerUserId}`);
+    return (userId && this.users.get(userId)) || null;
+  }
+
+  async linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string) {
+    this.oauthAccounts.set(`${provider}:${providerUserId}`, userId);
+  }
+
+  async listOAuthProviders(userId: string) {
+    return [...this.oauthAccounts].filter(([, id]) => id === userId).map(([key]) => key.split(":")[0] as OAuthProvider);
   }
 
   // Sessions ----------------------------------------------------------------

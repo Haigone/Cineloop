@@ -134,6 +134,13 @@
       "when": 1792088723516,
       "tag": "0018_title_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792133376751,
+      "tag": "0019_oauth_accounts",
+      "breakpoints": true
     }
   ]
 }
