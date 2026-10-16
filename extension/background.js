@@ -129,7 +129,7 @@ async function enableScPage() {
   // same lightweight progress reader on supported VixCloud hosts under the
   // StreamingCommunity permission bundle, without a second consent prompt.
   for (const pattern of SC_VIXCLOUD_ORIGINS) {
-    await enableScFrameOrigin(pattern.replace(/\\/\\*$/, ""));
+    await enableScFrameOrigin(pattern.replace(/\/\*$/, ""));
   }
 }
 
