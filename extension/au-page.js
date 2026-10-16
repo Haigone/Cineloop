@@ -128,30 +128,39 @@
     return numbered ? Number(numbered[1]) : null;
   }
 
+  // Visibility matters more than playback time: ad players can keep playing
+  // while hidden behind the real AnimeUnity/VixCloud player. Position and
+  // duration must always come from the same visible video element.
+  function videoScore(v) {
+    const rect = v.getBoundingClientRect();
+    const style = getComputedStyle(v);
+    const visible = rect.width >= 160 && rect.height >= 90 &&
+      rect.bottom > 0 && rect.right > 0 &&
+      rect.top < window.innerHeight && rect.left < window.innerWidth &&
+      style.display !== "none" && style.visibility !== "hidden" &&
+      Number(style.opacity || 1) > 0.05;
+    const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+    const playing = !v.paused && !v.ended && v.readyState >= 2;
+    return (visible ? 1_000_000_000_000 : 0) +
+      (playing ? 10_000_000_000 : 0) +
+      (v.readyState >= 3 ? 100_000_000 : 0) +
+      Math.min(area, 5_000_000) +
+      Math.min(Math.max(0, v.currentTime || 0), 100_000);
+  }
+
   function findVideo(root = document, depth = 0) {
     if (depth > 2) return null;
     const candidates = [];
-    // Prefer a real, actively playing player over hidden/stale ad videos.
     for (const v of root.querySelectorAll("video")) {
       if (v.readyState < 1 || !Number.isFinite(v.duration) || v.duration <= 0) continue;
-      const area = Math.max(0, v.videoWidth || 0) * Math.max(0, v.videoHeight || 0);
-      const score = (v.paused ? 0 : 1_000_000_000) +
-        (v.readyState >= 2 ? 10_000_000 : 0) + Math.min(area, 5_000_000) +
-        Math.min(Math.max(0, v.currentTime || 0), 100_000);
-      candidates.push({ video: v, score });
+      candidates.push({ video: v, score: videoScore(v) });
     }
     for (const frame of root.querySelectorAll("iframe")) {
       try {
         const doc = frame.contentDocument;
         if (!doc) continue;
         const found = findVideo(doc, depth + 1);
-        if (found) {
-          const area = Math.max(0, found.videoWidth || 0) * Math.max(0, found.videoHeight || 0);
-          const score = (found.paused ? 0 : 1_000_000_000) +
-            (found.readyState >= 2 ? 10_000_000 : 0) + Math.min(area, 5_000_000) +
-            Math.min(Math.max(0, found.currentTime || 0), 100_000);
-          candidates.push({ video: found, score });
-        }
+        if (found) candidates.push({ video: found, score: videoScore(found) });
       } catch {
         // Cross-origin frames are read by their own authorized content script.
       }

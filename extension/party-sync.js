@@ -76,16 +76,30 @@
     const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
     return m?.[1] ?? m?.[2] ?? null;
   };
+  // Ignore hidden ad/stale videos: they can have a different duration and
+  // clock from the episode actually visible to the user.
   const video = () => {
     const candidates = [...document.querySelectorAll("video")]
       .filter((v) => v.readyState >= 1 && Number.isFinite(v.duration) && v.duration > 0)
-      .map((v) => ({
-        video: v,
-        score: (v.paused ? 0 : 1_000_000_000) +
-          (v.readyState >= 2 ? 10_000_000 : 0) +
-          Math.min(Math.max(0, v.videoWidth || 0) * Math.max(0, v.videoHeight || 0), 5_000_000) +
-          Math.min(Math.max(0, v.currentTime || 0), 100_000),
-      }))
+      .map((v) => {
+        const rect = v.getBoundingClientRect();
+        const style = getComputedStyle(v);
+        const visible = rect.width >= 160 && rect.height >= 90 &&
+          rect.bottom > 0 && rect.right > 0 &&
+          rect.top < window.innerHeight && rect.left < window.innerWidth &&
+          style.display !== "none" && style.visibility !== "hidden" &&
+          Number(style.opacity || 1) > 0.05;
+        const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+        const playing = !v.paused && !v.ended && v.readyState >= 2;
+        return {
+          video: v,
+          score: (visible ? 1_000_000_000_000 : 0) +
+            (playing ? 10_000_000_000 : 0) +
+            (v.readyState >= 3 ? 100_000_000 : 0) +
+            Math.min(area, 5_000_000) +
+            Math.min(Math.max(0, v.currentTime || 0), 100_000),
+        };
+      })
       .sort((a, b) => b.score - a.score);
     return candidates[0]?.video ?? null;
   };
