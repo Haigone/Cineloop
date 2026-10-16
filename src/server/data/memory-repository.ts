@@ -676,6 +676,18 @@ export class MemoryRepository implements Repository {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
   }
 
+  async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
+    const prefix = `${input.providerId}:${input.titleId}:${input.seasonNumber}:`;
+    const exact = this.episodeLinks.get(prefix + input.episodeNumber);
+    if (exact?.linkType === "exact") return exact.externalId;
+    if (exact?.linkType === "anchor") return exact.externalId;
+    const anchor = [...this.episodeLinks.entries()].find(([key, row]) => key.startsWith(prefix) && row.linkType === "anchor");
+    if (!anchor || anchor[1].idStep !== 1 || !/^\d+$/.test(anchor[1].externalId)) return null;
+    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber);
+    return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  }
+
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
     const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
