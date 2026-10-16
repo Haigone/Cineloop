@@ -173,6 +173,8 @@ export interface Repository {
   saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }): Promise<void>;
   /** Learn a verified episode reference; only enable ID arithmetic after adjacent episodes confirm it. */
   saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }): Promise<void>;
+  /** Resolve an exact episode ID or infer only from a verified anchor in the same season. */
+  resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }): Promise<string | null>;
 
   // Sagas: each user's watching order and the films they leave out
   listCollectionChoices(userId: string): Promise<CollectionChoice[]>;
