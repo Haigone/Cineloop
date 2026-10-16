@@ -24,6 +24,12 @@ describe("Wrapped", () => {
     expect(w.top.map((t) => [t.name, t.minutes, t.plays])).toEqual([["Il buco", 100, 1], ["Outer Banks", 90, 2]]);
   });
 
+  it("gives plays saved without a length the catalogue's runtime", () => {
+    const withRuntime = new Map([["a", { ...title("a", "Outer Banks", "series"), episodeRuntimeMinutes: 50 } as unknown as Title]]);
+    const w = summarizeYear(2026, [ev("a", "2026-05-01T12:00:00Z", 0, 1), ev("a", "2026-05-01T12:00:00Z", 0, 1)], withRuntime);
+    expect(w).toMatchObject({ totalMinutes: 100, episodes: 2 });
+  });
+
   it("is empty for a year without viewing", () => {
     expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });
   });

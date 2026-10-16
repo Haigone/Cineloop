@@ -21,12 +21,12 @@ export interface HistoryItem {
   /** The row as Netflix wrote it, for the error log. */
   sample: string;
   /** Days it was watched, as the history dates them (one per day and season). */
-  watched?: { d: string; s?: number }[];
+  watched?: { d: string; s?: number; n?: number }[];
 }
 
 export interface HistoryResult {
   added: string[];
-  /** Watch days recorded (for new and already-owned titles). */
+  /** Plays recorded (episodes and films with a date, for new and already-owned titles). */
   days: number;
   /** Already in the library: left as they are. */
   already: number;
@@ -51,12 +51,12 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const ownedId = new Map((await getRepository().getTitlesByIds([...have])).map((t) => [nameKey(t), t.id]));
   const wished = new Set(wishlist.map((w) => w.titleId));
   const result: HistoryResult = { added: [], days: 0, already: 0, notFound: [] };
-  // Days already on record per title, so a second import never doubles them.
-  const seen = new Map<string, Set<string>>();
+  // Plays already on record per title, day and season, so a second import only tops up what is missing.
+  const seen = new Map<string, number>();
+  const keyOf = (titleId: string, day: string, season: number | null) => `${titleId}|${day}|${season ?? 0}`;
   for (const e of await repo.listWatchEvents(userId, new Date(0))) {
-    const days = seen.get(e.titleId) ?? new Set<string>();
-    days.add(e.watchedAt.slice(0, 10));
-    seen.set(e.titleId, days);
+    const k = keyOf(e.titleId, e.watchedAt.slice(0, 10), e.season);
+    seen.set(k, (seen.get(k) ?? 0) + 1);
   }
 
   // An anime found under its TMDB id is filed under its franchise card, as the title page does, so the same show is there once.
@@ -84,17 +84,25 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     }
     if (!item.watched?.length) continue;
     const target = have.has(title.id) ? title.id : (ownedId.get(nameKey(title)) ?? title.id);
-    const days = seen.get(target) ?? new Set<string>();
-    seen.set(target, days);
+    const minutes = playMinutes(title);
     for (const w of item.watched) {
-      if (days.has(w.d)) continue;
-      days.add(w.d);
-      // Minutes stay at zero: the stats of people who do not re-import do not move; the date is what the library learns.
-      await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes: 0, season: w.s ?? null, episode: null, providerId: "netflix" });
-      result.days += 1;
+      const k = keyOf(target, w.d, w.s ?? null);
+      const missing = (w.n ?? 1) - (seen.get(k) ?? 0);
+      if (missing <= 0) continue;
+      seen.set(k, (seen.get(k) ?? 0) + missing);
+      for (let n = 0; n < missing; n++) {
+        await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes, season: w.s ?? null, episode: null, providerId: "netflix" });
+        result.days += 1;
+      }
     }
   }
   return result;
+}
+
+/** One play's length: the film's runtime or the series' episode length, with a guess when the catalogue has none. */
+export function playMinutes(title: Title): number {
+  const known = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
+  return known > 0 ? known : title.type === "movie" ? 100 : 40;
 }
 
 async function byName(name: string, series: boolean): Promise<Title | null> {

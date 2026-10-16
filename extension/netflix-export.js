@@ -245,7 +245,7 @@ export function readHistory(text) {
   return { profiles, items, skipped };
 }
 
-const MAX_DAYS = 120;
+const MAX_DAYS = 400;
 
 /** The days, oldest first; past the cap, evenly thinned out but always keeping the first and the last. */
 function capDays(days) {
@@ -267,8 +267,12 @@ export function groupHistory(items) {
     if (!known) byKey.set(key, entry);
     else if (parsed.season && parsed.season > (known.season ?? 0)) known.season = parsed.season;
     entry.rows += 1;
-    // One watch per day and season: the day it was seen, and the season when the row names one.
-    if (date) entry.days.set(`${date}:${parsed.season ?? 0}`, { d: date, ...(parsed.season ? { s: parsed.season } : {}) });
+    // Per day and season: how many plays (episodes) that day, and the season when the row names one.
+    if (date) {
+      const day = entry.days.get(`${date}:${parsed.season ?? 0}`) ?? { d: date, ...(parsed.season ? { s: parsed.season } : {}), n: 0 };
+      day.n += 1;
+      entry.days.set(`${date}:${parsed.season ?? 0}`, day);
+    }
   }
   return [...byKey.values()].map(({ days, ...rest }) => ({ ...rest, watched: capDays([...days.values()]) }));
 }

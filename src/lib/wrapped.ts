@@ -46,16 +46,18 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
     if (at.getUTCFullYear() !== year) continue;
     const title = titles.get(e.titleId);
     const isFilm = title ? title.type === "movie" : e.season === null && e.episode === null;
-    months[at.getUTCMonth()]! += e.minutes;
-    total += e.minutes;
+    // Plays imported from the Netflix history before 0.6.6 were saved with no length: a guess keeps them in the totals.
+    const minutes = e.minutes > 0 ? e.minutes : title ? (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || (isFilm ? 100 : 40) : 0;
+    months[at.getUTCMonth()]! += minutes;
+    total += minutes;
     if (isFilm) films += 1;
     else episodes += 1;
     const known = byTitle.get(e.titleId);
     if (known) {
-      known.minutes += e.minutes;
+      known.minutes += minutes;
       known.plays += 1;
     } else {
-      byTitle.set(e.titleId, { titleId: e.titleId, name: title?.title ?? "Titolo sconosciuto", posterUrl: title?.artwork.posterUrl ?? null, minutes: e.minutes, plays: 1, isFilm });
+      byTitle.set(e.titleId, { titleId: e.titleId, name: title?.title ?? "Titolo sconosciuto", posterUrl: title?.artwork.posterUrl ?? null, minutes, plays: 1, isFilm });
     }
   }
 
