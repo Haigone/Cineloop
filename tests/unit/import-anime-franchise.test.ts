@@ -20,7 +20,7 @@ describe("importing an anime the catalogue finds under its TMDB id", () => {
     ]);
     await repo.setLibraryStatus("u_frieren", "anime-ann-777", "watching");
     const res = await importNetflixHistory("u_frieren", [{ title: "Mononoke Zeta", kind: "series", season: 1, sample: "Mononoke Zeta: Stagione 1: Inizio" }]);
-    expect(res).toEqual({ added: [], already: 1, notFound: [] });
+    expect(res).toEqual({ added: [], days: 0, already: 1, notFound: [] });
     expect((await repo.listLibrary("u_frieren")).map((e) => e.titleId)).toEqual(["anime-ann-777"]);
   });
 });

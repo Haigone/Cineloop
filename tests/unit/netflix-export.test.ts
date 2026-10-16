@@ -6,6 +6,7 @@ import {
   listFromFile,
   parseCsv,
   parseHistoryTitle,
+  parseDates,
   readHistory,
   readMyList,
   readNetflixFile,
@@ -109,10 +110,16 @@ describe("Netflix viewing history", () => {
     const history = readHistory('Title,Date\n"Dark: Stagione 1: Segreti","1/2/25"\n"Dark: Stagione 3: Deja-vu","3/2/25"\n"Il buco","4/2/25"\n');
     if (!history) throw new Error("no history");
     expect(groupHistory(history.items)).toEqual([
-      { title: "Dark", kind: "series", season: 3, sample: "Dark: Stagione 1: Segreti", rows: 2 },
-      { title: "Il buco", kind: "film", sample: "Il buco", rows: 1 },
+      { title: "Dark", kind: "series", season: 3, sample: "Dark: Stagione 1: Segreti", rows: 2, watched: [{ d: "2025-02-01", s: 1 }, { d: "2025-02-03", s: 3 }] },
+      { title: "Il buco", kind: "film", sample: "Il buco", rows: 1, watched: [{ d: "2025-02-04" }] },
     ]);
     expect(readMyList('Title,Date\nDark,1/2/25\n')).toBe("history");
+  });
+
+  it("reads dates day-first, month-first when a row proves it, and ISO", () => {
+    expect(parseDates(["27/09/24", "1/2/25"])).toEqual(["2024-09-27", "2025-02-01"]);
+    expect(parseDates(["9/27/24", "1/2/25"])).toEqual(["2024-09-27", "2025-01-02"]);
+    expect(parseDates(["2025-01-02 21:00:00", "boh"])).toEqual(["2025-01-02", null]);
   });
 
   it("reads the export's ViewingActivity.csv, without trailers and short plays", async () => {

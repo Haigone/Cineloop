@@ -20,10 +20,14 @@ export interface HistoryItem {
   season?: number;
   /** The row as Netflix wrote it, for the error log. */
   sample: string;
+  /** Days it was watched, as the history dates them (one per day and season). */
+  watched?: { d: string; s?: number }[];
 }
 
 export interface HistoryResult {
   added: string[];
+  /** Watch days recorded (for new and already-owned titles). */
+  days: number;
   /** Already in the library: left as they are. */
   already: number;
   notFound: { title: string; sample: string }[];
@@ -43,8 +47,17 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const have = new Set(library.map((e) => e.titleId));
   // The same show can sit in the library under another catalogue id (seed, TMDB, ANN): match by name too.
   const names = await ownedNames([...have]);
+  // nameKey → the id the user owns it under, so dates land on the library's own entry.
+  const ownedId = new Map((await getRepository().getTitlesByIds([...have])).map((t) => [nameKey(t), t.id]));
   const wished = new Set(wishlist.map((w) => w.titleId));
-  const result: HistoryResult = { added: [], already: 0, notFound: [] };
+  const result: HistoryResult = { added: [], days: 0, already: 0, notFound: [] };
+  // Days already on record per title, so a second import never doubles them.
+  const seen = new Map<string, Set<string>>();
+  for (const e of await repo.listWatchEvents(userId, new Date(0))) {
+    const days = seen.get(e.titleId) ?? new Set<string>();
+    days.add(e.watchedAt.slice(0, 10));
+    seen.set(e.titleId, days);
+  }
 
   // An anime found under its TMDB id is filed under its franchise card, as the title page does, so the same show is there once.
   const found = await matchWithin(items, (item) => match(item).then((t) => t && asFranchise(t)), budgetMs);
@@ -55,15 +68,30 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     const item = items[i]!;
     if (!title) {
       result.notFound.push({ title: item.title, sample: item.sample });
-    } else if (have.has(title.id) || names.has(nameKey(title))) {
-      result.already += 1;
-    } else {
+      continue;
+    }
+    // The title in the library may sit under another id: dates go to the one the user owns.
+    const owned = have.has(title.id) || names.has(nameKey(title));
+    if (owned) result.already += 1;
+    else {
       if (title.type === "movie") await repo.setLibraryStatus(userId, title.id, "completed");
       else await repo.markSeenThrough(userId, title.id, Math.max(1, item.season ?? 1));
       if (wished.has(title.id)) await repo.removeFromWishlist(userId, title.id);
       have.add(title.id);
+      ownedId.set(nameKey(title), title.id);
       names.add(nameKey(title));
       result.added.push(title.title);
+    }
+    if (!item.watched?.length) continue;
+    const target = have.has(title.id) ? title.id : (ownedId.get(nameKey(title)) ?? title.id);
+    const days = seen.get(target) ?? new Set<string>();
+    seen.set(target, days);
+    for (const w of item.watched) {
+      if (days.has(w.d)) continue;
+      days.add(w.d);
+      // Minutes stay at zero: the stats of people who do not re-import do not move; the date is what the library learns.
+      await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes: 0, season: w.s ?? null, episode: null, providerId: "netflix" });
+      result.days += 1;
     }
   }
   return result;
