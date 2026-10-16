@@ -22,29 +22,27 @@ import type { EpisodeInfo } from "@/integrations/catalog/types";
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 const titleId = z.string().min(1).max(120);
-/** Resolve a saved AnimeUnity episode URL after changing the episode manually.
- * Episode IDs are advanced only within the same season; otherwise use archive search.
- */
+/** Build AnimeUnity URLs only from a provider ID observed for this exact season and episode. */
 async function animeUnityEpisodeUrl(
   storedUrl: string | null | undefined,
   titleName: string,
+  titleId: string,
+  seasonNumber: number | null,
+  episodeNumber: number | null,
   offset: number | null,
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const fallback = providerSearchUrl("animeunity", titleName);
-  if (storedUrl && offset !== null) {
+  if (storedUrl && offset !== null && seasonNumber !== null && episodeNumber !== null) {
     try {
       const current = new URL(storedUrl);
       const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
-      if (
-        current.protocol === "https:" &&
-        (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") &&
-        match
-      ) {
-        // Episode IDs move in both directions when the viewer edits progress.
-        const nextEpisodeId = Number(match[2]) + offset;
-        if (Number.isSafeInteger(nextEpisodeId) && nextEpisodeId > 0) {
-          current.pathname = `/anime/${match[1]}/${nextEpisodeId}`;
+      if (current.protocol === "https:" && (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") && match) {
+        const episodeId = await getRepository().resolveEpisodeExternalId({
+          providerId: "animeunity", titleId, seasonNumber, episodeNumber,
+        });
+        if (episodeId && /^\d{1,12}$/.test(episodeId)) {
+          current.pathname = `/anime/${match[1]}/${episodeId}`;
           current.search = "";
           current.hash = "";
           return current.toString();
@@ -57,14 +55,13 @@ async function animeUnityEpisodeUrl(
   return fallback;
 }
 
-
-/** Resolve StreamingCommunity's series episode link in both directions.
- * Its watch URL keeps the series ID in the path and the episode ID in ?e=.
- * The episode ID is only adjusted inside the same season; otherwise search by title.
- */
+/** Build StreamingCommunity URLs only from a verified mapping for the target episode. */
 async function streamingCommunityEpisodeUrl(
   storedUrl: string | null | undefined,
   titleName: string,
+  titleId: string,
+  seasonNumber: number | null,
+  episodeNumber: number | null,
   offset: number | null,
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
@@ -80,11 +77,12 @@ async function streamingCommunityEpisodeUrl(
       const validHost = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
       const match = /^\/(?:[a-z]{2}\/)?watch\/(\d{1,9})(?:\/|$)/i.exec(current.pathname);
       if (current.protocol === "https:" && validHost) {
-        if (match && offset !== null) {
-          const episodeId = current.searchParams.get("e");
-          const nextEpisodeId = Number(episodeId) + offset;
-          if (episodeId && /^\d{1,12}$/.test(episodeId) && Number.isSafeInteger(nextEpisodeId) && nextEpisodeId > 0) {
-            current.searchParams.set("e", String(nextEpisodeId));
+        if (match && offset !== null && seasonNumber !== null && episodeNumber !== null) {
+          const episodeId = await getRepository().resolveEpisodeExternalId({
+            providerId: "streamingcommunity", titleId, seasonNumber, episodeNumber,
+          });
+          if (episodeId && /^\d{1,12}$/.test(episodeId)) {
+            current.searchParams.set("e", episodeId);
             return current.toString();
           }
         }
@@ -96,6 +94,7 @@ async function streamingCommunityEpisodeUrl(
   }
   return fallback();
 }
+
 
 /** Catalog titles are cached on demand, so anything browsable can be saved. */
 async function ensureTitle(id: string) {
@@ -379,11 +378,11 @@ export async function saveManualProgress(
     if (nextProvider === "animeunity") {
       nextUrl = sameEpisode && prev?.url
         ? prev.url
-        : await animeUnityEpisodeUrl(prev?.url, title.title, offset);
+        : await animeUnityEpisodeUrl(prev?.url, title.title, title.id, season, episode, offset);
     } else if (nextProvider === "streamingcommunity" && title.type === "series") {
       nextUrl = sameEpisode && prev?.url
         ? prev.url
-        : await streamingCommunityEpisodeUrl(prev?.url, title.title, offset);
+        : await streamingCommunityEpisodeUrl(prev?.url, title.title, title.id, season, episode, offset);
     }
     await repo.saveProgress(user.id, {
       titleId: title.id,
@@ -477,9 +476,9 @@ export async function skipFillers(id: string): Promise<ActionResult> {
     ? runAhead.after - progress.episode
     : null;
   if (progress.providerId === "animeunity") {
-    nextUrl = await animeUnityEpisodeUrl(progress.url, title.title, offset);
+    nextUrl = await animeUnityEpisodeUrl(progress.url, title.title, title.id, runAhead.season, runAhead.after, offset);
   } else if (progress.providerId === "streamingcommunity" && title.type === "series") {
-    nextUrl = await streamingCommunityEpisodeUrl(progress.url, title.title, offset);
+    nextUrl = await streamingCommunityEpisodeUrl(progress.url, title.title, title.id, runAhead.season, runAhead.after, offset);
   }
   return run(async () => {
     await repo.saveProgress(user.id, {
