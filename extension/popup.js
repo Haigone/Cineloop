@@ -240,8 +240,10 @@ async function togglePermission(provider) {
     // Come Netflix: concesso all'installazione, si richiede solo se revocato.
     if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
-    const bundleGranted = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
-    if (!bundleGranted) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+    // Firefox may drop the transient user gesture across an await. Use the
+    // permission snapshot rendered before the click so request() is called
+    // immediately from the click handler.
+    if (!perms.animeBundle) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming && !perms.vixcloud) {
