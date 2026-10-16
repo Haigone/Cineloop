@@ -25,6 +25,7 @@
   let lastEpisodeKey = "";
   let lastProgressSentAt = 0;
   let boundVideo = null;
+  const reportedFrameOrigins = new Set();
   const PROGRESS_SEND_INTERVAL_MS = 5_000;
 
   function bindVideo(video) {
@@ -130,9 +131,9 @@
   function findVideo(root = document, depth = 0) {
     if (depth > 2) return null;
     let best = null;
+    // Bind before duration is available, so loadedmetadata cannot be missed.
     for (const v of root.querySelectorAll("video")) {
-      if (!Number.isFinite(v.duration) || v.duration <= 0) continue;
-      if (!best || v.currentTime > best.currentTime) best = v;
+      if (!best || (Number.isFinite(v.currentTime) && v.currentTime > best.currentTime)) best = v;
     }
     for (const frame of root.querySelectorAll("iframe")) {
       try {
@@ -165,6 +166,17 @@
   function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
     const id = titleIdNow();
+    // Detect cross-origin player frames; the popup can request their permission.
+    if (id) {
+      for (const frame of document.querySelectorAll("iframe[src]")) {
+        try {
+          const frameUrl = new URL(frame.src, location.href);
+          if (frameUrl.protocol !== "https:" || frameUrl.origin === location.origin || reportedFrameOrigins.has(frameUrl.origin)) continue;
+          reportedFrameOrigins.add(frameUrl.origin);
+          chrome.runtime.sendMessage({ type: "au-frame-origin", origin: frameUrl.origin }).catch(() => {});
+        } catch {}
+      }
+    }
     // An accessible player iframe may use a different route than the title page.
     // Report only its fraction; background associates it with the identified title.
     if (!id) {
