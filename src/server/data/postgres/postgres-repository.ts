@@ -808,16 +808,8 @@ export class PostgresRepository implements Repository {
       return;
     }
     if (anchor.episodeNumber === input.episodeNumber) return;
-    const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
-    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
-    if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
-      if (expected === observedId) return;
-      await this.db.update(schema.episodeLinks).set({ idStep: null }).where(and(
-        scope,
-        eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
-        eq(schema.episodeLinks.linkType, "anchor"),
-      ));
+
+    const saveExact = async () => {
       await this.db.insert(schema.episodeLinks).values({
         providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
         episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
@@ -825,13 +817,41 @@ export class PostgresRepository implements Repository {
         target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
         set: { externalId: input.externalId, idStep: null, linkType: "exact" },
       });
+    };
+
+    // Once one episode proves that IDs are non-linear, keep every later
+    // observation as an exact row instead of trying arithmetic again.
+    const [knownException] = await this.db.select({ episodeNumber: schema.episodeLinks.episodeNumber })
+      .from(schema.episodeLinks).where(and(scope, eq(schema.episodeLinks.linkType, "exact"))).limit(1);
+    if (knownException) {
+      await saveExact();
       return;
     }
-    if (anchor.idStep === null && Math.abs(input.episodeNumber - anchor.episodeNumber) === 1 &&
-      observedId - anchorId === input.episodeNumber - anchor.episodeNumber &&
-      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      await this.db.update(schema.episodeLinks).set({ idStep: 1 }).where(and(scope, eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber), eq(schema.episodeLinks.linkType, "anchor")));
+
+    const anchorId = /^\\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
+    const observedId = /^\\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    const numeric = Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId);
+    const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
+    if (numeric && expected === observedId) {
+      // Arithmetic is enabled only after adjacent episodes verify a +1 sequence.
+      if (anchor.idStep === null && Math.abs(input.episodeNumber - anchor.episodeNumber) === 1) {
+        await this.db.update(schema.episodeLinks).set({ idStep: 1 }).where(and(
+          scope,
+          eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
+          eq(schema.episodeLinks.linkType, "anchor"),
+        ));
+      }
+      return;
     }
+
+    // Numeric IDs that contradict the expected offset, or IDs that cannot
+    // safely be compared arithmetically, force exact per-episode storage.
+    await this.db.update(schema.episodeLinks).set({ idStep: null }).where(and(
+      scope,
+      eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
+      eq(schema.episodeLinks.linkType, "anchor"),
+    ));
+    await saveExact();
   }
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
