@@ -1,4 +1,4 @@
-// CineLoop: watch together (Netflix only, for now).
+// CineLoop: watch together on Netflix, AnimeUnity and StreamingCommunity.
 //
 // Runs on www.netflix.com after the user granted that site. While the user is
 // in a CineLoop room (they hosted friends who joined, or joined a friend), it
@@ -51,8 +51,58 @@
   let lagging = false;
   let nudging = false;
 
-  const watchId = () => /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
-  const video = () => document.querySelector("video");
+  const isAnimePlayerFrame = () =>
+    window !== window.top &&
+    location.hostname !== "www.netflix.com" &&
+    location.hostname !== "www.animeunity.so" &&
+    /^\/playlist\/\d+(?:\/|$)/i.test(location.pathname);
+  const provider = () => {
+    if (location.hostname === "www.netflix.com") return "netflix";
+    if (location.hostname === "www.animeunity.so" || isAnimePlayerFrame()) return "animeunity";
+    return "streamingcommunity";
+  };
+  let animeFrameContext = null;
+  let animeFrameContextAt = 0;
+  async function getAnimeFrameContext() {
+    if (!isAnimePlayerFrame()) return null;
+    if (animeFrameContext && Date.now() - animeFrameContextAt < 3000) return animeFrameContext;
+    animeFrameContext = await chrome.runtime.sendMessage({ type: "party-context" }).catch(() => null);
+    animeFrameContextAt = Date.now();
+    return animeFrameContext;
+  }
+  const watchId = () => {
+    if (provider() === "netflix") return /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
+    if (provider() === "animeunity") return /^\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+    const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
+    return m?.[1] ?? m?.[2] ?? null;
+  };
+  // Ignore hidden ad/stale videos: they can have a different duration and
+  // clock from the episode actually visible to the user.
+  const video = () => {
+    const candidates = [...document.querySelectorAll("video")]
+      .filter((v) => v.readyState >= 1 && Number.isFinite(v.duration) && v.duration > 0)
+      .map((v) => {
+        const rect = v.getBoundingClientRect();
+        const style = getComputedStyle(v);
+        const visible = rect.width >= 160 && rect.height >= 90 &&
+          rect.bottom > 0 && rect.right > 0 &&
+          rect.top < window.innerHeight && rect.left < window.innerWidth &&
+          style.display !== "none" && style.visibility !== "hidden" &&
+          Number(style.opacity || 1) > 0.05;
+        const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+        const playing = !v.paused && !v.ended && v.readyState >= 2;
+        return {
+          video: v,
+          score: (visible ? 1_000_000_000_000 : 0) +
+            (playing ? 10_000_000_000 : 0) +
+            (v.readyState >= 3 ? 100_000_000 : 0) +
+            Math.min(area, 5_000_000) +
+            Math.min(Math.max(0, v.currentTime || 0), 100_000),
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+    return candidates[0]?.video ?? null;
+  };
   const own = () => Date.now() > applyingUntil;
 
   // Netflix's player, through netflix-player.js in the page. Answers false when
@@ -91,9 +141,13 @@
   }
 
   async function report(action) {
-    const id = watchId();
     const v = video();
-    if (!id || !v || !alive()) return;
+    if (!v || !alive()) return;
+    // AnimeUnity's actual <video> lives on VixCloud's cross-origin playlist
+    // frame. Ask the background for the parent AnimeUnity URL; never guess an ID.
+    const frameContext = isAnimePlayerFrame() ? await getAnimeFrameContext() : null;
+    const id = frameContext?.externalId ?? watchId();
+    if (!id) return;
     const n = ++sent;
     if (action) freshFrom = n;
     const t0 = performance.now();
@@ -125,7 +179,7 @@
     heard = true;
     if (party.paused !== v.paused) {
       applyingUntil = Date.now() + 1500;
-      if (!(await netflixPlayer(party.paused ? "pause" : "play"))) {
+      if (provider() !== "netflix" || !(await netflixPlayer(party.paused ? "pause" : "play"))) {
         if (party.paused) v.pause();
         else v.play().catch(() => {});
       }
@@ -139,9 +193,16 @@
       setRate(v, 1);
       // Our own seek fires "seeked" too: it is not the user's.
       applyingUntil = Date.now() + 2500;
-      if (await netflixPlayer("seek", Math.round(target * 1000))) return;
+      if (provider() === "netflix" && await netflixPlayer("seek", Math.round(target * 1000))) return;
+      if (provider() !== "netflix") {
+        try {
+          v.currentTime = Math.max(0, target);
+          applyingUntil = Date.now() + 2500;
+          return;
+        } catch {}
+      }
       applyingUntil = 0;
-      if (Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
+      if (provider() === "netflix" && Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
     }
     if (party.paused) return setRate(v, 1);
     if (Math.abs(gap) >= NUDGE_SECONDS) setRate(v, gap > 0 ? 0.8 : 1.25);

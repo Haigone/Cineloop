@@ -9,6 +9,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -16,6 +17,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -144,6 +146,38 @@ export class PostgresRepository implements Repository {
     return rows.map((r) => toPublic(toUser(r)));
   }
 
+  async getUserByEmail(email: string) {
+    const [row] = await this.db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase()));
+    return row ? toUser(row) : null;
+  }
+
+  async setUserEmail(userId: string, email: string) {
+    const [row] = await this.db.update(schema.users).set({ email: email.toLowerCase() }).where(eq(schema.users.id, userId)).returning();
+    if (!row) throw new Error("User not found");
+    return toUser(row);
+  }
+
+  async getUserByOAuth(provider: OAuthProvider, providerUserId: string) {
+    const [row] = await this.db
+      .select({ user: schema.users })
+      .from(schema.oauthAccounts)
+      .innerJoin(schema.users, eq(schema.users.id, schema.oauthAccounts.userId))
+      .where(and(eq(schema.oauthAccounts.provider, provider), eq(schema.oauthAccounts.providerUserId, providerUserId)));
+    return row ? toUser(row.user) : null;
+  }
+
+  async linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string) {
+    await this.db
+      .insert(schema.oauthAccounts)
+      .values({ provider, providerUserId, userId })
+      .onConflictDoUpdate({ target: [schema.oauthAccounts.provider, schema.oauthAccounts.providerUserId], set: { userId } });
+  }
+
+  async listOAuthProviders(userId: string) {
+    const rows = await this.db.select({ provider: schema.oauthAccounts.provider }).from(schema.oauthAccounts).where(eq(schema.oauthAccounts.userId, userId));
+    return rows.map((r) => r.provider);
+  }
+
   // Sessions ----------------------------------------------------------------
 
   async createSession(input: { tokenHash: string; userId: string; expiresAt: Date }) {
@@ -254,6 +288,13 @@ export class PostgresRepository implements Repository {
     await this.db
       .update(schema.libraryEntries)
       .set({ askRating: false })
+      .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+  }
+
+  async setUpdates(userId: string, titleId: string, updates: TitleUpdates) {
+    await this.db
+      .update(schema.libraryEntries)
+      .set({ updates })
       .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
   }
 
@@ -625,6 +666,14 @@ export class PostgresRepository implements Repository {
     await this.db.update(schema.watchParties).set({ status }).where(eq(schema.watchParties.id, partyId));
   }
 
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+    const set: Partial<typeof schema.watchParties.$inferInsert> = {};
+    if (patch.participantIds) set.participantIds = patch.participantIds;
+    if (patch.status) set.status = patch.status;
+    if (patch.scheduledFor !== undefined) set.scheduledFor = patch.scheduledFor ? new Date(patch.scheduledFor) : null;
+    if (Object.keys(set).length) await this.db.update(schema.watchParties).set(set).where(eq(schema.watchParties.id, partyId));
+  }
+
   async listWatchParties(userId: string, limit: number) {
     const rows = await this.db
       .select()
@@ -871,6 +920,7 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     seenThrough: r.seenThrough,
     askRating: r.askRating,
     partOverrides: r.partOverrides,
+    updates: r.updates,
   };
 }
 

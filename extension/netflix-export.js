@@ -191,6 +191,27 @@ function seconds(duration) {
 }
 
 /**
+ * Netflix writes the day in the account's locale ("27/09/24", "9/27/24", "2024-09-27 21:03:11").
+ * Returns "YYYY-MM-DD" for each, or null when unreadable. For d/m vs m/d the whole file decides:
+ * a part above 12 settles it; when no row does, day first (Italian).
+ */
+export function parseDates(raws) {
+  const parts = raws.map((raw) => {
+    const iso = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(raw);
+    if (iso) return { y: +iso[1], a: +iso[2], b: +iso[3], iso: true };
+    const m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/.exec(raw);
+    return m ? { y: +m[3] < 100 ? 2000 + +m[3] : +m[3], a: +m[1], b: +m[2], iso: false } : null;
+  });
+  const monthFirst = parts.some((p) => p && !p.iso && p.b > 12 && p.a <= 12) && !parts.some((p) => p && !p.iso && p.a > 12);
+  const pad = (n) => String(n).padStart(2, "0");
+  return parts.map((p) => {
+    if (!p) return null;
+    const [mm, dd] = p.iso ? [p.a, p.b] : monthFirst ? [p.a, p.b] : [p.b, p.a];
+    return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && p.y >= 2000 && p.y <= 2100 ? `${p.y}-${pad(mm)}-${pad(dd)}` : null;
+  });
+}
+
+/**
  * The viewing history: NetflixViewingHistory.csv ("Title", "Date", from the
  * Attività di visione page) or ViewingActivity.csv (from the data export, with
  * profiles). Trailers, previews and plays under two minutes are left out.
@@ -202,6 +223,7 @@ export function readHistory(text) {
   const names = header.map((h) => h.trim().toLowerCase());
   const titleAt = names.indexOf("title");
   if (titleAt < 0 || !(names.includes("date") || names.includes("start time"))) return null;
+  const dateAt = names.includes("date") ? names.indexOf("date") : names.indexOf("start time");
   const profileAt = names.indexOf("profile name");
   const durationAt = names.indexOf("duration");
   const supplementalAt = names.indexOf("supplemental video type");
@@ -215,28 +237,44 @@ export function readHistory(text) {
       skipped += 1;
       continue;
     }
-    items.push({ profile: profileAt >= 0 ? (r[profileAt] ?? "").trim() : "", title });
+    items.push({ profile: profileAt >= 0 ? (r[profileAt] ?? "").trim() : "", title, date: (r[dateAt] ?? "").trim() });
   }
+  const dates = parseDates(items.map((i) => i.date));
+  items.forEach((item, n) => (item.date = dates[n]));
   const profiles = [...new Set(items.map((r) => r.profile))].filter(Boolean);
   return { profiles, items, skipped };
+}
+
+const MAX_DAYS = 400;
+
+/** The days, oldest first; past the cap, evenly thinned out but always keeping the first and the last. */
+function capDays(days) {
+  days.sort((a, b) => a.d.localeCompare(b.d) || (a.s ?? 0) - (b.s ?? 0));
+  if (days.length <= MAX_DAYS) return days;
+  return Array.from({ length: MAX_DAYS }, (_, n) => days[Math.round((n * (days.length - 1)) / (MAX_DAYS - 1))]);
 }
 
 /** One entry per series (with the highest season seen) or film, in the order first watched. */
 export function groupHistory(items) {
   const byKey = new Map();
-  for (const { title } of items) {
+  for (const { title, date } of items) {
     const parsed = parseHistoryTitle(title);
     // A row with no name before the colon (": Episodio 1") says nothing about what was watched.
     if (!parsed.title.trim()) continue;
     const key = `${parsed.kind}:${parsed.title.toLowerCase().replace(/\s+/g, " ")}`;
     const known = byKey.get(key);
-    if (!known) byKey.set(key, { ...parsed, rows: 1 });
-    else {
-      known.rows += 1;
-      if (parsed.season && parsed.season > (known.season ?? 0)) known.season = parsed.season;
+    const entry = known ?? { ...parsed, rows: 0, days: new Map() };
+    if (!known) byKey.set(key, entry);
+    else if (parsed.season && parsed.season > (known.season ?? 0)) known.season = parsed.season;
+    entry.rows += 1;
+    // Per day and season: how many plays (episodes) that day, and the season when the row names one.
+    if (date) {
+      const day = entry.days.get(`${date}:${parsed.season ?? 0}`) ?? { d: date, ...(parsed.season ? { s: parsed.season } : {}), n: 0 };
+      day.n += 1;
+      entry.days.set(`${date}:${parsed.season ?? 0}`, day);
     }
   }
-  return [...byKey.values()];
+  return [...byKey.values()].map(({ days, ...rest }) => ({ ...rest, watched: capDays([...days.values()]) }));
 }
 
 /**

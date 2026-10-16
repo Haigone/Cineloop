@@ -6,6 +6,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -13,6 +14,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -60,6 +62,15 @@ export interface Repository {
   /** Turns a guest into a registered account, keeping everything it saved. */
   completeRegistration(userId: string, input: { displayName: string; email: string; passwordHash: string }): Promise<User>;
   searchUsers(query: string, limit: number): Promise<PublicUser[]>;
+  /** Any account with this email, with or without a password. */
+  getUserByEmail(email: string): Promise<User | null>;
+  /** Gives a guest the email of the Google or Discord account it signed in with, so it stops being a guest. */
+  setUserEmail(userId: string, email: string): Promise<User>;
+
+  // Google / Discord sign-in
+  getUserByOAuth(provider: OAuthProvider, providerUserId: string): Promise<User | null>;
+  linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string): Promise<void>;
+  listOAuthProviders(userId: string): Promise<OAuthProvider[]>;
 
   // Sessions (token is stored hashed)
   createSession(input: { tokenHash: string; userId: string; expiresAt: Date }): Promise<void>;
@@ -81,6 +92,8 @@ export interface Repository {
   dismissRatingPrompt(userId: string, titleId: string): Promise<void>;
   /** Includes or leaves out one part of an anime franchise (or "filler"); null goes back to the default. Needs a library entry. */
   setPartOverride(userId: string, titleId: string, key: string, included: boolean | null): Promise<void>;
+  /** What the user still wants to hear about a series (Novità, release-day notification). Needs a library entry. */
+  setUpdates(userId: string, titleId: string, updates: TitleUpdates): Promise<void>;
   setRating(userId: string, titleId: string, value: RatingValue | null): Promise<void>;
   saveProgress(userId: string, progress: WatchProgress): Promise<void>;
   listWatchEvents(userId: string, since: Date): Promise<WatchEvent[]>;
@@ -127,6 +140,8 @@ export interface Repository {
   setWatchPartyPick(partyId: string, hostId: string, titleId: string): Promise<void>;
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;
   setWatchPartyStatus(partyId: string, status: WatchPartyStatus): Promise<void>;
+  /** Changes who is in a night that has not started yet, and when it starts. */
+  updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }): Promise<void>;
 
   // Serate insieme: shared progress on a series or anime
   /** The groups the user is in, newest first. */

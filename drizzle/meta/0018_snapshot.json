@@ -1,5 +1,5 @@
 {
-  "id": "66d511a0-5d81-4908-b130-cedeae439d87",
+  "id": "0141c594-60d0-47be-afb5-ecebe3a49785",
   "prevId": "2ac05c3f-9515-4969-9096-a027bd0a2a80",
   "version": "7",
   "dialect": "postgresql",
@@ -454,6 +454,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
+        },
+        "updates": {
+          "name": "updates",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'all'"
         }
       },
       "indexes": {},
@@ -944,13 +951,6 @@
         },
         "home_backgrounds": {
           "name": "home_backgrounds",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "provider_consent": {
-          "name": "provider_consent",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,

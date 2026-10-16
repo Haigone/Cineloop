@@ -6,6 +6,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -13,6 +14,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -41,6 +43,8 @@ export class MemoryRepository implements Repository {
   private users = new Map<string, User>();
   private passwords = new Map<string, string>();
   private sessions = new Map<string, { userId: string; expiresAt: Date }>();
+  /** "provider:providerUserId" → user id. */
+  private oauthAccounts = new Map<string, string>();
   private friendships: { a: string; b: string; since: string }[] = [];
   private library: LibraryEntry[] = [];
   private wishlist: WishlistItem[] = [];
@@ -201,6 +205,32 @@ export class MemoryRepository implements Repository {
       .map(toPublic);
   }
 
+  async getUserByEmail(email: string) {
+    const e = email.toLowerCase();
+    return [...this.users.values()].find((x) => x.email === e) ?? null;
+  }
+
+  async setUserEmail(userId: string, email: string) {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const updated: User = { ...user, email: email.toLowerCase() };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async getUserByOAuth(provider: OAuthProvider, providerUserId: string) {
+    const userId = this.oauthAccounts.get(`${provider}:${providerUserId}`);
+    return (userId && this.users.get(userId)) || null;
+  }
+
+  async linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string) {
+    this.oauthAccounts.set(`${provider}:${providerUserId}`, userId);
+  }
+
+  async listOAuthProviders(userId: string) {
+    return [...this.oauthAccounts].filter(([, id]) => id === userId).map(([key]) => key.split(":")[0] as OAuthProvider);
+  }
+
   // Sessions ----------------------------------------------------------------
 
   async createSession(input: { tokenHash: string; userId: string; expiresAt: Date }) {
@@ -294,6 +324,11 @@ export class MemoryRepository implements Repository {
   async dismissRatingPrompt(userId: string, titleId: string) {
     const entry = this.findEntry(userId, titleId);
     if (entry) entry.askRating = false;
+  }
+
+  async setUpdates(userId: string, titleId: string, updates: TitleUpdates) {
+    const entry = this.findEntry(userId, titleId);
+    if (entry) entry.updates = updates;
   }
 
   async setRating(userId: string, titleId: string, value: RatingValue | null) {
@@ -549,6 +584,14 @@ export class MemoryRepository implements Repository {
   async setWatchPartyStatus(partyId: string, status: WatchPartyStatus) {
     const party = this.parties.find((p) => p.id === partyId);
     if (party) party.status = status;
+  }
+
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+    const party = this.parties.find((p) => p.id === partyId);
+    if (!party) return;
+    if (patch.participantIds) party.participantIds = [...patch.participantIds];
+    if (patch.status) party.status = patch.status;
+    if (patch.scheduledFor !== undefined) party.scheduledFor = patch.scheduledFor;
   }
 
   async listWatchParties(userId: string, limit: number) {

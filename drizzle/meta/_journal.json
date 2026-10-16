@@ -131,8 +131,22 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1792146649370,
-      "tag": "0018_provider_consent",
+      "when": 1792088723516,
+      "tag": "0018_title_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792133376751,
+      "tag": "0019_oauth_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792150555628,
+      "tag": "0020_provider_consent",
       "breakpoints": true
     }
   ]

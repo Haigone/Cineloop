@@ -23,8 +23,28 @@ describe("importing the Netflix viewing history", () => {
     expect(after.some((e) => e.titleId === "dark")).toBe(true);
     // Again: nothing new, nothing changed.
     const again = await importNetflixHistory("u_elena", [{ title: "Arcane", kind: "series", season: 1, sample: "Arcane: Stagione 1: Atto I" }]);
-    expect(again).toEqual({ added: [], already: 1, notFound: [] });
+    expect(again).toEqual({ added: [], days: 0, already: 1, notFound: [] });
     expect((await repo.listLibrary("u_elena")).find((e) => e.titleId === "arcane")).toEqual(arcane);
+  });
+});
+
+describe("importing the history records when it was watched", () => {
+  it("adds one play per episode with its length, tops up on a second import, never doubles", async () => {
+    const repo = getRepository();
+    const item = (n: number) => ({
+      title: "Arcane",
+      kind: "series" as const,
+      season: 2,
+      sample: "Arcane: Stagione 2: Atto I",
+      watched: [{ d: "2024-03-01", s: 1, n }, { d: "2024-03-09", s: 2, n: 1 }],
+    });
+    const first = await importNetflixHistory("u_marco", [item(3)]);
+    expect(first.days).toBe(4);
+    expect((await importNetflixHistory("u_marco", [item(3)])).days).toBe(0);
+    expect((await importNetflixHistory("u_marco", [item(5)])).days).toBe(2);
+    const events = (await repo.listWatchEvents("u_marco", new Date(0))).filter((e) => e.watchedAt.startsWith("2024-03"));
+    expect(events).toHaveLength(6);
+    expect(events.every((e) => e.minutes > 0 && e.providerId === "netflix")).toBe(true);
   });
 });
 
@@ -36,7 +56,7 @@ describe("importing the history never duplicates a show", () => {
     await cacheTitles(repo, [{ ...arcane!, id: "tmdb-tv-94605" }]);
     await repo.setLibraryStatus("u_davide", "tmdb-tv-94605", "watching");
     const res = await importNetflixHistory("u_davide", [{ title: "Arcane", kind: "series", season: 2, sample: "Arcane: Stagione 2: Atto I" }]);
-    expect(res).toEqual({ added: [], already: 1, notFound: [] });
+    expect(res).toEqual({ added: [], days: 0, already: 1, notFound: [] });
     expect((await repo.listLibrary("u_davide")).filter((e) => e.titleId === "arcane" || e.titleId === "tmdb-tv-94605")).toHaveLength(1);
   });
 });

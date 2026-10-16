@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ExtensionNotice } from "@/components/auth/extension-notice";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { RegisterForm } from "@/components/auth/register-form";
 import { isGuest } from "@/domain/types";
 import { getOptionalUser } from "@/server/auth/current-user";
@@ -22,6 +23,8 @@ async function Register() {
   return (
     <>
       <RegisterIntro guest={Boolean(guest)} />
+      {/* A guest who picks Google or Discord keeps the same account, like with email and password. */}
+      <OAuthButtons next={guest ? "/home" : undefined} divider="oppure con email" />
       <RegisterForm guest={guest} notice={<ExtensionNotice />} />
     </>
   );

@@ -16,6 +16,8 @@ export async function shareProgress(repo: Repository, userId: string, titleId: s
   const mine = (await repo.listLibrary(userId)).find((e) => e.titleId === titleId);
   if (!mine) return;
   const others = group.memberIds.filter((id) => id !== userId);
+  // The host picks the service for the whole night: the others' "Continua a guardare" opens it too.
+  const takeService = userId === group.hostId;
   let newEpisode = false;
   for (const memberId of others) {
     const theirs = (await repo.listLibrary(memberId)).find((e) => e.titleId === titleId);
@@ -24,7 +26,7 @@ export async function shareProgress(repo: Repository, userId: string, titleId: s
     } else if (how === "seenThrough") {
       if (mine.seenThrough != null && theirs?.seenThrough !== mine.seenThrough) await repo.markSeenThrough(memberId, titleId, mine.seenThrough);
     } else if (mine.progress) {
-      const next = mirroredProgress(mine.progress, theirs?.progress ?? null, theirs?.status === "watching");
+      const next = mirroredProgress(mine.progress, theirs?.progress ?? null, theirs?.status === "watching", takeService);
       if (!next) continue;
       if (theirs?.progress?.season !== next.season || theirs?.progress?.episode !== next.episode) newEpisode = true;
       await repo.saveProgress(memberId, next);
@@ -65,7 +67,7 @@ export async function alignMembers(repo: Repository, group: SharedWatch, newcome
       for (const memberId of newcomers) {
         if (memberId === id) continue;
         const theirs = (await repo.listLibrary(memberId)).find((e) => e.titleId === group.titleId);
-        const next = mirroredProgress(entry.progress, theirs?.progress ?? null, theirs?.status === "watching");
+        const next = mirroredProgress(entry.progress, theirs?.progress ?? null, theirs?.status === "watching", id === group.hostId);
         if (next) await repo.saveProgress(memberId, next);
         await repo.removeFromWishlist(memberId, group.titleId);
       }
@@ -77,6 +79,8 @@ export async function alignMembers(repo: Repository, group: SharedWatch, newcome
 export interface SharedWatchView {
   id: string;
   title: Title;
+  /** Who organised it: they choose the service and can manage or end the night. */
+  hostId: string;
   /** Everyone in it but the viewer. */
   others: PublicUser[];
   /** "Con Luca e Sara". */
@@ -101,6 +105,7 @@ export async function listSharedWatchViews(repo: Repository, viewerId: string, t
     return [{
       id: g.id,
       title,
+      hostId: g.hostId,
       others,
       withLabel: others.length ? `Con ${joinNames(others.map((u) => firstName(u.displayName)))}` : "Solo tu, per ora",
       updatedBy: mover ? firstName(mover.displayName) : null,

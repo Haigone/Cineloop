@@ -22,6 +22,24 @@
   /** L'anime che questa pagina sta mostrando, finche' non cambia pagina. */
   let known = { watchId: null, title: "", season: null, episode: null };
   let lastSent = "";
+  let lastEpisodeKey = "";
+  let lastProgressSentAt = 0;
+  let boundVideo = null;
+  const reportedFrameOrigins = new Set();
+  const PROGRESS_SEND_INTERVAL_MS = 5_000;
+
+  function bindVideo(video) {
+    if (!video || boundVideo === video) return;
+    boundVideo = video;
+    const sendNow = () => read(true);
+    video.addEventListener("timeupdate", () => {
+      if (Date.now() - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
+    });
+    video.addEventListener("pause", sendNow);
+    video.addEventListener("ended", () => read(true, 1));
+    video.addEventListener("loadedmetadata", sendNow);
+    video.addEventListener("seeked", sendNow);
+  }
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
 
   function fromHeading() {
@@ -110,24 +128,45 @@
     return numbered ? Number(numbered[1]) : null;
   }
 
+  // Visibility matters more than playback time: ad players can keep playing
+  // while hidden behind the real AnimeUnity/VixCloud player. Position and
+  // duration must always come from the same visible video element.
+  function videoScore(v) {
+    const rect = v.getBoundingClientRect();
+    const style = getComputedStyle(v);
+    const visible = rect.width >= 160 && rect.height >= 90 &&
+      rect.bottom > 0 && rect.right > 0 &&
+      rect.top < window.innerHeight && rect.left < window.innerWidth &&
+      style.display !== "none" && style.visibility !== "hidden" &&
+      Number(style.opacity || 1) > 0.05;
+    const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+    const playing = !v.paused && !v.ended && v.readyState >= 2;
+    return (visible ? 1_000_000_000_000 : 0) +
+      (playing ? 10_000_000_000 : 0) +
+      (v.readyState >= 3 ? 100_000_000 : 0) +
+      Math.min(area, 5_000_000) +
+      Math.min(Math.max(0, v.currentTime || 0), 100_000);
+  }
+
   function findVideo(root = document, depth = 0) {
     if (depth > 2) return null;
-    let best = null;
+    const candidates = [];
     for (const v of root.querySelectorAll("video")) {
-      if (!Number.isFinite(v.duration) || v.duration <= 0) continue;
-      if (!best || v.currentTime > best.currentTime) best = v;
+      if (v.readyState < 1 || !Number.isFinite(v.duration) || v.duration <= 0) continue;
+      candidates.push({ video: v, score: videoScore(v) });
     }
     for (const frame of root.querySelectorAll("iframe")) {
       try {
         const doc = frame.contentDocument;
         if (!doc) continue;
-        const v = findVideo(doc, depth + 1);
-        if (v && (!best || v.currentTime > best.currentTime)) best = v;
+        const found = findVideo(doc, depth + 1);
+        if (found) candidates.push({ video: found, score: videoScore(found) });
       } catch {
-        // iframe di altro dominio: non leggibile, si ignora
+        // Cross-origin frames are read by their own authorized content script.
       }
     }
-    return best;
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.video ?? null;
   }
 
   function applyResume(video) {
@@ -145,10 +184,35 @@
     }
   }
 
-  function read() {
+  function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
     const id = titleIdNow();
-    if (!id) return;
+    // Detect cross-origin player frames; the popup can request their permission.
+    if (id) {
+      for (const frame of document.querySelectorAll("iframe[src]")) {
+        try {
+          const frameUrl = new URL(frame.src, location.href);
+          if (frameUrl.protocol !== "https:" || frameUrl.origin === location.origin || reportedFrameOrigins.has(frameUrl.origin)) continue;
+          reportedFrameOrigins.add(frameUrl.origin);
+          chrome.runtime.sendMessage({ type: "au-frame-origin", origin: frameUrl.origin }).catch(() => {});
+        } catch {}
+      }
+    }
+    // An accessible player iframe may use a different route than the title page.
+    // Report only its fraction; background associates it with the identified title.
+    if (!id) {
+      const frameVideo = findVideo();
+      const frameDuration = frameVideo && Number.isFinite(frameVideo.duration) && frameVideo.duration > 0 ? frameVideo.duration : null;
+      if (frameDuration) {
+        const frameProgress = Math.round(Math.min(1, Math.max(0, frameVideo.currentTime / frameDuration)) * 1000) / 1000;
+        const now = Date.now();
+        if (force || now - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) {
+          lastProgressSentAt = now;
+          try { chrome.runtime.sendMessage({ type: "player-progress", progress: forcedProgress !== null ? forcedProgress : frameProgress }).catch(() => {}); } catch {}
+        }
+      }
+      return;
+    }
     if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null };
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
@@ -167,15 +231,19 @@
     }
     const video = findVideo();
     applyResume(video);
+    bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-    const progress = duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
-    const message = { type: "player-title", ...known, progress: progress === null ? null : Math.round(progress * 1000) / 1000 };
+    const rawProgress = forcedProgress !== null ? forcedProgress : duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
+    const progress = rawProgress === null ? null : Math.round(rawProgress * 1000) / 1000;
+    const message = { type: "player-title", ...known, progress };
     const key = JSON.stringify(known);
     const now = Date.now();
-    if (key === lastSent && now - (read.progressAt ?? 0) < 15_000) return;
+    const episodeChanged = key !== lastEpisodeKey;
+    if (!force && !episodeChanged && now - lastProgressSentAt < PROGRESS_SEND_INTERVAL_MS) return;
     if (!known.title && known.episode === null && progress === null) return;
     lastSent = key;
-    read.progressAt = now;
+    lastEpisodeKey = key;
+    lastProgressSentAt = now;
     try {
       chrome.runtime.sendMessage(message).catch(() => {});
     } catch {

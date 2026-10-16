@@ -37,7 +37,8 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
 export function InProgressCard({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
   const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live } = item;
   const ep = episodeLabel(progress, "short");
-  const fraction = seriesFraction ?? progress.fraction;
+  // This card's bar represents the current episode (or film), not the whole series.
+  const fraction = progress.fraction;
   const destination = progress.providerId === "streamingcommunity"
     ? workerContinueUrl(title.id, title.title, progress.url ?? null, progress.fraction, title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes, title.type === "movie" ? null : (progress.season ?? null), title.type === "movie" ? null : (progress.episode ?? null))
     : continueUrl;

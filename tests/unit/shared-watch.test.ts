@@ -33,6 +33,14 @@ describe("mirroredProgress", () => {
     expect(mirroredProgress(at({}), at({}), false)).not.toBeNull();
   });
 
+  it("takes the host's service when the host moves", () => {
+    const next = mirroredProgress(at({ providerId: "netflix", url: "https://netflix/ep3" }), at({}), true, true)!;
+    expect(next).toMatchObject({ providerId: "netflix", url: "https://netflix/ep3", episode: 3 });
+    // Same place, other service: still worth a write for the host's choice.
+    expect(mirroredProgress(at({ providerId: "netflix" }), at({}), true, true)).not.toBeNull();
+    expect(mirroredProgress(at({ providerId: "netflix" }), at({}), true, false)).toBeNull();
+  });
+
   it("starts someone who had nothing", () => {
     expect(mirroredProgress(at({}), null, false)).toMatchObject({ season: 4, episode: 3, providerId: "prime-video" });
   });
@@ -75,6 +83,19 @@ describe("shared progress", () => {
     await repo.markFinished("u_marco", "the-boys", 4);
     await shareProgress(repo, "u_marco", "the-boys", "finished");
     expect((await entry(repo, "u_luca", "the-boys"))?.status).toBe("completed");
+  });
+
+  it("the host's service becomes everyone's, a member's stays theirs", async () => {
+    const repo = new MemoryRepository();
+    const group = (await repo.listSharedWatches("u_marco")).find((g) => g.titleId === "the-boys")!;
+    const host = group.hostId;
+    const member = group.memberIds.find((id) => id !== host)!;
+    await repo.saveProgress(host, at({ episode: 6, providerId: "netflix", url: "https://netflix/ep6", updatedAt: new Date().toISOString() }));
+    await shareProgress(repo, host, "the-boys");
+    expect((await entry(repo, member, "the-boys"))?.progress).toMatchObject({ episode: 6, providerId: "netflix", url: "https://netflix/ep6" });
+    await repo.saveProgress(member, at({ episode: 7, providerId: "prime-video", updatedAt: new Date().toISOString() }));
+    await shareProgress(repo, member, "the-boys");
+    expect((await entry(repo, host, "the-boys"))?.progress).toMatchObject({ episode: 7, providerId: "netflix" });
   });
 
   it("leaves people outside the group alone", async () => {

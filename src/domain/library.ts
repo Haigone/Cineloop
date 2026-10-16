@@ -65,6 +65,16 @@ export function airedSeasons(title: Title, today: string, overrides?: Overrides)
  * "Novità": the seasons of a series the user had finished that have come out
  * since. Only for series marked as seen up to a known season.
  */
+/** Taken out of Novità with the X ("Non mi interessa più"), a series stays out, whatever the user chose next. */
+export function wantsNovita(entry: Pick<LibraryEntry, "updates">): boolean {
+  return (entry.updates ?? "all") === "all";
+}
+
+/** "Nessun aggiornamento": also left out of what is awaited and of release-day notifications. */
+export function wantsUpdates(entry: Pick<LibraryEntry, "updates">): boolean {
+  return entry.updates !== "none";
+}
+
 export function newSeasons(entry: LibraryEntry, title: Title, today: string): SeasonSummary[] {
   if (entry.status !== "completed" || entry.seenThrough == null) return [];
   return airedSeasons(title, today, entry.partOverrides).filter((s) => s.number > entry.seenThrough!);

@@ -1,0 +1,1 @@
+ALTER TABLE "library_entries" ADD COLUMN "updates" text DEFAULT 'all' NOT NULL;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Dices, ListPlus, Play, Popcorn, RotateCcw, Target, X } from "lucide-react";
-import type { Genre, MediaType, Title, WatchPartyFilter } from "@/domain/types";
+import type { Genre, MediaType, PublicUser, Title, WatchPartyFilter } from "@/domain/types";
 import { nightCandidates, pickWinner, wheelSample, type WishlistChoice } from "@/domain/watch-party";
 import type { WatchPartyView } from "@/server/services/watch-party";
 import { cancelWatchParty, saveWatchParty } from "@/server/actions/watch-party";
@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/toast";
 import { TitleThumb } from "@/components/wishlist/title-thumb";
 import { SpinWheel, type SpinWheelHandle } from "./spin-wheel";
 import { TitleSearch, type NightTitle } from "./title-search";
+import { EditPlannedNight, RunningNights } from "./manage-night";
 
 /** A wheel cannot hold a hundred slices: it shows this many, the winner is drawn from all of them. */
 const MAX_ON_WHEEL = 20;
@@ -526,7 +527,8 @@ export function NightWizard({ view, preselected }: { view: WatchPartyView; prese
       </div>
 
       <aside className="flex flex-col gap-4 xl:sticky xl:top-[calc(var(--topbar-height)+24px)] xl:self-start">
-        {view.upcoming.length > 0 && <Upcoming items={view.upcoming} />}
+        {view.running.length > 0 && <RunningNights items={view.running} friends={view.friends.map((f) => f.user)} />}
+        {view.upcoming.length > 0 && <Upcoming items={view.upcoming} friends={view.friends.map((f) => f.user)} />}
         {view.recent.length > 0 && (
           <div className="rounded-xl border border-line bg-surface p-5">
             <h2 className="text-[15px] font-semibold">Serate recenti</h2>
@@ -646,9 +648,10 @@ function SourceGroup({
   );
 }
 
-function Upcoming({ items }: { items: WatchPartyView["upcoming"] }) {
+function Upcoming({ items, friends }: { items: WatchPartyView["upcoming"]; friends: PublicUser[] }) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState<string | null>(null);
   return (
     <div className="rounded-xl border border-violet/40 bg-surface p-5">
       <h2 className="text-[15px] font-semibold">In programma</h2>
@@ -662,6 +665,14 @@ function Upcoming({ items }: { items: WatchPartyView["upcoming"] }) {
               <span className="block text-xs text-violet">{party.status === "scheduled" && party.scheduledFor ? nightDate(party.scheduledFor) : "In coda"}</span>
               <span className="block text-xs text-fg-3">{names.length ? `Con ${names.join(", ")}` : "Da solo"}</span>
             </span>
+            {hostedByViewer && (
+              <>
+                <Button size="sm" variant="ghost" aria-label={`Gestisci la serata di ${title.title}`} onClick={() => setEditing(party.id)}>
+                  Gestisci
+                </Button>
+                <EditPlannedNight night={{ party, title, names, hostedByViewer }} friends={friends} open={editing === party.id} onClose={() => setEditing(null)} />
+              </>
+            )}
             {hostedByViewer && (
               <Button
                 size="sm"
