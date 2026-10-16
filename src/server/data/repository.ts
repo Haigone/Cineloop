@@ -6,6 +6,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -61,6 +62,15 @@ export interface Repository {
   /** Turns a guest into a registered account, keeping everything it saved. */
   completeRegistration(userId: string, input: { displayName: string; email: string; passwordHash: string }): Promise<User>;
   searchUsers(query: string, limit: number): Promise<PublicUser[]>;
+  /** Any account with this email, with or without a password. */
+  getUserByEmail(email: string): Promise<User | null>;
+  /** Gives a guest the email of the Google or Discord account it signed in with, so it stops being a guest. */
+  setUserEmail(userId: string, email: string): Promise<User>;
+
+  // Google / Discord sign-in
+  getUserByOAuth(provider: OAuthProvider, providerUserId: string): Promise<User | null>;
+  linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string): Promise<void>;
+  listOAuthProviders(userId: string): Promise<OAuthProvider[]>;
 
   // Sessions (token is stored hashed)
   createSession(input: { tokenHash: string; userId: string; expiresAt: Date }): Promise<void>;

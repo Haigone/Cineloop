@@ -46,7 +46,8 @@ export async function updateProfile(_prev: FormState, formData: FormData): Promi
 
 const passwordSchema = z
   .object({
-    current: z.string().min(1, "Inserisci la password attuale."),
+    /** Empty for an account made with Google or Discord, setting its first password. */
+    current: z.string(),
     next: z.string().min(10, "Usa almeno 10 caratteri.").max(128, "Massimo 128 caratteri."),
     confirm: z.string(),
   })
@@ -59,7 +60,10 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
   try {
     const repo = getRepository();
     const stored = await repo.getPasswordHash(viewer.id);
-    if (!stored || !(await verifyPassword(parsed.data.current, stored))) {
+    // A guest has no email to sign in with, so a password would be useless: they register instead.
+    if (!stored && viewer.email === null) return { error: "Completa prima la registrazione." };
+    if (stored && !parsed.data.current) return { fieldErrors: { current: "Inserisci la password attuale." } };
+    if (stored && !(await verifyPassword(parsed.data.current, stored))) {
       return { fieldErrors: { current: "La password attuale non è corretta." } };
     }
     await repo.updatePassword(viewer.id, await hashPassword(parsed.data.next));

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, TitleUpdates, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
+import type { ActivityKind, Genre, OAuthProvider, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, TitleUpdates, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -63,6 +63,20 @@ export const sessions = pgTable(
     expiresAt: ts("expires_at").notNull(),
   },
   (t) => [index("sessions_user_idx").on(t.userId)],
+);
+
+/** Google / Discord accounts someone signs in with; one outside account belongs to one CineLoop account. */
+export const oauthAccounts = pgTable(
+  "oauth_accounts",
+  {
+    provider: text("provider").$type<OAuthProvider>().notNull(),
+    providerUserId: text("provider_user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.providerUserId] }), index("oauth_accounts_user_idx").on(t.userId)],
 );
 
 export const libraryEntries = pgTable(

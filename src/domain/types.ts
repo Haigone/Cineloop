@@ -190,6 +190,11 @@ export function isGuest(user: Pick<User, "email">): boolean {
   return user.email === null;
 }
 
+/** Outside accounts someone can sign in with, besides email and password. */
+export type OAuthProvider = "google" | "discord";
+
+export const OAUTH_LABELS: Record<OAuthProvider, string> = { google: "Google", discord: "Discord" };
+
 /** What other users may see about someone. */
 export type PublicUser = Pick<User, "id" | "username" | "displayName" | "avatarUrl" | "bio">;
 

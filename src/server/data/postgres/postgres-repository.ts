@@ -9,6 +9,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -143,6 +144,38 @@ export class PostgresRepository implements Repository {
       .where(or(ilike(schema.users.displayName, pattern), ilike(schema.users.username, pattern)))
       .limit(limit);
     return rows.map((r) => toPublic(toUser(r)));
+  }
+
+  async getUserByEmail(email: string) {
+    const [row] = await this.db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase()));
+    return row ? toUser(row) : null;
+  }
+
+  async setUserEmail(userId: string, email: string) {
+    const [row] = await this.db.update(schema.users).set({ email: email.toLowerCase() }).where(eq(schema.users.id, userId)).returning();
+    if (!row) throw new Error("User not found");
+    return toUser(row);
+  }
+
+  async getUserByOAuth(provider: OAuthProvider, providerUserId: string) {
+    const [row] = await this.db
+      .select({ user: schema.users })
+      .from(schema.oauthAccounts)
+      .innerJoin(schema.users, eq(schema.users.id, schema.oauthAccounts.userId))
+      .where(and(eq(schema.oauthAccounts.provider, provider), eq(schema.oauthAccounts.providerUserId, providerUserId)));
+    return row ? toUser(row.user) : null;
+  }
+
+  async linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string) {
+    await this.db
+      .insert(schema.oauthAccounts)
+      .values({ provider, providerUserId, userId })
+      .onConflictDoUpdate({ target: [schema.oauthAccounts.provider, schema.oauthAccounts.providerUserId], set: { userId } });
+  }
+
+  async listOAuthProviders(userId: string) {
+    const rows = await this.db.select({ provider: schema.oauthAccounts.provider }).from(schema.oauthAccounts).where(eq(schema.oauthAccounts.userId, userId));
+    return rows.map((r) => r.provider);
   }
 
   // Sessions ----------------------------------------------------------------

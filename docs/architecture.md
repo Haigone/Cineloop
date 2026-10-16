@@ -6,7 +6,7 @@
 src/app            Route (App Router). Pagine server, nessuna logica di business.
 src/components     UI. ui/ primitive, layout/ shell, cartelle per funzionalità.
 src/server
-  auth/            Password (scrypt), sessioni su DB, utente corrente.
+  auth/            Password (scrypt), sessioni su DB, utente corrente, accesso Google/Discord (oauth.ts).
   actions/         Server Action: validano l'input (zod), chiamano il repository, refresh().
   services/        Compongono i dati per le pagine (view model).
   data/            Interfaccia Repository + implementazioni memoria e PostgreSQL.
