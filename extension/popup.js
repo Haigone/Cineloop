@@ -61,6 +61,18 @@ async function render() {
     $("sc-search-hint").textContent = `Si apre l’archivio AnimeUnity: cerca “${w.title ? w.title.title : (w.label ?? "")}” lì, perché il sito usa pagine anime con ID invece di /search?q=…`;
   }
   $("player-read").textContent = await playerReading();
+  const frameInfo = await chrome.storage.session.get(["auFrameOrigins", "auFrameTabId"]);
+  const frameOrigin = otherProvider === "animeunity" && frameInfo.auFrameTabId
+    ? (frameInfo.auFrameOrigins ?? []).slice(-1)[0]
+    : null;
+  const frameAllowed = frameOrigin
+    ? await chrome.permissions.contains({ origins: [frameOrigin + "/*"] })
+    : false;
+  show("au-frame-permission", Boolean(frameOrigin && !frameAllowed));
+  if (frameOrigin && !frameAllowed) {
+    $("au-frame-help").textContent = "Il video sembra provenire da " + new URL(frameOrigin).hostname + ". Consenti questo dominio per leggere la percentuale.";
+    $("au-frame-grant-btn").textContent = "Consenti " + new URL(frameOrigin).hostname;
+  }
   renderSeasonAsk(w);
   show("change-btn", Boolean(w.title) && !changing);
   if (!w.title || changing) renderChoices($("suggestions"), status.suggestions);
@@ -385,6 +397,18 @@ function deviceLabel() {
     (/Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Android/.test(ua) ? "Android" : /Linux/.test(ua) ? "Linux" : "computer");
   return `${brand} su ${platform}`;
 }
+
+$("au-frame-grant-btn").addEventListener("click", async () => {
+  const { auFrameOrigins = [] } = await chrome.storage.session.get("auFrameOrigins");
+  const origin = auFrameOrigins.slice(-1)[0];
+  if (!origin) return;
+  // Request host permission directly from this user click.
+  const granted = await chrome.permissions.request({ origins: [origin + "/*"] });
+  if (granted) {
+    await chrome.runtime.sendMessage({ type: "enable-au-frame", origin }).catch(() => false);
+    await render();
+  }
+});
 
 $("change-btn").addEventListener("click", async () => {
   changing = true;
