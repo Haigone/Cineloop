@@ -2,7 +2,7 @@ import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
-import { ANIMEUNITY_ACCESS_ORIGINS, AU_ORIGINS, hasAnimeAccess } from "./au.js";
+import { ANIMEUNITY_ACCESS_ORIGINS, hasAnimeAccess } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
