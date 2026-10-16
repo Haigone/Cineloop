@@ -9,8 +9,8 @@ CineLoop non riproduce contenuti, non usa le credenziali dell'utente presso i pr
 | Netflix | Rilevamento tramite estensione | "Ora in visione", libreria e tempo aggiornati dall'estensione dell'utente; link "Continua su Netflix" | Estensione CineLoop (URL e titolo della scheda); in futuro anche l'import del CSV "Attività di visione" |
 | Prime Video | Rilevamento tramite estensione (dalla 0.6.6) | Titolo, stagione, episodio e punto raggiunto letti dal player nella scheda dell'utente; "Continua" riapre la pagina del titolo | Estensione CineLoop, permesso concesso all'installazione |
 | Disney+, Apple TV+, NOW, Crunchyroll | In arrivo | Link alla homepage del servizio | Da studiare caso per caso (API ufficiali, export dei dati, partnership) |
-| Anime Unity | Disponibile tramite estensione CineLoop | Rileva titolo, episodio e frazione del video; salva il progresso e riapre la pagina al punto registrato | Permesso host opzionale, concesso dall'utente nel popup |
-| Streaming Community | Rilevamento tramite estensione | Titolo, episodio e progresso quando leggibili; salva il link della pagina osservata | Permesso host opzionale per la directory e il dominio corrente, concessi dall’utente |
+| Anime Unity | Disponibile tramite estensione CineLoop | Rileva titolo, episodio e frazione del video; salva il progresso e riapre la pagina al punto registrato | Permesso host concesso all'installazione, avviso sul sito la prima volta |
+| Streaming Community | Rilevamento tramite estensione | Titolo, episodio e progresso quando leggibili; salva il link della pagina osservata | Directory concessa all'installazione; il dominio corrente va concesso dall'utente a ogni cambio; avviso sul sito la prima volta |
 
 Anime Unity e Streaming Community sono segnati `available` per il rilevamento tramite estensione attivata esplicitamente dall'utente; il matching del titolo può comunque richiedere una conferma manuale se il nome non coincide con il catalogo.
 

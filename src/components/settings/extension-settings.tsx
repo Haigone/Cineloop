@@ -77,8 +77,9 @@ export function ExtensionSettings({ devices }: { devices: ExtensionDevice[] }) {
               riavvio va caricata di nuovo, finché non è pubblicata su addons.mozilla.org.
             </span>
             <span>
-              All’installazione il browser ti chiede una volta sola il permesso di leggere i dati su netflix.com: è l’unico che serve, non dovrai
-              autorizzare Netflix pagina per pagina.
+              All’installazione il browser ti chiede una volta sola il permesso di leggere i dati su netflix.com, primevideo.com, animeunity.so e
+              streaming-community.how: non dovrai autorizzarli pagina per pagina. AnimeUnity e StreamingCommunity sono siti non ufficiali e
+              CineLoop li legge solo dopo che hai accettato un avviso, la prima volta che li apri: puoi cambiare idea in Impostazioni.
             </span>
           </span>
         </li>

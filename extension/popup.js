@@ -225,8 +225,12 @@ async function renderProviderPermissions() {
   $("manage-netflix").disabled = netflix;
   $("manage-prime").textContent = prime ? "Attivo ✓" : "Attiva Prime Video";
   $("manage-prime").disabled = prime;
-  setButton("manage-au", anime, "AnimeUnity");
-  setButton("manage-sc", streaming, "StreamingCommunity");
+  // Like Netflix, AnimeUnity and the StreamingCommunity directory are granted at install and
+  // switched on or off from CineLoop's own settings; only a revoked grant can be asked again.
+  $("manage-au").textContent = anime ? "Attivo ✓" : "Attiva AnimeUnity";
+  $("manage-au").disabled = anime;
+  $("manage-sc").textContent = streaming ? "Attivo ✓" : "Attiva StreamingCommunity";
+  $("manage-sc").disabled = streaming;
   $("manage-sc-status").textContent = sc
     ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
     : "Disattivato. Puoi attivarlo quando vuoi.";
@@ -240,13 +244,11 @@ async function togglePermission(provider) {
     // Come Netflix: concesso all'installazione, si richiede solo se revocato.
     if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
-    if (perms.anime) await chrome.permissions.remove({ origins: AU_ORIGINS });
-    else await chrome.permissions.request({ origins: AU_ORIGINS });
+    if (!perms.anime) await chrome.permissions.request({ origins: AU_ORIGINS });
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming) {
-      const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
-      await chrome.permissions.remove({ origins });
+      // Already active; it is switched off from CineLoop's settings.
     } else if (resolved?.origin) {
       // A changed origin is detected from the watch tab. Chrome requires an
       // explicit user gesture to grant this new host before reading the player.

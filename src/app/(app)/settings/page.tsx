@@ -170,7 +170,7 @@ async function SettingsContent() {
       <Section
         id="siti-non-ufficiali"
         title="Siti non ufficiali"
-        description="L’estensione li legge solo se li attivi tu. Se spegni un sito, CineLoop ignora quello che l’estensione gli manda."
+        description="L’estensione li legge solo se li attivi tu. Il permesso del browser arriva con l’installazione; qui decidi se usarlo. Se spegni un sito, CineLoop ignora quello che l’estensione gli manda."
       >
         <ProviderConsentSwitches initial={p.providerConsent} />
       </Section>

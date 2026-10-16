@@ -30,12 +30,12 @@
     "tabs"
   ],
   "optional_host_permissions": [
-    "https://www.animeunity.so/*",
-    "https://www.streaming-community.how/*",
     "https://*/*"
   ],
   "host_permissions": [
     "https://www.netflix.com/*",
+    "https://www.animeunity.so/*",
+    "https://www.streaming-community.how/*",
     "https://www.primevideo.com/*",
     "https://www.amazon.it/gp/video/*",
     "http://127.0.0.1:32145/*"
