@@ -704,6 +704,7 @@ export class MemoryRepository implements Repository {
     if (row.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
       const expected = anchorId + input.episodeNumber - row.episodeNumber;
       if (expected === observedId) return;
+      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
       this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact" });
       return;
     }
