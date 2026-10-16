@@ -242,7 +242,8 @@ async function togglePermission(provider) {
     // Come Netflix: concesso all'installazione, si richiede solo se revocato.
     if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
-    if (!perms.anime) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+    const bundleGranted = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+    if (!bundleGranted) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming) {
@@ -278,11 +279,14 @@ function showOnly(id) {
 async function renderGrant() {
   const auBtn = $("au-grant-btn");
   auBtn.hidden = false;
-  if (await hasAnimeAccess()) {
-    auBtn.textContent = "AnimeUnity attivo ✓";
+  const animeEnabled = await hasAnimeAccess();
+  const animeBundleEnabled = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+  if (animeBundleEnabled) {
+    auBtn.textContent = "AnimeUnity e VixCloud attivi ✓";
     auBtn.disabled = true;
   } else {
-    auBtn.textContent = "Consenti su animeunity.so";
+    auBtn.textContent = animeEnabled ? "Abilita anche il player VixCloud" : "Consenti AnimeUnity e VixCloud";
+    auBtn.disabled = false;
     auBtn.onclick = async () => {
       if (await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS })) await renderGrant();
     };
