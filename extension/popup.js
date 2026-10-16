@@ -37,6 +37,11 @@ async function render() {
   const w = status?.watching ?? null;
   show("paused-card", paused);
   show("idle", !paused && !w);
+  const consent = status?.consent ?? null;
+  show("consent", Boolean(consent));
+  if (consent) {
+    $("consent-text").textContent = `Prima di leggere ${consent === "animeunity" ? "AnimeUnity" : "StreamingCommunity"}, CineLoop ti chiede una conferma: la trovi sul sito, la prima volta.`;
+  }
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
   const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
@@ -433,6 +438,8 @@ $("open-btn").addEventListener("click", async () => {
   const { server } = await getSettings();
   if (server) chrome.tabs.create({ url: `${server}/home` });
 });
+
+$("consent-open").addEventListener("click", () => $("open-btn").click());
 
 $("unpair-btn").addEventListener("click", async () => {
   await api("/api/extension/presence", { method: "DELETE" }).catch(() => {});

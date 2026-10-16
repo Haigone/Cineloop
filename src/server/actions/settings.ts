@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { PROVIDERS } from "@/domain/providers";
-import { sectionOf, type ProviderId } from "@/domain/types";
+import { CONSENT_PROVIDERS, sectionOf, type ProviderId } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { currentSessionHash } from "@/server/auth/session";
@@ -89,6 +89,27 @@ const preferencesPatch = z
   .strict();
 
 export type PreferencesPatch = z.infer<typeof preferencesPatch>;
+
+const consentInput = z.object({ provider: z.enum(CONSENT_PROVIDERS), accepted: z.boolean() }).strict();
+
+/** The answer to the notice before CineLoop reads AnimeUnity / StreamingCommunity; also its switch in Impostazioni. */
+export async function setProviderConsent(input: z.infer<typeof consentInput>): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  const parsed = consentInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Scelta non valida." };
+  try {
+    const repo = getRepository();
+    const prefs = await repo.getPreferences(viewer.id);
+    await repo.updatePreferences(viewer.id, {
+      providerConsent: { ...prefs.providerConsent, [parsed.data.provider]: parsed.data.accepted ? "accepted" : "declined" },
+    });
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("setProviderConsent failed", err);
+    return { ok: false, error: "Non siamo riusciti a salvare la scelta. Riprova." };
+  }
+}
 
 export async function updatePreferences(patch: PreferencesPatch): Promise<ActionResult> {
   const viewer = await getCurrentUser();

@@ -310,6 +310,7 @@ export function buildSeed(now: Date = new Date()): SeedSnapshot {
     subscriptions: u.id === "u_marco" ? ["netflix", "prime-video", "disney-plus", "crunchyroll"] : [],
     homeCategory: "series",
     homeBackgrounds: {},
+    providerConsent: {},
   }));
 
   return { users, friendships, library, wishlist, watchEvents, activity, notifications, preferences };

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConsentPrompt } from "@/components/consent/consent-prompt";
 import { ExtensionBanner } from "@/components/layout/extension-banner";
 import { GuestBanner } from "@/components/layout/guest-banner";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -57,6 +58,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         </main>
       </div>
       <MobileNav />
+      <Suspense>
+        <ConsentPrompt />
+      </Suspense>
     </div>
   );
 }

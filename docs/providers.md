@@ -95,6 +95,10 @@ L'estensione ha un permesso opzionale per `https://www.streaming-community.how/*
 - L'URL esatto osservato viene salvato come collegamento per “Continua”. Se il player è cross-origin o il sito cambia struttura, la posizione e/o l'episodio potrebbero non essere disponibili.
 - Se il nome letto non corrisponde al catalogo CineLoop, il popup chiede di confermare il titolo una volta; l'abbinamento viene riutilizzato nelle osservazioni successive.
 
+### Avviso sul sito prima di leggere AnimeUnity e StreamingCommunity (16 ottobre 2026, richiesta di Riccardo)
+
+Sono siti non ufficiali, senza licenza sui contenuti. La prima volta che l'estensione ne incontra uno, il server **non registra nulla** e segna la scelta come "in attesa" (`preferences.provider_consent`, migrazione 0018); alla visita successiva CineLoop mostra una finestra di avviso ("Attivare AnimeUnity?") con "Attiva" o "No, grazie". Finché non è "accettato" le osservazioni di quel sito vengono scartate (`handleObservation`), e il pannello dell'estensione rimanda al sito. La scelta si cambia da Impostazioni > Siti non ufficiali. Netflix e Prime Video non hanno l'avviso. Il permesso del browser resta una cosa a parte: lo chiede il browser, non il sito.
+
 ## Cosa CineLoop non farà, per nessun provider
 
 - Bypass DRM o di qualsiasi protezione dei contenuti.

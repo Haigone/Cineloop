@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "provider_consent" jsonb DEFAULT '{}'::jsonb NOT NULL;

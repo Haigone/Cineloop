@@ -1,7 +1,7 @@
 import "server-only";
 import { applyReport, driftBetween, hostPosition, IN_SYNC_SECONDS, roomPosition, watchAt, type PlaybackReport } from "@/domain/party";
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
-import type { Presence, PublicUser, Title } from "@/domain/types";
+import { CONSENT_PROVIDERS, isConsentProvider, type ConsentProvider, type Presence, type PublicUser, type Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
@@ -36,6 +36,8 @@ export interface ExtensionStatus {
     /** The host, when the user joined a friend from CineLoop and is on the same title. */
     with: string[];
   };
+  /** A service waiting for the user to answer its notice on the site; the popup points there. */
+  consent: ConsentProvider | null;
   /** Shortcuts for confirming an unrecognised title: what the user is watching or planned. */
   suggestions: { id: string; title: string; year: number }[];
   /** The user's list for the popup: in progress first (with the episode), then the wishlist. */
@@ -48,6 +50,17 @@ const brief = (t: Title) => ({ id: t.id, title: t.title, year: t.year });
 
 export async function handleObservation(userId: string, obs: SyncObservation): Promise<ExtensionStatus> {
   const repo = getRepository();
+  // Unlicensed streaming sites are read only after the user accepted the notice on the site.
+  // The first sighting makes the notice appear; nothing from the page is kept meanwhile.
+  if (isConsentProvider(obs.providerId)) {
+    const prefs = await repo.getPreferences(userId);
+    const answer = prefs.providerConsent[obs.providerId];
+    if (answer !== "accepted") {
+      if (!answer) await repo.updatePreferences(userId, { providerConsent: { ...prefs.providerConsent, [obs.providerId]: "pending" } });
+      await endPresence(userId);
+      return getExtensionStatus(userId);
+    }
+  }
   const content = await getAdapter(obs.providerId).getCurrentContent({ userId, latestObservation: obs });
   if (!content?.externalId || !content.url) {
     await endPresence(userId);
@@ -197,6 +210,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
   return {
     user: { displayName: user.displayName, username: user.username },
     watching,
+    consent: CONSENT_PROVIDERS.find((id) => prefs.providerConsent[id] === "pending") ?? null,
     suggestions: candidateIds.map((id) => titles.get(id)).filter((t): t is Title => Boolean(t)).map(brief),
     list: listEntries.flatMap((e) => {
       const t = titles.get(e.id);
