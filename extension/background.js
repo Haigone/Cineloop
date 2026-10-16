@@ -159,11 +159,18 @@ async function enableScFrameOrigin(origin) {
 /** Su animeunity.so fa girare au-page.js: titolo, episodio e avanzamento del video. */
 async function enableAnimePage() {
   if (!(await hasAnimeAccess())) return;
-  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
-  if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
-  await chrome.scripting.registerContentScripts([
-    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
-  ]);
+  // Firefox can reject dynamic registrations on some versions/installation
+  // states. Keep registration for future tabs, but never let that prevent the
+  // direct injection fallback for AnimeUnity tabs that are already open.
+  try {
+    const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
+    if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
+    await chrome.scripting.registerContentScripts([
+      { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
+    ]);
+  } catch {
+    // Explicit injection below also covers Firefox builds where registration fails.
+  }
   const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
   for (const tab of animeTabs) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
@@ -221,6 +228,18 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   if (change.url || change.title || "audible" in change) {
     remember(tab);
     if (change.url || change.title) tick();
+  }
+  // Reliable Firefox fallback: inject after AnimeUnity finishes loading, even
+  // if the dynamic content-script registration was rejected or not persisted.
+  if (change.status === "complete" && isAnimeUrl(tab.url)) {
+    hasAnimeAccess().then((allowed) => {
+      if (allowed) {
+        chrome.scripting.executeScript({
+          target: { tabId, allFrames: true },
+          files: ["compat.js", "au-page.js", "party-sync.js"],
+        }).catch(() => {});
+      }
+    }).catch(() => {});
   }
 });
 chrome.tabs.onRemoved.addListener(() => tick());
