@@ -337,9 +337,11 @@ async function partyContext(tab) {
   if (!isAnimeUrl(url) || !auWatchId(url)) return null;
   const { tabs = {} } = await chrome.storage.session.get("tabs");
   const player = tabs[tab.id]?.player ?? null;
+  const canonicalUrl = new URL(url);
+  canonicalUrl.searchParams.delete("cineloopResume");
   return {
     providerId: "animeunity",
-    externalId: url,
+    externalId: canonicalUrl.toString(),
     title: player?.title ?? tab.title ?? "",
     season: player?.season ?? null,
     episode: player?.episode ?? null,
