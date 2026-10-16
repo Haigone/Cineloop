@@ -5,9 +5,24 @@ import { reportPlayback } from "@/server/services/sync";
 
 export const OPTIONS = preflight;
 
+function validExternalId(value: string): boolean {
+  if (/^\d{1,12}$/.test(value)) return true;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "https:" &&
+      (host === "animeunity.so" || host.endsWith(".animeunity.so")) &&
+      !url.username && !url.password &&
+      /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
 const report = z
   .object({
-    externalId: z.string().regex(/^\d{1,12}$/),
+    // Netflix/SC use numeric IDs. AnimeUnity's canonical episode identity is its URL.
+    externalId: z.string().max(2048).refine(validExternalId),
     position: z.number().min(0).max(24 * 3600),
     paused: z.boolean(),
     action: z.enum(["play", "pause", "seek"]).optional(),

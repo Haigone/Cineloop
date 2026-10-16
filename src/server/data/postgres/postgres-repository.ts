@@ -771,6 +771,69 @@ export class PostgresRepository implements Repository {
     return null;
   }
 
+  async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
+    const scope = and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+      eq(schema.episodeLinks.episodeNumber, input.episodeNumber),
+    );
+    const [exact] = await this.db.select().from(schema.episodeLinks).where(scope).limit(1);
+    if (exact && (exact.linkType === "exact" || exact.episodeNumber === input.episodeNumber && exact.linkType === "anchor")) return exact.externalId;
+    const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+      eq(schema.episodeLinks.linkType, "anchor"),
+    )).limit(1);
+    if (!anchor || anchor.idStep !== 1 || !/^\d+$/.test(anchor.externalId)) return null;
+    const id = Number(anchor.externalId) + (input.episodeNumber - anchor.episodeNumber);
+    return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  }
+
+  async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    const scope = and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+    );
+    const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(scope, eq(schema.episodeLinks.linkType, "anchor"))).limit(1);
+    if (!anchor) {
+      await this.db.insert(schema.episodeLinks).values({
+        providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
+        episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor",
+      }).onConflictDoNothing();
+      return;
+    }
+    if (anchor.episodeNumber === input.episodeNumber) return;
+    const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
+    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
+      if (expected === observedId) return;
+      await this.db.update(schema.episodeLinks).set({ idStep: null }).where(and(
+        scope,
+        eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
+        eq(schema.episodeLinks.linkType, "anchor"),
+      ));
+      await this.db.insert(schema.episodeLinks).values({
+        providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
+        episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
+      }).onConflictDoUpdate({
+        target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
+        set: { externalId: input.externalId, idStep: null, linkType: "exact" },
+      });
+      return;
+    }
+    if (anchor.idStep === null && Math.abs(input.episodeNumber - anchor.episodeNumber) === 1 &&
+      observedId - anchorId === input.episodeNumber - anchor.episodeNumber &&
+      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      await this.db.update(schema.episodeLinks).set({ idStep: 1 }).where(and(scope, eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber), eq(schema.episodeLinks.linkType, "anchor")));
+    }
+  }
+
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
     await this.db
       .insert(schema.providerTitleLinks)

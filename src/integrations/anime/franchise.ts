@@ -30,6 +30,57 @@ export function kindOf(e: AnimeEntry): Kind {
 }
 
 const RECAP = /recap|summary|digest|総集編|compilation/i;
+const ALTERNATIVE_RELATIONS = new Set(["remake", "remake of", "alternative version", "alternative version of"]);
+const ALTERNATIVE_TITLE_SUFFIX = /\s+(?:director s cut|directors cut|director cut|extended edition|special edition|remastered edition|remastered|recut|kai)$/;
+
+/** A known alternate-cut suffix removed from a normalized title, or null for ordinary titles. */
+function alternativeTitleBase(name: string): string | null {
+  const normalized = name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const base = normalized.replace(ALTERNATIVE_TITLE_SUFFIX, "").trim();
+  return base && base !== normalized ? base : null;
+}
+
+/**
+ * Map an alternate cut to the earlier season it reworks. ANN relations are preferred,
+ * but not every entry has them (notably some Director's Cuts), so known title suffixes
+ * provide a conservative fallback when they exactly match an earlier season's title.
+ */
+function alternativeSeasonBases(entries: readonly AnimeEntry[]): Map<string, string> {
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const bases = new Map<string, string>();
+  for (const entry of entries) {
+    for (const relation of entry.related) {
+      if (!ALTERNATIVE_RELATIONS.has(relation.rel)) continue;
+      const other = byId.get(relation.id);
+      if (!other || other.id === entry.id || kindOf(other) !== "season" || kindOf(entry) !== "season") continue;
+      const entryDate = orderKey(entry);
+      const otherDate = orderKey(other);
+      const entryIsLater = entryDate !== otherDate
+        ? entryDate.localeCompare(otherDate) > 0
+        : /(?:remake|alternative version) of/.test(relation.rel);
+      const alternate = entryIsLater ? entry : other;
+      const original = entryIsLater ? other : entry;
+      if (!bases.has(alternate.id)) bases.set(alternate.id, original.id);
+    }
+  }
+
+  // Some ANN records omit the relation entirely. Only infer an alternate when a recognized
+  // suffix is removed and the remaining title exactly matches an earlier TV/ONA season.
+  for (const entry of entries) {
+    if (bases.has(entry.id) || kindOf(entry) !== "season") continue;
+    const baseName = alternativeTitleBase(entry.name);
+    if (!baseName) continue;
+    const original = entries
+      .filter((other) => other.id !== entry.id && kindOf(other) === "season"
+        && other.start && entry.start && orderKey(other) < orderKey(entry))
+      .find((other) => {
+        const normalized = other.name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+        return normalized === baseName;
+      });
+    if (original) bases.set(entry.id, original.id);
+  }
+  return bases;
+}
 
 const GENRES: Record<string, Genre> = {
   action: "Azione",
@@ -108,7 +159,9 @@ export const withinEntry = (n: number, offset: number) => (offset > 0 && n > off
 export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: FillerList): Promise<Franchise | null> {
   const sorted = [...entries.values()].sort((a, b) => orderKey(a).localeCompare(orderKey(b)) || Number(a.id) - Number(b.id));
   const seasonEntries = sorted.filter((e) => kindOf(e) === "season");
-  const root = seasonEntries[0];
+  const alternativeBases = alternativeSeasonBases(sorted);
+  const canonicalSeasons = seasonEntries.filter((e) => !alternativeBases.has(e.id));
+  const root = canonicalSeasons[0] ?? seasonEntries[0];
   if (!root) return null;
 
   const recapped = new Set(
@@ -117,7 +170,7 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
   const fillerBy = new Map<string, WatchPart["quickList"]>();
   // Entries that share a name share one Filler List page (Black Clover's two ANN entries): its numbers belong to the first.
   const firstOfName = new Set<string>();
-  const fillerCandidates = seasonEntries.filter((e) => {
+  const fillerCandidates = canonicalSeasons.filter((e) => {
     const key = e.name.toLowerCase();
     if (firstOfName.has(key)) return false;
     firstOfName.add(key);
@@ -133,6 +186,13 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
   );
 
   let season = 0;
+  const seasonNumberById = new Map<string, number>();
+  for (const e of seasonEntries) {
+    const baseId = alternativeBases.get(e.id);
+    const number = baseId ? seasonNumberById.get(baseId) : undefined;
+    if (number !== undefined) seasonNumberById.set(e.id, number);
+    else seasonNumberById.set(e.id, ++season);
+  }
   const parts: WatchPart[] = sorted.map((e) => {
     const kind = kindOf(e);
     const recap = kind !== "season" && (recapped.has(e.id) || RECAP.test(e.name));
@@ -145,7 +205,7 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
       canon: recap ? false : null,
     };
     if (kind === "season") {
-      part.season = ++season;
+      part.season = seasonNumberById.get(e.id)!;
       const quick = fillerBy.get(e.id);
       if (quick) {
         part.quickList = quick;
@@ -156,17 +216,18 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
     return part;
   });
 
-  const seasons: SeasonSummary[] = parts
-    .filter((p) => p.kind === "season")
-    .map((p) => {
-      const e = entries.get(p.key.slice(4))!;
-      return {
-        number: p.season!,
-        episodeCount: withinEntry(e.episodes ?? 0, runOffset(entries, e)),
-        ...(p.name !== root.name ? { name: p.name } : {}),
-        ...(e.start && e.start.length === 10 ? { airDate: e.start } : {}),
-      };
-    });
+  const seasons: SeasonSummary[] = canonicalSeasons.map((base) => {
+    const number = seasonNumberById.get(base.id)!;
+    const representative = seasonEntries
+      .filter((e) => (alternativeBases.get(e.id) ?? e.id) === base.id)
+      .at(-1) ?? base;
+    return {
+      number,
+      episodeCount: withinEntry(representative.episodes ?? 0, runOffset(entries, representative)),
+      ...(base.name !== root.name ? { name: base.name } : {}),
+      ...(base.start && base.start.length === 10 ? { airDate: base.start } : {}),
+    };
+  });
 
   const genres = [...new Set(["Animazione" as Genre, ...root.genres.map((g) => GENRES[g]).filter((g): g is Genre => Boolean(g))])];
   const title: Series = {

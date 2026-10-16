@@ -20,10 +20,14 @@ export interface HistoryItem {
   season?: number;
   /** The row as Netflix wrote it, for the error log. */
   sample: string;
+  /** Days it was watched, as the history dates them (one per day and season). */
+  watched?: { d: string; s?: number; n?: number }[];
 }
 
 export interface HistoryResult {
   added: string[];
+  /** Plays recorded (episodes and films with a date, for new and already-owned titles). */
+  days: number;
   /** Already in the library: left as they are. */
   already: number;
   notFound: { title: string; sample: string }[];
@@ -43,8 +47,17 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const have = new Set(library.map((e) => e.titleId));
   // The same show can sit in the library under another catalogue id (seed, TMDB, ANN): match by name too.
   const names = await ownedNames([...have]);
+  // nameKey → the id the user owns it under, so dates land on the library's own entry.
+  const ownedId = new Map((await getRepository().getTitlesByIds([...have])).map((t) => [nameKey(t), t.id]));
   const wished = new Set(wishlist.map((w) => w.titleId));
-  const result: HistoryResult = { added: [], already: 0, notFound: [] };
+  const result: HistoryResult = { added: [], days: 0, already: 0, notFound: [] };
+  // Plays already on record per title, day and season, so a second import only tops up what is missing.
+  const seen = new Map<string, number>();
+  const keyOf = (titleId: string, day: string, season: number | null) => `${titleId}|${day}|${season ?? 0}`;
+  for (const e of await repo.listWatchEvents(userId, new Date(0))) {
+    const k = keyOf(e.titleId, e.watchedAt.slice(0, 10), e.season);
+    seen.set(k, (seen.get(k) ?? 0) + 1);
+  }
 
   // An anime found under its TMDB id is filed under its franchise card, as the title page does, so the same show is there once.
   const found = await matchWithin(items, (item) => match(item).then((t) => t && asFranchise(t)), budgetMs);
@@ -55,18 +68,41 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     const item = items[i]!;
     if (!title) {
       result.notFound.push({ title: item.title, sample: item.sample });
-    } else if (have.has(title.id) || names.has(nameKey(title))) {
-      result.already += 1;
-    } else {
+      continue;
+    }
+    // The title in the library may sit under another id: dates go to the one the user owns.
+    const owned = have.has(title.id) || names.has(nameKey(title));
+    if (owned) result.already += 1;
+    else {
       if (title.type === "movie") await repo.setLibraryStatus(userId, title.id, "completed");
       else await repo.markSeenThrough(userId, title.id, Math.max(1, item.season ?? 1));
       if (wished.has(title.id)) await repo.removeFromWishlist(userId, title.id);
       have.add(title.id);
+      ownedId.set(nameKey(title), title.id);
       names.add(nameKey(title));
       result.added.push(title.title);
     }
+    if (!item.watched?.length) continue;
+    const target = have.has(title.id) ? title.id : (ownedId.get(nameKey(title)) ?? title.id);
+    const minutes = playMinutes(title);
+    for (const w of item.watched) {
+      const k = keyOf(target, w.d, w.s ?? null);
+      const missing = (w.n ?? 1) - (seen.get(k) ?? 0);
+      if (missing <= 0) continue;
+      seen.set(k, (seen.get(k) ?? 0) + missing);
+      for (let n = 0; n < missing; n++) {
+        await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes, season: w.s ?? null, episode: null, providerId: "netflix" });
+        result.days += 1;
+      }
+    }
   }
   return result;
+}
+
+/** One play's length: the film's runtime or the series' episode length, with a guess when the catalogue has none. */
+export function playMinutes(title: Title): number {
+  const known = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
+  return known > 0 ? known : title.type === "movie" ? 100 : 40;
 }
 
 async function byName(name: string, series: boolean): Promise<Title | null> {
@@ -85,7 +121,7 @@ export function withoutRepeats(name: string): string {
   return parts.filter((p, n) => n === 0 || searchKey(p) !== searchKey(parts[n - 1]!)).join(": ");
 }
 
-async function match(raw: HistoryItem): Promise<Title | null> {
+export async function match(raw: HistoryItem): Promise<Title | null> {
   const item = { ...raw, title: withoutRepeats(raw.title), sample: withoutRepeats(raw.sample) };
   if (item.kind === "series") return (await byName(item.title, true)) ?? byName(item.title, false);
   if (item.kind === "film") return byName(item.title, false);

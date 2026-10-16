@@ -2,6 +2,7 @@ import type { ProviderId } from "@/domain/types";
 import { AnimeUnityAdapter } from "./adapters/anime-unity";
 import { HomepageAdapter } from "./adapters/homepage";
 import { NetflixAdapter } from "./adapters/netflix";
+import { PrimeVideoAdapter } from "./adapters/prime-video";
 import { StreamingCommunityAdapter } from "./adapters/streaming-community";
 import type { Content, ProviderAdapter } from "./types";
 
@@ -11,7 +12,7 @@ import type { Content, ProviderAdapter } from "./types";
  */
 const ADAPTERS: Record<ProviderId, ProviderAdapter> = {
   netflix: new NetflixAdapter(),
-  "prime-video": new HomepageAdapter("prime-video"),
+  "prime-video": new PrimeVideoAdapter(),
   "disney-plus": new HomepageAdapter("disney-plus"),
   "apple-tv": new HomepageAdapter("apple-tv"),
   now: new HomepageAdapter("now"),

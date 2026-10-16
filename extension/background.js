@@ -1,16 +1,18 @@
 import "./compat.js";
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
-import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
-import { auWatchId, hasAnimeAccess, isAnimeUrl } from "./au.js";
+import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId, SC_VIXCLOUD_ORIGINS } from "./sc.js";
+import { auWatchId, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
+import { hasPrimeAccess, isPrimeUrl, PRIME_ORIGINS } from "./prime.js";
 
 /*
  * CineLoop background worker.
  *
- * Mentre e' aperta una scheda di riproduzione di Netflix o di
+ * Mentre e' aperta una scheda di riproduzione di Netflix, Prime Video o
  * StreamingCommunity, manda un heartbeat a CineLoop una volta al minuto con
  * l'URL e il titolo di quella scheda, piu' cio' che sta riproducendo il
- * player (serie, stagione, episodio), letto da player-title.js / sc-page.js.
+ * player (serie, stagione, episodio), letto da player-title.js, prime-page.js
+ * o sc-page.js.
  * Legge solo questo: niente cookie, niente altro contenuto delle pagine,
  * nessun altro sito. StreamingCommunity cambia dominio di continuo: il link
  * aggiornato viene letto dal pulsante "StreamingCommunity" di
@@ -25,6 +27,7 @@ const SILENT_LIMIT_MS = 10 * 60 * 1000;
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
   enablePlayerTitle();
+  enablePrimeTabs();
   enableAnimePage();
   enableScPage();
   rememberOpenTabs();
@@ -94,6 +97,18 @@ async function enablePlayerTitle() {
 }
 
 /**
+ * prime-page.js e' dichiarato nel manifest e parte da solo sulle pagine nuove;
+ * le schede di Prime Video gia' aperte quando l'estensione viene installata o
+ * aggiornata lo ricevono qui.
+ */
+async function enablePrimeTabs() {
+  if (!(await hasPrimeAccess())) return;
+  for (const tab of await chrome.tabs.query({ url: PRIME_ORIGINS })) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "prime-page.js"] }).catch(() => {});
+  }
+}
+
+/**
  * Sul dominio StreamingCommunity risolto fa girare sc-page.js, che legge
  * serie, stagione, episodio e avanzamento del video.
  */
@@ -105,11 +120,40 @@ async function enableScPage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
   ]);
   for (const tab of await chrome.tabs.query({ url: match })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "sc-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {});
   }
+  // The actual video is often cross-origin in a VixCloud iframe. Register the
+  // same lightweight progress reader on supported VixCloud hosts under the
+  // StreamingCommunity permission bundle, without a second consent prompt.
+  for (const pattern of SC_VIXCLOUD_ORIGINS) {
+    await enableScFrameOrigin(pattern.replace(/\/\*$/, ""));
+  }
+}
+
+/** Inject progress tracking into VixCloud frames embedded by StreamingCommunity. */
+async function enableScFrameOrigin(origin) {
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.hostname === "www.streaming-community.how") return false;
+  if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
+  const id = "sc-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
+  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+  await chrome.scripting.registerContentScripts([{
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "sc-page.js", "party-sync.js"],
+    allFrames: true, runAt: "document_idle", persistAcrossSessions: true,
+  }]);
+  const resolved = await getResolved();
+  if (resolved?.origin) {
+    const tabs = await chrome.tabs.query({ url: `${resolved.origin}/*` }).catch(() => []);
+    await Promise.all(tabs.filter((tab) => tab.id).map((tab) =>
+      chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {})
+    ));
+  }
+  return true;
 }
 
 /** Su animeunity.so fa girare au-page.js: titolo, episodio e avanzamento del video. */
@@ -118,11 +162,57 @@ async function enableAnimePage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
   ]);
-  for (const tab of await chrome.tabs.query({ url: "https://www.animeunity.so/*" })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js"] }).catch(() => {});
+  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
+  for (const tab of animeTabs) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
+  // Register each supported VixCloud host under the same AnimeUnity permission
+  // grant and inject into currently open embedded players without another prompt.
+  for (const pattern of VIXCLOUD_ORIGINS) {
+    const origin = pattern.replace(/\/\*$/, "");
+    await enableAnimeFrameOrigin(origin);
+  }
+}
+
+
+/** Store HTTPS iframe origins discovered from an authorized AnimeUnity tab. */
+async function rememberAnimeFrameOrigin(tabId, senderUrl, origin) {
+  if (!isAnimeUrl(senderUrl)) return;
+  let parsed;
+  try { parsed = new URL(origin); } catch { return; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return;
+  const { auFrameOrigins = [] } = await chrome.storage.session.get("auFrameOrigins");
+  await chrome.storage.session.set({
+    auFrameOrigins: [...new Set([...auFrameOrigins, parsed.origin])].slice(-10),
+    auFrameTabId: tabId,
+  });
+}
+
+/** Inject the reader into the video iframe after the user grants its host. */
+async function enableAnimeFrameOrigin(origin) {
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return false;
+  if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
+  const id = "au-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
+  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+  await chrome.scripting.registerContentScripts([{
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true,
+    runAt: "document_idle", persistAcrossSessions: true,
+  }]);
+  // Inject into every currently open AnimeUnity tab. A single remembered tab ID
+  // caused the last opened tab to steal progress/watch-party updates from others.
+  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
+  await Promise.all(animeTabs.filter((tab) => tab.id).map((tab) =>
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ["compat.js", "au-page.js", "party-sync.js"],
+    }).catch(() => {})
+  ));
+  return true;
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
@@ -156,8 +246,28 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     manualProgress(message).then((ok) => reply(ok), () => reply(false));
     return true;
   }
+  if (message?.type === "au-frame-origin" && sender.tab?.id && typeof message.origin === "string") {
+    rememberAnimeFrameOrigin(sender.tab.id, sender.url, message.origin).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "enable-au-frame" && typeof message.origin === "string") {
+    enableAnimeFrameOrigin(message.origin).then(reply, () => reply(false));
+    return true;
+  }
   if (message?.type === "player-title" && sender.tab?.id) {
     playerTitle(sender.tab.id, message).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "prime-player" && sender.tab?.id) {
+    primePlayer(sender.tab.id, message).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "player-progress" && sender.tab?.id && typeof message.progress === "number" && Number.isFinite(message.progress) && message.progress >= 0 && message.progress <= 1) {
+    frameProgress(sender.tab.id, message.progress).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "party-context" && sender.tab?.id) {
+    partyContext(sender.tab).then(reply, () => reply(null));
     return true;
   }
   if (message?.type === "party-report" && sender.tab?.id) {
@@ -194,11 +304,12 @@ async function remember(tab) {
   if (!tab?.id || !tab.url) return;
   const onNetflix = Boolean(watchId(tab.url) || browseId(tab.url));
   const onAnime = isAnimeUrl(tab.url);
+  const onPrime = isPrimeUrl(tab.url);
   // If the user opened a watch URL on a new SC hostname, remember that origin.
   // Content access still waits for the browser permission prompt.
   const observedOrigin = await rememberObservedStreamingUrl(tab.url);
   const onStreaming = Boolean(observedOrigin) || await isStreamingUrl(tab.url);
-  if (!onNetflix && !onAnime && !onStreaming) return;
+  if (!onNetflix && !onAnime && !onPrime && !onStreaming) return;
   await updateTab(tab.id, (entry) => {
     if (onNetflix && !watchId(tab.url)) entry.parentId = browseId(tab.url);
     if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
@@ -211,18 +322,60 @@ async function playerTitle(tabId, m) {
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
   const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
-  const changed = await updateTab(tabId, (entry) => {
+  const now = Date.now();
+  const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null;
+  const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    const freshFrameProgress = entry.frameProgress && now - entry.frameProgress.at < 15_000
+      ? entry.frameProgress.progress
+      : null;
+    const effectiveProgress = progress ?? freshFrameProgress ?? was?.progress ?? null;
+    const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    const progressChanged = effectiveProgress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - effectiveProgress) >= 0.02);
+    const flush = identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
       season,
       episode,
       episodeId,
+      progress: effectiveProgress,
+      at: now,
+      lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
+    };
+    return flush;
+  });
+  if (shouldFlush) await tick();
+}
+
+/**
+ * Il player di Prime Video, aperto o chiuso, come lo vede prime-page.js. Il
+ * player non ha un indirizzo suo: l'id e' quello della pagina del titolo
+ * oppure, se manca, il nome letto nel player.
+ */
+async function primePlayer(tabId, m) {
+  const open = m.open === true && typeof m.watchId === "string" && m.watchId.length <= 240 && typeof m.title === "string";
+  const changed = await updateTab(tabId, (entry) => {
+    const was = entry.prime ? entry.player : null;
+    if (!open) {
+      entry.prime = null;
+      return Boolean(was);
+    }
+    const season = Number.isInteger(m.season) ? m.season : null;
+    const episode = Number.isInteger(m.episode) ? m.episode : null;
+    entry.prime = { at: Date.now() };
+    entry.player = {
+      watchId: m.watchId,
+      title: m.title.slice(0, 200),
+      season,
+      episode,
+      episodeId: null,
       progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
       at: Date.now(),
     };
-    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    // Il video che va conta come audio per la pausa lunga (vedi pickPlaying).
+    if (m.playing === true) entry.audibleAt = Date.now();
+    return !was || was.watchId !== m.watchId || was.title !== entry.player.title || was.season !== season || was.episode !== episode;
   });
   if (changed) await tick();
 }
@@ -247,6 +400,40 @@ async function manualProgress(m) {
   });
   await tick();
   return true;
+}
+
+/** Aggiorna la posizione usando il video letto da un iframe accessibile. */
+async function frameProgress(tabId, progress) {
+  const now = Date.now();
+  const normalized = Math.round(progress * 1000) / 1000;
+  const flush = await updateTab(tabId, (entry) => {
+    // The iframe can report before the AnimeUnity page has parsed its title.
+    // Keep a short-lived sample so the first player-title message can use it.
+    entry.frameProgress = { progress: normalized, at: now };
+    if (!entry.player || typeof entry.player.watchId !== "string" || typeof entry.player.title !== "string") return false;
+    const changed = entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.005;
+    if (!changed) return false;
+    entry.player = { ...entry.player, progress: normalized, at: now, lastFlushAt: now };
+    return true;
+  });
+  if (flush) await tick();
+}
+
+/** Context for the authorized VixCloud frame: use the AnimeUnity page URL as episode identity. */
+async function partyContext(tab) {
+  const url = typeof tab?.url === "string" ? tab.url : "";
+  if (!isAnimeUrl(url) || !auWatchId(url)) return null;
+  const { tabs = {} } = await chrome.storage.session.get("tabs");
+  const player = tabs[tab.id]?.player ?? null;
+  const canonicalUrl = new URL(url);
+  canonicalUrl.searchParams.delete("cineloopResume");
+  return {
+    providerId: "animeunity",
+    externalId: canonicalUrl.toString(),
+    title: player?.title ?? tab.title ?? "",
+    season: player?.season ?? null,
+    episode: player?.episode ?? null,
+  };
 }
 
 /** Suggerimenti dal player, quando appartengono all'episodio dell'URL. */
@@ -284,6 +471,31 @@ async function partyReport(m) {
 /** Restituito da current() quando la scheda di riproduzione e' ferma da troppo (pausa e abbandono). */
 const SILENT = { tab: { url: "" }, parentId: null };
 
+/** Il player di Prime Video si e' fatto sentire da poco (prime-page.js scrive ogni 20 secondi). */
+const PRIME_FRESH_MS = 75_000;
+
+async function primeTabs() {
+  if (!(await hasPrimeAccess())) return [];
+  return chrome.tabs.query({ url: PRIME_ORIGINS }).catch(() => []);
+}
+
+async function primeOpen() {
+  return (await primeTabs()).length > 0;
+}
+
+/** La scheda di Prime Video con il player aperto, se c'e'. */
+async function primeCurrent() {
+  const { tabs: seen = {} } = await chrome.storage.session.get("tabs");
+  const playing = (await primeTabs()).filter((t) => {
+    const info = seen[t.id];
+    return info?.prime && Date.now() - info.prime.at < PRIME_FRESH_MS && info.player?.watchId;
+  });
+  if (playing.length === 0) return null;
+  const found = await pickPlaying(playing, () => null);
+  if (found === SILENT) return SILENT;
+  return { ...found, id: found.player.watchId };
+}
+
 async function netflixOpen() {
   return (await chrome.tabs.query({ url: "https://www.netflix.com/*" })).length > 0;
 }
@@ -320,6 +532,8 @@ async function current() {
     const tabs = await chrome.tabs.query({ url: "https://www.netflix.com/watch/*" });
     if (tabs.length > 0) return pickPlaying(tabs, watchId);
   }
+  const prime = await primeCurrent();
+  if (prime) return prime;
   return streamingCurrent();
 }
 
@@ -362,7 +576,7 @@ async function tick() {
         // Di nuovo nel catalogo tra un episodio e l'altro: una pausa breve tiene
         // la sessione (e gli amici con te); il server la lascia scadere dopo
         // qualche minuto senza heartbeat.
-        if (!paused && found !== SILENT && ((await netflixOpen()) || (await animeOpen()) || (await streamingOpen()))) {
+        if (!paused && found !== SILENT && ((await netflixOpen()) || (await animeOpen()) || (await primeOpen()) || (await streamingOpen()))) {
           // La sessione CineLoop può restare valida durante la navigazione nel catalogo,
           // ma Discord deve sapere subito che il player non è più attivo.
           await sendDiscordPresence(null);
@@ -380,7 +594,9 @@ async function tick() {
         ? "netflix"
         : /^https:\/\/www\.animeunity\.so\//.test(found.tab.url)
           ? "animeunity"
-          : "streamingcommunity";
+          : isPrimeUrl(found.tab.url)
+            ? "prime-video"
+            : "streamingcommunity";
       const hints = { ...playerHints(found.player, id), ...(found.parentId ? { parentId: found.parentId } : {}) };
       const status = await api("/api/extension/observe", {
         method: "POST",

@@ -1,7 +1,7 @@
 import "server-only";
 import { applyReport, driftBetween, hostPosition, IN_SYNC_SECONDS, roomPosition, watchAt, type PlaybackReport } from "@/domain/party";
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
-import type { Presence, PublicUser, Title } from "@/domain/types";
+import { CONSENT_PROVIDERS, isConsentProvider, type ConsentProvider, type Presence, type PublicUser, type Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
 import type { SyncObservation } from "@/integrations/providers/types";
@@ -25,6 +25,8 @@ export interface ExtensionStatus {
   watching: null | {
     label: string | null;
     title: { id: string; title: string; year: number; artwork?: { posterUrl: string | null } } | null;
+    /** Actual provider detected from the active browser tab, not catalog availability. */
+    providerId: Presence["providerId"];
     season: number | null;
     episode: number | null;
     /** The series' season numbers, for asking which one when the player does not say. */
@@ -34,6 +36,8 @@ export interface ExtensionStatus {
     /** The host, when the user joined a friend from CineLoop and is on the same title. */
     with: string[];
   };
+  /** A service waiting for the user to answer its notice on the site; the popup points there. */
+  consent: ConsentProvider | null;
   /** Shortcuts for confirming an unrecognised title: what the user is watching or planned. */
   suggestions: { id: string; title: string; year: number }[];
   /** The user's list for the popup: in progress first (with the episode), then the wishlist. */
@@ -46,6 +50,17 @@ const brief = (t: Title) => ({ id: t.id, title: t.title, year: t.year });
 
 export async function handleObservation(userId: string, obs: SyncObservation): Promise<ExtensionStatus> {
   const repo = getRepository();
+  // Unlicensed streaming sites are read only after the user accepted the notice on the site.
+  // The first sighting makes the notice appear; nothing from the page is kept meanwhile.
+  if (isConsentProvider(obs.providerId)) {
+    const prefs = await repo.getPreferences(userId);
+    const answer = prefs.providerConsent[obs.providerId];
+    if (answer !== "accepted") {
+      if (!answer) await repo.updatePreferences(userId, { providerConsent: { ...prefs.providerConsent, [obs.providerId]: "pending" } });
+      await endPresence(userId);
+      return getExtensionStatus(userId);
+    }
+  }
   const content = await getAdapter(obs.providerId).getCurrentContent({ userId, latestObservation: obs });
   if (!content?.externalId || !content.url) {
     await endPresence(userId);
@@ -89,6 +104,23 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       // Episode and position as the player reports them, every heartbeat.
       await syncProgress(repo, presence, fraction);
     }
+  }
+  // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
+  // The repository stores one anchor per season and enables arithmetic only after adjacent IDs verify a +1 sequence.
+  const observedEpisodeId = obs.hints?.episodeId;
+  if (
+    presence.titleId &&
+    observedEpisodeId &&
+    Number.isSafeInteger(presence.season) && (presence.season ?? 0) > 0 &&
+    Number.isSafeInteger(presence.episode) && (presence.episode ?? 0) > 0
+  ) {
+    await repo.saveObservedEpisodeLink({
+      providerId: presence.providerId,
+      titleId: presence.titleId,
+      seasonNumber: presence.season!,
+      episodeNumber: presence.episode!,
+      externalId: observedEpisodeId,
+    });
   }
   await repo.savePresence(presence);
   return getExtensionStatus(userId);
@@ -184,6 +216,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
     watching = {
       label: live.label,
       title: title ? { ...brief(title), artwork: { posterUrl: title.artwork.posterUrl } } : null,
+      providerId: live.providerId,
       season: live.season,
       episode: live.episode,
       seasons: title && title.type !== "movie" ? title.seasons.map((x) => x.number) : [],
@@ -196,6 +229,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
   return {
     user: { displayName: user.displayName, username: user.username },
     watching,
+    consent: CONSENT_PROVIDERS.find((id) => prefs.providerConsent[id] === "pending") ?? null,
     suggestions: candidateIds.map((id) => titles.get(id)).filter((t): t is Title => Boolean(t)).map(brief),
     list: listEntries.flatMap((e) => {
       const t = titles.get(e.id);
@@ -245,8 +279,9 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
     const presences = await repo.listPresence(friends.map((f) => f.user.id));
     host = presences.find((p) => isLive(p, now) && p.guestIds.includes(userId)) ?? null;
   }
-  // Watching together is synced on Netflix only, for now.
-  if (!host || host.providerId !== "netflix") return { party: null };
+  // The extension reports the active HTML5 player for supported providers.
+  // Never synchronize different services just because their numeric IDs match.
+  if (!host || me.providerId !== host.providerId || !["netflix", "animeunity", "streamingcommunity"].includes(host.providerId)) return { party: null };
 
   const party = applyReport(await repo.getParty(host.userId), userId, report, now, host.userId);
   await repo.saveParty(host.userId, party);
@@ -419,12 +454,30 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
-  const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  const rawBaseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  // AnimeUnity labels Re:ZERO's director's-cut edition with its Japanese title,
+  // while CineLoop's catalogue uses the English franchise title. Treat both as
+  // the same work so episode/progress updates land on the existing S1 entry.
+  const baseLabel = presence.providerId === "animeunity" &&
+    /^re\s*:?\s*zero kara hajimeru isekai seikatsu(?:\s*:\s*shin henshuu-ban)?$/i.test(rawBaseLabel)
+      ? "Re:ZERO -Starting Life in Another World-"
+      : rawBaseLabel;
   const key = searchKey(baseLabel);
-  const local = await repo.searchTitles(baseLabel, 8);
+  const local = await repo.searchTitles(baseLabel, 12);
   // With an episode number it is a series: never a film of the same name.
   const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null && presence.episode === null && !seasonSuffix || t.type !== "movie");
-  let hit = local.find(fits);
+  const exactLocal = local.filter(fits);
+  // AnimeUnity commonly exposes the original long-running anime as one page
+  // with absolute episode numbers. When multiple catalog entries share the
+  // exact same name, don't accidentally select a recent sequel/part (e.g.
+  // Bleach: Thousand-Year Blood War) just because it sorts first.
+  exactLocal.sort((a, b) => {
+    if (presence.providerId === "animeunity" && a.type !== "movie" && b.type !== "movie") {
+      return a.year - b.year;
+    }
+    return 0;
+  });
+  let hit: Title | undefined = exactLocal[0];
   if (!hit) {
     const catalog = getCatalog();
     const series = presence.season !== null || presence.episode !== null || Boolean(seasonSuffix);
@@ -437,7 +490,14 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
     if (!candidates.length) {
       candidates = await catalog.search(baseLabel, 12).catch(() => []);
     }
-    const exact = candidates.find((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
+    const exactMatches = candidates.filter((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
+    exactMatches.sort((a, b) => {
+      if (presence.providerId === "animeunity" && a.type !== "movie" && b.type !== "movie") {
+        return a.year - b.year;
+      }
+      return 0;
+    });
+    const exact = exactMatches[0];
     const startsWith = candidates.find((t) => {
       const candidate = searchKey(t.title);
       return (!series || t.type !== "movie") && (candidate.startsWith(key) || key.startsWith(candidate));
@@ -502,12 +562,32 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     }
     return;
   }
+  // AnimeUnity's Re:Zero "Shin Henshuu-ban" is the 13-episode Director's Cut
+  // of season 1, not a new season. The player exposes only E1–E13 and no season,
+  // so explicitly anchor it to S1 even if the user's saved progress is empty.
+  const reZeroDirectorsCut = presence.providerId === "animeunity" &&
+    /^re\s*:?\s*zero kara hajimeru isekai seikatsu\s*:\s*shin henshuu-ban$/i.test(presence.label ?? "");
+  if (reZeroDirectorsCut) presence.season = 1;
+
   // A part named in the player's title ("JoJo: Stone Ocean") is that season,
   // even when the service numbers the part as a show of its own ("S1:E3").
   const named = title ? seasonFromLabel(title, presence.label) : null;
-  if (named !== null) presence.season = named;
+  if (!reZeroDirectorsCut && named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
-    presence.season = inferSeason(title, prev, presence.episode);
+    if (presence.providerId === "animeunity" && title.type !== "movie" && title.seasons.length > 1) {
+      // AnimeUnity's classic series pages number episodes across the whole run
+      // (e.g. Bleach episode 310), while the catalog stores episodes per season.
+      // Convert the absolute episode into the catalog season by cumulative counts.
+      let through = 0;
+      const absoluteSeason = [...title.seasons]
+        .sort((a, b) => a.number - b.number)
+        .find((season) => {
+          through += season.episodeCount;
+          return presence.episode! <= through;
+        });
+      presence.season = absoluteSeason?.number ?? null;
+    }
+    if (presence.season === null) presence.season = inferSeason(title, prev, presence.episode);
   }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
   const next = fraction ?? (sameEpisode ? prev!.fraction : 0);

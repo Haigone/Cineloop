@@ -8,6 +8,15 @@
 export const DIRECTORY_ORIGIN = "https://www.streaming-community.how";
 export const DIRECTORY_ORIGINS = ["https://www.streaming-community.how/*"];
 
+// StreamingCommunity embeds its HTML5 player on VixCloud. Request these host permissions
+// in the same click as the StreamingCommunity host, just like AnimeUnity does.
+export const SC_VIXCLOUD_ORIGINS = [
+  "https://vixcloud.co/*",
+  "https://www.vixcloud.co/*",
+  "https://vixcloud.fun/*",
+  "https://www.vixcloud.fun/*",
+];
+
 const RESOLVED_KEY = "scResolved";
 const CACHE_MS = 6 * 60 * 60 * 1000; // il dominio dura giorni: risolvi al massimo ogni 6 ore
 
