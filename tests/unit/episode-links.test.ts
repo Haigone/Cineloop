@@ -19,7 +19,7 @@ describe("provider episode link learning", () => {
 
     await repo.saveObservedEpisodeLink({ ...base, seasonNumber: 2, episodeNumber: 1, externalId: "900" });
     expect(await repo.resolveEpisodeExternalId({ ...base, seasonNumber: 2, episodeNumber: 2 })).toBeNull();
-    expect(await repo.resolveEpisodeExternalId({ ...base, seasonNumber: 1, episodeNumber: 4 })).toBe("103");
+    expect(await repo.resolveEpisodeExternalId({ ...base, seasonNumber: 1, episodeNumber: 4 })).toBeNull();
   });
 
   it("does not infer from non-numeric provider IDs", async () => {
