@@ -105,10 +105,10 @@ async function enableScPage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js", "party-sync.js"], runAt: "document_idle", persistAcrossSessions: true },
   ]);
   for (const tab of await chrome.tabs.query({ url: match })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "sc-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {});
   }
 }
 
@@ -118,10 +118,10 @@ async function enableAnimePage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js", "party-sync.js"], runAt: "document_idle", persistAcrossSessions: true },
   ]);
   for (const tab of await chrome.tabs.query({ url: "https://www.animeunity.so/*" })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
 }
 
