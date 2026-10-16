@@ -9,6 +9,11 @@ const item = z.object({
   kind: z.enum(["series", "film", "unknown"]),
   season: z.number().int().min(1).max(99).optional(),
   sample: z.string().trim().min(1).max(300),
+  // The days it was watched (one per day and season), from the history's dates: no minutes, no CSV.
+  watched: z
+    .array(z.object({ d: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), s: z.number().int().min(1).max(99).optional() }))
+    .max(120)
+    .optional(),
 });
 const body = z.object({
   // Checked one by one: a row Netflix wrote without a name (": Episodio 1") must not sink its whole batch.
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest) {
   // Same budget as the list import: a long history takes several requests in a row.
   const auth = await authenticate(request, 40, "import");
   if (!("userId" in auth)) return auth;
-  const parsed = body.safeParse(await readJson(request, 32_768));
+  const parsed = body.safeParse(await readJson(request, 262_144));
   if (!parsed.success) return json(request, { error: "invalid_request" }, 400);
   const items = parsed.data.items.map((i) => item.safeParse(i));
   const valid = items.flatMap((r) => (r.success ? [r.data] : []));
