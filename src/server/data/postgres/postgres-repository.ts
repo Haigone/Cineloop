@@ -813,6 +813,11 @@ export class PostgresRepository implements Repository {
     if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
       const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
       if (expected === observedId) return;
+      await this.db.update(schema.episodeLinks).set({ idStep: null }).where(and(
+        scope,
+        eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
+        eq(schema.episodeLinks.linkType, "anchor"),
+      ));
       await this.db.insert(schema.episodeLinks).values({
         providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
         episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
