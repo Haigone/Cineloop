@@ -60,7 +60,7 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 - Pulsante "Guarda in streaming" e codice AU/SC esistente: non rimuovere.
 - Vercel limita i deploy (~1 ogni 15 minuti): distanzia i push.
 - ANN, Filler List, Tudum e Netflix/Prime non sono raggiungibili dal sandbox: selettori e parser testati solo su fixture.
-- Il test E2E dell'estensione può fallire su `main` al controllo di pausa Guarda insieme (party-sync).
+- Il test E2E dell'estensione (Netflix) falliva al controllo di pausa per un difetto del test, non dell'estensione: `party-sync.js` ignora i `<video>` senza durata finita (come quelli veri di Netflix) e lo stub era un flusso live. Ora lo stub riproduce un WAV muto. Un nuovo stub di player deve avere una durata finita.
 
 ## File chiave
 - `src/proxy.ts`: reindirizza le pagine private a `/start`; controllo ottimistico del cookie.

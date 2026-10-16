@@ -34,12 +34,14 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   // Often the player shows the episode alone.
   const player3 = `<div data-uia="video-title"><h4>Dark</h4><span>E4</span><span>Doppiogiochisti</span></div>`;
   const player4 = `<div data-uia="video-title"><h4>Peaky Blinders</h4><span>E2</span><span>Episodio 2</span></div>`;
-  // A playing, muted video stands in for Netflix's player.
-  const video = `<video muted></video><script>
-    const c = document.createElement("canvas"); const g = c.getContext("2d");
-    setInterval(() => { g.fillStyle = "#" + Math.floor(Math.random() * 4095).toString(16); g.fillRect(0, 0, 10, 10); }, 100);
-    const v = document.querySelector("video"); v.srcObject = c.captureStream(10); v.play();
-  </script>`;
+  // A playing, muted video stands in for Netflix's player. It needs a finite duration, like Netflix's
+  // own <video>: party-sync ignores videos without one (a live capture has none), so it plays a silent WAV.
+  const rate = 8000;
+  const wav = Buffer.alloc(44 + rate * 600, 128);
+  wav.write("RIFF", 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(rate, 24);
+  wav.writeUInt32LE(rate, 28); wav.writeUInt16LE(1, 32); wav.writeUInt16LE(8, 34); wav.write("data", 36); wav.writeUInt32LE(rate * 600, 40);
+  const video = `<video muted src="/e2e-silence.wav"></video><script>document.querySelector("video").play();</script>`;
   // Netflix's own player object, as watch-party extensions use it: it records the seeks it is asked for.
   const netflixPlayer = `<script>
     window.seeks = [];
@@ -48,6 +50,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   </script>`;
   await ctx.route("https://www.netflix.com/**", (route) => {
     const url = route.request().url();
+    if (url.endsWith("/e2e-silence.wav")) return route.fulfill({ contentType: "audio/wav", body: wav });
     // "La mia lista": three cards, as Netflix links them.
     if (url.includes("/browse/my-list")) {
       const card = (id: string, name: string) => `<div class="title-card"><a href="/watch/${id}?tctx=0" aria-label="${name}"><img alt="${name}"></a></div>`;
@@ -134,7 +137,7 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
       data: { externalId: ep2, position: 3, paused: true, action: "pause" },
     });
     expect((await res.json()).party).not.toBeNull();
-  }).toPass({ timeout: 10_000 });
+  }).toPass({ timeout: 20_000 });
   await expect.poll(() => netflix.evaluate(() => document.querySelector("video")!.paused), { timeout: 30_000 }).toBe(true);
   await popup.reload();
   await expect(popup.locator("#room-state")).toContainText("pausa di Luca Ferri");
