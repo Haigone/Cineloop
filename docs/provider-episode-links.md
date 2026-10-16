@@ -8,7 +8,7 @@
 - Store one `link_type = 'anchor'` row per provider, CineLoop title, and season.
 - The anchor can point to any known episode, not necessarily episode 1. Record its local season and episode numbers and the provider's exact ID in `external_id`.
 - `id_step` is nullable. Set it to `1` only after verifying that provider IDs advance by one within that season; leave it null when the sequence has not been checked. Never carry an inferred sequence across a season boundary.
-- Store only verified non-linear IDs as `link_type = 'exact'` rows. If any observed episode contradicts the inferred sequence, save that exact ID and disable arithmetic inference for the season to avoid extrapolating after an exception.
+- Store only verified non-linear IDs as `link_type = 'exact'` rows. When an observed ID contradicts the expected episode offset (or cannot be compared numerically), save it as exact and disable arithmetic inference for that season. Once one exact exception exists, every subsequently observed episode in that season is stored as its own exact row; never resume arithmetic inference there.
 - The unique partial index prevents two anchors for the same provider/title/season. The primary key prevents duplicate rows for the same episode coordinate.
 - `external_id` stays text so IDs that are not numeric are not coerced or damaged.
 
