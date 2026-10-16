@@ -211,20 +211,26 @@ async function playerTitle(tabId, m) {
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
   const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
-  const changed = await updateTab(tabId, (entry) => {
+  const now = Date.now();
+  const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null;
+  const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    const progressChanged = progress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - progress) >= 0.02);
+    const flush = identityChanged || progressChanged || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
       season,
       episode,
       episodeId,
-      progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
-      at: Date.now(),
+      progress: progress ?? was?.progress ?? null,
+      at: now,
+      lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
     };
-    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    return flush;
   });
-  if (changed) await tick();
+  if (shouldFlush) await tick();
 }
 
 /** Aggiornamento manuale di stagione, episodio e posizione, dal popup. */
