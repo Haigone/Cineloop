@@ -12,6 +12,8 @@
 
   const EPISODE_WORD = /(?:^|\b)(?:Ep\.?|Episodio|Episode)\s*(\d{1,4})\b/i;
   const titleIdNow = () => /\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+  // Episode route ID is distinct from the title ID.
+  const episodeIdNow = () => /\/anime\/\d{1,9}[-/][^/]+\/(\d{1,12})(?:\/|$)/.exec(location.pathname)?.[1] ?? null;
   const params = new URLSearchParams(location.search);
   const requestedResume = Number(params.get("cineloopResume"));
   const resumeFraction = params.has("cineloopResume") && Number.isFinite(requestedResume)
@@ -20,7 +22,7 @@
   let resumeApplied = false;
 
   /** L'anime che questa pagina sta mostrando, finche' non cambia pagina. */
-  let known = { watchId: null, title: "", season: null, episode: null };
+  let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
   let lastSent = "";
   let lastEpisodeKey = "";
   let lastProgressSentAt = 0;
@@ -180,7 +182,8 @@
       }
       return;
     }
-    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null };
+    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
+    known.episodeId = episodeIdNow();
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
       if (found.title && !known.title) known.title = found.title;
