@@ -715,8 +715,8 @@ export class MemoryRepository implements Repository {
       return;
     }
 
-    const anchorId = /^\\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
-    const observedId = /^\\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
     const numeric = Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId);
     const expected = anchorId + input.episodeNumber - row.episodeNumber;
     if (numeric && expected === observedId) {
