@@ -2,7 +2,7 @@ import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
-import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
+import { AU_ORIGINS, hasAnimeAccess } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
@@ -481,7 +481,6 @@ $("unpair-btn").addEventListener("click", async () => {
 $("grant-skip").addEventListener("click", () => render());
 
 $("sc-open-btn").addEventListener("click", async () => {
-  const meta = $("watching-meta").textContent;
   // StreamingCommunity: apre il dominio attuale; se non e' risolto, lo risolve prima.
   let origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
   origin ??= await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
