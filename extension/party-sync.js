@@ -1,4 +1,4 @@
-// CineLoop: watch together (Netflix only, for now).
+// CineLoop: watch together on Netflix, AnimeUnity and StreamingCommunity.
 //
 // Runs on www.netflix.com after the user granted that site. While the user is
 // in a CineLoop room (they hosted friends who joined, or joined a friend), it
@@ -51,8 +51,25 @@
   let lagging = false;
   let nudging = false;
 
-  const watchId = () => /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
-  const video = () => document.querySelector("video");
+  const provider = () => {
+    if (location.hostname === "www.netflix.com") return "netflix";
+    if (location.hostname === "www.animeunity.so") return "animeunity";
+    return "streamingcommunity";
+  };
+  const watchId = () => {
+    if (provider() === "netflix") return /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
+    if (provider() === "animeunity") return /^\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+    const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
+    return m?.[1] ?? m?.[2] ?? null;
+  };
+  const video = () => {
+    let best = null;
+    for (const v of document.querySelectorAll("video")) {
+      if (!Number.isFinite(v.duration) || v.duration <= 0) continue;
+      if (!best || v.currentTime > best.currentTime) best = v;
+    }
+    return best;
+  };
   const own = () => Date.now() > applyingUntil;
 
   // Netflix's player, through netflix-player.js in the page. Answers false when
@@ -125,7 +142,7 @@
     heard = true;
     if (party.paused !== v.paused) {
       applyingUntil = Date.now() + 1500;
-      if (!(await netflixPlayer(party.paused ? "pause" : "play"))) {
+      if (provider() !== "netflix" || !(await netflixPlayer(party.paused ? "pause" : "play"))) {
         if (party.paused) v.pause();
         else v.play().catch(() => {});
       }
@@ -139,9 +156,16 @@
       setRate(v, 1);
       // Our own seek fires "seeked" too: it is not the user's.
       applyingUntil = Date.now() + 2500;
-      if (await netflixPlayer("seek", Math.round(target * 1000))) return;
+      if (provider() === "netflix" && await netflixPlayer("seek", Math.round(target * 1000))) return;
+      if (provider() !== "netflix") {
+        try {
+          v.currentTime = Math.max(0, target);
+          applyingUntil = Date.now() + 2500;
+          return;
+        } catch {}
+      }
       applyingUntil = 0;
-      if (Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
+      if (provider() === "netflix" && Math.abs(gap) >= JUMP_SECONDS) return jump(v, target + (party.paused ? 0 : JUMP_LEAD));
     }
     if (party.paused) return setRate(v, 1);
     if (Math.abs(gap) >= NUDGE_SECONDS) setRate(v, gap > 0 ? 0.8 : 1.25);

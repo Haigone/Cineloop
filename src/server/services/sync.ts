@@ -245,8 +245,9 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
     const presences = await repo.listPresence(friends.map((f) => f.user.id));
     host = presences.find((p) => isLive(p, now) && p.guestIds.includes(userId)) ?? null;
   }
-  // Watching together is synced on Netflix only, for now.
-  if (!host || host.providerId !== "netflix") return { party: null };
+  // The extension reports the active HTML5 player for supported providers.
+  // Never synchronize different services just because their numeric IDs match.
+  if (!host || me.providerId !== host.providerId || !["netflix", "animeunity", "streamingcommunity"].includes(host.providerId)) return { party: null };
 
   const party = applyReport(await repo.getParty(host.userId), userId, report, now, host.userId);
   await repo.saveParty(host.userId, party);
