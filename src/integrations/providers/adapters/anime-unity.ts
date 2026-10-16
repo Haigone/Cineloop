@@ -6,7 +6,11 @@ const AU_HOME = "https://www.animeunity.so";
 
 /** Resolve explicitly named AnimeUnity cours to their canonical season number. */
 export function animeUnityPartSeason(url: string, title: string): number | null {
-  const text = (url + " " + title).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const text = (url + " " + title).normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+  // Re:Zero's 2020 Shin Henshuu-ban is a recut of the original first season,
+  // not the second season. The player may not expose a season marker, so
+  // identify this alternate cut before progress inference can advance the season.
+  if (/(?:re\\s*:?\\s*zero|rezero)/.test(text) && /shin[-_\\s]+henshuu[-_\\s]*ban|director'?s?[-_\\s]+cut/.test(text)) return 1;
   if (/the[-_\s]+blood[-_\s]+warfare|blood[-_\s]+warfare/.test(text)) return 1;
   if (/the[-_\s]+separation|\bseparation\b/.test(text)) return 2;
   if (/the[-_\s]+conflict|\bconflict\b/.test(text)) return 3;
