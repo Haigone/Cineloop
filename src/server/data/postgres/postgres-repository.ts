@@ -808,8 +808,8 @@ export class PostgresRepository implements Repository {
       return;
     }
     if (anchor.episodeNumber === input.episodeNumber) return;
-    const anchorId = /^\\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
-    const observedId = /^\\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
+    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
     if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
       const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
       if (expected === observedId) return;
