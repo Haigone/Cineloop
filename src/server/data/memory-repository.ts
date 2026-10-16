@@ -62,6 +62,7 @@ export class MemoryRepository implements Repository {
   private presence = new Map<string, Presence>();
   private rooms = new Map<string, PartyState>();
   private providerLinks = new Map<string, string>();
+  private episodeLinks = new Map<string, { episodeNumber: number; externalId: string; idStep: number | null; linkType: "anchor" | "exact" }>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
   private charts = new Map<string, { data: unknown; fetchedAt: Date }>();
@@ -673,6 +674,45 @@ export class MemoryRepository implements Repository {
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
+  }
+
+  async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
+    const prefix = `${input.providerId}:${input.titleId}:${input.seasonNumber}:`;
+    const exact = this.episodeLinks.get(prefix + input.episodeNumber);
+    if (exact?.linkType === "exact") return exact.externalId;
+    if (exact?.linkType === "anchor") return exact.externalId;
+    const anchor = [...this.episodeLinks.entries()].find(([key, row]) => key.startsWith(prefix) && row.linkType === "anchor");
+    if (!anchor || anchor[1].idStep !== 1 || !/^\d+$/.test(anchor[1].externalId)) return null;
+    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber);
+    return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  }
+
+  async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
+    const anchorKey = `${input.providerId}:${input.titleId}:${input.seasonNumber}`;
+    const anchor = [...this.episodeLinks.entries()].find(([k, v]) => k.startsWith(anchorKey + ":") && v.linkType === "anchor");
+    if (!anchor) {
+      this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor" });
+      return;
+    }
+    const [anchorRowKey, row] = anchor;
+    if (row.episodeNumber === input.episodeNumber) return;
+    const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    if (row.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      const expected = anchorId + input.episodeNumber - row.episodeNumber;
+      if (expected === observedId) return;
+      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
+      this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact" });
+      return;
+    }
+    if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
+      observedId - anchorId === input.episodeNumber - row.episodeNumber &&
+      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      this.episodeLinks.set(anchorRowKey, { ...row, idStep: 1 });
+    }
   }
 
   // Sagas -------------------------------------------------------------------

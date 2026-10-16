@@ -1,5 +1,5 @@
 {
-  "id": "d2bb121f-229a-48fb-8059-3a4c655559a1",
+  "id": "bce4cb74-8d68-4d65-9fd9-a04000200020",
   "prevId": "7e352666-5b0c-4247-8aed-525c18dbb043",
   "version": "7",
   "dialect": "postgresql",
@@ -1027,13 +1027,6 @@
         },
         "home_backgrounds": {
           "name": "home_backgrounds",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "provider_consent": {
-          "name": "provider_consent",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
@@ -2123,6 +2116,149 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.episode_links": {
+      "name": "episode_links",
+      "schema": "",
+      "columns": {
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title_id": {
+          "name": "title_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "season_number": {
+          "name": "season_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "episode_number": {
+          "name": "episode_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_step": {
+          "name": "id_step",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link_type": {
+          "name": "link_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'anchor'"
+        }
+      },
+      "indexes": {
+        "episode_links_title_provider_idx": {
+          "name": "episode_links_title_provider_idx",
+          "columns": [
+            {
+              "expression": "title_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "episode_links_one_anchor_per_season_idx": {
+          "name": "episode_links_one_anchor_per_season_idx",
+          "columns": [
+            {
+              "expression": "provider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "title_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "season_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "where": "\"link_type\" = 'anchor'",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "episode_links_title_id_titles_id_fk": {
+          "name": "episode_links_title_id_titles_id_fk",
+          "tableFrom": "episode_links",
+          "tableTo": "titles",
+          "columnsFrom": [
+            "title_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "episode_links_provider_id_title_id_season_number_episode_number_pk": {
+          "name": "episode_links_provider_id_title_id_season_number_episode_number_pk",
+          "columns": [
+            "provider_id",
+            "title_id",
+            "season_number",
+            "episode_number"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "episode_links_positive_numbers": {
+          "name": "episode_links_positive_numbers",
+          "value": "\"season_number\" > 0 AND \"episode_number\" > 0"
+        },
+        "episode_links_valid_step": {
+          "name": "episode_links_valid_step",
+          "value": "\"id_step\" IS NULL OR \"id_step\" = 1"
+        },
+        "episode_links_valid_type": {
+          "name": "episode_links_valid_type",
+          "value": "\"link_type\" IN ('anchor', 'exact')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

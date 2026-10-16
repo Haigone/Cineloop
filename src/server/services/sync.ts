@@ -23,10 +23,10 @@ import { shareProgress } from "./shared-watch";
 export interface ExtensionStatus {
   user: { displayName: string; username: string };
   watching: null | {
-    /** Where the user is watching, so the popup can name the service. */
-    providerId: Presence["providerId"];
     label: string | null;
     title: { id: string; title: string; year: number; artwork?: { posterUrl: string | null } } | null;
+    /** Actual provider detected from the active browser tab, not catalog availability. */
+    providerId: Presence["providerId"];
     season: number | null;
     episode: number | null;
     /** The series' season numbers, for asking which one when the player does not say. */
@@ -104,6 +104,23 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       // Episode and position as the player reports them, every heartbeat.
       await syncProgress(repo, presence, fraction);
     }
+  }
+  // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
+  // The repository stores one anchor per season and enables arithmetic only after adjacent IDs verify a +1 sequence.
+  const observedEpisodeId = obs.hints?.episodeId;
+  if (
+    presence.titleId &&
+    observedEpisodeId &&
+    Number.isSafeInteger(presence.season) && (presence.season ?? 0) > 0 &&
+    Number.isSafeInteger(presence.episode) && (presence.episode ?? 0) > 0
+  ) {
+    await repo.saveObservedEpisodeLink({
+      providerId: presence.providerId,
+      titleId: presence.titleId,
+      seasonNumber: presence.season!,
+      episodeNumber: presence.episode!,
+      externalId: observedEpisodeId,
+    });
   }
   await repo.savePresence(presence);
   return getExtensionStatus(userId);
@@ -197,9 +214,9 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
     const hosts = live.titleId ? await hostsWatching(repo, userId, live.titleId) : [];
     const title = live.titleId ? titles.get(live.titleId) : undefined;
     watching = {
-      providerId: live.providerId,
       label: live.label,
       title: title ? { ...brief(title), artwork: { posterUrl: title.artwork.posterUrl } } : null,
+      providerId: live.providerId,
       season: live.season,
       episode: live.episode,
       seasons: title && title.type !== "movie" ? title.seasons.map((x) => x.number) : [],
@@ -439,10 +456,21 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
   const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
   const key = searchKey(baseLabel);
-  const local = await repo.searchTitles(baseLabel, 8);
+  const local = await repo.searchTitles(baseLabel, 12);
   // With an episode number it is a series: never a film of the same name.
   const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null && presence.episode === null && !seasonSuffix || t.type !== "movie");
-  let hit = local.find(fits);
+  const exactLocal = local.filter(fits);
+  // AnimeUnity commonly exposes the original long-running anime as one page
+  // with absolute episode numbers. When multiple catalog entries share the
+  // exact same name, don't accidentally select a recent sequel/part (e.g.
+  // Bleach: Thousand-Year Blood War) just because it sorts first.
+  exactLocal.sort((a, b) => {
+    if (presence.providerId === "animeunity" && a.type !== "movie" && b.type !== "movie") {
+      return a.year - b.year;
+    }
+    return 0;
+  });
+  let hit: Title | undefined = exactLocal[0];
   if (!hit) {
     const catalog = getCatalog();
     const series = presence.season !== null || presence.episode !== null || Boolean(seasonSuffix);
@@ -455,7 +483,14 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
     if (!candidates.length) {
       candidates = await catalog.search(baseLabel, 12).catch(() => []);
     }
-    const exact = candidates.find((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
+    const exactMatches = candidates.filter((t) => searchKey(t.title) === key && (!series || t.type !== "movie"));
+    exactMatches.sort((a, b) => {
+      if (presence.providerId === "animeunity" && a.type !== "movie" && b.type !== "movie") {
+        return a.year - b.year;
+      }
+      return 0;
+    });
+    const exact = exactMatches[0];
     const startsWith = candidates.find((t) => {
       const candidate = searchKey(t.title);
       return (!series || t.type !== "movie") && (candidate.startsWith(key) || key.startsWith(candidate));
@@ -525,7 +560,20 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   const named = title ? seasonFromLabel(title, presence.label) : null;
   if (named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
-    presence.season = inferSeason(title, prev, presence.episode);
+    if (presence.providerId === "animeunity" && title.type !== "movie" && title.seasons.length > 1) {
+      // AnimeUnity's classic series pages number episodes across the whole run
+      // (e.g. Bleach episode 310), while the catalog stores episodes per season.
+      // Convert the absolute episode into the catalog season by cumulative counts.
+      let through = 0;
+      const absoluteSeason = [...title.seasons]
+        .sort((a, b) => a.number - b.number)
+        .find((season) => {
+          through += season.episodeCount;
+          return presence.episode! <= through;
+        });
+      presence.season = absoluteSeason?.number ?? null;
+    }
+    if (presence.season === null) presence.season = inferSeason(title, prev, presence.episode);
   }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
   const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
