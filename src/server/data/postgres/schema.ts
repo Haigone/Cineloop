@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import type { ActivityKind, Genre, OAuthProvider, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, TitleUpdates, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
@@ -373,6 +373,32 @@ export const providerTitleLinks = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.providerId, t.externalId] })],
+);
+
+/** Minimal provider episode map: one anchor per season plus only non-linear exceptions. */
+export const episodeLinks = pgTable(
+  "episode_links",
+  {
+    providerId: text("provider_id").$type<ProviderId>().notNull(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => titles.id, { onDelete: "cascade" }),
+    seasonNumber: integer("season_number").notNull(),
+    episodeNumber: integer("episode_number").notNull(),
+    externalId: text("external_id").notNull(),
+    /** 1 only when consecutive IDs have been verified; null means never infer. */
+    idStep: integer("id_step"),
+    /** anchor = season reference; exact = explicitly verified exception. */
+    linkType: text("link_type").$type<"anchor" | "exact">().notNull().default("anchor"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.providerId, t.titleId, t.seasonNumber, t.episodeNumber] }),
+    index("episode_links_title_provider_idx").on(t.titleId, t.providerId),
+    uniqueIndex("episode_links_one_anchor_per_season_idx").on(t.providerId, t.titleId, t.seasonNumber).where(sql`${t.linkType} = 'anchor'`),
+    check("episode_links_positive_numbers", sql`${t.seasonNumber} > 0 and ${t.episodeNumber} > 0`),
+    check("episode_links_valid_step", sql`${t.idStep} is null or ${t.idStep} = 1`),
+    check("episode_links_valid_type", sql`${t.linkType} in ('anchor', 'exact')`),
+  ],
 );
 
 /** Charts fetched from outside (e.g. Netflix's public Top 10), refreshed at most daily. */

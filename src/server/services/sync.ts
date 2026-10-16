@@ -92,6 +92,23 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       await syncProgress(repo, presence, fraction);
     }
   }
+  // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
+  // The repository stores one anchor per season and enables arithmetic only after adjacent IDs verify a +1 sequence.
+  const observedEpisodeId = obs.hints?.episodeId;
+  if (
+    presence.titleId &&
+    observedEpisodeId &&
+    Number.isSafeInteger(presence.season) && (presence.season ?? 0) > 0 &&
+    Number.isSafeInteger(presence.episode) && (presence.episode ?? 0) > 0
+  ) {
+    await repo.saveObservedEpisodeLink({
+      providerId: presence.providerId,
+      titleId: presence.titleId,
+      seasonNumber: presence.season!,
+      episodeNumber: presence.episode!,
+      externalId: observedEpisodeId,
+    });
+  }
   await repo.savePresence(presence);
   return getExtensionStatus(userId);
 }
