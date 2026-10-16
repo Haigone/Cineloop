@@ -18,6 +18,8 @@ export interface WrappedTitle {
 export interface Wrapped {
   year: number;
   totalMinutes: number;
+  /** Part of the total that is a guess: the import records the day, not the length (film runtime, or one usual episode a day). */
+  estimatedMinutes: number;
   episodes: number;
   films: number;
   /** Different shows and films. */
@@ -26,6 +28,17 @@ export interface Wrapped {
   /** January to December. */
   months: number[];
   busiestMonth: number | null;
+}
+
+/** What a film costs when the catalogue knows no length, and a usual episode. */
+const FALLBACK_FILM_MINUTES = 100;
+const FALLBACK_EPISODE_MINUTES = 45;
+
+/** A play with no recorded minutes (a Netflix history import): the title's usual length. */
+function guess(title: Title | undefined, isFilm: boolean): number {
+  if (title?.type === "movie") return title.runtimeMinutes > 0 ? title.runtimeMinutes : FALLBACK_FILM_MINUTES;
+  if (title && title.episodeRuntimeMinutes > 0) return title.episodeRuntimeMinutes;
+  return isFilm ? FALLBACK_FILM_MINUTES : FALLBACK_EPISODE_MINUTES;
 }
 
 /** Years that have viewing, latest first. */
@@ -38,6 +51,7 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
   const months = Array<number>(12).fill(0);
   const byTitle = new Map<string, WrappedTitle>();
   let total = 0;
+  let estimated = 0;
   let episodes = 0;
   let films = 0;
 
@@ -46,16 +60,19 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
     if (at.getUTCFullYear() !== year) continue;
     const title = titles.get(e.titleId);
     const isFilm = title ? title.type === "movie" : e.season === null && e.episode === null;
-    months[at.getUTCMonth()]! += e.minutes;
-    total += e.minutes;
+    const known = e.minutes > 0;
+    const minutes = known ? e.minutes : guess(title, isFilm);
+    months[at.getUTCMonth()]! += minutes;
+    total += minutes;
+    if (!known) estimated += minutes;
     if (isFilm) films += 1;
     else episodes += 1;
-    const known = byTitle.get(e.titleId);
-    if (known) {
-      known.minutes += e.minutes;
-      known.plays += 1;
+    const row = byTitle.get(e.titleId);
+    if (row) {
+      row.minutes += minutes;
+      row.plays += 1;
     } else {
-      byTitle.set(e.titleId, { titleId: e.titleId, name: title?.title ?? "Titolo sconosciuto", posterUrl: title?.artwork.posterUrl ?? null, minutes: e.minutes, plays: 1, isFilm });
+      byTitle.set(e.titleId, { titleId: e.titleId, name: title?.title ?? "Titolo sconosciuto", posterUrl: title?.artwork.posterUrl ?? null, minutes, plays: 1, isFilm });
     }
   }
 
@@ -63,6 +80,7 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
   return {
     year,
     totalMinutes: Math.round(total),
+    estimatedMinutes: Math.round(estimated),
     episodes,
     films,
     titles: byTitle.size,

@@ -24,6 +24,12 @@ describe("Wrapped", () => {
     expect(w.top.map((t) => [t.name, t.minutes, t.plays])).toEqual([["Il buco", 100, 1], ["Outer Banks", 90, 2]]);
   });
 
+  it("estimates plays recorded without minutes and says how much", () => {
+    const t = new Map([["b", { id: "b", title: "Il buco", type: "movie", runtimeMinutes: 120, artwork: { posterUrl: null } } as unknown as Title], ["a", { id: "a", title: "OB", type: "series", episodeRuntimeMinutes: 50, artwork: { posterUrl: null } } as unknown as Title]]);
+    const w = summarizeYear(2026, [ev("b", "2026-03-01T12:00:00Z", 0), ev("a", "2026-03-02T12:00:00Z", 0, 1), ev("a", "2026-03-03T12:00:00Z", 30, 1)], t);
+    expect(w).toMatchObject({ totalMinutes: 200, estimatedMinutes: 170 });
+  });
+
   it("is empty for a year without viewing", () => {
     expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });
   });
