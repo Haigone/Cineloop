@@ -51,7 +51,7 @@ async function render() {
     ? "streamingcommunity"
     : w.providerId === "animeunity" ? "animeunity" : null;
   const providerLabel = otherProvider === "streamingcommunity" ? "su StreamingCommunity" : otherProvider === "animeunity" ? "su AnimeUnity" : "su Netflix";
-  $("watching-meta").textContent = [w.title?.year, ep, providerLabel].filter(Boolean).join(" · ");
+  $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
   if (otherProvider === "streamingcommunity") {
     const origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
