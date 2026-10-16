@@ -51,11 +51,25 @@
   let lagging = false;
   let nudging = false;
 
+  const isAnimePlayerFrame = () =>
+    window !== window.top &&
+    location.hostname !== "www.netflix.com" &&
+    location.hostname !== "www.animeunity.so" &&
+    /^\/playlist\/\d+(?:\/|$)/i.test(location.pathname);
   const provider = () => {
     if (location.hostname === "www.netflix.com") return "netflix";
-    if (location.hostname === "www.animeunity.so") return "animeunity";
+    if (location.hostname === "www.animeunity.so" || isAnimePlayerFrame()) return "animeunity";
     return "streamingcommunity";
   };
+  let animeFrameContext = null;
+  let animeFrameContextAt = 0;
+  async function getAnimeFrameContext() {
+    if (!isAnimePlayerFrame()) return null;
+    if (animeFrameContext && Date.now() - animeFrameContextAt < 3000) return animeFrameContext;
+    animeFrameContext = await chrome.runtime.sendMessage({ type: "party-context" }).catch(() => null);
+    animeFrameContextAt = Date.now();
+    return animeFrameContext;
+  }
   const watchId = () => {
     if (provider() === "netflix") return /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
     if (provider() === "animeunity") return /^\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
@@ -63,12 +77,17 @@
     return m?.[1] ?? m?.[2] ?? null;
   };
   const video = () => {
-    let best = null;
-    for (const v of document.querySelectorAll("video")) {
-      if (!Number.isFinite(v.duration) || v.duration <= 0) continue;
-      if (!best || v.currentTime > best.currentTime) best = v;
-    }
-    return best;
+    const candidates = [...document.querySelectorAll("video")]
+      .filter((v) => v.readyState >= 1 && Number.isFinite(v.duration) && v.duration > 0)
+      .map((v) => ({
+        video: v,
+        score: (v.paused ? 0 : 1_000_000_000) +
+          (v.readyState >= 2 ? 10_000_000 : 0) +
+          Math.min(Math.max(0, v.videoWidth || 0) * Math.max(0, v.videoHeight || 0), 5_000_000) +
+          Math.min(Math.max(0, v.currentTime || 0), 100_000),
+      }))
+      .sort((a, b) => b.score - a.score);
+    return candidates[0]?.video ?? null;
   };
   const own = () => Date.now() > applyingUntil;
 
@@ -108,9 +127,13 @@
   }
 
   async function report(action) {
-    const id = watchId();
     const v = video();
-    if (!id || !v || !alive()) return;
+    if (!v || !alive()) return;
+    // AnimeUnity's actual <video> lives on VixCloud's cross-origin playlist
+    // frame. Ask the background for the parent AnimeUnity URL; never guess an ID.
+    const frameContext = isAnimePlayerFrame() ? await getAnimeFrameContext() : null;
+    const id = frameContext?.externalId ?? watchId();
+    if (!id) return;
     const n = ++sent;
     if (action) freshFrom = n;
     const t0 = performance.now();

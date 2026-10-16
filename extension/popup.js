@@ -150,7 +150,7 @@ async function renderTogether(status, w) {
   $("room-members").textContent = `Con te: ${members.join(", ")}`;
   const lastAction = { play: "play", pause: "pausa", seek: "salto" }[party?.lastAction] ?? (party?.paused ? "pausa" : "play");
   $("room-state").textContent = !party
-    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video (solo su Netflix)."
+    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video. Su AnimeUnity serve aver autorizzato anche il dominio del player."
     : !party.sameEpisode
       ? `Sei su un altro episodio rispetto a ${party.hostName}: posizione, play e pausa non vengono sincronizzati.`
       : party.seq > 0

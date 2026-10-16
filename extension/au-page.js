@@ -130,22 +130,34 @@
 
   function findVideo(root = document, depth = 0) {
     if (depth > 2) return null;
-    let best = null;
-    // Bind before duration is available, so loadedmetadata cannot be missed.
+    const candidates = [];
+    // Prefer a real, actively playing player over hidden/stale ad videos.
     for (const v of root.querySelectorAll("video")) {
-      if (!best || (Number.isFinite(v.currentTime) && v.currentTime > best.currentTime)) best = v;
+      if (v.readyState < 1 || !Number.isFinite(v.duration) || v.duration <= 0) continue;
+      const area = Math.max(0, v.videoWidth || 0) * Math.max(0, v.videoHeight || 0);
+      const score = (v.paused ? 0 : 1_000_000_000) +
+        (v.readyState >= 2 ? 10_000_000 : 0) + Math.min(area, 5_000_000) +
+        Math.min(Math.max(0, v.currentTime || 0), 100_000);
+      candidates.push({ video: v, score });
     }
     for (const frame of root.querySelectorAll("iframe")) {
       try {
         const doc = frame.contentDocument;
         if (!doc) continue;
-        const v = findVideo(doc, depth + 1);
-        if (v && (!best || v.currentTime > best.currentTime)) best = v;
+        const found = findVideo(doc, depth + 1);
+        if (found) {
+          const area = Math.max(0, found.videoWidth || 0) * Math.max(0, found.videoHeight || 0);
+          const score = (found.paused ? 0 : 1_000_000_000) +
+            (found.readyState >= 2 ? 10_000_000 : 0) + Math.min(area, 5_000_000) +
+            Math.min(Math.max(0, found.currentTime || 0), 100_000);
+          candidates.push({ video: found, score });
+        }
       } catch {
-        // iframe di altro dominio: non leggibile, si ignora
+        // Cross-origin frames are read by their own authorized content script.
       }
     }
-    return best;
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.video ?? null;
   }
 
   function applyResume(video) {
