@@ -22,6 +22,17 @@ describe("Anime Unity part-to-season mapping", () => {
   it("does not infer a season without an explicit part marker", () => {
     expect(animeUnityPartSeason("https://www.animeunity.so/anime/123-example", "Example Anime")).toBeNull();
   });
+
+  it("keeps Re:Zero Shin Henshuu-ban in season 1 even if the player hint says season 2", async () => {
+    const url = "https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049?cineloopResume=0";
+    expect(animeUnityPartSeason(url, "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban")).toBe(1);
+    const current = await adapter.getCurrentContent(context({
+      ...observation,
+      url,
+      hints: { title: "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban", season: 2, episode: 1, episodeId: "36049" },
+    }));
+    expect(current).toMatchObject({ season: 1, episode: 1, externalId: "https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049?cineloopResume=0" });
+  });
 });
 
 describe("Anime Unity page links", () => {
