@@ -113,7 +113,21 @@
   function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
     const id = titleIdNow();
-    if (!id) return;
+    // An accessible player iframe may use a different route than the title page.
+    // Report only its fraction; background associates it with the identified title.
+    if (!id) {
+      const frameVideo = findVideo();
+      const frameDuration = frameVideo && Number.isFinite(frameVideo.duration) && frameVideo.duration > 0 ? frameVideo.duration : null;
+      if (frameDuration) {
+        const frameProgress = Math.round(Math.min(1, Math.max(0, frameVideo.currentTime / frameDuration)) * 1000) / 1000;
+        const now = Date.now();
+        if (force || now - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) {
+          lastProgressSentAt = now;
+          try { chrome.runtime.sendMessage({ type: "player-progress", progress: forcedProgress !== null ? forcedProgress : frameProgress }).catch(() => {}); } catch {}
+        }
+      }
+      return;
+    }
     if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
     const urlEpisodeId = new URL(location.href).searchParams.get("e");
     const nextEpisodeId = urlEpisodeId && /^\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
