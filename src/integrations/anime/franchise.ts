@@ -31,11 +31,11 @@ export function kindOf(e: AnimeEntry): Kind {
 
 const RECAP = /recap|summary|digest|総集編|compilation/i;
 const ALTERNATIVE_RELATIONS = new Set(["remake", "remake of", "alternative version", "alternative version of"]);
-const ALTERNATIVE_TITLE_SUFFIX = /\\s+(?:director s cut|directors cut|director cut|extended edition|special edition|remastered edition|remastered|recut|kai)$/;
+const ALTERNATIVE_TITLE_SUFFIX = /\s+(?:director s cut|directors cut|director cut|extended edition|special edition|remastered edition|remastered|recut|kai)$/;
 
 /** A known alternate-cut suffix removed from a normalized title, or null for ordinary titles. */
 function alternativeTitleBase(name: string): string | null {
-  const normalized = name.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const normalized = name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
   const base = normalized.replace(ALTERNATIVE_TITLE_SUFFIX, "").trim();
   return base && base !== normalized ? base : null;
 }
@@ -74,7 +74,7 @@ function alternativeSeasonBases(entries: readonly AnimeEntry[]): Map<string, str
       .filter((other) => other.id !== entry.id && kindOf(other) === "season"
         && other.start && entry.start && orderKey(other) < orderKey(entry))
       .find((other) => {
-        const normalized = other.name.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+        const normalized = other.name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
         return normalized === baseName;
       });
     if (original) bases.set(entry.id, original.id);
