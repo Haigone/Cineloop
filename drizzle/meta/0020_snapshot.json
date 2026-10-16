@@ -2252,7 +2252,7 @@
         },
         "episode_links_valid_step": {
           "name": "episode_links_valid_step",
-          "value": "\"id_step\" IS NULL OR \"id_step\" <> 0"
+          "value": "\"id_step\" IS NULL OR \"id_step\" = 1"
         },
         "episode_links_valid_type": {
           "name": "episode_links_valid_type",
