@@ -21,6 +21,23 @@
   /** La serie che questa pagina sta mostrando, finche' non cambia pagina. */
   let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
   let lastSent = "";
+  let lastEpisodeKey = "";
+  let lastProgressSentAt = 0;
+  let boundVideo = null;
+  const PROGRESS_SEND_INTERVAL_MS = 5_000;
+
+  function bindVideo(video) {
+    if (!video || boundVideo === video) return;
+    boundVideo = video;
+    const sendNow = () => read(true);
+    video.addEventListener("timeupdate", () => {
+      if (Date.now() - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
+    });
+    video.addEventListener("pause", sendNow);
+    video.addEventListener("ended", () => read(true, 1));
+    video.addEventListener("loadedmetadata", sendNow);
+    video.addEventListener("seeked", sendNow);
+  }
 
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
   const cleanTitle = (s) => clean(s).replace(/^watch\s+/i, "").trim();
@@ -93,7 +110,7 @@
     return best;
   }
 
-  function read() {
+  function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
     const id = titleIdNow();
     if (!id) return;
@@ -127,15 +144,19 @@
       if (guessed.episode !== null) { known.episode = guessed.episode; if (guessed.season !== null) known.season = guessed.season; }
     }
     const video = findVideo();
+    bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-    const progress = duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
-    const message = { type: "player-title", ...known, progress: progress === null ? null : Math.round(progress * 1000) / 1000 };
+    const rawProgress = forcedProgress !== null ? forcedProgress : duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
+    const progress = rawProgress === null ? null : Math.round(rawProgress * 1000) / 1000;
+    const message = { type: "player-title", ...known, progress };
     const key = JSON.stringify(known);
     const now = Date.now();
-    if (key === lastSent && now - (read.progressAt ?? 0) < 15_000) return;
+    const episodeChanged = key !== lastEpisodeKey;
+    if (!force && !episodeChanged && now - lastProgressSentAt < PROGRESS_SEND_INTERVAL_MS) return;
     if (!known.title && known.episode === null && progress === null) return;
     lastSent = key;
-    read.progressAt = now;
+    lastEpisodeKey = key;
+    lastProgressSentAt = now;
     try {
       chrome.runtime.sendMessage(message).catch(() => {});
     } catch {
