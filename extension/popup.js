@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 const DEFAULT_SERVER = "https://cineloop-one.vercel.app";
 /** True while the user is correcting a title that was recognised wrongly. */
 let changing = false;
+let auFrameOriginForGrant = null;
 const show = (id, visible) => ($(id).hidden = !visible);
 
 async function render() {
@@ -65,6 +66,7 @@ async function render() {
   const frameOrigin = otherProvider === "animeunity" && frameInfo.auFrameTabId
     ? (frameInfo.auFrameOrigins ?? []).slice(-1)[0]
     : null;
+  auFrameOriginForGrant = frameOrigin;
   const frameAllowed = frameOrigin
     ? await chrome.permissions.contains({ origins: [frameOrigin + "/*"] })
     : false;
@@ -399,11 +401,11 @@ function deviceLabel() {
 }
 
 $("au-frame-grant-btn").addEventListener("click", async () => {
-  const { auFrameOrigins = [] } = await chrome.storage.session.get("auFrameOrigins");
-  const origin = auFrameOrigins.slice(-1)[0];
+  const origin = auFrameOriginForGrant;
   if (!origin) return;
-  // Request host permission directly from this user click.
-  const granted = await chrome.permissions.request({ origins: [origin + "/*"] });
+  // Request host permission before any await, directly from this user click.
+  const permissionRequest = chrome.permissions.request({ origins: [origin + "/*"] });
+  const granted = await permissionRequest;
   if (granted) {
     await chrome.runtime.sendMessage({ type: "enable-au-frame", origin }).catch(() => false);
     await render();
