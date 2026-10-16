@@ -152,13 +152,15 @@ async function enableAnimeFrameOrigin(origin) {
     id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js"], allFrames: true,
     runAt: "document_idle", persistAcrossSessions: true,
   }]);
-  const { auFrameTabId } = await chrome.storage.session.get("auFrameTabId");
-  if (auFrameTabId) {
-    await chrome.scripting.executeScript({
-      target: { tabId: auFrameTabId, allFrames: true },
-      files: ["compat.js", "au-page.js"],
-    }).catch(() => {});
-  }
+  // Inject into every currently open AnimeUnity tab. A single remembered tab ID
+  // caused the last opened tab to steal progress/watch-party updates from others.
+  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
+  await Promise.all(animeTabs.filter((tab) => tab.id).map((tab) =>
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ["compat.js", "au-page.js", "party-sync.js"],
+    }).catch(() => {})
+  ));
   return true;
 }
 
@@ -207,6 +209,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
   if (message?.type === "player-progress" && sender.tab?.id && typeof message.progress === "number" && Number.isFinite(message.progress) && message.progress >= 0 && message.progress <= 1) {
     frameProgress(sender.tab.id, message.progress).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "party-context" && sender.tab?.id) {
+    partyContext(sender.tab).then(reply, () => reply(null));
     return true;
   }
   if (message?.type === "party-report" && sender.tab?.id) {
@@ -264,16 +270,20 @@ async function playerTitle(tabId, m) {
   const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null;
   const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    const freshFrameProgress = entry.frameProgress && now - entry.frameProgress.at < 15_000
+      ? entry.frameProgress.progress
+      : null;
+    const effectiveProgress = progress ?? freshFrameProgress ?? was?.progress ?? null;
     const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
-    const progressChanged = progress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - progress) >= 0.02);
-    const flush = identityChanged || progressChanged || (progress !== null && progress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
+    const progressChanged = effectiveProgress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - effectiveProgress) >= 0.02);
+    const flush = identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
       season,
       episode,
       episodeId,
-      progress: progress ?? was?.progress ?? null,
+      progress: effectiveProgress,
       at: now,
       lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
     };
@@ -307,14 +317,33 @@ async function manualProgress(m) {
 /** Aggiorna la posizione usando il video letto da un iframe accessibile. */
 async function frameProgress(tabId, progress) {
   const now = Date.now();
+  const normalized = Math.round(progress * 1000) / 1000;
   const flush = await updateTab(tabId, (entry) => {
+    // The iframe can report before the AnimeUnity page has parsed its title.
+    // Keep a short-lived sample so the first player-title message can use it.
+    entry.frameProgress = { progress: normalized, at: now };
     if (!entry.player || typeof entry.player.watchId !== "string" || typeof entry.player.title !== "string") return false;
-    const changed = entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - progress) >= 0.005;
+    const changed = entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.005;
     if (!changed) return false;
-    entry.player = { ...entry.player, progress: Math.round(progress * 1000) / 1000, at: now, lastFlushAt: now };
+    entry.player = { ...entry.player, progress: normalized, at: now, lastFlushAt: now };
     return true;
   });
   if (flush) await tick();
+}
+
+/** Context for the authorized VixCloud frame: use the AnimeUnity page URL as episode identity. */
+async function partyContext(tab) {
+  const url = typeof tab?.url === "string" ? tab.url : "";
+  if (!isAnimeUrl(url) || !auWatchId(url)) return null;
+  const { tabs = {} } = await chrome.storage.session.get("tabs");
+  const player = tabs[tab.id]?.player ?? null;
+  return {
+    providerId: "animeunity",
+    externalId: url,
+    title: player?.title ?? tab.title ?? "",
+    season: player?.season ?? null,
+    episode: player?.episode ?? null,
+  };
 }
 
 /** Suggerimenti dal player, quando appartengono all'episodio dell'URL. */
