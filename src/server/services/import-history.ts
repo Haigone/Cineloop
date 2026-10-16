@@ -85,7 +85,7 @@ export function withoutRepeats(name: string): string {
   return parts.filter((p, n) => n === 0 || searchKey(p) !== searchKey(parts[n - 1]!)).join(": ");
 }
 
-async function match(raw: HistoryItem): Promise<Title | null> {
+export async function match(raw: HistoryItem): Promise<Title | null> {
   const item = { ...raw, title: withoutRepeats(raw.title), sample: withoutRepeats(raw.sample) };
   if (item.kind === "series") return (await byName(item.title, true)) ?? byName(item.title, false);
   if (item.kind === "film") return byName(item.title, false);
