@@ -91,7 +91,7 @@
 
   /** Il <video> piu' avanzato nel documento o negli iframe same-origin. */
   function findVideo(root = document, depth = 0) {
-    if (depth > 2) return null;
+    if (depth > 4) return null;
     let best = null;
     for (const v of root.querySelectorAll("video")) {
       if (!Number.isFinite(v.duration) || v.duration <= 0) continue;
