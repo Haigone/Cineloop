@@ -19,6 +19,13 @@ describe("Anime Unity part-to-season mapping", () => {
     expect(animeUnityPartSeason("https://www.animeunity.so/anime/4-bleach-the-calamity/4", "Bleach: The Calamity")).toBe(4);
   });
 
+  it("maps Re:ZERO Shin Henshuu-ban to season one", () => {
+    expect(animeUnityPartSeason(
+      "https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049?cineloopResume=0",
+      "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban",
+    )).toBe(1);
+  });
+
   it("does not infer a season without an explicit part marker", () => {
     expect(animeUnityPartSeason("https://www.animeunity.so/anime/123-example", "Example Anime")).toBeNull();
   });
