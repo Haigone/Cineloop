@@ -375,6 +375,30 @@ export const providerTitleLinks = pgTable(
   (t) => [primaryKey({ columns: [t.providerId, t.externalId] })],
 );
 
+/** Minimal provider episode map: one anchor per season plus only non-linear exceptions. */
+export const episodeLinks = pgTable(
+  "episode_links",
+  {
+    providerId: text("provider_id").$type<ProviderId>().notNull(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => titles.id, { onDelete: "cascade" }),
+    seasonNumber: integer("season_number").notNull(),
+    episodeNumber: integer("episode_number").notNull(),
+    externalId: text("external_id").notNull(),
+    /** 1 only when consecutive IDs have been verified; null means never infer. */
+    idStep: integer("id_step"),
+    /** anchor = season reference; exact = explicitly verified exception. */
+    linkType: text("link_type").$type<"anchor" | "exact">().notNull().default("anchor"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.providerId, t.titleId, t.seasonNumber, t.episodeNumber] }),
+    index("episode_links_title_provider_idx").on(t.titleId, t.providerId),
+    check("episode_links_positive_numbers", sql`${t.seasonNumber} > 0 and ${t.episodeNumber} > 0`),
+    check("episode_links_valid_step", sql`${t.idStep} is null or ${t.idStep} <> 0`),
+  ],
+);
+
 /** Charts fetched from outside (e.g. Netflix's public Top 10), refreshed at most daily. */
 export const charts = pgTable("charts", {
   id: text("id").primaryKey(),
