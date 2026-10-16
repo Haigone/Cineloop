@@ -397,6 +397,7 @@ export const episodeLinks = pgTable(
     uniqueIndex("episode_links_one_anchor_per_season_idx").on(t.providerId, t.titleId, t.seasonNumber).where(sql`${t.linkType} = 'anchor'`),
     check("episode_links_positive_numbers", sql`${t.seasonNumber} > 0 and ${t.episodeNumber} > 0`),
     check("episode_links_valid_step", sql`${t.idStep} is null or ${t.idStep} <> 0`),
+    check("episode_links_valid_type", sql`${t.linkType} in ('anchor', 'exact')`),
   ],
 );
 
