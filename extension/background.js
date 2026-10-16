@@ -2,7 +2,7 @@ import "./compat.js";
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
 import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
-import { auWatchId, hasAnimeAccess, isAnimeUrl } from "./au.js";
+import { auWatchId, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
 import { hasPrimeAccess, isPrimeUrl, PRIME_ORIGINS } from "./prime.js";
 
 /*
@@ -135,8 +135,15 @@ async function enableAnimePage() {
   await chrome.scripting.registerContentScripts([
     { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
   ]);
-  for (const tab of await chrome.tabs.query({ url: "https://www.animeunity.so/*" })) {
+  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
+  for (const tab of animeTabs) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
+  }
+  // Register each supported VixCloud host under the same AnimeUnity permission
+  // grant and inject into currently open embedded players without another prompt.
+  for (const pattern of VIXCLOUD_ORIGINS) {
+    const origin = pattern.replace(/\/\*$/, "");
+    await enableAnimeFrameOrigin(origin);
   }
 }
 
