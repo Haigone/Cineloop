@@ -66,7 +66,7 @@ test("Prime Video is recognised with no permission to grant", async ({ baseURL }
       return (await popup.locator("#watching-title").textContent()) ?? "";
     }, { timeout: 30_000 })
     .toBe("Dark");
-  await expect(popup.locator("#watching-meta")).toHaveText("2017 · S2E3 · su Prime Video");
+  await expect(popup.locator("#watching-meta")).toHaveText("Anno titolo: 2017 · S2E3 · su Prime Video");
   await expect(popup.locator("#player-read")).toContainText("25% visto");
 
   // Watch together: Luca joins Marco and pauses on his side (his extension, here

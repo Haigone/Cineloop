@@ -104,6 +104,34 @@ describe("ANN's own wording of relations (Bleach as it answers today)", () => {
   });
 });
 
+describe("remakes and alternative cuts share a season number", () => {
+  it("keeps Re:Zero's Director's Cut in season 1 rather than making it season 2", async () => {
+    const original = entry(17360, "TV", "Re:Zero - Starting Life in Another World", `<info type="Number of episodes">25</info><info type="Vintage">2016-04-04</info><related-next rel="remake" id="99991"/>`);
+    const directorsCut = entry(99991, "TV", "Re:Zero - Starting Life in Another World Director's Cut", `<info type="Number of episodes">13</info><info type="Vintage">2020-01-01</info><related-prev rel="remake of" id="17360"/>`);
+    const { cat } = catalog([], { ann: `<?xml version="1.0"?><ann>${original}${directorsCut}</ann>` });
+    const title = (await cat.getTitle("anime-ann-17360")) as Series;
+    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 13]]);
+    expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.name, p.season])).toEqual([
+      ["Re:Zero - Starting Life in Another World", 1],
+      ["Re:Zero - Starting Life in Another World Director's Cut", 1],
+    ]);
+    expect((await cat.episodes(title.id, 1))!.length).toBe(13);
+  });
+
+  it("recognizes a Director's Cut when ANN omits the alternative-version relation", async () => {
+    const original = entry(17360, "TV", "Re:Zero - Starting Life in Another World", `<info type="Number of episodes">25</info><info type="Vintage">2016-04-04</info>`);
+    const directorsCut = entry(99991, "TV", "Re:Zero - Starting Life in Another World Director's Cut", `<info type="Number of episodes">13</info><info type="Vintage">2020-01-01</info>`);
+    const { cat } = catalog([], { ann: `<?xml version="1.0"?><ann>${original}${directorsCut}</ann>` });
+    const title = (await cat.getTitle("anime-ann-17360")) as Series;
+    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 13]]);
+    expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.name, p.season])).toEqual([
+      ["Re:Zero - Starting Life in Another World", 1],
+      ["Re:Zero - Starting Life in Another World Director's Cut", 1],
+    ]);
+    expect((await cat.episodes(title.id, 1))!.length).toBe(13);
+  });
+});
+
 describe("links recorded on one side only", () => {
   // As on ANN in practice: the sequel names its prequel, the prequel names no sequel.
   const OLD = entry(4658, "TV", "Bleach", `<info type="Number of episodes">366</info><info type="Vintage">2004-10-05</info><related-next rel="adapted from" id="4199"/>`);

@@ -92,3 +92,24 @@ test("a progress set by mistake can be taken back to the wishlist", async ({ pag
   await page.goto("/wishlist");
   await expect(page.getByText("Peaky Blinders").first()).toBeVisible();
 });
+
+test("a title taken out of Novità with the X stays out, and its page can put it back", async ({ page }) => {
+  await signIn(page, "/home");
+  const novita = page.getByRole("region", { name: "Novità: serie con stagioni nuove" });
+  await novita.getByRole("button", { name: "Togli Arcane dalle Novità" }).click();
+  const confirm = page.getByRole("dialog", { name: "Togliere Arcane dalle Novità?" });
+  await confirm.getByRole("button", { name: "Non mi interessa più" }).click();
+  const choose = page.getByRole("dialog", { name: "Vuoi ancora sapere quando esce qualcosa?" });
+  await choose.getByRole("button", { name: /Avvisami il giorno dell’uscita/ }).click();
+  await expect(choose).toBeHidden();
+  await expect(page.getByText("Arcane tolto dalle Novità: ti avvisiamo il giorno dell’uscita")).toBeVisible();
+  await expect(novita.getByRole("link", { name: "Arcane" })).toHaveCount(0);
+
+  await page.goto("/title/arcane");
+  await expect(page.getByText("ti avvisiamo solo il giorno in cui esce una stagione o un episodio")).toBeVisible();
+  await page.getByRole("button", { name: "Rimetti nelle Novità" }).click();
+  await expect(page.getByText("Arcane torna nelle Novità")).toBeVisible();
+
+  await page.goto("/home");
+  await expect(page.getByRole("region", { name: "Novità: serie con stagioni nuove" }).getByRole("link", { name: "Arcane" })).toBeVisible();
+});

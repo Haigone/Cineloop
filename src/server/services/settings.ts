@@ -3,6 +3,7 @@ import { PROVIDERS } from "@/domain/providers";
 import { sectionOf, type MediaType, type Title } from "@/domain/types";
 import { rankedInSection } from "@/domain/podium";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { configuredOAuthProviders } from "@/server/auth/oauth";
 import { getRepository } from "@/server/data";
 import { sectionBackground } from "./dashboard";
 
@@ -22,11 +23,13 @@ export interface BackgroundChoice {
 export async function getSettingsView() {
   const user = await getCurrentUser();
   const repo = getRepository();
-  const [preferences, devices, library, wishlist] = await Promise.all([
+  const [preferences, devices, library, wishlist, linkedAccounts, passwordHash] = await Promise.all([
     repo.getPreferences(user.id),
     repo.listExtensionDevices(user.id),
     repo.listLibrary(user.id),
     repo.listWishlist(user.id),
+    repo.listOAuthProviders(user.id),
+    repo.getPasswordHash(user.id),
   ]);
   const chosenIds = Object.values(preferences.homeBackgrounds).filter((id): id is string => Boolean(id));
   const owned = await repo.getTitlesByIds([...new Set([...library.map((e) => e.titleId), ...wishlist.map((w) => w.titleId), ...chosenIds])]);
@@ -42,5 +45,15 @@ export async function getSettingsView() {
       ...rankedInSection(preferences, library, byId, category),
     };
   });
-  return { user, preferences, devices, backgrounds, providers: Object.values(PROVIDERS) };
+  return {
+    user,
+    preferences,
+    devices,
+    backgrounds,
+    providers: Object.values(PROVIDERS),
+    linkedAccounts,
+    hasPassword: passwordHash !== null,
+    /** Google / Discord buttons that can be offered, linked or not. */
+    signInOptions: configuredOAuthProviders(),
+  };
 }

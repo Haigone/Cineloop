@@ -2,6 +2,15 @@
 
 export const AU_ORIGIN = "https://www.animeunity.so";
 export const AU_ORIGINS = ["https://www.animeunity.so/*"];
+// Common VixCloud player hosts are requested in the same gesture as AnimeUnity,
+// so the user does not have to approve the embed separately.
+export const VIXCLOUD_ORIGINS = [
+  "https://vixcloud.co/*",
+  "https://www.vixcloud.co/*",
+  "https://vixcloud.fun/*",
+  "https://www.vixcloud.fun/*",
+];
+export const ANIMEUNITY_ACCESS_ORIGINS = [...AU_ORIGINS, ...VIXCLOUD_ORIGINS];
 // AnimeUnity uses canonical anime pages like /anime/69-bleach, not /search?q=...
 // Without AnimeUnity's numeric ID, open the archive rather than a broken search route.
 export const AU_SEARCH = `${AU_ORIGIN}/anime/`;

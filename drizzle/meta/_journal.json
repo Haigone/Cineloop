@@ -127,6 +127,34 @@
       "when": 1791986284005,
       "tag": "0017_party_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792088723516,
+      "tag": "0018_title_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792133376751,
+      "tag": "0019_oauth_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792140000000,
+      "tag": "0020_episode_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792151200102,
+      "tag": "0021_provider_consent",
+      "breakpoints": true
     }
   ]
 }

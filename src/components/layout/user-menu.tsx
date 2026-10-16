@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { LogOut, Settings, Sparkles, UserRound } from "lucide-react";
 import type { PublicUser } from "@/domain/types";
 import { logout } from "@/server/actions/auth";
 import { Avatar } from "@/components/ui/avatar";
@@ -30,6 +30,9 @@ export function UserMenu({ user, guest = false }: { user: PublicUser; guest?: bo
           <div className="my-1 h-px bg-line" />
           <MenuLink href="/profile" icon={<UserRound className="size-4" />} onClick={close}>
             Profilo
+          </MenuLink>
+          <MenuLink href="/wrapped" icon={<Sparkles className="size-4" />} onClick={close}>
+            Il tuo Wrapped
           </MenuLink>
           <MenuLink href="/settings" icon={<Settings className="size-4" />} onClick={close}>
             Impostazioni

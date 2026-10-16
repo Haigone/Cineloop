@@ -6,6 +6,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -13,6 +14,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -41,6 +43,8 @@ export class MemoryRepository implements Repository {
   private users = new Map<string, User>();
   private passwords = new Map<string, string>();
   private sessions = new Map<string, { userId: string; expiresAt: Date }>();
+  /** "provider:providerUserId" → user id. */
+  private oauthAccounts = new Map<string, string>();
   private friendships: { a: string; b: string; since: string }[] = [];
   private library: LibraryEntry[] = [];
   private wishlist: WishlistItem[] = [];
@@ -58,6 +62,7 @@ export class MemoryRepository implements Repository {
   private presence = new Map<string, Presence>();
   private rooms = new Map<string, PartyState>();
   private providerLinks = new Map<string, string>();
+  private episodeLinks = new Map<string, { episodeNumber: number; externalId: string; idStep: number | null; linkType: "anchor" | "exact" }>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
   private charts = new Map<string, { data: unknown; fetchedAt: Date }>();
@@ -201,6 +206,32 @@ export class MemoryRepository implements Repository {
       .map(toPublic);
   }
 
+  async getUserByEmail(email: string) {
+    const e = email.toLowerCase();
+    return [...this.users.values()].find((x) => x.email === e) ?? null;
+  }
+
+  async setUserEmail(userId: string, email: string) {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const updated: User = { ...user, email: email.toLowerCase() };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async getUserByOAuth(provider: OAuthProvider, providerUserId: string) {
+    const userId = this.oauthAccounts.get(`${provider}:${providerUserId}`);
+    return (userId && this.users.get(userId)) || null;
+  }
+
+  async linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string) {
+    this.oauthAccounts.set(`${provider}:${providerUserId}`, userId);
+  }
+
+  async listOAuthProviders(userId: string) {
+    return [...this.oauthAccounts].filter(([, id]) => id === userId).map(([key]) => key.split(":")[0] as OAuthProvider);
+  }
+
   // Sessions ----------------------------------------------------------------
 
   async createSession(input: { tokenHash: string; userId: string; expiresAt: Date }) {
@@ -294,6 +325,11 @@ export class MemoryRepository implements Repository {
   async dismissRatingPrompt(userId: string, titleId: string) {
     const entry = this.findEntry(userId, titleId);
     if (entry) entry.askRating = false;
+  }
+
+  async setUpdates(userId: string, titleId: string, updates: TitleUpdates) {
+    const entry = this.findEntry(userId, titleId);
+    if (entry) entry.updates = updates;
   }
 
   async setRating(userId: string, titleId: string, value: RatingValue | null) {
@@ -551,6 +587,14 @@ export class MemoryRepository implements Repository {
     if (party) party.status = status;
   }
 
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+    const party = this.parties.find((p) => p.id === partyId);
+    if (!party) return;
+    if (patch.participantIds) party.participantIds = [...patch.participantIds];
+    if (patch.status) party.status = patch.status;
+    if (patch.scheduledFor !== undefined) party.scheduledFor = patch.scheduledFor;
+  }
+
   async listWatchParties(userId: string, limit: number) {
     return this.parties
       .filter((p) => p.hostId === userId || p.participantIds.includes(userId))
@@ -632,6 +676,45 @@ export class MemoryRepository implements Repository {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
   }
 
+  async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
+    const prefix = `${input.providerId}:${input.titleId}:${input.seasonNumber}:`;
+    const exact = this.episodeLinks.get(prefix + input.episodeNumber);
+    if (exact?.linkType === "exact") return exact.externalId;
+    if (exact?.linkType === "anchor") return exact.externalId;
+    const anchor = [...this.episodeLinks.entries()].find(([key, row]) => key.startsWith(prefix) && row.linkType === "anchor");
+    if (!anchor || anchor[1].idStep !== 1 || !/^\d+$/.test(anchor[1].externalId)) return null;
+    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber);
+    return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  }
+
+  async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
+    const anchorKey = `${input.providerId}:${input.titleId}:${input.seasonNumber}`;
+    const anchor = [...this.episodeLinks.entries()].find(([k, v]) => k.startsWith(anchorKey + ":") && v.linkType === "anchor");
+    if (!anchor) {
+      this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor" });
+      return;
+    }
+    const [anchorRowKey, row] = anchor;
+    if (row.episodeNumber === input.episodeNumber) return;
+    const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    if (row.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      const expected = anchorId + input.episodeNumber - row.episodeNumber;
+      if (expected === observedId) return;
+      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
+      this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact" });
+      return;
+    }
+    if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
+      observedId - anchorId === input.episodeNumber - row.episodeNumber &&
+      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      this.episodeLinks.set(anchorRowKey, { ...row, idStep: 1 });
+    }
+  }
+
   // Sagas -------------------------------------------------------------------
 
   async listCollectionChoices(userId: string) {
@@ -704,6 +787,7 @@ export function defaultPreferences(userId: string): UserPreferences {
     subscriptions: [],
     homeCategory: "series",
     homeBackgrounds: {},
+    providerConsent: {},
   };
 }
 

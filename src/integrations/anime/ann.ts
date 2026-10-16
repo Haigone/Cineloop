@@ -25,6 +25,10 @@ export const FRANCHISE_RELATIONS = new Set([
   "summary of",
   "parent story",
   "full story",
+  "remake",
+  "remake of",
+  "alternative version",
+  "alternative version of",
 ]);
 
 function text(node: XmlNode, type: string): string | null {

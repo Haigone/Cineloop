@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
-import type { ActivityKind, Genre, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
+import { boolean, check, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import type { ActivityKind, ConsentProvider, ConsentState, Genre, OAuthProvider, PlaylistVisibility, MediaType, NotificationKind, PartyState, ProviderId, SeasonSummary, TitleUpdates, WatchPart, WatchPartyFilter, WatchPartyStatus, WatchProgress, WatchStatus } from "@/domain/types";
 
 /**
  * PostgreSQL schema. Mirrors the domain model; enum-like columns are text
@@ -65,6 +65,20 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/** Google / Discord accounts someone signs in with; one outside account belongs to one CineLoop account. */
+export const oauthAccounts = pgTable(
+  "oauth_accounts",
+  {
+    provider: text("provider").$type<OAuthProvider>().notNull(),
+    providerUserId: text("provider_user_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.providerUserId] }), index("oauth_accounts_user_idx").on(t.userId)],
+);
+
 export const libraryEntries = pgTable(
   "library_entries",
   {
@@ -84,6 +98,8 @@ export const libraryEntries = pgTable(
     askRating: boolean("ask_rating").notNull().default(false),
     /** Parts of an anime franchise the user included or left out, by part key. */
     partOverrides: jsonb("part_overrides").$type<Record<string, boolean>>().notNull().default({}),
+    /** "all", "releaseDay" or "none": see TitleUpdates. */
+    updates: text("updates").$type<TitleUpdates>().notNull().default("all"),
   },
   (t) => [primaryKey({ columns: [t.userId, t.titleId] }), check("rating_range", sql`${t.rating} is null or ${t.rating} between 1 and 10`)],
 );
@@ -289,6 +305,7 @@ export const preferences = pgTable("preferences", {
   subscriptions: text("subscriptions").array().$type<ProviderId[]>().notNull().default(sql`'{}'::text[]`),
   homeCategory: text("home_category").$type<MediaType>().notNull().default("series"),
   homeBackgrounds: jsonb("home_backgrounds").$type<Partial<Record<MediaType, string>>>().notNull().default({}),
+  providerConsent: jsonb("provider_consent").$type<Partial<Record<ConsentProvider, ConsentState>>>().notNull().default({}),
 });
 
 /** One-time codes that pair the browser extension with an account. Stored hashed. */
@@ -357,6 +374,32 @@ export const providerTitleLinks = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.providerId, t.externalId] })],
+);
+
+/** Minimal provider episode map: one anchor per season plus only non-linear exceptions. */
+export const episodeLinks = pgTable(
+  "episode_links",
+  {
+    providerId: text("provider_id").$type<ProviderId>().notNull(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => titles.id, { onDelete: "cascade" }),
+    seasonNumber: integer("season_number").notNull(),
+    episodeNumber: integer("episode_number").notNull(),
+    externalId: text("external_id").notNull(),
+    /** 1 only when consecutive IDs have been verified; null means never infer. */
+    idStep: integer("id_step"),
+    /** anchor = season reference; exact = explicitly verified exception. */
+    linkType: text("link_type").$type<"anchor" | "exact">().notNull().default("anchor"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.providerId, t.titleId, t.seasonNumber, t.episodeNumber] }),
+    index("episode_links_title_provider_idx").on(t.titleId, t.providerId),
+    uniqueIndex("episode_links_one_anchor_per_season_idx").on(t.providerId, t.titleId, t.seasonNumber).where(sql`${t.linkType} = 'anchor'`),
+    check("episode_links_positive_numbers", sql`${t.seasonNumber} > 0 and ${t.episodeNumber} > 0`),
+    check("episode_links_valid_step", sql`${t.idStep} is null or ${t.idStep} = 1`),
+    check("episode_links_valid_type", sql`${t.linkType} in ('anchor', 'exact')`),
+  ],
 );
 
 /** Charts fetched from outside (e.g. Netflix's public Top 10), refreshed at most daily. */

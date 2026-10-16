@@ -8,9 +8,13 @@ import { getSettingsView } from "@/server/services/settings";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
+import { ProviderConsentSwitches } from "@/components/consent/provider-consent-switches";
 import { BackgroundPicker } from "@/components/settings/background-picker";
 import { ExtensionSettings } from "@/components/settings/extension-settings";
+import { ScrollToHash } from "@/components/settings/scroll-to-hash";
 import { PasswordForm } from "@/components/settings/password-form";
+import { LinkedAccounts } from "@/components/settings/linked-accounts";
+import { OAuthNotice } from "@/components/auth/oauth-notice";
 import { PreferenceSwitch } from "@/components/settings/preference-switch";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { SubscriptionList } from "@/components/settings/subscription-list";
@@ -25,6 +29,7 @@ const SECTIONS = [
   { id: "notifiche", label: "Notifiche" },
   { id: "servizi", label: "I tuoi servizi" },
   { id: "estensione", label: "Estensione Netflix" },
+  { id: "siti-non-ufficiali", label: "Siti non ufficiali" },
   { id: "sfondi", label: "Sfondi della Home" },
   { id: "accessibilita", label: "Aspetto e accessibilità" },
 ] as const;
@@ -62,7 +67,7 @@ export default function SettingsPage() {
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-[calc(var(--topbar-height)+24px)] rounded-xl border border-line bg-surface p-5 md:p-6">
+    <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-[calc(var(--topbar-height)+var(--notices-height,0px)+24px)] rounded-xl border border-line bg-surface p-5 md:p-6">
       <h2 id={`${id}-h`} className="text-[17px] font-semibold tracking-[-0.01em]">
         {title}
       </h2>
@@ -73,7 +78,7 @@ function Section({ id, title, description, children }: { id: string; title: stri
 }
 
 async function SettingsContent() {
-  const { user, preferences: p, providers, devices, backgrounds } = await getSettingsView();
+  const { user, preferences: p, providers, devices, backgrounds, linkedAccounts, hasPassword, signInOptions } = await getSettingsView();
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <Section id="profilo" title="Profilo" description="Come ti vedono gli amici su CineLoop.">
@@ -81,7 +86,9 @@ async function SettingsContent() {
       </Section>
 
       <Section id="account" title="Account">
+        <OAuthNotice />
         {isGuest(user) ? (
+          <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-[52ch] text-sm text-fg-2">
               Stai usando CineLoop solo con l’username <span className="text-fg">@{user.username}</span>. Aggiungi email e password per non perdere i tuoi
@@ -94,14 +101,20 @@ async function SettingsContent() {
               Completa la registrazione
             </Link>
           </div>
+          <LinkedAccounts options={signInOptions} linked={linkedAccounts} guest />
+          </>
         ) : (
           <>
             <dl className="mb-6 flex flex-col gap-1">
               <dt className="text-[13px] font-medium text-fg">Email</dt>
               <dd className="text-sm text-fg-2">{user.email}</dd>
             </dl>
-            <h3 className="mb-3 text-sm font-medium text-fg">Cambia password</h3>
-            <PasswordForm />
+            <LinkedAccounts options={signInOptions} linked={linkedAccounts} />
+            <h3 className="mb-3 text-sm font-medium text-fg">{hasPassword ? "Cambia password" : "Imposta una password"}</h3>
+            {!hasPassword && (
+              <p className="-mt-1 mb-3 max-w-[62ch] text-sm text-fg-2">Hai creato l’account con Google o Discord. Con una password puoi entrare anche con la tua email.</p>
+            )}
+            <PasswordForm hasPassword={hasPassword} />
           </>
         )}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
@@ -166,6 +179,14 @@ async function SettingsContent() {
       </Section>
 
       <Section
+        id="siti-non-ufficiali"
+        title="Siti non ufficiali"
+        description="L’estensione li legge solo se li attivi tu. Il permesso del browser arriva con l’installazione; qui decidi se usarlo. Se spegni un sito, CineLoop ignora quello che l’estensione gli manda."
+      >
+        <ProviderConsentSwitches initial={p.providerConsent} />
+      </Section>
+
+      <Section
         id="sfondi"
         title="Sfondi della Home"
         description="Ogni sezione della Home ha come sfondo il tuo titolo preferito. Se non ne scegli uno, usa l'ultimo che hai visto in quella sezione."
@@ -190,6 +211,7 @@ async function SettingsContent() {
           />
         </div>
       </Section>
+      <ScrollToHash />
     </div>
   );
 }

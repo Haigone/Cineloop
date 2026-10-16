@@ -206,11 +206,11 @@ describe("library follows the player", () => {
 });
 
 describe("synced providers", () => {
-  it("syncs Netflix and Prime Video only", () => {
+  it("syncs the providers the extension drives", () => {
     expect(isSyncedProvider("netflix")).toBe(true);
     expect(isSyncedProvider("prime-video")).toBe(true);
-    expect(isSyncedProvider("animeunity")).toBe(false);
-    expect(isSyncedProvider("streamingcommunity")).toBe(false);
+    expect(isSyncedProvider("animeunity")).toBe(true);
+    expect(isSyncedProvider("streamingcommunity")).toBe(true);
   });
 
   it("tells Prime Video episodes of one show apart", () => {

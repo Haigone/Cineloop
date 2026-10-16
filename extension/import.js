@@ -15,7 +15,7 @@ const ALL = "";
 const BATCH = 10;
 const ENDPOINT = "/api/extension/import-history";
 const HELP =
-  "NetflixViewingHistory.csv, così come lo scarichi. Il file viene letto qui e non arriva a CineLoop: partono solo i nomi delle serie e dei film. Un film finisce in libreria come visto, una serie come vista fino all’ultima stagione che compare nello storico. Quello che hai già in libreria non cambia.";
+  "NetflixViewingHistory.csv, così come lo scarichi. Il file viene letto qui e non arriva a CineLoop: partono solo i nomi delle serie e dei film e i giorni in cui li hai guardati. Un film finisce in libreria come visto, una serie come vista fino all’ultima stagione che compare nello storico. Quello che hai già in libreria resta com’è, ma riceve i giorni di visione che mancano (le statistiche dei minuti non cambiano).";
 
 /** What the chosen file holds, once read. */
 let read = null;
@@ -77,7 +77,7 @@ $("profile").addEventListener("change", renderCount);
 function chosen(profile = read && read.profiles.length > 1 ? $("profile").value : ALL) {
   if (!read) return [];
   const rows = read.items.filter((i) => profile === ALL || i.profile === profile);
-  return groupHistory(rows).map(({ title, kind, season, sample }) => ({ title, kind, sample, ...(season ? { season } : {}) }));
+  return groupHistory(rows).map(({ title, kind, season, sample, watched }) => ({ title, kind, sample, ...(season ? { season } : {}), ...(watched.length ? { watched } : {}) }));
 }
 
 function renderCount() {
@@ -138,7 +138,7 @@ $("import-btn").addEventListener("click", async () => {
   show("import-status", true);
   show("import-missing", false);
   show("log-link", false);
-  const total = { added: 0, already: 0, notFound: [] };
+  const total = { added: 0, days: 0, already: 0, notFound: [] };
   const queue = [...items];
   let done = 0;
   let failedInARow = 0;
@@ -163,6 +163,7 @@ $("import-btn").addEventListener("click", async () => {
       queue.unshift(...pending);
       done += batch.length - pending.length;
       total.added += res.added.length;
+      total.days += res.days ?? 0;
       total.already += res.already;
       total.notFound.push(...res.notFound.map((n) => (typeof n === "string" ? { title: n } : n)));
     }
@@ -170,6 +171,7 @@ $("import-btn").addEventListener("click", async () => {
     const missing = total.notFound.length - failed;
     $("import-status").textContent = [
       `Aggiunti alla libreria: ${total.added}.`,
+      total.days ? `Date di visione registrate: ${total.days}.` : "",
       total.already ? `Già su CineLoop: ${total.already}.` : "",
       missing ? `Non trovati nel catalogo: ${missing}.` : "",
       failed ? `Non importati perché CineLoop non ha risposto: ${failed} (sono nel log, riprova più tardi).` : "",

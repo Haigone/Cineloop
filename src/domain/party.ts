@@ -2,11 +2,10 @@ import type { PartyState, ProviderId } from "./types";
 
 /**
  * Providers whose rooms the extension keeps in step. Netflix has its own
- * player behind the /watch page; Prime Video's player is driven through its
- * <video> element. AnimeUnity and StreamingCommunity are not synced (see
- * docs/providers.md).
+ * player behind the /watch page; the others are driven through their <video>
+ * element (see docs/providers.md).
  */
-export const SYNCED_PROVIDERS: readonly ProviderId[] = ["netflix", "prime-video"];
+export const SYNCED_PROVIDERS: readonly ProviderId[] = ["netflix", "prime-video", "animeunity", "streamingcommunity"];
 
 export function isSyncedProvider(id: ProviderId): boolean {
   return SYNCED_PROVIDERS.includes(id);

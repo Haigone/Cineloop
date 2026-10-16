@@ -150,7 +150,7 @@ export class AnimeFirstCatalog implements CatalogService {
     const target = airingSeason(f, a);
     if (!target) return f;
     // The watching order lists the same season: it must not keep ANN's count of the whole run.
-    const part = f.title.watchOrder?.find((p) => p.kind === "season" && p.season === target.number);
+    const part = f.title.watchOrder?.filter((p) => p.kind === "season" && p.season === target.number).at(-1);
     const lastEntry = part && f.entries.get(part.key.slice(4));
     // AniList counts a long run from its first episode, an entry of it from its own.
     const offset = lastEntry ? runOffset(f.entries, lastEntry) : 0;
@@ -354,7 +354,7 @@ export class AnimeFirstCatalog implements CatalogService {
     if (MAL_ID.test(id) || AL_ID.test(id)) return null;
     if (!m) return this.base.episodes(id, season);
     const f = await this.franchise(m[1]!);
-    const part = f?.title.watchOrder?.find((p) => p.kind === "season" && p.season === season);
+    const part = f?.title.watchOrder?.filter((p) => p.kind === "season" && p.season === season).at(-1);
     const entry = part && f?.entries.get(part.key.slice(4));
     if (!entry) return null;
     // A later entry of a long run may number its episodes from the start of the run.

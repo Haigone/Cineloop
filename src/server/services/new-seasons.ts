@@ -1,9 +1,9 @@
 import "server-only";
 import type { LibraryEntry, SeasonSummary, Title } from "@/domain/types";
-import { newSeasons } from "@/domain/library";
+import { newSeasons, wantsNovita } from "@/domain/library";
 import { getCatalog } from "@/integrations/catalog";
 import type { Repository } from "@/server/data";
-import { cacheTitles } from "./explore";
+import { cacheTitles, notifyReleases } from "./explore";
 
 export interface NewSeasonItem {
   title: Title;
@@ -23,7 +23,7 @@ const CHECK_LIMIT = 30;
  */
 export async function listNewSeasons(repo: Repository, entries: readonly LibraryEntry[], titles: Map<string, Title>, today: string): Promise<NewSeasonItem[]> {
   const finished = entries
-    .filter((e) => e.status === "completed" && e.seenThrough != null && titles.get(e.titleId)?.type !== "movie")
+    .filter((e) => e.status === "completed" && e.seenThrough != null && wantsNovita(e) && titles.get(e.titleId)?.type !== "movie")
     .sort((a, b) => Date.parse(b.lastWatchedAt ?? b.addedAt) - Date.parse(a.lastWatchedAt ?? a.addedAt))
     .slice(0, CHECK_LIMIT);
 
@@ -50,6 +50,23 @@ export async function listNewSeasons(repo: Repository, entries: readonly Library
     })
     .filter((x): x is NewSeasonItem => x !== null)
     .sort((a, b) => (b.seasons.at(-1)!.airDate ?? "").localeCompare(a.seasons.at(-1)!.airDate ?? ""));
+}
+
+/**
+ * Series taken out of Novità that still want the release day ("Avvisami il giorno dell’uscita"):
+ * on the day a season or an episode comes out, a notification (sent once).
+ */
+export async function notifyReleaseDay(repo: Repository, userId: string, entries: readonly LibraryEntry[], titles: Map<string, Title>, today: string): Promise<void> {
+  const catalog = getCatalog();
+  if (!catalog.complete) return;
+  const series = entries
+    .filter((e) => e.updates === "releaseDay")
+    .map((e) => titles.get(e.titleId))
+    .filter((t): t is Title => Boolean(t) && t!.type !== "movie")
+    .slice(0, CHECK_LIMIT);
+  if (series.length === 0) return;
+  const out = (await catalog.nextSeasons(series, today).catch(() => [])).filter((r) => r.date === today);
+  if (out.length) await notifyReleases(repo, userId, out);
 }
 
 /** "Stagione 5 nuova" or "Stagioni 4–5 nuove". */

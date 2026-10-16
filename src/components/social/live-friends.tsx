@@ -100,7 +100,7 @@ function LiveRow({ item }: { item: LiveFriend }) {
               ? "La stanza tiene play, pausa e posizione allineati per tutti."
               : synced
                 ? `Con l'estensione CineLoop attiva entri nel punto in cui è ${name}, e posizione, play e pausa restano allineati tra voi. Nel pannello dell'estensione, in “Guarda insieme”, vedi se siete sfasati.`
-                : `Per ora CineLoop sincronizza posizione, play e pausa solo su Netflix e Prime Video: su ${provider} allineatevi a mano.`}
+                : `CineLoop non sincronizza ${provider}: allineatevi a mano.`}
           </p>
         </div>
       </Modal>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LogOut, UserPlus, Users } from "lucide-react";
+import { LogOut, Settings2, UserPlus, Users } from "lucide-react";
 import type { PublicUser } from "@/domain/types";
 import { inviteToSharedWatch, leaveSharedWatch, startSharedWatch } from "@/server/actions/shared-watch";
 import { joinNames } from "@/domain/shared-watch";
@@ -10,12 +10,10 @@ import { Avatar, AvatarStack } from "@/components/ui/avatar";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { ManageRunningNight } from "@/components/watch-party/manage-night";
+import type { SharedWatchView } from "@/server/services/shared-watch";
 
-interface Together {
-  id: string;
-  others: PublicUser[];
-  updatedBy: string | null;
-}
+type Together = SharedWatchView;
 
 /**
  * "Serata insieme" on a series or anime: watch it with friends and share one
@@ -24,6 +22,7 @@ interface Together {
  */
 export function SharedWatchPanel({ titleId, titleName, friends, together }: { titleId: string; titleName: string; friends: PublicUser[]; together: Together | null }) {
   const [open, setOpen] = useState(false);
+  const [managing, setManaging] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const toast = useToast();
@@ -77,7 +76,11 @@ export function SharedWatchPanel({ titleId, titleName, friends, together }: { ti
             <Button size="sm" variant="ghost" loading={pending && !open} icon={<LogOut aria-hidden className="size-3.5" />} onClick={leave}>
               Esci dalla serata
             </Button>
+            <Button size="sm" variant="ghost" icon={<Settings2 aria-hidden className="size-3.5" />} onClick={() => setManaging(true)}>
+              Gestisci
+            </Button>
           </div>
+          <ManageRunningNight night={together} friends={friends} open={managing} onClose={() => setManaging(false)} />
         </div>
       ) : (
         <Button variant="secondary" size="lg" icon={<Users aria-hidden className="size-4" />} onClick={() => setOpen(true)}>

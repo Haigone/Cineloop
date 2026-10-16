@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryEntry, Title } from "@/domain/types";
-import { airedSeasons, finishesTitle, newSeasons } from "@/domain/library";
+import { airedSeasons, finishesTitle, newSeasons, wantsNovita, wantsUpdates } from "@/domain/library";
 
 const series = {
   id: "tmdb-tv-94605",
@@ -40,6 +40,21 @@ describe("Novità", () => {
     expect(newSeasons(entry({ seenThrough: 2 }), series, "2026-10-09")).toEqual([]);
     expect(newSeasons(entry({ status: "watching" }), series, "2026-10-09")).toEqual([]);
     expect(newSeasons(entry({ seenThrough: null }), series, "2026-10-09")).toEqual([]);
+  });
+});
+
+describe("taking a series out of Novità", () => {
+  it("keeps it out whatever comes next, with or without the release-day notification", () => {
+    expect(wantsNovita(entry({}))).toBe(true);
+    expect(wantsNovita(entry({ updates: "all" }))).toBe(true);
+    expect(wantsNovita(entry({ updates: "releaseDay" }))).toBe(false);
+    expect(wantsNovita(entry({ updates: "none" }))).toBe(false);
+  });
+
+  it("stops every update only with “Nessun aggiornamento”", () => {
+    expect(wantsUpdates(entry({}))).toBe(true);
+    expect(wantsUpdates(entry({ updates: "releaseDay" }))).toBe(true);
+    expect(wantsUpdates(entry({ updates: "none" }))).toBe(false);
   });
 });
 

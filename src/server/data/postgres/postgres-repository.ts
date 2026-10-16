@@ -9,6 +9,7 @@ import type {
   ExtensionDevice,
   Friend,
   LibraryEntry,
+  OAuthProvider,
   PartyState,
   Playlist,
   PlaylistVisibility,
@@ -16,6 +17,7 @@ import type {
   ProviderId,
   PublicUser,
   RatingValue,
+  TitleUpdates,
   SharedWatch,
   Title,
   User,
@@ -144,6 +146,38 @@ export class PostgresRepository implements Repository {
     return rows.map((r) => toPublic(toUser(r)));
   }
 
+  async getUserByEmail(email: string) {
+    const [row] = await this.db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase()));
+    return row ? toUser(row) : null;
+  }
+
+  async setUserEmail(userId: string, email: string) {
+    const [row] = await this.db.update(schema.users).set({ email: email.toLowerCase() }).where(eq(schema.users.id, userId)).returning();
+    if (!row) throw new Error("User not found");
+    return toUser(row);
+  }
+
+  async getUserByOAuth(provider: OAuthProvider, providerUserId: string) {
+    const [row] = await this.db
+      .select({ user: schema.users })
+      .from(schema.oauthAccounts)
+      .innerJoin(schema.users, eq(schema.users.id, schema.oauthAccounts.userId))
+      .where(and(eq(schema.oauthAccounts.provider, provider), eq(schema.oauthAccounts.providerUserId, providerUserId)));
+    return row ? toUser(row.user) : null;
+  }
+
+  async linkOAuthAccount(userId: string, provider: OAuthProvider, providerUserId: string) {
+    await this.db
+      .insert(schema.oauthAccounts)
+      .values({ provider, providerUserId, userId })
+      .onConflictDoUpdate({ target: [schema.oauthAccounts.provider, schema.oauthAccounts.providerUserId], set: { userId } });
+  }
+
+  async listOAuthProviders(userId: string) {
+    const rows = await this.db.select({ provider: schema.oauthAccounts.provider }).from(schema.oauthAccounts).where(eq(schema.oauthAccounts.userId, userId));
+    return rows.map((r) => r.provider);
+  }
+
   // Sessions ----------------------------------------------------------------
 
   async createSession(input: { tokenHash: string; userId: string; expiresAt: Date }) {
@@ -254,6 +288,13 @@ export class PostgresRepository implements Repository {
     await this.db
       .update(schema.libraryEntries)
       .set({ askRating: false })
+      .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
+  }
+
+  async setUpdates(userId: string, titleId: string, updates: TitleUpdates) {
+    await this.db
+      .update(schema.libraryEntries)
+      .set({ updates })
       .where(and(eq(schema.libraryEntries.userId, userId), eq(schema.libraryEntries.titleId, titleId)));
   }
 
@@ -625,6 +666,14 @@ export class PostgresRepository implements Repository {
     await this.db.update(schema.watchParties).set({ status }).where(eq(schema.watchParties.id, partyId));
   }
 
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+    const set: Partial<typeof schema.watchParties.$inferInsert> = {};
+    if (patch.participantIds) set.participantIds = patch.participantIds;
+    if (patch.status) set.status = patch.status;
+    if (patch.scheduledFor !== undefined) set.scheduledFor = patch.scheduledFor ? new Date(patch.scheduledFor) : null;
+    if (Object.keys(set).length) await this.db.update(schema.watchParties).set(set).where(eq(schema.watchParties.id, partyId));
+  }
+
   async listWatchParties(userId: string, limit: number) {
     const rows = await this.db
       .select()
@@ -720,6 +769,69 @@ export class PostgresRepository implements Repository {
       if (hit) return hit.titleId;
     }
     return null;
+  }
+
+  async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
+    const scope = and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+      eq(schema.episodeLinks.episodeNumber, input.episodeNumber),
+    );
+    const [exact] = await this.db.select().from(schema.episodeLinks).where(scope).limit(1);
+    if (exact && (exact.linkType === "exact" || exact.episodeNumber === input.episodeNumber && exact.linkType === "anchor")) return exact.externalId;
+    const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+      eq(schema.episodeLinks.linkType, "anchor"),
+    )).limit(1);
+    if (!anchor || anchor.idStep !== 1 || !/^\d+$/.test(anchor.externalId)) return null;
+    const id = Number(anchor.externalId) + (input.episodeNumber - anchor.episodeNumber);
+    return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  }
+
+  async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    const scope = and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+    );
+    const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(scope, eq(schema.episodeLinks.linkType, "anchor"))).limit(1);
+    if (!anchor) {
+      await this.db.insert(schema.episodeLinks).values({
+        providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
+        episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor",
+      }).onConflictDoNothing();
+      return;
+    }
+    if (anchor.episodeNumber === input.episodeNumber) return;
+    const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
+    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
+      if (expected === observedId) return;
+      await this.db.update(schema.episodeLinks).set({ idStep: null }).where(and(
+        scope,
+        eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
+        eq(schema.episodeLinks.linkType, "anchor"),
+      ));
+      await this.db.insert(schema.episodeLinks).values({
+        providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
+        episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
+      }).onConflictDoUpdate({
+        target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
+        set: { externalId: input.externalId, idStep: null, linkType: "exact" },
+      });
+      return;
+    }
+    if (anchor.idStep === null && Math.abs(input.episodeNumber - anchor.episodeNumber) === 1 &&
+      observedId - anchorId === input.episodeNumber - anchor.episodeNumber &&
+      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      await this.db.update(schema.episodeLinks).set({ idStep: 1 }).where(and(scope, eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber), eq(schema.episodeLinks.linkType, "anchor")));
+    }
   }
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
@@ -871,6 +983,7 @@ function toEntry(r: typeof schema.libraryEntries.$inferSelect): LibraryEntry {
     seenThrough: r.seenThrough,
     askRating: r.askRating,
     partOverrides: r.partOverrides,
+    updates: r.updates,
   };
 }
 

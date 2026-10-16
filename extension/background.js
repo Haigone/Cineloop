@@ -1,8 +1,8 @@
 import "./compat.js";
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
-import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
-import { auWatchId, hasAnimeAccess, isAnimeUrl } from "./au.js";
+import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId, SC_VIXCLOUD_ORIGINS } from "./sc.js";
+import { auWatchId, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
 import { hasPrimeAccess, isPrimeUrl, PRIME_ORIGINS } from "./prime.js";
 
 /*
@@ -120,11 +120,40 @@ async function enableScPage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
   ]);
   for (const tab of await chrome.tabs.query({ url: match })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "sc-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {});
   }
+  // The actual video is often cross-origin in a VixCloud iframe. Register the
+  // same lightweight progress reader on supported VixCloud hosts under the
+  // StreamingCommunity permission bundle, without a second consent prompt.
+  for (const pattern of SC_VIXCLOUD_ORIGINS) {
+    await enableScFrameOrigin(pattern.replace(/\/\*$/, ""));
+  }
+}
+
+/** Inject progress tracking into VixCloud frames embedded by StreamingCommunity. */
+async function enableScFrameOrigin(origin) {
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.hostname === "www.streaming-community.how") return false;
+  if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
+  const id = "sc-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
+  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+  await chrome.scripting.registerContentScripts([{
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "sc-page.js", "party-sync.js"],
+    allFrames: true, runAt: "document_idle", persistAcrossSessions: true,
+  }]);
+  const resolved = await getResolved();
+  if (resolved?.origin) {
+    const tabs = await chrome.tabs.query({ url: `${resolved.origin}/*` }).catch(() => []);
+    await Promise.all(tabs.filter((tab) => tab.id).map((tab) =>
+      chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {})
+    ));
+  }
+  return true;
 }
 
 /** Su animeunity.so fa girare au-page.js: titolo, episodio e avanzamento del video. */
@@ -133,11 +162,57 @@ async function enableAnimePage() {
   const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
   if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
   await chrome.scripting.registerContentScripts([
-    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js"], runAt: "document_idle", persistAcrossSessions: true },
+    { id: AU_SCRIPT, matches: ["https://www.animeunity.so/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
   ]);
-  for (const tab of await chrome.tabs.query({ url: "https://www.animeunity.so/*" })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js"] }).catch(() => {});
+  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
+  for (const tab of animeTabs) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
+  // Register each supported VixCloud host under the same AnimeUnity permission
+  // grant and inject into currently open embedded players without another prompt.
+  for (const pattern of VIXCLOUD_ORIGINS) {
+    const origin = pattern.replace(/\/\*$/, "");
+    await enableAnimeFrameOrigin(origin);
+  }
+}
+
+
+/** Store HTTPS iframe origins discovered from an authorized AnimeUnity tab. */
+async function rememberAnimeFrameOrigin(tabId, senderUrl, origin) {
+  if (!isAnimeUrl(senderUrl)) return;
+  let parsed;
+  try { parsed = new URL(origin); } catch { return; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return;
+  const { auFrameOrigins = [] } = await chrome.storage.session.get("auFrameOrigins");
+  await chrome.storage.session.set({
+    auFrameOrigins: [...new Set([...auFrameOrigins, parsed.origin])].slice(-10),
+    auFrameTabId: tabId,
+  });
+}
+
+/** Inject the reader into the video iframe after the user grants its host. */
+async function enableAnimeFrameOrigin(origin) {
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return false;
+  if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
+  const id = "au-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
+  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+  await chrome.scripting.registerContentScripts([{
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true,
+    runAt: "document_idle", persistAcrossSessions: true,
+  }]);
+  // Inject into every currently open AnimeUnity tab. A single remembered tab ID
+  // caused the last opened tab to steal progress/watch-party updates from others.
+  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
+  await Promise.all(animeTabs.filter((tab) => tab.id).map((tab) =>
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ["compat.js", "au-page.js", "party-sync.js"],
+    }).catch(() => {})
+  ));
+  return true;
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
@@ -171,12 +246,28 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     manualProgress(message).then((ok) => reply(ok), () => reply(false));
     return true;
   }
+  if (message?.type === "au-frame-origin" && sender.tab?.id && typeof message.origin === "string") {
+    rememberAnimeFrameOrigin(sender.tab.id, sender.url, message.origin).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "enable-au-frame" && typeof message.origin === "string") {
+    enableAnimeFrameOrigin(message.origin).then(reply, () => reply(false));
+    return true;
+  }
   if (message?.type === "player-title" && sender.tab?.id) {
     playerTitle(sender.tab.id, message).then(() => reply(true), () => reply(false));
     return true;
   }
   if (message?.type === "prime-player" && sender.tab?.id) {
     primePlayer(sender.tab.id, message).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "player-progress" && sender.tab?.id && typeof message.progress === "number" && Number.isFinite(message.progress) && message.progress >= 0 && message.progress <= 1) {
+    frameProgress(sender.tab.id, message.progress).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "party-context" && sender.tab?.id) {
+    partyContext(sender.tab).then(reply, () => reply(null));
     return true;
   }
   if (message?.type === "party-report" && sender.tab?.id) {
@@ -231,20 +322,30 @@ async function playerTitle(tabId, m) {
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
   const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
-  const changed = await updateTab(tabId, (entry) => {
+  const now = Date.now();
+  const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null;
+  const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    const freshFrameProgress = entry.frameProgress && now - entry.frameProgress.at < 15_000
+      ? entry.frameProgress.progress
+      : null;
+    const effectiveProgress = progress ?? freshFrameProgress ?? was?.progress ?? null;
+    const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    const progressChanged = effectiveProgress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - effectiveProgress) >= 0.02);
+    const flush = identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
       season,
       episode,
       episodeId,
-      progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
-      at: Date.now(),
+      progress: effectiveProgress,
+      at: now,
+      lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
     };
-    return was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    return flush;
   });
-  if (changed) await tick();
+  if (shouldFlush) await tick();
 }
 
 /**
@@ -299,6 +400,40 @@ async function manualProgress(m) {
   });
   await tick();
   return true;
+}
+
+/** Aggiorna la posizione usando il video letto da un iframe accessibile. */
+async function frameProgress(tabId, progress) {
+  const now = Date.now();
+  const normalized = Math.round(progress * 1000) / 1000;
+  const flush = await updateTab(tabId, (entry) => {
+    // The iframe can report before the AnimeUnity page has parsed its title.
+    // Keep a short-lived sample so the first player-title message can use it.
+    entry.frameProgress = { progress: normalized, at: now };
+    if (!entry.player || typeof entry.player.watchId !== "string" || typeof entry.player.title !== "string") return false;
+    const changed = entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.005;
+    if (!changed) return false;
+    entry.player = { ...entry.player, progress: normalized, at: now, lastFlushAt: now };
+    return true;
+  });
+  if (flush) await tick();
+}
+
+/** Context for the authorized VixCloud frame: use the AnimeUnity page URL as episode identity. */
+async function partyContext(tab) {
+  const url = typeof tab?.url === "string" ? tab.url : "";
+  if (!isAnimeUrl(url) || !auWatchId(url)) return null;
+  const { tabs = {} } = await chrome.storage.session.get("tabs");
+  const player = tabs[tab.id]?.player ?? null;
+  const canonicalUrl = new URL(url);
+  canonicalUrl.searchParams.delete("cineloopResume");
+  return {
+    providerId: "animeunity",
+    externalId: canonicalUrl.toString(),
+    title: player?.title ?? tab.title ?? "",
+    season: player?.season ?? null,
+    episode: player?.episode ?? null,
+  };
 }
 
 /** Suggerimenti dal player, quando appartengono all'episodio dell'URL. */

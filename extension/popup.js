@@ -1,8 +1,8 @@
 import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
-import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
-import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
+import { DIRECTORY_ORIGINS, SC_VIXCLOUD_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
+import { ANIMEUNITY_ACCESS_ORIGINS, hasAnimeAccess } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
@@ -37,6 +37,11 @@ async function render() {
   const w = status?.watching ?? null;
   show("paused-card", paused);
   show("idle", !paused && !w);
+  const consent = status?.consent ?? null;
+  show("consent", Boolean(consent));
+  if (consent) {
+    $("consent-text").textContent = `Prima di leggere ${consent === "animeunity" ? "AnimeUnity" : "StreamingCommunity"}, CineLoop ti chiede una conferma: la trovi sul sito, la prima volta.`;
+  }
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
   const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
@@ -48,23 +53,21 @@ async function render() {
     ? `Il player dice “${w.label}”, ma non l’ho trovato nel catalogo con questo nome. Sceglilo una volta: per le prossime puntate lo riconosco da solo.`
     : "Non riesco a leggerlo dal player. Sceglilo una volta: per le prossime puntate lo riconosco da solo.";
   const ep = w.season && w.episode ? `S${w.season}E${w.episode}` : "";
-  const otherProvider = w.provider === "streamingcommunity" || w.providerId === "streamingcommunity"
+  const otherProvider = w.providerId === "streamingcommunity"
     ? "streamingcommunity"
-    : w.provider === "animeunity" || w.providerId === "animeunity" ? "animeunity" : null;
+    : w.providerId === "animeunity" ? "animeunity" : null;
   const providerLabel = otherProvider === "streamingcommunity"
     ? "su StreamingCommunity"
     : otherProvider === "animeunity"
       ? "su AnimeUnity"
       : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
-  $("watching-meta").textContent = [w.title?.year, ep, providerLabel].filter(Boolean).join(" · ");
+  $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
   if (otherProvider === "streamingcommunity") {
     const origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
     $("sc-search-hint").textContent = origin
       ? `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su ${new URL(origin).hostname}.`
       : "Dominio attuale non ancora risolto: usami dalla schermata di attivazione.";
-  } else if (otherProvider === "animeunity") {
-    $("sc-search-hint").textContent = `Si apre l’archivio AnimeUnity: cerca “${w.title ? w.title.title : (w.label ?? "")}” lì, perché il sito usa pagine anime con ID invece di /search?q=…`;
   }
   $("player-read").textContent = await playerReading();
   renderSeasonAsk(w);
@@ -142,7 +145,7 @@ async function renderTogether(status, w) {
   $("room-members").textContent = `Con te: ${members.join(", ")}`;
   const lastAction = { play: "play", pause: "pausa", seek: "salto" }[party?.lastAction] ?? (party?.paused ? "pausa" : "play");
   $("room-state").textContent = !party
-    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video (su Netflix e Prime Video)."
+    ? "Apri lo stesso episodio: posizione, play e pausa si allineano appena parte il video. Su AnimeUnity serve aver autorizzato anche il dominio del player."
     : !party.sameEpisode
       ? `Sei su un altro episodio rispetto a ${party.hostName}: posizione, play e pausa non vengono sincronizzati.`
       : party.seq > 0
@@ -199,17 +202,19 @@ $("visible").addEventListener("change", async () => {
  * prompt only if it is requested straight from the click, before any await,
  * so the click handler decides from this.
  */
-let perms = { netflix: false, prime: false, anime: false, directory: false, streaming: false, resolved: null };
+let perms = { netflix: false, prime: false, anime: false, directory: false, streaming: false, vixcloud: false, resolved: null };
 
 /** Provider permissions remain manageable after the first site is enabled. */
 async function renderProviderPermissions() {
   const netflix = await hasNetflixAccess();
   const prime = await hasPrimeAccess();
   const anime = await hasAnimeAccess();
+  const animeBundle = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
   const directory = await hasDirectoryAccess();
   const streaming = await hasStreamingAccess();
+  const vixcloud = await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS });
   const resolved = await getResolved();
-  perms = { netflix, prime, anime, directory, streaming, resolved };
+  perms = { netflix, prime, anime, animeBundle, directory, streaming, vixcloud, resolved };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
@@ -220,8 +225,12 @@ async function renderProviderPermissions() {
   $("manage-netflix").disabled = netflix;
   $("manage-prime").textContent = prime ? "Attivo ✓" : "Attiva Prime Video";
   $("manage-prime").disabled = prime;
-  setButton("manage-au", anime, "AnimeUnity");
-  setButton("manage-sc", streaming, "StreamingCommunity");
+  // Like Netflix, AnimeUnity and the StreamingCommunity directory are granted at install and
+  // switched on or off from CineLoop's own settings; only a revoked grant can be asked again.
+  $("manage-au").textContent = anime ? (animeBundle ? "Attivo ✓" : "Completa permessi AnimeUnity") : "Attiva AnimeUnity";
+  $("manage-au").disabled = anime && animeBundle;
+  $("manage-sc").textContent = streaming ? (vixcloud ? "Attivo ✓" : "Completa permessi StreamingCommunity") : "Attiva StreamingCommunity";
+  $("manage-sc").disabled = streaming && vixcloud;
   $("manage-sc-status").textContent = sc
     ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
     : "Disattivato. Puoi attivarlo quando vuoi.";
@@ -235,20 +244,22 @@ async function togglePermission(provider) {
     // Come Netflix: concesso all'installazione, si richiede solo se revocato.
     if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
-    if (perms.anime) await chrome.permissions.remove({ origins: AU_ORIGINS });
-    else await chrome.permissions.request({ origins: AU_ORIGINS });
+    const bundleGranted = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+    if (!bundleGranted) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
   } else {
     const { resolved, directory, streaming } = perms;
-    if (streaming) {
-      const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
-      await chrome.permissions.remove({ origins });
+    if (streaming && !perms.vixcloud) {
+      // Complete the StreamingCommunity permission bundle, including its embedded player.
+      await chrome.permissions.request({ origins: [...(resolved?.origin ? [`${resolved.origin}/*`] : []), ...SC_VIXCLOUD_ORIGINS] });
+    } else if (streaming) {
+      // Already active; it is switched off from CineLoop's settings.
     } else if (resolved?.origin) {
       // A changed origin is detected from the watch tab. Chrome requires an
       // explicit user gesture to grant this new host before reading the player.
-      await chrome.permissions.request({ origins: [`${resolved.origin}/*`] });
+      await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
     } else if (directory) {
       const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
-      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`] });
+      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
     } else {
       await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
     }
@@ -273,13 +284,16 @@ function showOnly(id) {
 async function renderGrant() {
   const auBtn = $("au-grant-btn");
   auBtn.hidden = false;
-  if (await hasAnimeAccess()) {
-    auBtn.textContent = "AnimeUnity attivo ✓";
+  const animeEnabled = await hasAnimeAccess();
+  const animeBundleEnabled = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+  if (animeBundleEnabled) {
+    auBtn.textContent = "AnimeUnity e VixCloud attivi ✓";
     auBtn.disabled = true;
   } else {
-    auBtn.textContent = "Consenti su animeunity.so";
+    auBtn.textContent = animeEnabled ? "Abilita anche il player VixCloud" : "Consenti AnimeUnity e VixCloud";
+    auBtn.disabled = false;
     auBtn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: AU_ORIGINS })) await renderGrant();
+      if (await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS })) await renderGrant();
     };
   }
   const btn = $("sc-grant-btn");
@@ -289,7 +303,7 @@ async function renderGrant() {
     $("sc-grant-status").textContent = "Ho rilevato il dominio dalla scheda che hai aperto. Consentilo una volta per leggere titolo, episodio e avanzamento.";
     btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
     btn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`] })) await render();
+      if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS] })) await render();
     };
     return;
   }
@@ -434,6 +448,8 @@ $("open-btn").addEventListener("click", async () => {
   if (server) chrome.tabs.create({ url: `${server}/home` });
 });
 
+$("consent-open").addEventListener("click", () => $("open-btn").click());
+
 $("unpair-btn").addEventListener("click", async () => {
   await api("/api/extension/presence", { method: "DELETE" }).catch(() => {});
   await chrome.storage.local.remove(["token", "user"]);
@@ -441,20 +457,6 @@ $("unpair-btn").addEventListener("click", async () => {
 });
 
 $("grant-skip").addEventListener("click", () => render());
-
-$("sc-open-btn").addEventListener("click", async () => {
-  const meta = $("watching-meta").textContent;
-  if (meta.includes("AnimeUnity")) {
-    // Dominio fisso: apri direttamente la ricerca del titolo.
-    const title = $("watching-title").textContent;
-    chrome.tabs.create({ url: `${AU_SEARCH}${encodeURIComponent(title)}` });
-    return;
-  }
-  // StreamingCommunity: apre il dominio attuale; se non e' risolto, lo risolve prima.
-  let origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
-  origin ??= await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
-  if (origin) chrome.tabs.create({ url: origin });
-});
 
 $("manual-form").addEventListener("submit", async (e) => {
   e.preventDefault();
