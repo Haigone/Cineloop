@@ -134,8 +134,8 @@
     // StreamingCommunity often switches episodes inside the same SPA route:
     // the series/watch ID stays put while ?e= changes. Do not keep the
     // previous episode number while the new episode UI is still rendering.
-    const episodeChanged = known.episodeId !== nextEpisodeId;
-    if (episodeChanged) {
+    const urlEpisodeChanged = known.episodeId !== nextEpisodeId;
+    if (urlEpisodeChanged) {
       known.episodeId = nextEpisodeId;
       known.season = null;
       known.episode = null;
