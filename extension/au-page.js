@@ -151,7 +151,7 @@
   }
 
   function findVideo(root = document, depth = 0) {
-    if (depth > 2) return null;
+    if (depth > 4) return null;
     const candidates = [];
     for (const v of root.querySelectorAll("video")) {
       if (v.readyState < 1 || !Number.isFinite(v.duration) || v.duration <= 0) continue;
@@ -204,6 +204,8 @@
     // Report only its fraction; background associates it with the identified title.
     if (!id) {
       const frameVideo = findVideo();
+      // Bind playback events inside accessible player frames as well as polling.
+      bindVideo(frameVideo);
       const frameDuration = frameVideo && Number.isFinite(frameVideo.duration) && frameVideo.duration > 0 ? frameVideo.duration : null;
       if (frameDuration) {
         const frameProgress = Math.round(Math.min(1, Math.max(0, frameVideo.currentTime / frameDuration)) * 1000) / 1000;
