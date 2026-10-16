@@ -9,6 +9,7 @@ const MONTHS_LONG = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno
 
 /** The template: only the numbers change from one person to the next. */
 export function WrappedCard({ wrapped }: { wrapped: Wrapped }) {
+  const guessShare = wrapped.totalMinutes ? Math.round((wrapped.estimatedMinutes / wrapped.totalMinutes) * 100) : 0;
   const hours = Math.round(wrapped.totalMinutes / 60);
   return (
     <div className="space-y-6">
@@ -51,6 +52,12 @@ export function WrappedCard({ wrapped }: { wrapped: Wrapped }) {
         />
         {wrapped.busiestMonth !== null && <p className="mt-3 text-sm text-fg-2">Il tuo mese più intenso è stato {MONTHS_LONG[wrapped.busiestMonth]}.</p>}
       </Panel>
+
+      {guessShare > 0 && (
+        <p className="text-xs text-fg-3">
+          Circa il {guessShare}% delle ore è stimato: dallo storico Netflix sappiamo il giorno in cui hai guardato un titolo, non quanto, quindi contiamo la durata di un film o di un episodio tipico per ogni giorno. Le ore vere sono probabilmente di più.
+        </p>
+      )}
     </div>
   );
 }

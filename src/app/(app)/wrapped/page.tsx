@@ -5,6 +5,7 @@ import { getWrappedView } from "@/server/services/wrapped";
 import { cn } from "@/lib/cn";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
+import { RefreshWrapped } from "@/components/wrapped/refresh-wrapped";
 import { WrappedCard } from "@/components/wrapped/wrapped-card";
 
 export const metadata: Metadata = { title: "Il tuo Wrapped" };
@@ -23,7 +24,7 @@ export default function WrappedPage({ searchParams }: PageProps<"/wrapped">) {
 async function WrappedContent({ searchParams }: { searchParams: PageProps<"/wrapped">["searchParams"] }) {
   const { anno } = await searchParams;
   const asked = typeof anno === "string" ? Number(anno) : undefined;
-  const { years, wrapped } = await getWrappedView(asked);
+  const { years, wrapped, source } = await getWrappedView(asked);
   if (!wrapped) {
     return (
       <p className="mx-auto max-w-3xl rounded-xl border border-line bg-surface p-6 text-sm text-fg-2">
@@ -43,6 +44,15 @@ async function WrappedContent({ searchParams }: { searchParams: PageProps<"/wrap
         </nav>
       )}
       <WrappedCard wrapped={wrapped} />
+      {source && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4 text-xs text-fg-3">
+          <p>
+            Calcolato su {source.plays.toLocaleString("it-IT")} visioni del {wrapped.year}, di cui {source.fromNetflix.toLocaleString("it-IT")} importate da Netflix. L&apos;ultima è del{" "}
+            {new Date(source.last).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}.
+          </p>
+          <RefreshWrapped />
+        </div>
+      )}
     </div>
   );
 }
