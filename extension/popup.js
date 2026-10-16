@@ -2,14 +2,13 @@ import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
-import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
+import { ANIMEUNITY_ACCESS_ORIGINS, AU_ORIGINS, hasAnimeAccess } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
 const DEFAULT_SERVER = "https://cineloop-one.vercel.app";
 /** True while the user is correcting a title that was recognised wrongly. */
 let changing = false;
-let auFrameOriginForGrant = null;
 const show = (id, visible) => ($(id).hidden = !visible);
 
 async function render() {
@@ -69,23 +68,8 @@ async function render() {
     $("sc-search-hint").textContent = origin
       ? `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su ${new URL(origin).hostname}.`
       : "Dominio attuale non ancora risolto: usami dalla schermata di attivazione.";
-  } else if (otherProvider === "animeunity") {
-    $("sc-search-hint").textContent = `Si apre l’archivio AnimeUnity: cerca “${w.title ? w.title.title : (w.label ?? "")}” lì, perché il sito usa pagine anime con ID invece di /search?q=…`;
   }
   $("player-read").textContent = await playerReading();
-  const frameInfo = await chrome.storage.session.get(["auFrameOrigins", "auFrameTabId"]);
-  const frameOrigin = otherProvider === "animeunity" && frameInfo.auFrameTabId
-    ? (frameInfo.auFrameOrigins ?? []).slice(-1)[0]
-    : null;
-  auFrameOriginForGrant = frameOrigin;
-  const frameAllowed = frameOrigin
-    ? await chrome.permissions.contains({ origins: [frameOrigin + "/*"] })
-    : false;
-  show("au-frame-permission", Boolean(frameOrigin && !frameAllowed));
-  if (frameOrigin && !frameAllowed) {
-    $("au-frame-help").textContent = "Il video sembra provenire da " + new URL(frameOrigin).hostname + ". Consenti questo dominio per leggere la percentuale.";
-    $("au-frame-grant-btn").textContent = "Consenti " + new URL(frameOrigin).hostname;
-  }
   renderSeasonAsk(w);
   show("change-btn", Boolean(w.title) && !changing);
   if (!w.title || changing) renderChoices($("suggestions"), status.suggestions);
@@ -258,7 +242,7 @@ async function togglePermission(provider) {
     // Come Netflix: concesso all'installazione, si richiede solo se revocato.
     if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
-    if (!perms.anime) await chrome.permissions.request({ origins: AU_ORIGINS });
+    if (!perms.anime) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming) {
@@ -300,7 +284,7 @@ async function renderGrant() {
   } else {
     auBtn.textContent = "Consenti su animeunity.so";
     auBtn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: AU_ORIGINS })) await renderGrant();
+      if (await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS })) await renderGrant();
     };
   }
   const btn = $("sc-grant-btn");
@@ -419,18 +403,6 @@ function deviceLabel() {
   return `${brand} su ${platform}`;
 }
 
-$("au-frame-grant-btn").addEventListener("click", async () => {
-  const origin = auFrameOriginForGrant;
-  if (!origin) return;
-  // Request host permission before any await, directly from this user click.
-  const permissionRequest = chrome.permissions.request({ origins: [origin + "/*"] });
-  const granted = await permissionRequest;
-  if (granted) {
-    await chrome.runtime.sendMessage({ type: "enable-au-frame", origin }).catch(() => false);
-    await render();
-  }
-});
-
 $("change-btn").addEventListener("click", async () => {
   changing = true;
   await render();
@@ -476,20 +448,6 @@ $("unpair-btn").addEventListener("click", async () => {
 });
 
 $("grant-skip").addEventListener("click", () => render());
-
-$("sc-open-btn").addEventListener("click", async () => {
-  const meta = $("watching-meta").textContent;
-  if (meta.includes("AnimeUnity")) {
-    // Dominio fisso: apri direttamente la ricerca del titolo.
-    const title = $("watching-title").textContent;
-    chrome.tabs.create({ url: `${AU_SEARCH}${encodeURIComponent(title)}` });
-    return;
-  }
-  // StreamingCommunity: apre il dominio attuale; se non e' risolto, lo risolve prima.
-  let origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
-  origin ??= await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
-  if (origin) chrome.tabs.create({ url: origin });
-});
 
 $("manual-form").addEventListener("submit", async (e) => {
   e.preventDefault();
