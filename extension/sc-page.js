@@ -117,6 +117,8 @@
     // Report only its fraction; background associates it with the identified title.
     if (!id) {
       const frameVideo = findVideo();
+      // Capture playback events from accessible player iframes, not only polling.
+      bindVideo(frameVideo);
       const frameDuration = frameVideo && Number.isFinite(frameVideo.duration) && frameVideo.duration > 0 ? frameVideo.duration : null;
       if (frameDuration) {
         const frameProgress = Math.round(Math.min(1, Math.max(0, frameVideo.currentTime / frameDuration)) * 1000) / 1000;
