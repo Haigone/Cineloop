@@ -63,12 +63,8 @@ async function render() {
       : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
   $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
-  if (otherProvider === "streamingcommunity") {
-    const origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
-    $("sc-search-hint").textContent = origin
-      ? `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su ${new URL(origin).hostname}.`
-      : "Dominio attuale non ancora risolto: usami dalla schermata di attivazione.";
-  }
+  // Manual episode/progress controls are shown for AnimeUnity and StreamingCommunity.
+  // Do not touch a search-hint node: the current popup markup does not include it.
   $("player-read").textContent = await playerReading();
   renderSeasonAsk(w);
   show("change-btn", Boolean(w.title) && !changing);
