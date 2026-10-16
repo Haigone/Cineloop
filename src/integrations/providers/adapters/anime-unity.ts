@@ -7,6 +7,8 @@ const AU_HOME = "https://www.animeunity.so";
 /** Resolve explicitly named AnimeUnity cours to their canonical season number. */
 export function animeUnityPartSeason(url: string, title: string): number | null {
   const text = (url + " " + title).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  // Shin Henshuu-ban is the condensed director's-cut edition of season one.
+  if (/re\s*:?\s*zero/.test(text) && /shin[-_\s]+henshuu(?:[-_\s]+ban)?/.test(text)) return 1;
   if (/the[-_\s]+blood[-_\s]+warfare|blood[-_\s]+warfare/.test(text)) return 1;
   if (/the[-_\s]+separation|\bseparation\b/.test(text)) return 2;
   if (/the[-_\s]+conflict|\bconflict\b/.test(text)) return 3;
@@ -34,9 +36,12 @@ export class AnimeUnityAdapter extends ObservationAdapter {
 
     const fromPage = obs.hints?.title?.trim() ||
       obs.documentTitle.replace(/\s*[-|–]\s*anime\s*unity.*$/i, "").trim();
-    const season = Number.isInteger(obs.hints?.season) && (obs.hints?.season ?? 0) > 0
-      ? obs.hints!.season!
-      : animeUnityPartSeason(url, fromPage);
+    const canonicalSeason = animeUnityPartSeason(url, fromPage);
+    const season = canonicalSeason ?? (
+      Number.isInteger(obs.hints?.season) && (obs.hints?.season ?? 0) > 0
+        ? obs.hints!.season!
+        : null
+    );
     const episode = Number.isInteger(obs.hints?.episode) && (obs.hints?.episode ?? 0) > 0
       ? obs.hints!.episode!
       : null;
