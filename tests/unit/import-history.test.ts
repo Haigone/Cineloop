@@ -29,18 +29,22 @@ describe("importing the Netflix viewing history", () => {
 });
 
 describe("importing the history records when it was watched", () => {
-  it("adds watch days at zero minutes, to new and owned titles, once", async () => {
+  it("adds one play per episode with its length, tops up on a second import, never doubles", async () => {
     const repo = getRepository();
-    const watched = [{ d: "2024-03-01", s: 1 }, { d: "2024-03-09", s: 2 }];
-    const item = { title: "Arcane", kind: "series" as const, season: 2, sample: "Arcane: Stagione 2: Atto I", watched };
-    const first = await importNetflixHistory("u_marco", [item]);
-    expect(first.days).toBe(2);
-    expect((await importNetflixHistory("u_marco", [item])).days).toBe(0);
+    const item = (n: number) => ({
+      title: "Arcane",
+      kind: "series" as const,
+      season: 2,
+      sample: "Arcane: Stagione 2: Atto I",
+      watched: [{ d: "2024-03-01", s: 1, n }, { d: "2024-03-09", s: 2, n: 1 }],
+    });
+    const first = await importNetflixHistory("u_marco", [item(3)]);
+    expect(first.days).toBe(4);
+    expect((await importNetflixHistory("u_marco", [item(3)])).days).toBe(0);
+    expect((await importNetflixHistory("u_marco", [item(5)])).days).toBe(2);
     const events = (await repo.listWatchEvents("u_marco", new Date(0))).filter((e) => e.watchedAt.startsWith("2024-03"));
-    expect(events.map((e) => [e.watchedAt.slice(0, 10), e.minutes, e.season, e.providerId])).toEqual([
-      ["2024-03-01", 0, 1, "netflix"],
-      ["2024-03-09", 0, 2, "netflix"],
-    ]);
+    expect(events).toHaveLength(6);
+    expect(events.every((e) => e.minutes > 0 && e.providerId === "netflix")).toBe(true);
   });
 });
 
