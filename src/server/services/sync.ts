@@ -562,10 +562,17 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     }
     return;
   }
+  // AnimeUnity's Re:Zero "Shin Henshuu-ban" is the 13-episode Director's Cut
+  // of season 1, not a new season. The player exposes only E1–E13 and no season,
+  // so explicitly anchor it to S1 even if the user's saved progress is empty.
+  const reZeroDirectorsCut = presence.providerId === "animeunity" &&
+    /^re\\s*:?\\s*zero kara hajimeru isekai seikatsu\\s*:\\s*shin henshuu-ban$/i.test(presence.label ?? "");
+  if (reZeroDirectorsCut) presence.season = 1;
+
   // A part named in the player's title ("JoJo: Stone Ocean") is that season,
   // even when the service numbers the part as a show of its own ("S1:E3").
   const named = title ? seasonFromLabel(title, presence.label) : null;
-  if (named !== null) presence.season = named;
+  if (!reZeroDirectorsCut && named !== null) presence.season = named;
   if (presence.season === null && presence.episode !== null && title) {
     if (presence.providerId === "animeunity" && title.type !== "movie" && title.seasons.length > 1) {
       // AnimeUnity's classic series pages number episodes across the whole run
