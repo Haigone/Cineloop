@@ -1,47 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { groupRows, readYears, summarize, type GroupResult } from "@/lib/wrapped";
+import type { Title, WatchEvent } from "@/domain/types";
+import { summarizeYear, wrappedYears } from "@/lib/wrapped";
 
-const CSV = `Title,Date
-"Outer Banks: Stagione 5: La scitala","10/14/26"
-"Outer Banks: Stagione 5: La soffiata","10/10/26"
-"La leggenda di Al, John e Jack","1/13/26"
-"Perfetti sconosciuti","12/12/25"`;
+const ev = (titleId: string, watchedAt: string, minutes: number, season: number | null = null, episode: number | null = null): WatchEvent => ({ userId: "u", titleId, watchedAt, minutes, season, episode });
+const title = (id: string, name: string, type: "movie" | "series") => ({ id, title: name, type, artwork: { posterUrl: null } }) as unknown as Title;
 
 describe("Wrapped", () => {
-  it("splits the history by year and month", () => {
-    const years = readYears(CSV)!;
-    expect([...years.keys()].sort()).toEqual([2025, 2026]);
-    expect(years.get(2026)!.map((r) => r.month)).toEqual([10, 10, 1]);
+  const titles = new Map([
+    ["a", title("a", "Outer Banks", "series")],
+    ["b", title("b", "Il buco", "movie")],
+  ]);
+  const events = [ev("a", "2026-10-14T20:00:00Z", 50, 5, 1), ev("a", "2026-10-10T20:00:00Z", 40, 5, 2), ev("b", "2026-01-13T21:00:00Z", 100), ev("b", "2025-12-12T21:00:00Z", 90)];
+
+  it("lists the years with viewing, latest first", () => {
+    expect(wrappedYears(events)).toEqual([2026, 2025]);
   });
 
-  it("reads day-first dates when the file shows one", () => {
-    const years = readYears('Title,Date\n"A","14/10/26"\n"B","3/4/26"')!;
-    expect(years.get(2026)!.map((r) => r.month)).toEqual([10, 4]);
-  });
-
-  it("rejects other files", () => {
-    expect(readYears("Name,Value\na,b")).toBeNull();
-  });
-
-  it("uses a play's own duration and drops trailers", () => {
-    const years = readYears('Start Time,Duration,Title,Supplemental Video Type\n2026-03-01 20:00:00,00:45:00,"X: Stagione 1: Uno",\n2026-03-02 20:00:00,00:00:30,"X: Stagione 1: Trailer",\n2026-03-03 20:00:00,00:30:00,"X: Stagione 1: Extra",TRAILER')!;
-    expect(years.get(2026)).toEqual([{ raw: "X: Stagione 1: Uno", month: 3, seconds: 2700 }]);
-  });
-
-  it("groups episodes under their series and adds up the minutes", () => {
-    const rows = readYears(CSV)!.get(2026)!;
-    const groups = groupRows(rows);
-    expect(groups.map((g) => [g.title, g.rows.length, g.rows[0]!.episode])).toEqual([
-      ["Outer Banks", 2, "La scitala"],
-      ["La leggenda di Al, John e Jack", 1, ""],
-    ]);
-    const results: GroupResult[] = [
-      { name: "Outer Banks", posterUrl: null, found: true, isFilm: false, plays: [{ minutes: 50, estimated: false }, { minutes: 40, estimated: true }] },
-      { name: "La leggenda", posterUrl: null, found: false, isFilm: true, plays: [{ minutes: 100, estimated: true }] },
-    ];
-    const w = summarize(2026, groups, results);
-    expect(w).toMatchObject({ totalMinutes: 190, estimatedMinutes: 140, episodes: 2, films: 1, titles: 2, busiestMonth: 0, notFound: ["La leggenda di Al, John e Jack"] });
-    expect(w.top[0]!.name).toBe("La leggenda");
+  it("adds up one year only", () => {
+    const w = summarizeYear(2026, events, titles);
+    expect(w).toMatchObject({ totalMinutes: 190, episodes: 2, films: 1, titles: 2, busiestMonth: 0 });
     expect(w.months[0]).toBe(100);
+    expect(w.months[9]).toBe(90);
+    expect(w.top.map((t) => [t.name, t.minutes, t.plays])).toEqual([["Il buco", 100, 1], ["Outer Banks", 90, 2]]);
+  });
+
+  it("is empty for a year without viewing", () => {
+    expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });
   });
 });
