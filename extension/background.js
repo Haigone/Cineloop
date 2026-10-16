@@ -149,7 +149,7 @@ async function enableAnimeFrameOrigin(origin) {
   const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
   if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
   await chrome.scripting.registerContentScripts([{
-    id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js"], allFrames: true,
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true,
     runAt: "document_idle", persistAcrossSessions: true,
   }]);
   // Inject into every currently open AnimeUnity tab. A single remembered tab ID
