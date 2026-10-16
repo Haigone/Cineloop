@@ -675,6 +675,32 @@ export class MemoryRepository implements Repository {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
   }
 
+  async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
+    const anchorKey = `${input.providerId}:${input.titleId}:${input.seasonNumber}`;
+    const links = (this as unknown as { episodeLinks?: Map<string, { episodeNumber: number; externalId: string; idStep: number | null; linkType: "anchor" | "exact" }> }).episodeLinks ?? new Map();
+    (this as unknown as { episodeLinks: typeof links }).episodeLinks = links;
+    const anchor = [...links.entries()].find(([k, v]) => k.startsWith(anchorKey + ":") && v.linkType === "anchor");
+    if (!anchor) {
+      links.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor" });
+      return;
+    }
+    const [anchorRowKey, row] = anchor;
+    if (row.episodeNumber === input.episodeNumber) return;
+    const anchorId = /^\\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const observedId = /^\\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    if (row.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      const expected = anchorId + input.episodeNumber - row.episodeNumber;
+      if (expected === observedId) return;
+      links.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact" });
+      return;
+    }
+    if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 && observedId - anchorId === input.episodeNumber - row.episodeNumber && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      links.set(anchorRowKey, { ...row, idStep: 1 });
+    }
+  }
+
   // Sagas -------------------------------------------------------------------
 
   async listCollectionChoices(userId: string) {
