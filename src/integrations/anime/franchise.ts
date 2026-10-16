@@ -31,8 +31,20 @@ export function kindOf(e: AnimeEntry): Kind {
 
 const RECAP = /recap|summary|digest|総集編|compilation/i;
 const ALTERNATIVE_RELATIONS = new Set(["remake", "remake of", "alternative version", "alternative version of"]);
+const ALTERNATIVE_TITLE_SUFFIX = /\\s+(?:director s cut|directors cut|director cut|extended edition|special edition|remastered edition|remastered|recut|kai)$/;
 
-/** Map a remake to the earlier season it reworks, so it does not become a new season. */
+/** A known alternate-cut suffix removed from a normalized title, or null for ordinary titles. */
+function alternativeTitleBase(name: string): string | null {
+  const normalized = name.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const base = normalized.replace(ALTERNATIVE_TITLE_SUFFIX, "").trim();
+  return base && base !== normalized ? base : null;
+}
+
+/**
+ * Map an alternate cut to the earlier season it reworks. ANN relations are preferred,
+ * but not every entry has them (notably some Director's Cuts), so known title suffixes
+ * provide a conservative fallback when they exactly match an earlier season's title.
+ */
 function alternativeSeasonBases(entries: readonly AnimeEntry[]): Map<string, string> {
   const byId = new Map(entries.map((e) => [e.id, e]));
   const bases = new Map<string, string>();
@@ -50,6 +62,22 @@ function alternativeSeasonBases(entries: readonly AnimeEntry[]): Map<string, str
       const original = entryIsLater ? other : entry;
       if (!bases.has(alternate.id)) bases.set(alternate.id, original.id);
     }
+  }
+
+  // Some ANN records omit the relation entirely. Only infer an alternate when a recognized
+  // suffix is removed and the remaining title exactly matches an earlier TV/ONA season.
+  for (const entry of entries) {
+    if (bases.has(entry.id) || kindOf(entry) !== "season") continue;
+    const baseName = alternativeTitleBase(entry.name);
+    if (!baseName) continue;
+    const original = entries
+      .filter((other) => other.id !== entry.id && kindOf(other) === "season"
+        && other.start && entry.start && orderKey(other) < orderKey(entry))
+      .find((other) => {
+        const normalized = other.name.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+        return normalized === baseName;
+      });
+    if (original) bases.set(entry.id, original.id);
   }
   return bases;
 }
