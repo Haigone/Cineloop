@@ -1,5 +1,5 @@
 import "server-only";
-import { applyReport, driftBetween, hostPosition, IN_SYNC_SECONDS, roomPosition, watchAt, type PlaybackReport } from "@/domain/party";
+import { applyReport, driftBetween, episodeKey, hostPosition, IN_SYNC_SECONDS, isSyncedProvider, roomPosition, sameEpisodeAs, watchAt, type PlaybackReport } from "@/domain/party";
 import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, remainingMinutes, type Detected } from "@/domain/presence";
 import { CONSENT_PROVIDERS, isConsentProvider, type ConsentProvider, type Presence, type PublicUser, type Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
@@ -281,9 +281,13 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
   }
   // The extension reports the active HTML5 player for supported providers.
   // Never synchronize different services just because their numeric IDs match.
-  if (!host || me.providerId !== host.providerId || !["netflix", "animeunity", "streamingcommunity"].includes(host.providerId)) return { party: null };
+  if (!host || me.providerId !== host.providerId || !isSyncedProvider(host.providerId)) return { party: null };
 
-  const party = applyReport(await repo.getParty(host.userId), userId, report, now, host.userId);
+  // Prime Video's id names the whole show: members are told apart by episode too.
+  const prime = host.providerId === "prime-video";
+  const sameEpisode = prime ? sameEpisodeAs(host, report) : report.externalId === host.externalId;
+  const keyed = prime ? { ...report, externalId: episodeKey(report.externalId, report.season, report.episode) } : report;
+  const party = applyReport(await repo.getParty(host.userId), userId, keyed, now, host.userId);
   await repo.saveParty(host.userId, party);
 
   const memberIds = [host.userId, ...host.guestIds];
@@ -305,7 +309,7 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
       byYou: party.by === userId,
       byName: name(party.by),
       lastAction: party.last ?? null,
-      sameEpisode: report.externalId === host.externalId,
+      sameEpisode,
       offsets,
     },
   };

@@ -5,7 +5,8 @@
 // player è aperto legge la riga del titolo (serie, stagione, episodio), i
 // metadati che la pagina dà al browser e il punto del video. Nient'altro della
 // pagina, nessuna modifica, nessuna richiesta: tutto va al background
-// dell'estensione.
+// dell'estensione. Le stesse letture servono a party-sync.js (Guarda insieme),
+// che gira accanto a questo script, tramite globalThis.__cineloopPrimeNow.
 (() => {
   const alive = () => Boolean(globalThis.chrome?.runtime?.id);
   if (typeof globalThis.__cineloopPrime === "function" && globalThis.__cineloopPrime()) return;
@@ -26,15 +27,39 @@
     return video ? { box, video } : null;
   }
 
-  /** "12:34 / 45:00" o "12:34 / -32:26" nel player, quando c'è. */
-  function fromTimeIndicator() {
+  /** "12:34 / 45:00" o "12:34 / -32:26" nel player, in secondi, quando c'è. */
+  function timeIndicator() {
     const m = /(\d{1,2}(?::\d{2}){1,2})\s*\/\s*(-?)(\d{1,2}(?::\d{2}){1,2})/.exec(text(".atvwebplayersdk-timeindicator-text"));
     if (!m) return null;
     const secs = (s) => s.split(":").reduce((a, b) => a * 60 + Number(b), 0);
     const at = secs(m[1]);
     const total = m[2] ? at + secs(m[3]) : secs(m[3]);
-    return total > 0 ? Math.min(1, at / total) : null;
+    return total > 0 ? { at, total } : null;
   }
+
+  function fromTimeIndicator() {
+    const t = timeIndicator();
+    return t ? Math.min(1, t.at / t.total) : null;
+  }
+
+  /** Il conto alla rovescia della pubblicità, se c'è (selettori non verificati su Prime reale). */
+  const inAd = () => Boolean(document.querySelector(".atvwebplayersdk-ad-timer, .atvwebplayersdk-ad-timer-text, .atvwebplayersdk-adtimeindicator-text"));
+
+  /**
+   * Per Guarda insieme (party-sync.js): cosa c'è nel player ora, il suo
+   * <video> e il punto dell'episodio mostrato dalla barra del tempo (`shown`,
+   * in secondi, o null). Null se il player è chiuso.
+   */
+  globalThis.__cineloopPrimeNow = () => {
+    const found = player();
+    if (!found) return null;
+    const meta = navigator.mediaSession?.metadata;
+    const title = (text(".atvwebplayersdk-title-text") || meta?.title || "").slice(0, 200);
+    const id = ID.exec(location.pathname)?.[1] ?? null;
+    if (!id && !title) return null;
+    const { season, episode } = episodeOf([text(".atvwebplayersdk-subtitle-text"), meta?.artist ?? "", meta?.album ?? ""].filter(Boolean));
+    return { watchId: id ?? `title:${title.toLowerCase()}`, season, episode, video: found.video, shown: timeIndicator()?.at ?? null, ad: inAd() };
+  };
 
   function episodeOf(texts) {
     for (const t of texts) {

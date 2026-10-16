@@ -104,7 +104,7 @@ async function enablePlayerTitle() {
 async function enablePrimeTabs() {
   if (!(await hasPrimeAccess())) return;
   for (const tab of await chrome.tabs.query({ url: PRIME_ORIGINS })) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "prime-page.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "prime-page.js", "party-sync.js"] }).catch(() => {});
   }
 }
 
@@ -462,7 +462,9 @@ async function partyReport(m) {
   const { party: known = null } = await chrome.storage.session.get("party");
   if (!known && !m.action && Date.now() - soloCheckedAt < SOLO_CHECK_MS) return null;
   soloCheckedAt = Date.now();
-  const body = { externalId: m.externalId, position: Math.max(0, m.position), paused: m.paused, ...(["play", "pause", "seek"].includes(m.action) ? { action: m.action } : {}), ...(typeof m.following === "boolean" ? { following: m.following } : {}) };
+  // Prime Video: the id names the whole show, the season and episode tell the episodes apart.
+  const where = Object.fromEntries(["season", "episode"].filter((k) => Number.isInteger(m[k])).map((k) => [k, m[k]]));
+  const body = { externalId: m.externalId, ...where, position: Math.max(0, m.position), paused: m.paused, ...(["play", "pause", "seek"].includes(m.action) ? { action: m.action } : {}), ...(typeof m.following === "boolean" ? { following: m.following } : {}) };
   const { party } = await api("/api/extension/party", { method: "POST", body }).catch(() => ({ party: null }));
   await chrome.storage.session.set({ party: party ?? null });
   return { party };

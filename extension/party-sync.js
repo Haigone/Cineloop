@@ -1,4 +1,4 @@
-// CineLoop: watch together on Netflix, AnimeUnity and StreamingCommunity.
+// CineLoop: watch together on Netflix, Prime Video, AnimeUnity and StreamingCommunity.
 //
 // Runs on www.netflix.com after the user granted that site. While the user is
 // in a CineLoop room (they hosted friends who joined, or joined a friend), it
@@ -13,6 +13,12 @@
 // - if Netflix's player does not answer (Netflix changed it), a big gap reopens
 //   the same episode at the room's point with Netflix's own `?t=` link. Netflix
 //   breaks when a page sets the video's currentTime, so this never does that.
+//
+// On Prime Video there is no player to ask and no `?t=` link: play, pause and
+// seeks go through the <video> element itself, and the position is the one
+// Prime's own time bar shows (prime-page.js reads it), so an ad break before
+// one member's episode does not put them out of step. While an ad plays
+// nothing is reported or applied.
 //
 // The room follows the host's player; a member's own play, pause or seek moves
 // it for everyone. It makes no request itself. Outside a room it only reports
@@ -56,8 +62,10 @@
     location.hostname !== "www.netflix.com" &&
     location.hostname !== "www.animeunity.so" &&
     /^\/playlist\/\d+(?:\/|$)/i.test(location.pathname);
+  const onPrime = location.hostname === "www.primevideo.com" || location.hostname === "www.amazon.it";
   const provider = () => {
     if (location.hostname === "www.netflix.com") return "netflix";
+    if (onPrime) return "prime-video";
     if (location.hostname === "www.animeunity.so" || isAnimePlayerFrame()) return "animeunity";
     return "streamingcommunity";
   };
@@ -70,7 +78,26 @@
     animeFrameContextAt = Date.now();
     return animeFrameContext;
   }
+  /** Prime Video: what prime-page.js reads from the open player (null when closed or in an ad). */
+  const primeNow = () => {
+    const now = typeof globalThis.__cineloopPrimeNow === "function" ? globalThis.__cineloopPrimeNow() : null;
+    return now && !now.ad ? now : null;
+  };
+  /**
+   * Prime Video: seconds between the <video> clock and the episode's own time
+   * (Prime's time bar). They differ, by ads and by how Prime builds the
+   * stream, so positions are exchanged in the episode's time. Kept while it
+   * stays within a second and a half of the bar, so it does not jitter.
+   */
+  let offset = 0;
+  function primeOffset(now) {
+    if (now.shown === null) return offset;
+    const seen = now.video.currentTime - now.shown;
+    if (Math.abs(seen - offset) > 1.5) offset = Math.round(seen * 10) / 10;
+    return offset;
+  }
   const watchId = () => {
+    if (provider() === "prime-video") return primeNow()?.watchId ?? null;
     if (provider() === "netflix") return /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
     if (provider() === "animeunity") return /^\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
     const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
@@ -79,6 +106,7 @@
   // Ignore hidden ad/stale videos: they can have a different duration and
   // clock from the episode actually visible to the user.
   const video = () => {
+    if (onPrime) return primeNow()?.video ?? null;
     const candidates = [...document.querySelectorAll("video")]
       .filter((v) => v.readyState >= 1 && Number.isFinite(v.duration) && v.duration > 0)
       .map((v) => {
@@ -148,14 +176,18 @@
     const frameContext = isAnimePlayerFrame() ? await getAnimeFrameContext() : null;
     const id = frameContext?.externalId ?? watchId();
     if (!id) return;
+    const now = onPrime ? primeNow() : null;
+    if (onPrime && (!now || now.video !== v)) return;
+    const shift = now ? primeOffset(now) : 0;
+    const where = now ? { season: now.season ?? null, episode: now.episode ?? null } : {};
     const n = ++sent;
     if (action) freshFrom = n;
     const t0 = performance.now();
     const res = await chrome.runtime
-      .sendMessage({ type: "party-report", externalId: id, position: Math.round(v.currentTime * 10) / 10, paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
+      .sendMessage({ type: "party-report", externalId: id, ...where, position: Math.max(0, Math.round((v.currentTime - shift) * 10) / 10), paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
       .catch(() => null);
     if (n < freshFrom) return;
-    if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000);
+    if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000, shift);
     else relax(v);
   }
 
@@ -174,7 +206,8 @@
     } catch {}
   }
 
-  async function apply(party, v, rtt) {
+  /** `shift`: the <video> clock minus the episode's time (Prime Video), else 0. */
+  async function apply(party, v, rtt, shift = 0) {
     if (!party.sameEpisode) return relax(v);
     heard = true;
     if (party.paused !== v.paused) {
@@ -186,7 +219,7 @@
     }
     // The room's clock was read on the server, about half a round trip ago.
     const target = party.position + (party.paused ? 0 : rtt / 2);
-    const gap = v.currentTime - target;
+    const gap = v.currentTime - shift - target;
     inStep = Math.abs(gap) < 3;
     lagging = Math.abs(gap) >= SEEK_SECONDS;
     if (Math.abs(gap) >= SEEK_SECONDS) {
@@ -196,7 +229,7 @@
       if (provider() === "netflix" && await netflixPlayer("seek", Math.round(target * 1000))) return;
       if (provider() !== "netflix") {
         try {
-          v.currentTime = Math.max(0, target);
+          v.currentTime = Math.max(0, target + shift);
           applyingUntil = Date.now() + 2500;
           return;
         } catch {}

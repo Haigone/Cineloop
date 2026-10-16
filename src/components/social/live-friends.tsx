@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { ExternalLink, Users } from "lucide-react";
+import { isSyncedProvider } from "@/domain/party";
 import { PROVIDERS } from "@/domain/providers";
 import type { LiveFriend } from "@/server/services/sync";
 import { joinWatching } from "@/server/actions/extension";
@@ -31,7 +32,7 @@ function LiveRow({ item }: { item: LiveFriend }) {
   const [joined, setJoined] = useState(item.joined);
   // After joining, the Netflix link starts where the friend is right now.
   const [url, setUrl] = useState(item.url);
-  const synced = item.providerId === "netflix";
+  const synced = isSyncedProvider(item.providerId);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
   const what = item.title?.title ?? item.label ?? "qualcosa";
@@ -99,7 +100,7 @@ function LiveRow({ item }: { item: LiveFriend }) {
               ? "La stanza tiene play, pausa e posizione allineati per tutti."
               : synced
                 ? `Con l'estensione CineLoop attiva entri nel punto in cui è ${name}, e posizione, play e pausa restano allineati tra voi. Nel pannello dell'estensione, in “Guarda insieme”, vedi se siete sfasati.`
-                : `Per ora CineLoop sincronizza posizione, play e pausa solo su Netflix: su ${provider} allineatevi a mano.`}
+                : `CineLoop non sincronizza ${provider}: allineatevi a mano.`}
           </p>
         </div>
       </Modal>

@@ -156,7 +156,7 @@ async function renderTogether(status, w) {
       const li = document.createElement("li");
       const s = Math.abs(o.seconds);
       const amount = s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
-      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: CineLoop vi riallinea in pochi secondi. Se resta così, usa ← o → nel player di Netflix.`;
+      li.textContent = `${o.name} è ${amount} ${o.seconds > 0 ? "avanti" : "indietro"}: CineLoop vi riallinea in pochi secondi. Se resta così, usa ← o → nel player.`;
       return li;
     }),
   );
