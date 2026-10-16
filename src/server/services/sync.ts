@@ -439,7 +439,7 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
     }
     return 0;
   });
-  let hit = exactLocal[0];
+  let hit: Title | undefined = exactLocal[0];
   if (!hit) {
     const catalog = getCatalog();
     const series = presence.season !== null || presence.episode !== null || Boolean(seasonSuffix);
