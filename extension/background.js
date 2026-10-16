@@ -125,6 +125,43 @@ async function enableAnimePage() {
   }
 }
 
+
+/** Store HTTPS iframe origins discovered from an authorized AnimeUnity tab. */
+async function rememberAnimeFrameOrigin(tabId, senderUrl, origin) {
+  if (!isAnimeUrl(senderUrl)) return;
+  let parsed;
+  try { parsed = new URL(origin); } catch { return; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return;
+  const { auFrameOrigins = [] } = await chrome.storage.session.get("auFrameOrigins");
+  await chrome.storage.session.set({
+    auFrameOrigins: [...new Set([...auFrameOrigins, parsed.origin])].slice(-10),
+    auFrameTabId: tabId,
+  });
+}
+
+/** Inject the reader into the video iframe after the user grants its host. */
+async function enableAnimeFrameOrigin(origin) {
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return false;
+  if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
+  const id = "au-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
+  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+  await chrome.scripting.registerContentScripts([{
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js"], allFrames: true,
+    runAt: "document_idle", persistAcrossSessions: true,
+  }]);
+  const { auFrameTabId } = await chrome.storage.session.get("auFrameTabId");
+  if (auFrameTabId) {
+    await chrome.scripting.executeScript({
+      target: { tabId: auFrameTabId, allFrames: true },
+      files: ["compat.js", "au-page.js"],
+    }).catch(() => {});
+  }
+  return true;
+}
+
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
 
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
@@ -154,6 +191,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
   if (message?.type === "manual-progress") {
     manualProgress(message).then((ok) => reply(ok), () => reply(false));
+    return true;
+  }
+  if (message?.type === "au-frame-origin" && sender.tab?.id && typeof message.origin === "string") {
+    rememberAnimeFrameOrigin(sender.tab.id, sender.url, message.origin).then(() => reply(true), () => reply(false));
+    return true;
+  }
+  if (message?.type === "enable-au-frame" && typeof message.origin === "string") {
+    enableAnimeFrameOrigin(message.origin).then(reply, () => reply(false));
     return true;
   }
   if (message?.type === "player-title" && sender.tab?.id) {
