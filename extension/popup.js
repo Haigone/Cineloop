@@ -47,9 +47,9 @@ async function render() {
     ? `Il player dice “${w.label}”, ma non l’ho trovato nel catalogo con questo nome. Sceglilo una volta: per le prossime puntate lo riconosco da solo.`
     : "Non riesco a leggerlo dal player. Sceglilo una volta: per le prossime puntate lo riconosco da solo.";
   const ep = w.season && w.episode ? `S${w.season}E${w.episode}` : "";
-  const otherProvider = w.provider === "streamingcommunity" || w.providerId === "streamingcommunity"
+  const otherProvider = w.providerId === "streamingcommunity"
     ? "streamingcommunity"
-    : w.provider === "animeunity" || w.providerId === "animeunity" ? "animeunity" : null;
+    : w.providerId === "animeunity" ? "animeunity" : null;
   const providerLabel = otherProvider === "streamingcommunity" ? "su StreamingCommunity" : otherProvider === "animeunity" ? "su AnimeUnity" : "su Netflix";
   $("watching-meta").textContent = [w.title?.year, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);

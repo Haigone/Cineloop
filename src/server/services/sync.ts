@@ -25,6 +25,8 @@ export interface ExtensionStatus {
   watching: null | {
     label: string | null;
     title: { id: string; title: string; year: number; artwork?: { posterUrl: string | null } } | null;
+    /** Actual provider detected from the active browser tab, not catalog availability. */
+    providerId: Presence["providerId"];
     season: number | null;
     episode: number | null;
     /** The series' season numbers, for asking which one when the player does not say. */
@@ -184,6 +186,7 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
     watching = {
       label: live.label,
       title: title ? { ...brief(title), artwork: { posterUrl: title.artwork.posterUrl } } : null,
+      providerId: live.providerId,
       season: live.season,
       episode: live.episode,
       seasons: title && title.type !== "movie" ? title.seasons.map((x) => x.number) : [],
