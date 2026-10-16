@@ -771,6 +771,27 @@ export class PostgresRepository implements Repository {
     return null;
   }
 
+  async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
+    const scope = and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+      eq(schema.episodeLinks.episodeNumber, input.episodeNumber),
+    );
+    const [exact] = await this.db.select().from(schema.episodeLinks).where(scope).limit(1);
+    if (exact && (exact.linkType === "exact" || exact.episodeNumber === input.episodeNumber && exact.linkType === "anchor")) return exact.externalId;
+    const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+      eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
+      eq(schema.episodeLinks.linkType, "anchor"),
+    )).limit(1);
+    if (!anchor || anchor.idStep !== 1 || !/^\d+$/.test(anchor.externalId)) return null;
+    const id = Number(anchor.externalId) + (input.episodeNumber - anchor.episodeNumber);
+    return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  }
+
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
     const scope = and(
