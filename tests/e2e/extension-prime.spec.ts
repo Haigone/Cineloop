@@ -84,10 +84,22 @@ test("Prime Video is recognised with no permission to grant", async ({ baseURL }
   await luca.getByRole("button", { name: "Genera codice" }).click();
   const lucaCode = (await luca.getByText(/^[2-9A-Z]{4}-[2-9A-Z]{4}$/).textContent())!;
   const paired = await (await luca.request.post(`${baseURL}/api/extension/pair`, { data: { code: lucaCode } })).json();
+  // Luca's extension reports that he watches the same episode on Prime Video too.
+  const lucaAuth = { Authorization: `Bearer ${paired.token}` };
+  await luca.request.post(`${baseURL}/api/extension/observe`, {
+    headers: lucaAuth,
+    data: {
+      providerId: "prime-video",
+      url: "https://www.primevideo.com/detail/0KRGHGZCHKS920ZQGY5LBRF7MA/",
+      documentTitle: "Prime Video: Dark",
+      hints: { title: "Dark", season: 2, episode: 3 },
+      observedAt: new Date().toISOString(),
+    },
+  });
   expect(await prime.evaluate(() => document.querySelector("video")!.paused)).toBe(false);
   await expect(async () => {
     const res = await luca.request.post(`${baseURL}/api/extension/party`, {
-      headers: { Authorization: `Bearer ${paired.token}` },
+      headers: lucaAuth,
       data: { externalId: "0KRGHGZCHKS920ZQGY5LBRF7MA", season: 2, episode: 3, position: 600, paused: true, action: "pause" },
     });
     expect((await res.json()).party).toMatchObject({ sameEpisode: true });
