@@ -787,6 +787,7 @@ export function defaultPreferences(userId: string): UserPreferences {
     subscriptions: [],
     homeCategory: "series",
     homeBackgrounds: {},
+    providerConsent: {},
   };
 }
 

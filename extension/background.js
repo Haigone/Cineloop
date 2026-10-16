@@ -3,14 +3,16 @@ import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
 import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
 import { auWatchId, hasAnimeAccess, isAnimeUrl } from "./au.js";
+import { hasPrimeAccess, isPrimeUrl, PRIME_ORIGINS } from "./prime.js";
 
 /*
  * CineLoop background worker.
  *
- * Mentre e' aperta una scheda di riproduzione di Netflix o di
+ * Mentre e' aperta una scheda di riproduzione di Netflix, Prime Video o
  * StreamingCommunity, manda un heartbeat a CineLoop una volta al minuto con
  * l'URL e il titolo di quella scheda, piu' cio' che sta riproducendo il
- * player (serie, stagione, episodio), letto da player-title.js / sc-page.js.
+ * player (serie, stagione, episodio), letto da player-title.js, prime-page.js
+ * o sc-page.js.
  * Legge solo questo: niente cookie, niente altro contenuto delle pagine,
  * nessun altro sito. StreamingCommunity cambia dominio di continuo: il link
  * aggiornato viene letto dal pulsante "StreamingCommunity" di
@@ -25,6 +27,7 @@ const SILENT_LIMIT_MS = 10 * 60 * 1000;
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(HEARTBEAT, { periodInMinutes: 1 });
   enablePlayerTitle();
+  enablePrimeTabs();
   enableAnimePage();
   enableScPage();
   rememberOpenTabs();
@@ -90,6 +93,18 @@ async function enablePlayerTitle() {
     if (!tab.id) continue;
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: PAGE_SCRIPTS }).catch(() => {});
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["netflix-player.js"], world: "MAIN" }).catch(() => {});
+  }
+}
+
+/**
+ * prime-page.js e' dichiarato nel manifest e parte da solo sulle pagine nuove;
+ * le schede di Prime Video gia' aperte quando l'estensione viene installata o
+ * aggiornata lo ricevono qui.
+ */
+async function enablePrimeTabs() {
+  if (!(await hasPrimeAccess())) return;
+  for (const tab of await chrome.tabs.query({ url: PRIME_ORIGINS })) {
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "prime-page.js"] }).catch(() => {});
   }
 }
 
@@ -207,6 +222,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     playerTitle(sender.tab.id, message).then(() => reply(true), () => reply(false));
     return true;
   }
+  if (message?.type === "prime-player" && sender.tab?.id) {
+    primePlayer(sender.tab.id, message).then(() => reply(true), () => reply(false));
+    return true;
+  }
   if (message?.type === "player-progress" && sender.tab?.id && typeof message.progress === "number" && Number.isFinite(message.progress) && message.progress >= 0 && message.progress <= 1) {
     frameProgress(sender.tab.id, message.progress).then(() => reply(true), () => reply(false));
     return true;
@@ -249,11 +268,12 @@ async function remember(tab) {
   if (!tab?.id || !tab.url) return;
   const onNetflix = Boolean(watchId(tab.url) || browseId(tab.url));
   const onAnime = isAnimeUrl(tab.url);
+  const onPrime = isPrimeUrl(tab.url);
   // If the user opened a watch URL on a new SC hostname, remember that origin.
   // Content access still waits for the browser permission prompt.
   const observedOrigin = await rememberObservedStreamingUrl(tab.url);
   const onStreaming = Boolean(observedOrigin) || await isStreamingUrl(tab.url);
-  if (!onNetflix && !onAnime && !onStreaming) return;
+  if (!onNetflix && !onAnime && !onPrime && !onStreaming) return;
   await updateTab(tab.id, (entry) => {
     if (onNetflix && !watchId(tab.url)) entry.parentId = browseId(tab.url);
     if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
@@ -290,6 +310,38 @@ async function playerTitle(tabId, m) {
     return flush;
   });
   if (shouldFlush) await tick();
+}
+
+/**
+ * Il player di Prime Video, aperto o chiuso, come lo vede prime-page.js. Il
+ * player non ha un indirizzo suo: l'id e' quello della pagina del titolo
+ * oppure, se manca, il nome letto nel player.
+ */
+async function primePlayer(tabId, m) {
+  const open = m.open === true && typeof m.watchId === "string" && m.watchId.length <= 240 && typeof m.title === "string";
+  const changed = await updateTab(tabId, (entry) => {
+    const was = entry.prime ? entry.player : null;
+    if (!open) {
+      entry.prime = null;
+      return Boolean(was);
+    }
+    const season = Number.isInteger(m.season) ? m.season : null;
+    const episode = Number.isInteger(m.episode) ? m.episode : null;
+    entry.prime = { at: Date.now() };
+    entry.player = {
+      watchId: m.watchId,
+      title: m.title.slice(0, 200),
+      season,
+      episode,
+      episodeId: null,
+      progress: typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null,
+      at: Date.now(),
+    };
+    // Il video che va conta come audio per la pausa lunga (vedi pickPlaying).
+    if (m.playing === true) entry.audibleAt = Date.now();
+    return !was || was.watchId !== m.watchId || was.title !== entry.player.title || was.season !== season || was.episode !== episode;
+  });
+  if (changed) await tick();
 }
 
 /** Aggiornamento manuale di stagione, episodio e posizione, dal popup. */
@@ -383,6 +435,31 @@ async function partyReport(m) {
 /** Restituito da current() quando la scheda di riproduzione e' ferma da troppo (pausa e abbandono). */
 const SILENT = { tab: { url: "" }, parentId: null };
 
+/** Il player di Prime Video si e' fatto sentire da poco (prime-page.js scrive ogni 20 secondi). */
+const PRIME_FRESH_MS = 75_000;
+
+async function primeTabs() {
+  if (!(await hasPrimeAccess())) return [];
+  return chrome.tabs.query({ url: PRIME_ORIGINS }).catch(() => []);
+}
+
+async function primeOpen() {
+  return (await primeTabs()).length > 0;
+}
+
+/** La scheda di Prime Video con il player aperto, se c'e'. */
+async function primeCurrent() {
+  const { tabs: seen = {} } = await chrome.storage.session.get("tabs");
+  const playing = (await primeTabs()).filter((t) => {
+    const info = seen[t.id];
+    return info?.prime && Date.now() - info.prime.at < PRIME_FRESH_MS && info.player?.watchId;
+  });
+  if (playing.length === 0) return null;
+  const found = await pickPlaying(playing, () => null);
+  if (found === SILENT) return SILENT;
+  return { ...found, id: found.player.watchId };
+}
+
 async function netflixOpen() {
   return (await chrome.tabs.query({ url: "https://www.netflix.com/*" })).length > 0;
 }
@@ -419,6 +496,8 @@ async function current() {
     const tabs = await chrome.tabs.query({ url: "https://www.netflix.com/watch/*" });
     if (tabs.length > 0) return pickPlaying(tabs, watchId);
   }
+  const prime = await primeCurrent();
+  if (prime) return prime;
   return streamingCurrent();
 }
 
@@ -461,7 +540,7 @@ async function tick() {
         // Di nuovo nel catalogo tra un episodio e l'altro: una pausa breve tiene
         // la sessione (e gli amici con te); il server la lascia scadere dopo
         // qualche minuto senza heartbeat.
-        if (!paused && found !== SILENT && ((await netflixOpen()) || (await animeOpen()) || (await streamingOpen()))) {
+        if (!paused && found !== SILENT && ((await netflixOpen()) || (await animeOpen()) || (await primeOpen()) || (await streamingOpen()))) {
           // La sessione CineLoop può restare valida durante la navigazione nel catalogo,
           // ma Discord deve sapere subito che il player non è più attivo.
           await sendDiscordPresence(null);
@@ -479,7 +558,9 @@ async function tick() {
         ? "netflix"
         : /^https:\/\/www\.animeunity\.so\//.test(found.tab.url)
           ? "animeunity"
-          : "streamingcommunity";
+          : isPrimeUrl(found.tab.url)
+            ? "prime-video"
+            : "streamingcommunity";
       const hints = { ...playerHints(found.player, id), ...(found.parentId ? { parentId: found.parentId } : {}) };
       const status = await api("/api/extension/observe", {
         method: "POST",

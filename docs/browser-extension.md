@@ -1,6 +1,6 @@
 # Estensione browser
 
-Stato: **disponibile per Netflix, AnimeUnity e StreamingCommunity** su Chrome, Edge, Brave e altri browser Chromium, e su **Firefox 140+** (dalla 0.6.0). Il codice è in `extension/`; `npm run build` lo impacchetta in `public/cineloop-extension.zip` (Chromium) e `public/cineloop-extension-firefox.zip` (Firefox), che il sito offre in Impostazioni > Estensione Netflix.
+Stato: **disponibile per Netflix, Prime Video (dalla 0.6.6), AnimeUnity e StreamingCommunity** su Chrome, Edge, Brave e altri browser Chromium, e su **Firefox 140+** (dalla 0.6.0). Il codice è in `extension/`; `npm run build` lo impacchetta in `public/cineloop-extension.zip` (Chromium) e `public/cineloop-extension-firefox.zip` (Firefox), che il sito offre in Impostazioni > Estensione Netflix.
 
 Il codice è lo stesso per i due browser. Il pacchetto Firefox cambia solo il manifest (`scripts/pack-extension.ts`): pagina di background invece del service worker, id del componente aggiuntivo (`cineloop@cineloop-one.vercel.app`) e dichiarazione dei dati raccolti. `compat.js`, caricato per primo in ogni pagina e script, fa usare a Firefox il suo namespace `browser.*` dove il codice scrive `chrome.*`.
 
@@ -8,6 +8,9 @@ Il codice è lo stesso per i due browser. Il pacchetto Firefox cambia solo il ma
 
 - **netflix.com è chiesto all'installazione** (dalla 0.6.0, `host_permissions`): il browser lo mostra una volta quando aggiungi l'estensione e poi non serve autorizzare nulla dal pannello. Per non farsi vedere si usa "Metti in pausa".
 - AnimeUnity e StreamingCommunity restano facoltativi e si attivano dal pannello, come prima.
+- **Prime Video è chiesto all'installazione** (dalla 0.6.6): `https://www.primevideo.com/*` e `https://www.amazon.it/gp/video/*` sono in `host_permissions` e `prime-page.js` è uno script dichiarato nel manifest. Su Chrome un'estensione installata dallo .zip ("Carica estensione non pacchettizzata") riceve i nuovi permessi con l'aggiornamento; su Firefox 140+ i `host_permissions` sono concessi all'installazione, ma un aggiornamento che ne aggiunge li mostra in una richiesta da accettare una volta. AnimeUnity e StreamingCommunity restano facoltativi (vedi [providers.md](./providers.md)): StreamingCommunity cambia dominio e il permesso va chiesto ogni volta per il dominio nuovo.
+- **AnimeUnity e StreamingCommunity** (dalla 0.6.6, su richiesta di Riccardo): `animeunity.so` e la directory `streaming-community.how` sono in `host_permissions`, quindi il browser li chiede all'installazione insieme agli altri; il dominio di StreamingCommunity che cambia resta un permesso da concedere dal pannello a ogni cambio, perché il browser non permette altro. Oltre al permesso serve la scelta dell'utente sul sito. La prima volta che l'estensione ne vede uno, CineLoop mostra un avviso (poi si cambia da Impostazioni > Siti non ufficiali); finché non è accettato il server scarta quelle osservazioni e il pannello lo dice (`consent` nello stato). Vedi [providers.md](./providers.md).
+- **Prime Video**: il player si apre sopra la pagina del titolo, quindi `prime-page.js` dice al background quando il player è aperto (ogni 20 secondi) e cosa nomina: serie, "Stagione 1, Ep. 3", punto raggiunto (dall'indicatore del tempo o dal `<video>`). L'osservazione arriva a `PrimeVideoAdapter` con l'indirizzo della scheda.
 - Su Firefox l'utente può revocare netflix.com da about:addons: in quel caso il pannello mostra di nuovo il pulsante "Consenti su netflix.com".
 
 ## Cosa fa

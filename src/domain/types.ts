@@ -364,6 +364,19 @@ export interface AppNotification {
   read: boolean;
 }
 
+/**
+ * Services that CineLoop reads only after the user accepted a notice on the
+ * site: unlicensed streaming sites. "pending" = the extension saw one and the
+ * notice has not been answered yet.
+ */
+export const CONSENT_PROVIDERS = ["animeunity", "streamingcommunity"] as const;
+export type ConsentProvider = (typeof CONSENT_PROVIDERS)[number];
+export type ConsentState = "pending" | "accepted" | "declined";
+
+export function isConsentProvider(id: string): id is ConsentProvider {
+  return (CONSENT_PROVIDERS as readonly string[]).includes(id);
+}
+
 export interface UserPreferences {
   userId: string;
   profileVisibility: "public" | "friends" | "private";
@@ -384,6 +397,8 @@ export interface UserPreferences {
   homeCategory: MediaType;
   /** Title chosen as each Home section's background; otherwise the last one watched there. */
   homeBackgrounds: Partial<Record<MediaType, string>>;
+  /** Answer to the notice shown before CineLoop reads AnimeUnity / StreamingCommunity. */
+  providerConsent: Partial<Record<ConsentProvider, ConsentState>>;
 }
 
 /**

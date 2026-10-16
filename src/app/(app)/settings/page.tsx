@@ -8,6 +8,7 @@ import { getSettingsView } from "@/server/services/settings";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
+import { ProviderConsentSwitches } from "@/components/consent/provider-consent-switches";
 import { BackgroundPicker } from "@/components/settings/background-picker";
 import { ExtensionSettings } from "@/components/settings/extension-settings";
 import { ScrollToHash } from "@/components/settings/scroll-to-hash";
@@ -28,6 +29,7 @@ const SECTIONS = [
   { id: "notifiche", label: "Notifiche" },
   { id: "servizi", label: "I tuoi servizi" },
   { id: "estensione", label: "Estensione Netflix" },
+  { id: "siti-non-ufficiali", label: "Siti non ufficiali" },
   { id: "sfondi", label: "Sfondi della Home" },
   { id: "accessibilita", label: "Aspetto e accessibilità" },
 ] as const;
@@ -174,6 +176,14 @@ async function SettingsContent() {
         description="Mentre guardi Netflix, CineLoop aggiorna da solo la libreria e mostra agli amici cosa stai guardando, così possono unirsi a te."
       >
         <ExtensionSettings devices={devices} />
+      </Section>
+
+      <Section
+        id="siti-non-ufficiali"
+        title="Siti non ufficiali"
+        description="L’estensione li legge solo se li attivi tu. Il permesso del browser arriva con l’installazione; qui decidi se usarlo. Se spegni un sito, CineLoop ignora quello che l’estensione gli manda."
+      >
+        <ProviderConsentSwitches initial={p.providerConsent} />
       </Section>
 
       <Section

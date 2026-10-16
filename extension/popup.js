@@ -3,6 +3,7 @@ import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
 import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
+import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
 const DEFAULT_SERVER = "https://cineloop-one.vercel.app";
@@ -22,7 +23,8 @@ async function render() {
   const netflixOk = await hasNetflixAccess();
   const animeOk = await hasAnimeAccess();
   const streamingOk = await hasStreamingAccess();
-  if (!netflixOk && !animeOk && !streamingOk) {
+  const primeOk = await hasPrimeAccess();
+  if (!netflixOk && !primeOk && !animeOk && !streamingOk) {
     showOnly("grant");
     await renderGrant();
     return;
@@ -36,6 +38,11 @@ async function render() {
   const w = status?.watching ?? null;
   show("paused-card", paused);
   show("idle", !paused && !w);
+  const consent = status?.consent ?? null;
+  show("consent", Boolean(consent));
+  if (consent) {
+    $("consent-text").textContent = `Prima di leggere ${consent === "animeunity" ? "AnimeUnity" : "StreamingCommunity"}, CineLoop ti chiede una conferma: la trovi sul sito, la prima volta.`;
+  }
   show("watching", Boolean(w));
   show("confirm", Boolean(w && (!w.title || changing)));
   const statusNow = status ?? (await api("/api/extension/status").catch(() => null));
@@ -50,7 +57,11 @@ async function render() {
   const otherProvider = w.providerId === "streamingcommunity"
     ? "streamingcommunity"
     : w.providerId === "animeunity" ? "animeunity" : null;
-  const providerLabel = otherProvider === "streamingcommunity" ? "su StreamingCommunity" : otherProvider === "animeunity" ? "su AnimeUnity" : "su Netflix";
+  const providerLabel = otherProvider === "streamingcommunity"
+    ? "su StreamingCommunity"
+    : otherProvider === "animeunity"
+      ? "su AnimeUnity"
+      : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
   $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
   if (otherProvider === "streamingcommunity") {
@@ -207,16 +218,17 @@ $("visible").addEventListener("change", async () => {
  * prompt only if it is requested straight from the click, before any await,
  * so the click handler decides from this.
  */
-let perms = { netflix: false, anime: false, directory: false, streaming: false, resolved: null };
+let perms = { netflix: false, prime: false, anime: false, directory: false, streaming: false, resolved: null };
 
 /** Provider permissions remain manageable after the first site is enabled. */
 async function renderProviderPermissions() {
   const netflix = await hasNetflixAccess();
+  const prime = await hasPrimeAccess();
   const anime = await hasAnimeAccess();
   const directory = await hasDirectoryAccess();
   const streaming = await hasStreamingAccess();
   const resolved = await getResolved();
-  perms = { netflix, anime, directory, streaming, resolved };
+  perms = { netflix, prime, anime, directory, streaming, resolved };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
@@ -225,8 +237,14 @@ async function renderProviderPermissions() {
   // Netflix is granted at install time and cannot be switched off from here (only paused).
   $("manage-netflix").textContent = netflix ? "Attivo ✓" : "Attiva Netflix";
   $("manage-netflix").disabled = netflix;
-  setButton("manage-au", anime, "AnimeUnity");
-  setButton("manage-sc", streaming, "StreamingCommunity");
+  $("manage-prime").textContent = prime ? "Attivo ✓" : "Attiva Prime Video";
+  $("manage-prime").disabled = prime;
+  // Like Netflix, AnimeUnity and the StreamingCommunity directory are granted at install and
+  // switched on or off from CineLoop's own settings; only a revoked grant can be asked again.
+  $("manage-au").textContent = anime ? "Attivo ✓" : "Attiva AnimeUnity";
+  $("manage-au").disabled = anime;
+  $("manage-sc").textContent = streaming ? "Attivo ✓" : "Attiva StreamingCommunity";
+  $("manage-sc").disabled = streaming;
   $("manage-sc-status").textContent = sc
     ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
     : "Disattivato. Puoi attivarlo quando vuoi.";
@@ -236,14 +254,15 @@ async function togglePermission(provider) {
   if (provider === "netflix") {
     // Only when it was revoked from the browser's settings (Firefox allows that).
     if (!perms.netflix) await chrome.permissions.request({ origins: [NETFLIX_ORIGIN] });
+  } else if (provider === "prime-video") {
+    // Come Netflix: concesso all'installazione, si richiede solo se revocato.
+    if (!perms.prime) await chrome.permissions.request({ origins: PRIME_ORIGINS });
   } else if (provider === "animeunity") {
-    if (perms.anime) await chrome.permissions.remove({ origins: AU_ORIGINS });
-    else await chrome.permissions.request({ origins: AU_ORIGINS });
+    if (!perms.anime) await chrome.permissions.request({ origins: AU_ORIGINS });
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming) {
-      const origins = [...new Set([...DIRECTORY_ORIGINS, ...(resolved?.origin ? [`${resolved.origin}/*`] : [])])];
-      await chrome.permissions.remove({ origins });
+      // Already active; it is switched off from CineLoop's settings.
     } else if (resolved?.origin) {
       // A changed origin is detected from the watch tab. Chrome requires an
       // explicit user gesture to grant this new host before reading the player.
@@ -258,7 +277,7 @@ async function togglePermission(provider) {
   await render();
 }
 
-for (const [id, provider] of [["manage-netflix", "netflix"], ["manage-au", "animeunity"], ["manage-sc", "streamingcommunity"]]) {
+for (const [id, provider] of [["manage-netflix", "netflix"], ["manage-prime", "prime-video"], ["manage-au", "animeunity"], ["manage-sc", "streamingcommunity"]]) {
   $(id).addEventListener("click", () => togglePermission(provider).catch(() => render()));
 }
 
@@ -447,6 +466,8 @@ $("open-btn").addEventListener("click", async () => {
   const { server } = await getSettings();
   if (server) chrome.tabs.create({ url: `${server}/home` });
 });
+
+$("consent-open").addEventListener("click", () => $("open-btn").click());
 
 $("unpair-btn").addEventListener("click", async () => {
   await api("/api/extension/presence", { method: "DELETE" }).catch(() => {});

@@ -16,7 +16,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     name: "Prime Video",
     tint: "#1fa3f0",
     homepage: "https://www.primevideo.com",
-    integration: "planned",
+    integration: "under-review",
   },
   "disney-plus": {
     id: "disney-plus",
