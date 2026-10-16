@@ -691,28 +691,46 @@ export class MemoryRepository implements Repository {
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
     const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
-    const anchorKey = `${input.providerId}:${input.titleId}:${input.seasonNumber}`;
-    const anchor = [...this.episodeLinks.entries()].find(([k, v]) => k.startsWith(anchorKey + ":") && v.linkType === "anchor");
+    const anchorPrefix = `${input.providerId}:${input.titleId}:${input.seasonNumber}:`;
+    const anchor = [...this.episodeLinks.entries()].find(([k, row]) => k.startsWith(anchorPrefix) && row.linkType === "anchor");
     if (!anchor) {
       this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor" });
       return;
     }
     const [anchorRowKey, row] = anchor;
     if (row.episodeNumber === input.episodeNumber) return;
-    const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
-    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
-    if (row.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      const expected = anchorId + input.episodeNumber - row.episodeNumber;
-      if (expected === observedId) return;
-      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
-      this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact" });
+
+    const saveExact = () => this.episodeLinks.set(key(input.episodeNumber), {
+      episodeNumber: input.episodeNumber,
+      externalId: input.externalId,
+      idStep: null,
+      linkType: "exact",
+    });
+
+    // Once a season has a verified exception, store every newly observed
+    // episode explicitly; never resume arithmetic inference for that season.
+    const hasException = [...this.episodeLinks.entries()].some(([k, item]) => k.startsWith(anchorPrefix) && item.linkType === "exact");
+    if (hasException) {
+      saveExact();
       return;
     }
-    if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
-      observedId - anchorId === input.episodeNumber - row.episodeNumber &&
-      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      this.episodeLinks.set(anchorRowKey, { ...row, idStep: 1 });
+
+    const anchorId = /^\\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const observedId = /^\\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
+    const numeric = Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId);
+    const expected = anchorId + input.episodeNumber - row.episodeNumber;
+    if (numeric && expected === observedId) {
+      // Arithmetic is enabled only after adjacent episodes verify a +1 sequence.
+      if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1) {
+        this.episodeLinks.set(anchorRowKey, { ...row, idStep: 1 });
+      }
+      return;
     }
+
+    // A contradiction (or an ID that cannot be compared safely) disables
+    // arithmetic and switches the season to exact per-episode references.
+    this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
+    saveExact();
   }
 
   // Sagas -------------------------------------------------------------------
