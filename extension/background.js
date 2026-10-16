@@ -1,7 +1,7 @@
 import "./compat.js";
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
-import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId } from "./sc.js";
+import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId, SC_VIXCLOUD_ORIGINS } from "./sc.js";
 import { auWatchId, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
 import { hasPrimeAccess, isPrimeUrl, PRIME_ORIGINS } from "./prime.js";
 
@@ -125,6 +125,35 @@ async function enableScPage() {
   for (const tab of await chrome.tabs.query({ url: match })) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {});
   }
+  // The actual video is often cross-origin in a VixCloud iframe. Register the
+  // same lightweight progress reader on supported VixCloud hosts under the
+  // StreamingCommunity permission bundle, without a second consent prompt.
+  for (const pattern of SC_VIXCLOUD_ORIGINS) {
+    await enableScFrameOrigin(pattern.replace(/\\/\\*$/, ""));
+  }
+}
+
+/** Inject progress tracking into VixCloud frames embedded by StreamingCommunity. */
+async function enableScFrameOrigin(origin) {
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.hostname === "www.streaming-community.how") return false;
+  if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
+  const id = "sc-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
+  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+  await chrome.scripting.registerContentScripts([{
+    id, matches: [parsed.origin + "/*"], js: ["compat.js", "sc-page.js", "party-sync.js"],
+    allFrames: true, runAt: "document_idle", persistAcrossSessions: true,
+  }]);
+  const resolved = await getResolved();
+  if (resolved?.origin) {
+    const tabs = await chrome.tabs.query({ url: `${resolved.origin}/*` }).catch(() => []);
+    await Promise.all(tabs.filter((tab) => tab.id).map((tab) =>
+      chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {})
+    ));
+  }
+  return true;
 }
 
 /** Su animeunity.so fa girare au-page.js: titolo, episodio e avanzamento del video. */
