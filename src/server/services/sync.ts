@@ -459,7 +459,7 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // while CineLoop's catalogue uses the English franchise title. Treat both as
   // the same work so episode/progress updates land on the existing S1 entry.
   const baseLabel = presence.providerId === "animeunity" &&
-    /^re\s*:?\\s*zero kara hajimeru isekai seikatsu(?:\s*:\s*shin henshuu-ban)?$/i.test(rawBaseLabel)
+    /^re\s*:?\s*zero kara hajimeru isekai seikatsu(?:\s*:\s*shin henshuu-ban)?$/i.test(rawBaseLabel)
       ? "Re:ZERO -Starting Life in Another World-"
       : rawBaseLabel;
   const key = searchKey(baseLabel);
