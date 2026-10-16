@@ -454,7 +454,14 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   // label such as "Frieren: Beyond Journey's End 2" should first resolve the
   // base series title, then use the trailing number as a season hint if valid.
   const seasonSuffix = /(?:\s+|[:：]\s*)(?:season\s*)?(\d{1,2})\s*$/i.exec(presence.label);
-  const baseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  const rawBaseLabel = plainQuotes(seasonSuffix ? presence.label.slice(0, seasonSuffix.index).trim() : presence.label);
+  // AnimeUnity labels Re:ZERO's director's-cut edition with its Japanese title,
+  // while CineLoop's catalogue uses the English franchise title. Treat both as
+  // the same work so episode/progress updates land on the existing S1 entry.
+  const baseLabel = presence.providerId === "animeunity" &&
+    /^re\s*:?\s*zero kara hajimeru isekai seikatsu(?:\s*:\s*shin henshuu-ban)?$/i.test(rawBaseLabel)
+      ? "Re:ZERO -Starting Life in Another World-"
+      : rawBaseLabel;
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 12);
   // With an episode number it is a series: never a film of the same name.
