@@ -1,7 +1,7 @@
 import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
-import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
+import { DIRECTORY_ORIGINS, SC_VIXCLOUD_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
 import { ANIMEUNITY_ACCESS_ORIGINS, hasAnimeAccess } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
@@ -251,10 +251,10 @@ async function togglePermission(provider) {
     } else if (resolved?.origin) {
       // A changed origin is detected from the watch tab. Chrome requires an
       // explicit user gesture to grant this new host before reading the player.
-      await chrome.permissions.request({ origins: [`${resolved.origin}/*`] });
+      await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
     } else if (directory) {
       const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
-      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`] });
+      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
     } else {
       await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
     }
@@ -298,7 +298,7 @@ async function renderGrant() {
     $("sc-grant-status").textContent = "Ho rilevato il dominio dalla scheda che hai aperto. Consentilo una volta per leggere titolo, episodio e avanzamento.";
     btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
     btn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`] })) await render();
+      if (await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS] })) await render();
     };
     return;
   }
