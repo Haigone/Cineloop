@@ -2,7 +2,7 @@ import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
-import { AU_ORIGINS, AU_SEARCH, hasAnimeAccess } from "./au.js";
+import { AU_ORIGINS, hasAnimeAccess } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
@@ -64,13 +64,16 @@ async function render() {
       : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
   $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
+  // The AnimeUnity archive has no reliable title-search URL. Keep its manual
+  // progress controls, but never show the unrelated StreamingCommunity button.
+  show("sc-open-btn", otherProvider === "streamingcommunity");
   if (otherProvider === "streamingcommunity") {
     const origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
     $("sc-search-hint").textContent = origin
       ? `Se il video non si apre diretto, cerca “${w.title ? w.title.title : (w.label ?? "")}” su ${new URL(origin).hostname}.`
       : "Dominio attuale non ancora risolto: usami dalla schermata di attivazione.";
   } else if (otherProvider === "animeunity") {
-    $("sc-search-hint").textContent = `Si apre l’archivio AnimeUnity: cerca “${w.title ? w.title.title : (w.label ?? "")}” lì, perché il sito usa pagine anime con ID invece di /search?q=…`;
+    $("sc-search-hint").textContent = "AnimeUnity: la percentuale viene letta dal player quando il relativo dominio è autorizzato. Se non compare, consenti il dominio del player qui sopra e ricarica la pagina.";
   }
   $("player-read").textContent = await playerReading();
   const frameInfo = await chrome.storage.session.get(["auFrameOrigins", "auFrameTabId"]);
@@ -478,13 +481,6 @@ $("unpair-btn").addEventListener("click", async () => {
 $("grant-skip").addEventListener("click", () => render());
 
 $("sc-open-btn").addEventListener("click", async () => {
-  const meta = $("watching-meta").textContent;
-  if (meta.includes("AnimeUnity")) {
-    // Dominio fisso: apri direttamente la ricerca del titolo.
-    const title = $("watching-title").textContent;
-    chrome.tabs.create({ url: `${AU_SEARCH}${encodeURIComponent(title)}` });
-    return;
-  }
   // StreamingCommunity: apre il dominio attuale; se non e' risolto, lo risolve prima.
   let origin = await chrome.runtime.sendMessage({ type: "sc-origin" }).catch(() => null);
   origin ??= await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
