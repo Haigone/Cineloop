@@ -217,7 +217,7 @@ async function playerTitle(tabId, m) {
     const was = entry.player;
     const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
     const progressChanged = progress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - progress) >= 0.02);
-    const flush = identityChanged || progressChanged || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
+    const flush = identityChanged || progressChanged || (progress !== null && progress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
