@@ -117,11 +117,17 @@ async function enableScPage() {
   if (!resolved?.origin) return;
   if (!(await hasStreamingAccess())) return;
   const match = `${resolved.origin}/*`;
-  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
-  if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
-  await chrome.scripting.registerContentScripts([
-    { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
-  ]);
+  // Dynamic registration is not reliable on every Firefox version/state.
+  // Never let it block direct injection into tabs that are already open.
+  try {
+    const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SC_SCRIPT] });
+    if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [SC_SCRIPT] });
+    await chrome.scripting.registerContentScripts([
+      { id: SC_SCRIPT, matches: [match], js: ["compat.js", "sc-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
+    ]);
+  } catch {
+    // The direct injection below is the fallback for existing StreamingCommunity tabs.
+  }
   for (const tab of await chrome.tabs.query({ url: match })) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "sc-page.js", "party-sync.js"] }).catch(() => {});
   }
@@ -204,12 +210,17 @@ async function enableAnimeFrameOrigin(origin) {
   if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.so") return false;
   if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
   const id = "au-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
-  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
-  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
-  await chrome.scripting.registerContentScripts([{
-    id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true,
-    runAt: "document_idle", persistAcrossSessions: true,
-  }]);
+  // Registration may fail in Firefox; still inject into already-open frames.
+  try {
+    const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+    if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+    await chrome.scripting.registerContentScripts([{
+      id, matches: [parsed.origin + "/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true,
+      runAt: "document_idle", persistAcrossSessions: true,
+    }]);
+  } catch {
+    // Existing tabs are handled by the explicit injection below.
+  }
   // Inject into every currently open AnimeUnity tab. A single remembered tab ID
   // caused the last opened tab to steal progress/watch-party updates from others.
   const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.so/*" });
