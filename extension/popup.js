@@ -23,6 +23,26 @@ async function render() {
   const animeOk = await hasAnimeAccess();
   const streamingOk = await hasStreamingAccess();
   const primeOk = await hasPrimeAccess();
+
+  // If the popup is opened while the user is on a provider that still needs
+  // optional host access, show the consent screen for that provider directly.
+  // Netflix/Prime have install-time host permissions, so the old all-providers
+  // check could hide the grant screen even when AnimeUnity/StreamingCommunity
+  // had never been authorized (or their permissions had been revoked).
+  const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+  const activeUrl = activeTab?.url ?? "";
+  const onAnimeWithoutAccess = activeUrl.startsWith("https://www.animeunity.so/") && !animeOk;
+  const resolvedForPrompt = await getResolved();
+  let onStreamingWithoutAccess = false;
+  try {
+    onStreamingWithoutAccess = Boolean(resolvedForPrompt?.origin) && new URL(activeUrl).origin === resolvedForPrompt.origin && !streamingOk;
+  } catch {}
+  if (onAnimeWithoutAccess || onStreamingWithoutAccess) {
+    showOnly("grant");
+    await renderGrant();
+    return;
+  }
+
   if (!netflixOk && !primeOk && !animeOk && !streamingOk) {
     showOnly("grant");
     await renderGrant();
