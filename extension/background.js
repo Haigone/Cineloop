@@ -146,12 +146,16 @@ async function enableScFrameOrigin(origin) {
   if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.hostname === "www.streaming-community.how") return false;
   if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
   const id = "sc-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
-  const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
-  if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
-  await chrome.scripting.registerContentScripts([{
-    id, matches: [parsed.origin + "/*"], js: ["compat.js", "sc-page.js", "party-sync.js"],
-    allFrames: true, runAt: "document_idle", persistAcrossSessions: true,
-  }]);
+  try {
+    const old = await chrome.scripting.getRegisteredContentScripts({ ids: [id] }).catch(() => []);
+    if (old.length) await chrome.scripting.unregisterContentScripts({ ids: [id] }).catch(() => {});
+    await chrome.scripting.registerContentScripts([{
+      id, matches: [parsed.origin + "/*"], js: ["compat.js", "sc-page.js", "party-sync.js"],
+      allFrames: true, runAt: "document_idle", persistAcrossSessions: true,
+    }]);
+  } catch {
+    // A registration error on one VixCloud host must not stop the other hosts.
+  }
   const resolved = await getResolved();
   if (resolved?.origin) {
     const tabs = await chrome.tabs.query({ url: `${resolved.origin}/*` }).catch(() => []);
@@ -556,6 +560,28 @@ async function streamingTabs() {
 
 /** La scheda di riproduzione tra i provider attivi, preferendo quella attiva. */
 async function current() {
+  // Follow the provider the user is actually viewing. Without this check, an
+  // inactive AnimeUnity tab always wins over an actively watched SC title.
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+  const activeUrl = active?.url ?? "";
+  if (isAnimeUrl(activeUrl) && auWatchId(activeUrl) && await hasAnimeAccess()) {
+    const tabs = (await chrome.tabs.query({ url: "https://www.animeunity.so/*" })).filter((t) => auWatchId(t.url ?? ""));
+    if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
+  }
+  if (scWatchId(activeUrl) && await hasStreamingAccess()) {
+    const found = await streamingCurrent();
+    if (found) return found;
+  }
+  if (watchId(activeUrl) && await hasNetflixAccess()) {
+    const tabs = await chrome.tabs.query({ url: "https://www.netflix.com/watch/*" });
+    if (tabs.length > 0) return pickPlaying(tabs, watchId);
+  }
+  if (isPrimeUrl(activeUrl)) {
+    const prime = await primeCurrent();
+    if (prime) return prime;
+  }
+
+  // No active provider player: retain the existing fallback order.
   if (await hasAnimeAccess()) {
     const tabs = (await chrome.tabs.query({ url: "https://www.animeunity.so/*" })).filter((t) => auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
