@@ -135,10 +135,14 @@
   // duration must always come from the same visible video element.
   function videoScore(v) {
     const rect = v.getBoundingClientRect();
-    const style = getComputedStyle(v);
+    // A same-origin iframe's video belongs to its own Window. Use that window
+    // for computed style and viewport checks; the parent Window may reject the
+    // foreign-document element or score it against the wrong viewport.
+    const view = v.ownerDocument?.defaultView ?? window;
+    const style = view.getComputedStyle(v);
     const visible = rect.width >= 160 && rect.height >= 90 &&
       rect.bottom > 0 && rect.right > 0 &&
-      rect.top < window.innerHeight && rect.left < window.innerWidth &&
+      rect.top < view.innerHeight && rect.left < view.innerWidth &&
       style.display !== "none" && style.visibility !== "hidden" &&
       Number(style.opacity || 1) > 0.05;
     const area = Math.max(0, rect.width) * Math.max(0, rect.height);
