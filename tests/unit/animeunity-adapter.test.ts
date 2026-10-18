@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getAdapter, resolveContinueUrl } from "@/integrations/providers/registry";
-import { animeUnityPartSeason } from "@/integrations/providers/adapters/anime-unity";
+import { animeUnityPartSeason, animeUnityReZeroEdition } from "@/integrations/providers/adapters/anime-unity";
 import type { SyncObservation } from "@/integrations/providers/types";
 
 const observation: SyncObservation = {
@@ -10,6 +10,15 @@ const observation: SyncObservation = {
   hints: { title: "Example Anime", season: 1, episode: 4, progress: 0.42 },
   observedAt: "2026-10-09T12:00:00Z",
 };
+
+describe("Re:Zero AnimeUnity edition ID mapping", () => {
+  it("recognizes only the verified original and Director's Cut page IDs", () => {
+    expect(animeUnityReZeroEdition("https://www.animeunity.so/anime/48-rezero-starting-life-in-another-world/2585")).toBe("2016");
+    expect(animeUnityReZeroEdition("https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049")).toBe("directors-cut");
+    expect(animeUnityReZeroEdition("https://www.animeunity.so/anime/123-rezero-kara-hajimeru-isekai-seikatsu/36383")).toBeNull();
+    expect(animeUnityReZeroEdition("https://animeunity.so.evil.test/anime/48-rezero-starting-life-in-another-world/2585")).toBeNull();
+  });
+});
 
 describe("Anime Unity part-to-season mapping", () => {
   it("maps Bleach TYBW parts to canonical seasons", () => {
