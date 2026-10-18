@@ -299,11 +299,26 @@ export class MemoryRepository implements Repository {
     let merged = 0;
     for (const e of [...this.library]) {
       if (e.titleId !== oldId) continue;
-      if (this.library.some((o) => o.userId === e.userId && o.titleId === next.id)) {
+      const kept = this.library.find((o) => o.userId === e.userId && o.titleId === next.id);
+      if (kept) {
+        const oldProgressAt = Date.parse(e.progress?.updatedAt ?? e.lastWatchedAt ?? "");
+        const keptProgressAt = Date.parse(kept.progress?.updatedAt ?? kept.lastWatchedAt ?? "");
+        if (e.progress && (!kept.progress || oldProgressAt > keptProgressAt)) kept.progress = { ...e.progress, titleId: next.id };
+        if (e.lastWatchedAt && (!kept.lastWatchedAt || Date.parse(e.lastWatchedAt) > Date.parse(kept.lastWatchedAt))) {
+          kept.lastWatchedAt = e.lastWatchedAt;
+          kept.status = e.status;
+        }
+        if (Date.parse(e.addedAt) < Date.parse(kept.addedAt)) kept.addedAt = e.addedAt;
+        kept.rating ??= e.rating;
+        kept.seenThrough = Math.max(kept.seenThrough ?? 0, e.seenThrough ?? 0) || null;
+        kept.askRating = Boolean(kept.askRating || e.askRating);
+        kept.partOverrides = { ...e.partOverrides, ...kept.partOverrides };
+        if (kept.updates === "all" && e.updates !== "all") kept.updates = e.updates;
         this.library.splice(this.library.indexOf(e), 1);
         merged++;
       } else {
         e.titleId = next.id;
+        if (e.progress) e.progress = { ...e.progress, titleId: next.id };
         moved++;
       }
     }
