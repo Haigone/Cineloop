@@ -33,7 +33,7 @@ async function animeUnityEpisodeUrl(
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const fallback = providerSearchUrl("animeunity", titleName);
-  if (storedUrl && offset !== null && seasonNumber !== null && episodeNumber !== null) {
+  if (storedUrl && seasonNumber !== null && episodeNumber !== null) {
     try {
       const current = new URL(storedUrl);
       const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
@@ -152,15 +152,20 @@ export async function reorderWishlist(orderedIds: string[]): Promise<ActionResul
 const statusSchema = z.enum(["watching", "completed", "planned", "dropped"]);
 
 
-export async function setStatus(id: string, status: string): Promise<ActionResult> {
+export async function setStatus(id: string, status: string, rezeroVersion?: "directors-cut" | "2016"): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
   const parsedStatus = statusSchema.safeParse(status);
-  if (!parsedId.success || !parsedStatus.success || !(await ensureTitle(parsedId.data))) {
+  const parsedReZeroVersion = z.enum(["directors-cut", "2016"]).optional().safeParse(rezeroVersion);
+  if (!parsedId.success || !parsedStatus.success || !parsedReZeroVersion.success || !(await ensureTitle(parsedId.data))) {
     return { ok: false, error: "Richiesta non valida." };
   }
   return run(async () => {
     const repo = getRepository();
+    // Re:Zero's selected season-one cut belongs to this viewer, not to the shared catalogue.
+    if (parsedReZeroVersion.data) {
+      await repo.setPartOverride(user.id, parsedId.data, "rezero-version", parsedReZeroVersion.data === "directors-cut");
+    }
     // "Da vedere" no longer exists in the library: a plan goes to the wishlist.
     if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, parsedId.data);
     const title = await cacheRemoteTitle(parsedId.data);
@@ -234,7 +239,7 @@ export async function finishTitle(id: string): Promise<ActionResult> {
   }, "Non siamo riusciti a segnarlo come visto.");
 }
 
-const partKey = z.string().min(1).max(40).regex(/^(ann-\d+|filler)$/);
+const partKey = z.string().min(1).max(40).regex(/^(ann-\d+|filler|rezero-version)$/);
 
 /** Anime: include or leave out one part of the franchise (or "filler"); null goes back to the default. */
 export async function setPartIncluded(id: string, key: string, included: boolean | null): Promise<ActionResult> {
@@ -365,7 +370,8 @@ export async function saveManualProgress(
   }
   return run(async () => {
     const repo = getRepository();
-    const prev = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id)?.progress ?? null;
+    const entry = (await repo.listLibrary(user.id)).find((e) => e.titleId === title.id);
+    const prev = entry?.progress ?? null;
     const nextProvider = chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null);
     const sameEpisode = prev?.season === season && prev?.episode === episode;
     let nextUrl: string | null = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId)
@@ -378,7 +384,14 @@ export async function saveManualProgress(
     if (nextProvider === "animeunity") {
       nextUrl = sameEpisode && prev?.url
         ? prev.url
-        : await animeUnityEpisodeUrl(prev?.url, title.title, title.id, season, episode, offset);
+        : await animeUnityEpisodeUrl(
+            prev?.url,
+            title.title,
+            title.id,
+            title.title.match(/re\s*:?\s*zero/i) && season === 1 && entry?.partOverrides?.["rezero-version"] === false ? 101 : season,
+            episode,
+            offset,
+          );
     } else if (nextProvider === "streamingcommunity" && title.type === "series") {
       nextUrl = sameEpisode && prev?.url
         ? prev.url
