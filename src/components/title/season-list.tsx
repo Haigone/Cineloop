@@ -30,8 +30,16 @@ export function SeasonList({
   progressEdition?: "directors-cut" | "2016" | null;
 }) {
   const isReZero = /re\\s*:?\\s*zero/i.test(titleName);
+  // Older cached catalogues exposed the 2020 Director's Cut as season 2.
+  // Normalize that cached shape immediately, even before the background refresh completes.
+  const cachedDirectorsCut = isReZero
+    ? seasons.find((s) => s.number === 2 && s.episodeCount === 13 && s.airDate?.startsWith("2020"))
+    : undefined;
+  const canonicalSeasons = cachedDirectorsCut
+    ? seasons.filter((s) => s !== cachedDirectorsCut).map((s) => s.number > 2 ? { ...s, number: s.number - 1 } : s)
+    : seasons;
   const displaySeasons: SeasonSummary[] = [];
-  for (const season of seasons) {
+  for (const season of canonicalSeasons) {
     displaySeasons.push(season);
     if (isReZero && season.number === 1) {
       // The alternate cut has its own episode list, but is still season one.
