@@ -11,8 +11,8 @@ export function animeUnityReZeroEdition(url: string): AnimeUnityReZeroEdition | 
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" || !["animeunity.so", "www.animeunity.so"].includes(parsed.hostname.toLowerCase())) return null;
-    if (/^\\/anime\\/48-rezero-starting-life-in-another-world(?:\\/|$)/i.test(parsed.pathname)) return "2016";
-    if (/^\\/anime\\/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban(?:\\/|$)/i.test(parsed.pathname)) return "directors-cut";
+    if (parsed.pathname.startsWith("/anime/48-rezero-starting-life-in-another-world/")) return "2016";
+    if (parsed.pathname.startsWith("/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/")) return "directors-cut";
     return null;
   } catch {
     return null;
