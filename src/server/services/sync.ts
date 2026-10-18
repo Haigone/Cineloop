@@ -120,8 +120,9 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     // Identify the cut from the actual AnimeUnity page first. A saved choice is
     // only a fallback for older observations whose URL cannot distinguish the edition.
     const isDirectorsCutPage = /shin-henshuu-ban/i.test(presence.url);
+    const isOriginalCutPage = /\/anime\/48-rezero-starting-life-in-another-world\//i.test(presence.url);
     const mappingSeason = reZero && presence.season === 1 &&
-      (!isDirectorsCutPage || libraryEntry?.partOverrides?.["rezero-version"] === false)
+      (isOriginalCutPage || (!isDirectorsCutPage && libraryEntry?.partOverrides?.["rezero-version"] === false))
       ? 101
       : presence.season!;
     await repo.saveObservedEpisodeLink({
