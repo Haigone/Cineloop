@@ -22,6 +22,8 @@ import { shareProgress } from "./shared-watch";
 
 export interface ExtensionStatus {
   user: { displayName: string; username: string };
+  /** Saved Re:Zero season-one edition, used by the extension to verify AnimeUnity page IDs. */
+  rezeroChoice: "directors-cut" | "2016" | null;
   watching: null | {
     label: string | null;
     title: { id: string; title: string; year: number; artwork?: { posterUrl: string | null } } | null;
@@ -125,8 +127,16 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     // only a fallback for older observations whose URL cannot distinguish the edition.
     const isDirectorsCutPage = /shin-henshuu-ban/i.test(presence.url);
     const isOriginalCutPage = /\/anime\/48-rezero-starting-life-in-another-world\//i.test(presence.url);
+    const cutOverrides = libraryEntry?.partOverrides ?? {};
+    const selectedCut = cutOverrides["rezero-directors-cut"] === true && cutOverrides["rezero-original-2016"] !== true
+      ? "directors-cut"
+      : cutOverrides["rezero-original-2016"] === true && cutOverrides["rezero-directors-cut"] !== true
+        ? "2016"
+        : typeof cutOverrides["rezero-version"] === "boolean"
+          ? cutOverrides["rezero-version"] ? "directors-cut" : "2016"
+          : null;
     const mappingSeason = reZero && presence.season === 1 &&
-      (isOriginalCutPage || (!isDirectorsCutPage && libraryEntry?.partOverrides?.["rezero-version"] === false))
+      (isOriginalCutPage || (!isDirectorsCutPage && selectedCut === "2016"))
       ? 101
       : presence.season!;
     await repo.saveObservedEpisodeLink({
@@ -245,8 +255,20 @@ export async function getExtensionStatus(userId: string): Promise<ExtensionStatu
     };
   }
 
+  const reZeroEntry = library.find((entry) => entry.titleId === "anime-ann-17360");
+  const reZeroOverrides = reZeroEntry?.partOverrides ?? {};
+  const rezeroChoice: ExtensionStatus["rezeroChoice"] =
+    reZeroOverrides["rezero-directors-cut"] === true && reZeroOverrides["rezero-original-2016"] !== true
+      ? "directors-cut"
+      : reZeroOverrides["rezero-original-2016"] === true && reZeroOverrides["rezero-directors-cut"] !== true
+        ? "2016"
+        : typeof reZeroOverrides["rezero-version"] === "boolean"
+          ? reZeroOverrides["rezero-version"] ? "directors-cut" : "2016"
+          : null;
+
   return {
     user: { displayName: user.displayName, username: user.username },
+    rezeroChoice,
     watching,
     consent: CONSENT_PROVIDERS.find((id) => prefs.providerConsent[id] === "pending") ?? null,
     suggestions: candidateIds.map((id) => titles.get(id)).filter((t): t is Title => Boolean(t)).map(brief),
