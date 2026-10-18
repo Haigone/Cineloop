@@ -29,7 +29,6 @@ async function animeUnityEpisodeUrl(
   titleId: string,
   seasonNumber: number | null,
   episodeNumber: number | null,
-  offset: number | null,
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const fallback = providerSearchUrl("animeunity", titleName);
@@ -162,10 +161,6 @@ export async function setStatus(id: string, status: string, rezeroVersion?: "dir
   }
   return run(async () => {
     const repo = getRepository();
-    // Re:Zero's selected season-one cut belongs to this viewer, not to the shared catalogue.
-    if (parsedReZeroVersion.data) {
-      await repo.setPartOverride(user.id, parsedId.data, "rezero-version", parsedReZeroVersion.data === "directors-cut");
-    }
     // "Da vedere" no longer exists in the library: a plan goes to the wishlist.
     if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, parsedId.data);
     const title = await cacheRemoteTitle(parsedId.data);
@@ -175,6 +170,10 @@ export async function setStatus(id: string, status: string, rezeroVersion?: "dir
       await repo.markSeenThrough(user.id, parsedId.data, latest.number);
       await shareProgress(repo, user.id, parsedId.data, "seenThrough");
     } else await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
+    // Save the version only after the library row exists.
+    if (parsedReZeroVersion.data) {
+      await repo.setPartOverride(user.id, parsedId.data, "rezero-version", parsedReZeroVersion.data === "directors-cut");
+    }
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
       await repo.removeFromWishlist(user.id, parsedId.data);
@@ -390,7 +389,6 @@ export async function saveManualProgress(
             title.id,
             title.title.match(/re\s*:?\s*zero/i) && season === 1 && entry?.partOverrides?.["rezero-version"] === false ? 101 : season,
             episode,
-            offset,
           );
     } else if (nextProvider === "streamingcommunity" && title.type === "series") {
       nextUrl = sameEpisode && prev?.url
