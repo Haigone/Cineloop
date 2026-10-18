@@ -55,7 +55,10 @@ export function WatchOrder({
     const before = chosen;
     const other = key === "rezero-directors-cut" ? "rezero-original-2016" : "rezero-directors-cut";
     const next = { ...chosen, [key]: included };
-    if (included) next[other] = false;
+    if (included) {
+      next[other] = false;
+      next["rezero-version"] = key === "rezero-directors-cut";
+    }
     setChosen(next);
     startTransition(async () => {
       const first = await setPartIncluded(titleId, key, included);
