@@ -29,7 +29,7 @@ export function SeasonList({
   seenThrough: number | null;
   progressEdition?: "directors-cut" | "2016" | null;
 }) {
-  const isReZero = /re\\s*:?\\s*zero/i.test(titleName);
+  const isReZero = /re\s*:?\s*zero/i.test(titleName);
   // Older cached catalogues exposed the 2020 Director's Cut as season 2.
   // Normalize that cached shape immediately, even before the background refresh completes.
   const cachedDirectorsCut = isReZero
