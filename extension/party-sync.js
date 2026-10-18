@@ -104,11 +104,6 @@
       url.searchParams.delete("cineloopResume");
       return url.toString();
     }
-    if (provider() === "streamingcommunity") {
-      const url = new URL(location.href);
-      url.hash = "";
-      return url.toString();
-    }
     const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
     return m?.[1] ?? m?.[2] ?? null;
   };
