@@ -93,9 +93,13 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       await startWatching(repo, presence, fraction);
     }
   } else if (!step.started) {
+    // A session may already carry a stale AnimeUnity -> movie link from before
+    // this guard shipped. Re-resolve it as soon as the active page is an anime episode.
+    const [currentTitle] = presence.titleId ? await repo.getTitlesByIds([presence.titleId]) : [];
+    const wrongAnimeMovie = presence.providerId === "animeunity" && currentTitle?.type === "movie";
     // The player's name arrived after the session was matched (by the show page,
-    // which can be out of date): the player wins.
-    const label = presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    // which can be out of date): the player wins. Also repair any stale movie match.
+    const label = wrongAnimeMovie || presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
