@@ -330,7 +330,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 ? null
                 : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
             />
-            {title.type !== "movie" && /re\\s*:?\\s*zero/i.test(title.title) && (
+            {title.type !== "movie" && /re\s*:?\s*zero/i.test(title.title) && (
               <ReZeroVersionChooser
                 titleId={title.id}
                 status={entry?.status === "watching" || entry?.status === "completed" ? entry.status : null}
