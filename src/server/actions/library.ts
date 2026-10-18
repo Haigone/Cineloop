@@ -291,6 +291,31 @@ export async function setPartIncluded(id: string, key: string, included: boolean
   }, "Non siamo riusciti a salvare la scelta.");
 }
 
+/**
+ * Saves the Re:ZERO edition as one server action so every control writes the same
+ * mutually-exclusive state. null clears both edition flags and the legacy selector.
+ */
+export async function setReZeroVersion(
+  id: string,
+  version: "directors-cut" | "2016" | null,
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  const parsedVersion = z.enum(["directors-cut", "2016"]).nullable().safeParse(version);
+  if (!parsedId.success || !parsedVersion.success) return { ok: false, error: "Scelta della versione non valida." };
+  return run(async () => {
+    const repo = getRepository();
+    if (!(await repo.listLibrary(user.id)).some((e) => e.titleId === parsedId.data)) {
+      throw new Error("not in library");
+    }
+    const directorsCut = parsedVersion.data === "directors-cut";
+    const original = parsedVersion.data === "2016";
+    await repo.setPartOverride(user.id, parsedId.data, "rezero-directors-cut", parsedVersion.data === null ? false : directorsCut);
+    await repo.setPartOverride(user.id, parsedId.data, "rezero-original-2016", original);
+    await repo.setPartOverride(user.id, parsedId.data, "rezero-version", parsedVersion.data === null ? null : directorsCut);
+  }, "Non siamo riusciti a salvare la versione di Re:ZERO.");
+}
+
 const updatesSchema = z.enum(["all", "releaseDay", "none"]);
 
 /** The X on Novità ("Non mi interessa più"), then what the user still wants to hear; "all" puts the series back. */
