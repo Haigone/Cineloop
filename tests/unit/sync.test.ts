@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getRepository } from "@/server/data";
 import type { SyncObservation } from "@/integrations/providers/types";
+import type { Series, Title } from "@/domain/types";
 import { confirmTitle, endPresence, getExtensionStatus, handleObservation, joinFriend, listLiveFriends, setPartyUrl } from "@/server/services/sync";
 import { toPublicUser } from "@/server/services/shared";
 
@@ -117,6 +118,36 @@ describe("extension sync", () => {
     await repo.updatePreferences("u_luca", { shareActivity: false });
     expect(await listLiveFriends(repo, "u_marco", ["u_luca"])).toEqual([]);
     await repo.updatePreferences("u_luca", { shareActivity: true });
+  });
+});
+
+describe("AnimeUnity title matching", () => {
+  it("ignores a stale provider link to a same-name movie and matches the anime series", async () => {
+    const art = { posterUrl: null, backdropUrl: null, palette: ["#000", "#111", "#222"] as const };
+    const series: Series = {
+      id: "test-anime-bleach-series", type: "anime", title: "Bleach", year: 2004,
+      genres: ["Animazione"], overview: "", communityRating: null, artwork: art, providers: [],
+      seasons: [{ number: 1, episodeCount: 366 }], episodeRuntimeMinutes: 24,
+    };
+    const movie: Title = {
+      id: "test-movie-bleach", type: "movie", title: "Bleach", year: 2023,
+      genres: ["Animazione"], overview: "", communityRating: null, artwork: art, providers: [],
+      runtimeMinutes: 94,
+    };
+    const url = "https://www.animeunity.so/anime/69-bleach/5027";
+    await repo.upsertTitles([series, movie]);
+    // Reproduce the bad association already seen in production.
+    await repo.saveProviderLink({ providerId: "animeunity", externalId: url, titleId: movie.id, userId: "u_marco" });
+
+    const status = await handleObservation("u_marco", {
+      providerId: "animeunity", url, documentTitle: "Bleach - AnimeUnity",
+      hints: { title: "Bleach", episode: 310, progress: 0.2 },
+      observedAt: new Date().toISOString(),
+    });
+
+    expect(status.watching?.title?.id).toBe(series.id);
+    expect((await repo.listLibrary("u_marco")).some((entry) => entry.titleId === movie.id)).toBe(false);
+    expect((await repo.listLibrary("u_marco")).find((entry) => entry.titleId === series.id)?.progress?.episode).toBe(310);
   });
 });
 
