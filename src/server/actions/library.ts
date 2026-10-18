@@ -194,7 +194,11 @@ export async function setStatus(id: string, status: string, rezeroVersion?: "dir
     } else await repo.setLibraryStatus(user.id, resolvedId, parsedStatus.data);
     // Save the version only after the library row exists.
     if (parsedReZeroVersion.data) {
-      await repo.setPartOverride(user.id, resolvedId, "rezero-version", parsedReZeroVersion.data === "directors-cut");
+      const directorsCut = parsedReZeroVersion.data === "directors-cut";
+      await repo.setPartOverride(user.id, resolvedId, "rezero-version", directorsCut);
+      // Keep the watch-order checkboxes aligned with the version selected on the title page.
+      await repo.setPartOverride(user.id, resolvedId, "rezero-directors-cut", directorsCut);
+      await repo.setPartOverride(user.id, resolvedId, "rezero-original-2016", !directorsCut);
     }
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
@@ -272,6 +276,13 @@ export async function setPartIncluded(id: string, key: string, included: boolean
   return run(async () => {
     const repo = getRepository();
     if (!(await repo.listLibrary(user.id)).some((e) => e.titleId === parsedId.data)) throw new Error("not in library");
+    // Enforce Re:Zero's mutually exclusive season-one cuts on the server too,
+    // so every UI entry point keeps the watch-order checkboxes synchronized.
+    if (included === true && parsedKey.data === "rezero-directors-cut") {
+      await repo.setPartOverride(user.id, parsedId.data, "rezero-original-2016", false);
+    } else if (included === true && parsedKey.data === "rezero-original-2016") {
+      await repo.setPartOverride(user.id, parsedId.data, "rezero-directors-cut", false);
+    }
     await repo.setPartOverride(user.id, parsedId.data, parsedKey.data, included);
   }, "Non siamo riusciti a salvare la scelta.");
 }
