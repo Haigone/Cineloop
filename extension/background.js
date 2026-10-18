@@ -484,7 +484,7 @@ async function partyContext(tab) {
   } catch { return null; }
   return {
     providerId: "streamingcommunity",
-    externalId: canonicalUrl.toString(),
+    externalId: id,
     title: player?.title ?? tab.title ?? "",
     season: player?.season ?? null,
     episode: player?.episode ?? null,
