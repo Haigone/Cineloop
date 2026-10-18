@@ -99,7 +99,12 @@
   const watchId = () => {
     if (provider() === "prime-video") return primeNow()?.watchId ?? null;
     if (provider() === "netflix") return /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
-    if (provider() === "animeunity") return /^\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+    if (provider() === "animeunity" || provider() === "streamingcommunity") {
+      const url = new URL(location.href);
+      url.searchParams.delete("cineloopResume");
+      url.hash = "";
+      return url.toString();
+    }
     const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
     return m?.[1] ?? m?.[2] ?? null;
   };
