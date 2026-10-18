@@ -453,17 +453,33 @@ async function frameProgress(tabId, progress) {
   if (flush) await tick();
 }
 
-/** Context for the authorized VixCloud frame: use the AnimeUnity page URL as episode identity. */
+/** Context for an authorized VixCloud frame, anchored to its parent provider tab. */
 async function partyContext(tab) {
   const url = typeof tab?.url === "string" ? tab.url : "";
-  if (!isAnimeUrl(url) || !auWatchId(url)) return null;
   const { tabs = {} } = await chrome.storage.session.get("tabs");
   const player = tabs[tab.id]?.player ?? null;
-  const canonicalUrl = new URL(url);
-  canonicalUrl.searchParams.delete("cineloopResume");
+
+  if (isAnimeUrl(url) && auWatchId(url)) {
+    const canonicalUrl = new URL(url);
+    canonicalUrl.searchParams.delete("cineloopResume");
+    return {
+      providerId: "animeunity",
+      externalId: canonicalUrl.toString(),
+      title: player?.title ?? tab.title ?? "",
+      season: player?.season ?? null,
+      episode: player?.episode ?? null,
+    };
+  }
+
+  const resolved = await getResolved();
+  const id = scWatchId(url);
+  if (!resolved?.origin || !id || !isStreamingUrl(url)) return null;
+  try {
+    if (new URL(url).origin !== resolved.origin) return null;
+  } catch { return null; }
   return {
-    providerId: "animeunity",
-    externalId: canonicalUrl.toString(),
+    providerId: "streamingcommunity",
+    externalId: id,
     title: player?.title ?? tab.title ?? "",
     season: player?.season ?? null,
     episode: player?.episode ?? null,
