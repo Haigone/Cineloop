@@ -76,6 +76,22 @@ export function WatchOrder({
     });
   }
 
+  function resetReZeroVersion() {
+    const before = chosen;
+    const next = { ...chosen };
+    delete next["rezero-version"];
+    setChosen(next);
+    startTransition(async () => {
+      const res = await setPartIncluded(titleId, "rezero-version", null);
+      if (!res.ok) {
+        setChosen(before);
+        toast.show(res.error, { tone: "error" });
+      } else {
+        toast.show("Preferenza Re:Zero ripristinata", { tone: "success" });
+      }
+    });
+  }
+
   return (
     <div>
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
@@ -124,6 +140,16 @@ export function WatchOrder({
           );
         })}
       </ol>
+      {isReZero && chosen["rezero-version"] !== undefined && (
+        <button
+          type="button"
+          onClick={resetReZeroVersion}
+          disabled={!canChoose}
+          className="mt-2 rounded-md border border-line px-3 py-2 text-xs text-fg-2 transition-colors hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Ripristina scelta predefinita
+        </button>
+      )}
       {hasFiller && (
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3">
           <div className="min-w-0 flex-1">
