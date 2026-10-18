@@ -333,7 +333,7 @@ export class AnimeFirstCatalog implements CatalogService {
       series.map(async (t): Promise<[string, Release] | null> => {
         // Franchise cards often use the Italian/root title, while AniList registers the
         // currently airing entry under a season subtitle (e.g. "Steel Ball Run").
-        const candidates = [...new Set([t.title, ...t.seasons.map((s) => s.name).filter((n): n is string => Boolean(n?.trim()))])];
+        const candidates = [...new Set([t.title, ...(t.type === "movie" ? [] : t.seasons.map((s) => s.name).filter((n): n is string => Boolean(n?.trim())))])];
         let a: AniListAnime | null = null;
         for (const candidate of candidates) {
           a = await this.anilist.airingNow(candidate).catch(() => null);
