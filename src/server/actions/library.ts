@@ -518,7 +518,7 @@ export async function skipFillers(id: string): Promise<ActionResult> {
     ? runAhead.after - progress.episode
     : null;
   if (progress.providerId === "animeunity") {
-    nextUrl = await animeUnityEpisodeUrl(progress.url, title.title, title.id, runAhead.season, runAhead.after, offset);
+    nextUrl = await animeUnityEpisodeUrl(progress.url, title.title, title.id, runAhead.season, runAhead.after);
   } else if (progress.providerId === "streamingcommunity" && title.type === "series") {
     nextUrl = await streamingCommunityEpisodeUrl(progress.url, title.title, title.id, runAhead.season, runAhead.after, offset);
   }
