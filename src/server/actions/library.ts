@@ -261,7 +261,7 @@ export async function finishTitle(id: string): Promise<ActionResult> {
   }, "Non siamo riusciti a segnarlo come visto.");
 }
 
-const partKey = z.string().min(1).max(40).regex(/^(ann-\d+|filler|rezero-version)$/);
+const partKey = z.string().min(1).max(40).regex(/^(ann-\d+|filler|rezero-version|rezero-directors-cut|rezero-original-2016)$/);
 
 /** Anime: include or leave out one part of the franchise (or "filler"); null goes back to the default. */
 export async function setPartIncluded(id: string, key: string, included: boolean | null): Promise<ActionResult> {
