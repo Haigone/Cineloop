@@ -92,9 +92,11 @@ function LiveRow({ item }: { item: LiveFriend }) {
               <span className="text-white/70">({new URL(item.partyUrl).hostname.replace(/^www\./, "")})</span>
             </ButtonAnchor>
           )}
-          <ButtonAnchor href={url} variant={item.partyUrl ? "secondary" : "primary"} size="lg" icon={<ExternalLink aria-hidden className="size-4" />}>
-            Apri su {provider}
-          </ButtonAnchor>
+          {item.providerId !== "streamingcommunity" && (
+            <ButtonAnchor href={url} variant={item.partyUrl ? "secondary" : "primary"} size="lg" icon={<ExternalLink aria-hidden className="size-4" />}>
+              Apri su {provider}
+            </ButtonAnchor>
+          )}
           <p className="text-[13px] leading-relaxed text-fg-3">
             {item.partyUrl
               ? "La stanza tiene play, pausa e posizione allineati per tutti."
