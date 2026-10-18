@@ -331,7 +331,14 @@ export class AnimeFirstCatalog implements CatalogService {
   private async airingEpisodes(series: readonly Title[], today: string): Promise<Map<string, Release>> {
     const found = await Promise.all(
       series.map(async (t): Promise<[string, Release] | null> => {
-        const a = await this.anilist.airingNow(t.title);
+        // Franchise cards often use the Italian/root title, while AniList registers the
+        // currently airing entry under a season subtitle (e.g. "Steel Ball Run").
+        const candidates = [...new Set([t.title, ...(t.type === "movie" ? [] : t.seasons.map((s) => s.name).filter((n): n is string => Boolean(n?.trim())))])];
+        let a: AniListAnime | null = null;
+        for (const candidate of candidates) {
+          a = await this.anilist.airingNow(candidate).catch(() => null);
+          if (a?.nextAiringEpisode) break;
+        }
         const next = a?.nextAiringEpisode;
         if (!a || !next) return null;
         const date = italianDay(new Date(next.airingAt * 1000));

@@ -367,6 +367,7 @@ describe("a season airing now that ANN does not list", () => {
     vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => { fn(); return 0; }) as never);
     const airing = { id: 900, format: "ONA", status: "RELEASING", title: { english: "JoJo's Bizarre Adventure: Steel Ball Run" }, startDate: { year: 2026, month: 3, day: 1 }, episodes: 12, nextAiringEpisode: { airingAt: Math.floor(Date.now() / 1000) + 86_400, episode: 5 } };
     const al = new AniListClient((async () => new Response(JSON.stringify({ data: { Page: { media: [airing] } } }), { status: 200 })) as unknown as typeof fetch);
+    expect((await al.airingNow("Steel Ball Run"))?.nextAiringEpisode?.episode).toBe(5);
     const jikan = new JikanClient((async () => new Response(JSON.stringify({ data: [] }), { status: 200 })) as unknown as typeof fetch);
     const cat = new AnimeFirstCatalog(base([{ ...tmdbBleach, id: "tmdb-tv-2", title: "JoJo's Bizarre Adventure" }]), ann, new FillerList(fetcher), jikan, al);
     const f = (await cat.search("JoJo's Bizarre Adventure", 5)).find((t) => t.id === "anime-ann-600");

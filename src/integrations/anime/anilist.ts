@@ -101,7 +101,7 @@ export class AniListClient {
     return (
       (data?.Page?.media ?? []).find((a) => a.nextAiringEpisode && alNames(a).some((n) => {
         const k = searchKey(n);
-        return k === key || k.startsWith(key) || key.startsWith(k);
+        return k === key || k.startsWith(key) || key.startsWith(k) || (key.length >= 5 && k.includes(key));
       })) ?? null
     );
   }
