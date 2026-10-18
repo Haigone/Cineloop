@@ -26,6 +26,24 @@ describe("Anime Unity part-to-season mapping", () => {
     )).toBe(1);
   });
 
+  it("maps both original Re:Zero and Director's Cut pages to season one", () => {
+    expect(animeUnityPartSeason(
+      "https://www.animeunity.so/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/36049",
+      "Re:Zero kara Hajimeru Isekai Seikatsu: Shin Henshuu-ban",
+    )).toBe(1);
+    expect(animeUnityPartSeason(
+      "https://www.animeunity.so/anime/123-rezero-kara-hajimeru-isekai-seikatsu/36383",
+      "Re:Zero kara Hajimeru Isekai Seikatsu",
+    )).toBe(1);
+  });
+
+  it("recognizes an explicit later Re:Zero season", () => {
+    expect(animeUnityPartSeason(
+      "https://www.animeunity.so/anime/123-rezero-kara-hajimeru-isekai-seikatsu-2nd-season/50000",
+      "Re:Zero 2nd Season",
+    )).toBe(2);
+  });
+
   it("does not infer a season without an explicit part marker", () => {
     expect(animeUnityPartSeason("https://www.animeunity.so/anime/123-example", "Example Anime")).toBeNull();
   });
