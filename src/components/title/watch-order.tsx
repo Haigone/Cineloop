@@ -58,7 +58,7 @@ export function WatchOrder({
   }
 
   const isReZero = /re\s*:?\s*zero/i.test(titleName);
-  const reZeroVersion = chosen["rezero-version"] === undefined ? null : chosen["rezero-version"] ? "directors-cut" : "2016";
+  // The two cuts are distinct watch-order parts. Default to the original broadcast,\n  // and persist one exclusive choice per user.\n  const reZeroVersion = chosen["rezero-version"] === undefined ? "2016" : chosen["rezero-version"] ? "directors-cut" : "2016";
 
   function chooseReZeroVersion(version: "directors-cut" | "2016") {
     const included = version === "directors-cut";
@@ -77,35 +77,13 @@ export function WatchOrder({
 
   return (
     <div>
-      {isReZero && (
-        <div className="mb-3 rounded-xl border border-line bg-surface p-4">
-          <h3 className="text-sm font-semibold">Prima stagione di Re:Zero</h3>
-          <p className="mt-1 text-xs text-fg-3">La scelta determina quale versione viene associata alla stagione 1 e quali ID AnimeUnity usare quando modifichi l’episodio.</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <label className={cn("flex items-start gap-2 rounded-lg border border-line p-3", canChoose ? "cursor-pointer" : "opacity-70")}>
-              <input type="radio" name="rezero-watch-order" className="mt-1" checked={reZeroVersion === "directors-cut"} disabled={!canChoose} onChange={() => chooseReZeroVersion("directors-cut")} />
-              <span>
-                <span className="block text-sm font-medium">Director’s Cut (2019)</span>
-                <span className="mt-1 block text-xs text-fg-3">13 episodi più lunghi, rimontati dal formato originale, con alcune scene aggiuntive.</span>
-              </span>
-            </label>
-            <label className={cn("flex items-start gap-2 rounded-lg border border-line p-3", canChoose ? "cursor-pointer" : "opacity-70")}>
-              <input type="radio" name="rezero-watch-order" className="mt-1" checked={reZeroVersion === "2016"} disabled={!canChoose} onChange={() => chooseReZeroVersion("2016")} />
-              <span>
-                <span className="block text-sm font-medium">Versione originale (2016)</span>
-                <span className="mt-1 block text-xs text-fg-3">25 episodi nel montaggio e nel ritmo della prima trasmissione.</span>
-              </span>
-            </label>
-          </div>
-          {!canChoose && <p className="mt-2 text-xs text-fg-3">Aggiungi Re:Zero alla libreria per salvare o modificare la scelta.</p>}
-        </div>
-      )}
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
         {parts.map((part, i) => {
-          const on = chosen[part.key] ?? includedByDefault(part);
-          const displayedPart = isReZero && part.kind === "season" && part.season === 1 && reZeroVersion
-            ? { ...part, episodes: reZeroVersion === "directors-cut" ? 13 : 25 }
-            : part;
+          const isReZeroCut = isReZero && part.kind === "season" && part.season === 1;
+          const isDirectorsCut = /director.?s cut|shin[-_ ]henshuu/i.test(part.name);
+          const on = isReZeroCut
+            ? (reZeroVersion === "directors-cut") === isDirectorsCut
+            : chosen[part.key] ?? includedByDefault(part);
           const labelId = `part-${part.key}`;
           return (
             <li key={part.key} className="flex items-center gap-3 px-4 py-3">
@@ -117,17 +95,30 @@ export function WatchOrder({
                   {part.name}
                 </p>
                 <p className="mt-0.5 text-xs text-fg-3">
-                  {detail(displayedPart)}
+                  {detail(part)}
                   {part.canon === false && " · non canon"}
                   {part.filler?.length ? ` · ${part.filler.length} filler` : ""}
                 </p>
               </div>
-              <Switch
-                checked={on}
-                onChange={(v) => choose(part.key, v, includedByDefault(part))}
-                labelledBy={labelId}
-                disabled={!canChoose}
-              />
+              {isReZeroCut ? (
+                <input
+                  type="radio"
+                  name={`rezero-cut-${titleId}`}
+                  aria-labelledby={labelId}
+                  aria-label={isDirectorsCut ? "Usa Director’s Cut" : "Usa versione originale 2016"}
+                  checked={on}
+                  onChange={() => chooseReZeroVersion(isDirectorsCut ? "directors-cut" : "2016")}
+                  disabled={!canChoose}
+                  className="size-4 shrink-0 accent-[var(--color-accent)]"
+                />
+              ) : (
+                <Switch
+                  checked={on}
+                  onChange={(v) => choose(part.key, v, includedByDefault(part))}
+                  labelledBy={labelId}
+                  disabled={!canChoose}
+                />
+              )}
             </li>
           );
         })}
