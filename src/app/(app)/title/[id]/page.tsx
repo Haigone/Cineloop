@@ -270,7 +270,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               <h2 id="order-h" className="mb-3 text-[15px] font-semibold">
                 Ordine di visione
               </h2>
-              <WatchOrder titleId={title.id} parts={title.watchOrder!} overrides={entry?.partOverrides} canChoose={Boolean(entry)} />
+              <WatchOrder titleId={title.id} titleName={title.title} parts={title.watchOrder!} overrides={entry?.partOverrides} canChoose={Boolean(entry)} />
             </section>
           )}
 
@@ -318,6 +318,9 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               status={entry?.status ?? null}
               rating={entry?.rating ?? null}
               wishlisted={view.wishlisted}
+              rezeroVersion={entry?.partOverrides?.["rezero-version"] === undefined
+                ? null
+                : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
             />
             <div className="mt-3">
               <SuggestDialog titleId={title.id} titleName={title.title} friends={view.allFriends} alreadyHave={friends.map((f) => f.user.id)} />
