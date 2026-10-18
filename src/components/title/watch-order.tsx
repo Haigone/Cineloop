@@ -61,17 +61,17 @@ export function WatchOrder({
       next[other] = false;
       next["rezero-version"] = key === "rezero-directors-cut";
     } else if (clearing) {
-      delete next[key];
-      delete next[other];
+      next[key] = false;
+      next[other] = false;
       delete next["rezero-version"];
     } else {
       next[key] = false;
     }
     setChosen(next);
     startTransition(async () => {
-      const first = await setPartIncluded(titleId, key, included ? true : clearing ? null : false);
+      const first = await setPartIncluded(titleId, key, included ? true : false);
       const second = first.ok && (included || clearing)
-        ? await setPartIncluded(titleId, other, included ? false : null)
+        ? await setPartIncluded(titleId, other, false)
         : first;
       const third = second.ok && (included || clearing)
         ? await setPartIncluded(titleId, "rezero-version", included ? key === "rezero-directors-cut" : null)
