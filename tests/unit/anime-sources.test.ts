@@ -281,6 +281,33 @@ describe("filler quick list and artwork", () => {
     expect(b!.artwork.posterUrl).toBe("https://s4.anilist.co/bleach.jpg");
   });
 
+  it("keeps the newest episode progress when duplicate anime entries are merged", async () => {
+    const repo = getRepository();
+    const old = { ...tmdbBleach, id: "tmdb-tv-778" } as Title;
+    const next = { ...tmdbBleach, id: "anime-ann-778" } as Title;
+    await repo.upsertTitles([old, next]);
+    await repo.setLibraryStatus("u_marco", old.id, "watching");
+    await repo.saveProgress("u_marco", {
+      titleId: old.id, providerId: "animeunity", season: 1, episode: 310, fraction: 0.191,
+      url: "https://www.animeunity.so/anime/69-bleach/5027", updatedAt: "2026-10-16T11:58:22.296Z",
+    });
+    await repo.setLibraryStatus("u_marco", next.id, "watching");
+    await repo.saveProgress("u_marco", {
+      titleId: next.id, providerId: "animeunity", season: 1, episode: 309, fraction: 0.4,
+      url: "https://www.animeunity.so/anime/69-bleach/5026", updatedAt: "2026-10-16T11:30:56.165Z",
+    });
+    await repo.setRating("u_marco", next.id, 8);
+
+    const result = await repo.replaceTitle(old.id, next);
+    expect(result).toEqual({ moved: 0, merged: 1 });
+    const entries = await repo.listLibrary("u_marco");
+    expect(entries.filter((entry) => entry.titleId === next.id)).toHaveLength(1);
+    expect(entries.find((entry) => entry.titleId === next.id)).toMatchObject({
+      status: "watching", rating: 8,
+      progress: { titleId: next.id, season: 1, episode: 310, fraction: 0.191 },
+    });
+  });
+
   it("replaces a TMDB anime by the franchise, keeping the user's own entry when both exist", async () => {
     const repo = getRepository();
     const old = { ...tmdbBleach, id: "tmdb-tv-777" } as Title;
