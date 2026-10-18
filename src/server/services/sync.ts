@@ -464,7 +464,14 @@ async function inYourNight(repo: Repository, userId: string, titleId: string): P
  */
 async function recognise(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
   const linked = await repo.findProviderLink(presence.providerId, [presence.externalId]);
-  if (linked) return canonicalizeLinkedAnime(repo, linked);
+  if (linked) {
+    const [linkedTitle] = await repo.getTitlesByIds([linked]);
+    // AnimeUnity episode URLs must never resolve to a movie, even if an old
+    // provider link was polluted by a previous incorrect match.
+    if (!(presence.providerId === "animeunity" && linkedTitle?.type === "movie")) {
+      return canonicalizeLinkedAnime(repo, linked);
+    }
+  }
   const named = presence.label ? await matchLabel(repo, presence, parentId) : null;
   if (named) return named;
   const parent = parentId ? await repo.findProviderLink(presence.providerId, [parentId]) : null;
@@ -503,7 +510,10 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
   const key = searchKey(baseLabel);
   const local = await repo.searchTitles(baseLabel, 12);
   // With an episode number it is a series: never a film of the same name.
-  const fits = (t: Title) => searchKey(t.title) === key && (presence.season === null && presence.episode === null && !seasonSuffix || t.type !== "movie");
+  // AnimeUnity's URL identifies an episode page even before player metadata
+  // supplies season/episode, so a same-name movie is never a valid match.
+  const fits = (t: Title) => searchKey(t.title) === key &&
+    (presence.providerId !== "animeunity" && presence.season === null && presence.episode === null && !seasonSuffix || t.type !== "movie");
   const exactLocal = local.filter(fits);
   // AnimeUnity commonly exposes the original long-running anime as one page
   // with absolute episode numbers. When multiple catalog entries share the
