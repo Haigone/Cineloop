@@ -383,11 +383,10 @@ export async function saveManualProgress(
     // The catalogue's canonical season count follows the 13-episode Director's Cut.
     // The original 2016 cut has 25 episodes, while retaining season 1 for progress.
     const reZeroOverrides = (await overridesFor(user.id, title.id) ?? {});
+    const explicitlyOriginal = reZeroOverrides["rezero-original-2016"] === true;
+    const explicitlyDirectorsCut = reZeroOverrides["rezero-directors-cut"] === true;
     const reZeroOriginal = /re\s*:?\s*zero/i.test(title.title) && season === 1 &&
-      (reZeroOverrides["rezero-original-2016"] === true ||
-        (reZeroOverrides["rezero-original-2016"] !== true &&
-          reZeroOverrides["rezero-directors-cut"] !== true &&
-          reZeroOverrides["rezero-version"] === false));
+      (explicitlyOriginal || (!explicitlyDirectorsCut && reZeroOverrides["rezero-version"] === false));
     const episodeCount = reZeroOriginal ? 25 : (s?.episodeCount ?? 0);
     // When the catalogue does not list the seasons, any season and episode will do.
     const known = title.seasons.length > 0;
@@ -397,9 +396,10 @@ export async function saveManualProgress(
   }
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
   const progressOverrides = (await overridesFor(user.id, title.id)) ?? {};
-  const progressUsesOriginal = progressOverrides["rezero-original-2016"] === true ||
-    (progressOverrides["rezero-original-2016"] !== true &&
-      progressOverrides["rezero-directors-cut"] !== true &&
+  const progressExplicitlyOriginal = progressOverrides["rezero-original-2016"] === true;
+  const progressExplicitlyDirectorsCut = progressOverrides["rezero-directors-cut"] === true;
+  const progressUsesOriginal = progressExplicitlyOriginal ||
+    (!progressExplicitlyDirectorsCut && progressOverrides["rezero-version"] === false);
       progressOverrides["rezero-version"] === false);
   const progressTitle = title.type !== "movie" && /re\s*:?\s*zero/i.test(title.title) && season === 1 && progressUsesOriginal
     ? { ...title, seasons: title.seasons.map((s) => s.number === 1 ? { ...s, episodeCount: 25 } : s) }
