@@ -114,7 +114,8 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     Number.isSafeInteger(presence.season) && (presence.season ?? 0) > 0 &&
     Number.isSafeInteger(presence.episode) && (presence.episode ?? 0) > 0
   ) {
-    const reZero = presence.titleId === "anime-ann-17360" || /re\s*:?\s*zero/i.test(presence.label ?? "");
+    const reZero = presence.providerId === "animeunity" &&
+      (presence.titleId === "anime-ann-17360" || /re\s*:?\s*zero/i.test(presence.label ?? ""));
     const libraryEntry = reZero ? (await repo.listLibrary(userId)).find((entry) => entry.titleId === presence.titleId) : null;
     // Reserve mapping season 101 for Re:Zero's original 2016 cut. Season 1 remains
     // the Director's Cut mapping, so the same on-screen season can have distinct provider IDs.
