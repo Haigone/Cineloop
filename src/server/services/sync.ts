@@ -296,7 +296,7 @@ export async function reportPlayback(userId: string, report: PlaybackReport): Pr
   if (!host || me.providerId !== host.providerId || !isSyncedProvider(host.providerId)) return { party: null };
 
   // Prime Video's id names the whole show: members are told apart by episode too.
-  const episodeKeyedProvider = host.providerId === "prime-video" || host.providerId === "streamingcommunity";
+  const episodeKeyedProvider = host.providerId === "prime-video";
   const sameEpisode = episodeKeyedProvider ? sameEpisodeAs(host, report) : report.externalId === host.externalId;
   const keyed = episodeKeyedProvider ? { ...report, externalId: episodeKey(report.externalId, report.season, report.episode) } : report;
   const party = applyReport(await repo.getParty(host.userId), userId, keyed, now, host.userId);
