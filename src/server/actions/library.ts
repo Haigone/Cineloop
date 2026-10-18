@@ -37,6 +37,12 @@ async function animeUnityEpisodeUrl(
       const current = new URL(storedUrl);
       const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
       if (current.protocol === "https:" && (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") && match) {
+        // Never combine an ID from one Re:Zero cut with the other cut's title page.
+        const isReZero = /re\s*:?\s*zero/i.test(titleName);
+        const isDirectorsCutPath = /shin-henshuu-ban/i.test(match[1]!);
+        if (isReZero && ((seasonNumber === 101 && isDirectorsCutPath) || (seasonNumber === 1 && !isDirectorsCutPath))) {
+          return fallback;
+        }
         const episodeId = await getRepository().resolveEpisodeExternalId({
           providerId: "animeunity", titleId, seasonNumber, episodeNumber,
         });
@@ -373,15 +379,22 @@ export async function saveManualProgress(
     const prev = entry?.progress ?? null;
     const nextProvider = chosenProvider === undefined ? (prev?.providerId ?? null) : (chosenProvider as ProviderId | null);
     const sameEpisode = prev?.season === season && prev?.episode === episode;
-    let nextUrl: string | null = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId)
-      ? (prev?.url ?? null)
-      : null;
+    const previousPath = (() => {
+      try { return prev?.url ? new URL(prev.url).pathname : ""; } catch { return ""; }
+    })();
+    const isReZeroSeasonOne = /re\s*:?\s*zero/i.test(title.title) && season === 1;
+    const selectedDirectorCut = entry?.partOverrides?.["rezero-version"] !== false;
+    const previousPathMatchesCut = !isReZeroSeasonOne ||
+      (selectedDirectorCut ? /shin-henshuu-ban/i.test(previousPath) : !/shin-henshuu-ban/i.test(previousPath));
+    const keepPreviousEpisodeUrl = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) &&
+      (nextProvider !== "animeunity" || previousPathMatchesCut);
+    let nextUrl: string | null = keepPreviousEpisodeUrl ? (prev?.url ?? null) : null;
     const sameSeason = prev?.season === season;
     const offset = sameSeason && prev?.episode !== null && prev?.episode !== undefined && episode !== null
       ? episode - prev.episode
       : null;
     if (nextProvider === "animeunity") {
-      nextUrl = sameEpisode && prev?.url
+      nextUrl = keepPreviousEpisodeUrl && prev?.url
         ? prev.url
         : await animeUnityEpisodeUrl(
             prev?.url,
