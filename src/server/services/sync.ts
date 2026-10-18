@@ -131,15 +131,19 @@ export async function confirmTitle(userId: string, titleId: string, parentId: st
   const repo = getRepository();
   const presence = await repo.getPresence(userId);
   if (!presence || !isLive(presence, new Date())) return null;
-  const title = await ensureTitle(titleId);
-  if (!title) return null;
+  const found = await ensureTitle(titleId);
+  if (!found) return null;
+  const { asFranchise } = await import("./anime-migration");
+  const title = found.type === "anime" ? await asFranchise(found) : found;
+  if (title.id !== found.id) await repo.replaceTitle(found.id, title);
+  const canonicalId = title.id;
 
   // Series episodes have their own ids; the show id covers the episodes not seen yet.
   const ids = [presence.externalId, ...(parentId && title.type !== "movie" ? [parentId] : [])];
-  for (const externalId of ids) await repo.saveProviderLink({ providerId: presence.providerId, externalId, titleId, userId });
+  for (const externalId of ids) await repo.saveProviderLink({ providerId: presence.providerId, externalId, titleId: canonicalId, userId });
 
-  const changed = presence.titleId !== titleId;
-  presence.titleId = titleId;
+  const changed = presence.titleId !== canonicalId;
+  presence.titleId = canonicalId;
   if (changed) await startWatching(repo, presence);
   await repo.savePresence(presence);
   return getExtensionStatus(userId);
@@ -515,6 +519,12 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
     }
   }
   if (!hit) return null;
+  if (hit.type === "anime") {
+    const original = hit;
+    const { asFranchise } = await import("./anime-migration");
+    hit = await asFranchise(hit);
+    if (hit.id !== original.id) await repo.replaceTitle(original.id, hit);
+  }
   // A trailing number in the player title is an explicit season hint (for example,
   // "Frieren: Beyond Journey's End 2"). Prefer it over inferSeason's single-season
   // default: catalogues can lag behind a newly released season or omit its metadata.
