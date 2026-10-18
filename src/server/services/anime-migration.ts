@@ -87,10 +87,28 @@ export async function migrateDuplicateAnimeInLibrary(userId: string): Promise<vo
     group.push(title);
     groups.set(key, group);
   }
-  const candidates = [...groups.values()]
-    .filter((group) => new Set(group.map((title) => title.id)).size > 1)
-    .flatMap((group) => group.filter((title) => MOVABLE.test(title.id)).map((title) => title.id));
-  for (const id of new Set(candidates)) await migrateAnimeTitle(id);
+  for (const group of groups.values()) {
+    if (new Set(group.map((title) => title.id)).size < 2) continue;
+
+    // Prefer the existing Anime News Network card when the same anime is already
+    // present in the user's library. This repair must not depend on external
+    // catalog/AniList searches being available at Home render time.
+    const annTitles = group.filter((title) => /^anime-ann-\\d+$/.test(title.id));
+    if (annTitles.length === 1) {
+      const canonical = annTitles[0]!;
+      for (const old of group) {
+        if (old.id !== canonical.id && MOVABLE.test(old.id)) {
+          await repo.replaceTitle(old.id, canonical);
+        }
+      }
+      continue;
+    }
+
+    // Otherwise use the normal franchise lookup for IDs that can be migrated.
+    for (const old of group) {
+      if (MOVABLE.test(old.id)) await migrateAnimeTitle(old.id);
+    }
+  }
 }
 
 export async function migrateAnimeTitle(id: string): Promise<string | null> {
