@@ -135,6 +135,7 @@ describe("AnimeUnity title matching", () => {
       runtimeMinutes: 94,
     };
     const url = "https://www.animeunity.so/anime/69-bleach/5027";
+    await repo.updatePreferences("u_marco", { providerConsent: { animeunity: "accepted" } });
     await repo.upsertTitles([series, movie]);
     // Reproduce the bad association already seen in production.
     await repo.saveProviderLink({ providerId: "animeunity", externalId: url, titleId: movie.id, userId: "u_marco" });
