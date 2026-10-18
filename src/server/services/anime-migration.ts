@@ -68,6 +68,31 @@ export async function asFranchise(title: Title): Promise<Title> {
  * An anime that still has a TMDB, MyAnimeList or AniList id is moved, for every profile, to its franchise card. Returns the
  * new id, or null when the title is not a TMDB anime or has no clear match.
  */
+/**
+ * Repairs duplicate anime already saved by the current user. We only attempt
+ * cross-catalog migration when distinct anime IDs describe the same normalized
+ * title and release year, avoiding accidental merges of different seasons or films.
+ * replaceTitle performs the actual merge for every profile and preserves progress.
+ */
+export async function migrateDuplicateAnimeInLibrary(userId: string): Promise<void> {
+  const repo = getRepository();
+  const entries = await repo.listLibrary(userId);
+  if (entries.length < 2) return;
+  const titles = await repo.getTitlesByIds(entries.map((entry) => entry.titleId));
+  const groups = new Map<string, Title[]>();
+  for (const title of titles) {
+    if (title.type !== "anime") continue;
+    const key = `${searchKey(title.title)}|${title.year}`;
+    const group = groups.get(key) ?? [];
+    group.push(title);
+    groups.set(key, group);
+  }
+  const candidates = [...groups.values()]
+    .filter((group) => new Set(group.map((title) => title.id)).size > 1)
+    .flatMap((group) => group.filter((title) => MOVABLE.test(title.id)).map((title) => title.id));
+  for (const id of new Set(candidates)) await migrateAnimeTitle(id);
+}
+
 export async function migrateAnimeTitle(id: string): Promise<string | null> {
   if (!MOVABLE.test(id) || isKeptTitle(id) || noMatch.has(id)) return null;
   try {
