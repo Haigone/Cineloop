@@ -179,7 +179,11 @@
     const now = onPrime ? primeNow() : null;
     if (onPrime && (!now || now.video !== v)) return;
     const shift = now ? primeOffset(now) : 0;
-    const where = now ? { season: now.season ?? null, episode: now.episode ?? null } : {};
+    const where = now
+      ? { season: now.season ?? null, episode: now.episode ?? null }
+      : frameContext
+        ? { season: frameContext.season ?? null, episode: frameContext.episode ?? null }
+        : {};
     const n = ++sent;
     if (action) freshFrom = n;
     const t0 = performance.now();
