@@ -42,7 +42,78 @@
     video.addEventListener("loadedmetadata", sendNow);
     video.addEventListener("seeked", sendNow);
   }
-  const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
+  const clean = (s) => (s ?? "").replace(/\\s+/g, " ").trim();
+
+  let lastReZeroCheckAt = 0;
+  let lastReZeroCheckId = null;
+  let reZeroWarningKey = "";
+  let dismissedReZeroWarningKey = "";
+
+  function removeReZeroWarning() {
+    document.getElementById("cineloop-rezero-edition-warning")?.remove();
+    reZeroWarningKey = "";
+  }
+
+  function showReZeroWarning(id, choice) {
+    const detected = id === "48" ? "Versione originale 2016 (ID 48)" : "Director’s Cut 2020 (ID 1973)";
+    const selected = choice === "2016" ? "Versione originale 2016" : "Director’s Cut 2020";
+    const key = id + ":" + choice;
+    if (dismissedReZeroWarningKey === key) return;
+    if (reZeroWarningKey === key && document.getElementById("cineloop-rezero-edition-warning")) return;
+    removeReZeroWarning();
+    reZeroWarningKey = key;
+
+    const overlay = document.createElement("div");
+    overlay.id = "cineloop-rezero-edition-warning";
+    overlay.setAttribute("role", "alertdialog");
+    overlay.setAttribute("aria-live", "assertive");
+    overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(8,10,18,.72);display:flex;align-items:center;justify-content:center;padding:20px;font:14px/1.5 system-ui,sans-serif;color:#171923";
+    const card = document.createElement("section");
+    card.style.cssText = "box-sizing:border-box;width:min(460px,100%);background:#fff;border-radius:14px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.4)";
+    const heading = document.createElement("h2");
+    heading.textContent = "Attenzione: versione di Re:ZERO non corrispondente";
+    heading.style.cssText = "font-size:18px;line-height:1.25;font-weight:750;margin:0 0 12px";
+    const detail = document.createElement("p");
+    detail.textContent = "AnimeUnity ha rilevato: " + detected + ". In CineLoop hai selezionato: " + selected + ".";
+    detail.style.cssText = "margin:0 0 10px";
+    const explanation = document.createElement("p");
+    explanation.textContent = "ID e scelta non coincidono: il progresso potrebbe finire associato all’edizione sbagliata. Apri CineLoop e allinea la scelta alla pagina che vuoi guardare.";
+    explanation.style.cssText = "margin:0 0 18px;color:#454958";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Ho capito";
+    close.style.cssText = "border:0;border-radius:9px;background:#25283a;color:white;padding:10px 16px;font:inherit;font-weight:650;cursor:pointer";
+    close.addEventListener("click", () => {
+      dismissedReZeroWarningKey = key;
+      overlay.remove();
+    });
+    card.append(heading, detail, explanation, close);
+    overlay.append(card);
+    document.documentElement.append(overlay);
+    close.focus();
+  }
+
+  function checkReZeroEdition(id) {
+    if (id !== "48" && id !== "1973") {
+      lastReZeroCheckId = null;
+      lastReZeroCheckAt = 0;
+      removeReZeroWarning();
+      return;
+    }
+    const now = Date.now();
+    if (lastReZeroCheckId === id && now - lastReZeroCheckAt < 30_000) return;
+    lastReZeroCheckId = id;
+    lastReZeroCheckAt = now;
+    try {
+      chrome.runtime.sendMessage({ type: "rezero-choice" }).then((choice) => {
+        if (titleIdNow() !== id) return;
+        const mismatch = (id === "48" && choice === "directors-cut") ||
+          (id === "1973" && choice === "2016");
+        if (mismatch) showReZeroWarning(id, choice);
+        else removeReZeroWarning();
+      }).catch(() => {});
+    } catch {}
+  }
 
   function fromHeading() {
     const h1 = document.querySelector("h1");
@@ -200,6 +271,7 @@
   function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
     const id = titleIdNow();
+    checkReZeroEdition(id);
     // Detect cross-origin player frames; the popup can request their permission.
     if (id) {
       for (const frame of document.querySelectorAll("iframe[src]")) {
