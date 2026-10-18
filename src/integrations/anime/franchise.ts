@@ -219,10 +219,9 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
       canon: recap ? false : null,
     };
     if (kind === "season") {
-      // Internal season 101 is reserved for the Re:ZERO alternate-edition namespace.
-      part.season = reZeroDirectorsCut?.id === e.id
-        ? 101
-        : seasonNumberById.get(e.id)!;
+      // Alternate cuts keep the canonical season number in franchise metadata.
+      // The episode loader exposes their separate list through the private season-101 key.
+      part.season = seasonNumberById.get(e.id)!;
       const quick = fillerBy.get(e.id);
       if (quick) {
         part.quickList = quick;
