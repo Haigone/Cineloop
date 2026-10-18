@@ -57,7 +57,7 @@ export function WatchOrder({
     });
   }
 
-  const isReZero = /re\s*:?\s*zero/i.test(titleName);
+  const isReZero = /re\\s*:?\\s*zero/i.test(titleName) || parts.some((part) => /re\\s*:?\\s*zero/i.test(part.name));
   // Keep the two cuts mutually exclusive; the default matches the existing Director’s Cut mapping.
   const reZeroVersion = chosen["rezero-version"] === undefined ? "directors-cut" : chosen["rezero-version"] ? "directors-cut" : "2016";
 
