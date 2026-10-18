@@ -110,12 +110,13 @@ describe("remakes and alternative cuts share a season number", () => {
     const directorsCut = entry(99991, "TV", "Re:Zero - Starting Life in Another World Director's Cut", `<info type="Number of episodes">13</info><info type="Vintage">2020-01-01</info><related-prev rel="remake of" id="17360"/>`);
     const { cat } = catalog([], { ann: `<?xml version="1.0"?><ann>${original}${directorsCut}</ann>` });
     const title = (await cat.getTitle("anime-ann-17360")) as Series;
-    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 13]]);
+    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 25]]);
     expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.name, p.season])).toEqual([
       ["Re:Zero - Starting Life in Another World", 1],
-      ["Re:Zero - Starting Life in Another World Director's Cut", 1],
+      ["Re:Zero - Starting Life in Another World Director's Cut", 101],
     ]);
-    expect((await cat.episodes(title.id, 1))!.length).toBe(13);
+    expect((await cat.episodes(title.id, 1))!.length).toBe(25);
+    expect((await cat.episodes(title.id, 101))!.length).toBe(13);
   });
 
   it("recognizes a Director's Cut when ANN omits the alternative-version relation", async () => {
@@ -123,12 +124,13 @@ describe("remakes and alternative cuts share a season number", () => {
     const directorsCut = entry(99991, "TV", "Re:Zero - Starting Life in Another World Director's Cut", `<info type="Number of episodes">13</info><info type="Vintage">2020-01-01</info>`);
     const { cat } = catalog([], { ann: `<?xml version="1.0"?><ann>${original}${directorsCut}</ann>` });
     const title = (await cat.getTitle("anime-ann-17360")) as Series;
-    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 13]]);
+    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 25]]);
     expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.name, p.season])).toEqual([
       ["Re:Zero - Starting Life in Another World", 1],
-      ["Re:Zero - Starting Life in Another World Director's Cut", 1],
+      ["Re:Zero - Starting Life in Another World Director's Cut", 101],
     ]);
-    expect((await cat.episodes(title.id, 1))!.length).toBe(13);
+    expect((await cat.episodes(title.id, 1))!.length).toBe(25);
+    expect((await cat.episodes(title.id, 101))!.length).toBe(13);
   });
 });
 
