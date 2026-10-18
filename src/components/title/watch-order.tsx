@@ -61,37 +61,6 @@ export function WatchOrder({
   // Keep the two cuts mutually exclusive; the default matches the existing Director’s Cut mapping.
   const reZeroVersion = chosen["rezero-version"] === undefined ? "directors-cut" : chosen["rezero-version"] ? "directors-cut" : "2016";
 
-  function chooseReZeroVersion(version: "directors-cut" | "2016") {
-    const included = version === "directors-cut";
-    const before = chosen;
-    setChosen({ ...chosen, "rezero-version": included });
-    startTransition(async () => {
-      const res = await setPartIncluded(titleId, "rezero-version", included);
-      if (!res.ok) {
-        setChosen(before);
-        toast.show(res.error, { tone: "error" });
-      } else {
-        toast.show("Ordine di visione di Re:Zero aggiornato", { tone: "success" });
-      }
-    });
-  }
-
-  function resetReZeroVersion() {
-    const before = chosen;
-    const next = { ...chosen };
-    delete next["rezero-version"];
-    setChosen(next);
-    startTransition(async () => {
-      const res = await setPartIncluded(titleId, "rezero-version", null);
-      if (!res.ok) {
-        setChosen(before);
-        toast.show(res.error, { tone: "error" });
-      } else {
-        toast.show("Preferenza Re:Zero ripristinata", { tone: "success" });
-      }
-    });
-  }
-
   return (
     <div>
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
@@ -118,16 +87,9 @@ export function WatchOrder({
                 </p>
               </div>
               {isReZeroCut ? (
-                <input
-                  type="radio"
-                  name={`rezero-cut-${titleId}`}
-                  aria-labelledby={labelId}
-                  aria-label={isDirectorsCut ? "Usa Director’s Cut" : "Usa versione originale 2016"}
-                  checked={on}
-                  onChange={() => chooseReZeroVersion(isDirectorsCut ? "directors-cut" : "2016")}
-                  disabled={!canChoose}
-                  className="size-4 shrink-0 accent-[var(--color-accent)]"
-                />
+                <span className={cn("shrink-0 rounded-md px-2 py-1 text-xs", on ? "bg-accent/10 text-fg" : "bg-white/[0.04] text-fg-3")}>
+                  {on ? "Inclusa" : "Esclusa"}
+                </span>
               ) : (
                 <Switch
                   checked={on}
@@ -140,16 +102,6 @@ export function WatchOrder({
           );
         })}
       </ol>
-      {isReZero && chosen["rezero-version"] !== undefined && (
-        <button
-          type="button"
-          onClick={resetReZeroVersion}
-          disabled={!canChoose}
-          className="mt-2 rounded-md border border-line px-3 py-2 text-xs text-fg-2 transition-colors hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Ripristina scelta predefinita
-        </button>
-      )}
       {hasFiller && (
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3">
           <div className="min-w-0 flex-1">
