@@ -394,8 +394,9 @@ export async function saveManualProgress(
     })();
     const isReZeroSeasonOne = /re\s*:?\s*zero/i.test(title.title) && season === 1;
     const selectedDirectorCut = entry?.partOverrides?.["rezero-version"] !== false;
+    const previousIsEpisodePath = /^\/anime\/\d+-[^/]+\/\d+$/.test(previousPath);
     const previousPathMatchesCut = !isReZeroSeasonOne ||
-      (selectedDirectorCut ? /shin-henshuu-ban/i.test(previousPath) : !/shin-henshuu-ban/i.test(previousPath));
+      (previousIsEpisodePath && (selectedDirectorCut ? /shin-henshuu-ban/i.test(previousPath) : !/shin-henshuu-ban/i.test(previousPath)));
     const keepPreviousEpisodeUrl = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) &&
       (nextProvider !== "animeunity" || previousPathMatchesCut);
     let nextUrl: string | null = keepPreviousEpisodeUrl ? (prev?.url ?? null) : null;
