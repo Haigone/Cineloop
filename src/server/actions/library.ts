@@ -33,32 +33,43 @@ async function animeUnityEpisodeUrl(
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const fallback = providerSearchUrl("animeunity", titleName);
-  if (storedUrl && seasonNumber !== null && episodeNumber !== null) {
-    try {
-      const current = new URL(storedUrl);
-      const match = /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
-      if (current.protocol === "https:" && (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") && match) {
-        // Never combine an ID from one Re:Zero cut with the other cut's title page.
-        const isReZero = /re\s*:?\s*zero/i.test(titleName);
-        const isDirectorsCutPath = /shin-henshuu-ban/i.test(match[1]!);
-        if (isReZero && ((seasonNumber === 101 && isDirectorsCutPath) || (seasonNumber === 1 && !isDirectorsCutPath))) {
-          return fallback;
-        }
-        const episodeId = await getRepository().resolveEpisodeExternalId({
-          providerId: "animeunity", titleId, seasonNumber, episodeNumber,
-        });
-        if (episodeId && /^\d{1,12}$/.test(episodeId)) {
-          current.pathname = `/anime/${match[1]}/${episodeId}`;
-          current.search = "";
-          current.hash = "";
-          return current.toString();
-        }
-      }
-    } catch {
-      // Invalid/stale stored URL: use the archive fallback.
+  if (seasonNumber === null || episodeNumber === null) return fallback;
+
+  const episodeId = await getRepository().resolveEpisodeExternalId({
+    providerId: "animeunity", titleId, seasonNumber, episodeNumber,
+  }).catch(() => null);
+  if (!episodeId || !/^\d{1,12}$/.test(episodeId)) return fallback;
+
+  let storedPath: string | null = null;
+  try {
+    const current = storedUrl ? new URL(storedUrl) : null;
+    const match = current && /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
+    if (current && current.protocol === "https:" &&
+      (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") && match) {
+      storedPath = match[1]!;
     }
+  } catch {
+    // Invalid/stale stored URL: choose a known safe fallback below.
   }
-  return fallback;
+
+  const isReZero = /re\s*:?\s*zero/i.test(titleName);
+  let slug = storedPath;
+  if (isReZero && seasonNumber === 1) {
+    // This is the known AnimeUnity page for the 13-episode Director's Cut.
+    // The original 2016 cut is kept in a separate mapping namespace (season 101).
+    if (!slug || !/shin-henshuu-ban/i.test(slug)) {
+      slug = "1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban";
+    }
+  } else if (isReZero && seasonNumber === 101) {
+    // Only use a stored page known to belong to the original cut; never combine
+    // its IDs with the Director's Cut title path.
+    if (!slug || /shin-henshuu-ban/i.test(slug)) return fallback;
+  } else if (!slug) {
+    return fallback;
+  }
+  if (!slug) return fallback;
+
+  return "https://www.animeunity.so/anime/" + slug + "/" + episodeId;
 }
 
 /** Build StreamingCommunity URLs only from a verified mapping for the target episode. */
@@ -389,8 +400,9 @@ export async function saveManualProgress(
     })();
     const isReZeroSeasonOne = /re\s*:?\s*zero/i.test(title.title) && season === 1;
     const selectedDirectorCut = entry?.partOverrides?.["rezero-version"] !== false;
+    const previousIsEpisodePath = /^\/anime\/\d+-[^/]+\/\d+$/.test(previousPath);
     const previousPathMatchesCut = !isReZeroSeasonOne ||
-      (selectedDirectorCut ? /shin-henshuu-ban/i.test(previousPath) : !/shin-henshuu-ban/i.test(previousPath));
+      (previousIsEpisodePath && (selectedDirectorCut ? /shin-henshuu-ban/i.test(previousPath) : !/shin-henshuu-ban/i.test(previousPath)));
     const keepPreviousEpisodeUrl = sameEpisode && (chosenProvider === undefined || chosenProvider === prev?.providerId) &&
       (nextProvider !== "animeunity" || previousPathMatchesCut);
     let nextUrl: string | null = keepPreviousEpisodeUrl ? (prev?.url ?? null) : null;
