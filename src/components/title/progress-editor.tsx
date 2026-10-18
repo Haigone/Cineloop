@@ -104,7 +104,7 @@ function ProgressDialog({
 
   function save() {
     startTransition(async () => {
-      const res = await saveManualProgress(title.id, { season: isMovie ? null : season, episode: isMovie ? null : episode, minute, finished: !isMovie && finished, ...(service === undefined ? {} : { providerId: service || null }) });
+      const res = await saveManualProgress(title.id, { season: isMovie ? null : season, episode: isMovie ? null : Math.min(episode, episodes), minute, finished: !isMovie && finished, ...(service === undefined ? {} : { providerId: service || null }) });
       if (res.ok) {
         toast.show("Progressi salvati", { tone: "success" });
         onClose();
