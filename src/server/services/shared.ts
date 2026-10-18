@@ -46,6 +46,8 @@ export interface ContinueItem {
   seriesFraction: number | null;
   /** "Episodio 5 di 9" style position in the season, when known. */
   seasonEpisodes: number | null;
+  /** Distinguishes the two Re:Zero season-one edits using the actual provider URL. */
+  editionLabel: string | null;
 }
 
 /** Build a CineLoop-only resume placeholder from the user's observed player URL. */
@@ -123,6 +125,11 @@ export function toContinueItem(entry: LibraryEntry, title: Title): ContinueItem 
     live: false,
     seriesFraction: seriesProgress(title, entry.progress),
     seasonEpisodes: season?.episodeCount ?? null,
+    editionLabel: title.id === "anime-ann-17360" && /shin-henshuu-ban/i.test(entry.progress.url ?? "")
+      ? "Director’s Cut 2020"
+      : title.id === "anime-ann-17360" && /\/anime\/48-rezero-starting-life-in-another-world\//i.test(entry.progress.url ?? "")
+        ? "Versione originale 2016"
+        : null,
   };
 }
 
