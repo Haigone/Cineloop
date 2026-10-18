@@ -16,6 +16,7 @@ import { ReleaseTimer } from "@/components/media/release-timer";
 import { italianDay } from "@/lib/dates";
 import { KeyArt } from "@/components/media/key-art";
 import { TitleActions } from "@/components/title/title-actions";
+import { ReZeroVersionChooser } from "@/components/title/rezero-version-chooser";
 import { WatchSourceChooser } from "@/components/title/watch-source-chooser";
 import { SuggestDialog } from "@/components/title/suggest-dialog";
 import { SharedWatchPanel } from "@/components/title/shared-watch-panel";
@@ -329,6 +330,15 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 ? null
                 : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
             />
+            {title.type !== "movie" && /re\\s*:?\\s*zero/i.test(title.title) && (
+              <ReZeroVersionChooser
+                titleId={title.id}
+                status={entry?.status === "watching" || entry?.status === "completed" ? entry.status : null}
+                version={entry?.partOverrides?.["rezero-version"] === undefined
+                  ? null
+                  : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
+              />
+            )}
             <div className="mt-3">
               <SuggestDialog titleId={title.id} titleName={title.title} friends={view.allFriends} alreadyHave={friends.map((f) => f.user.id)} />
             </div>
