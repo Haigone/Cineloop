@@ -280,8 +280,12 @@ export async function setPartIncluded(id: string, key: string, included: boolean
     // so every UI entry point keeps the watch-order checkboxes synchronized.
     if (included === true && parsedKey.data === "rezero-directors-cut") {
       await repo.setPartOverride(user.id, parsedId.data, "rezero-original-2016", false);
+      // This is the canonical preference read by progress detection and AnimeUnity URL selection.
+      await repo.setPartOverride(user.id, parsedId.data, "rezero-version", true);
     } else if (included === true && parsedKey.data === "rezero-original-2016") {
       await repo.setPartOverride(user.id, parsedId.data, "rezero-directors-cut", false);
+      // Keep the original-cut preference in sync so reloads and progress use the same edition.
+      await repo.setPartOverride(user.id, parsedId.data, "rezero-version", false);
     }
     await repo.setPartOverride(user.id, parsedId.data, parsedKey.data, included);
   }, "Non siamo riusciti a salvare la scelta.");
