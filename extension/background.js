@@ -280,6 +280,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     manualProgress(message).then((ok) => reply(ok), () => reply(false));
     return true;
   }
+  if (message?.type === "rezero-choice" && sender.tab?.id && isAnimeUrl(sender.url ?? "")) {
+    api("/api/extension/status").then((status) => reply(status?.rezeroChoice ?? null), () => reply(null));
+    return true;
+  }
   if (message?.type === "au-frame-origin" && sender.tab?.id && typeof message.origin === "string") {
     rememberAnimeFrameOrigin(sender.tab.id, sender.url, message.origin).then(() => reply(true), () => reply(false));
     return true;
