@@ -20,9 +20,11 @@ export function ProgressEditor({
   seenThrough = null,
   size = "sm",
   label = "A che punto sei?",
+  rezeroVersion = null,
 }: {
   title: Title;
   progress: WatchProgress | null;
+  rezeroVersion?: "directors-cut" | "2016" | null;
   /** Set when the series is marked as seen up to a season. */
   seenThrough?: number | null;
   size?: "sm" | "lg";
@@ -34,7 +36,7 @@ export function ProgressEditor({
       <Button variant="secondary" size={size} icon={<Pencil aria-hidden className={size === "lg" ? "size-4" : "size-3.5"} />} onClick={() => setOpen(true)}>
         {label}
       </Button>
-      <ProgressDialog key={String(open)} open={open} onClose={() => setOpen(false)} title={title} progress={progress} seenThrough={seenThrough} />
+      <ProgressDialog key={String(open)} open={open} onClose={() => setOpen(false)} title={title} progress={progress} seenThrough={seenThrough} rezeroVersion={rezeroVersion} />
     </>
   );
 }
@@ -45,16 +47,25 @@ function ProgressDialog({
   title,
   progress,
   seenThrough,
+  rezeroVersion,
 }: {
   open: boolean;
   onClose: () => void;
   title: Title;
   progress: WatchProgress | null;
   seenThrough: number | null;
+  rezeroVersion: "directors-cut" | "2016" | null;
 }) {
   const isMovie = title.type === "movie";
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 0;
-  const [seasons, setSeasons] = useState<SeasonSummary[]>(title.type === "movie" ? [] : title.seasons);
+  const isReZero = /re\s*:?\s*zero/i.test(title.title);
+  const baseSeasons = title.type === "movie" ? [] : title.seasons;
+  const adjustedSeasons = baseSeasons.map((item) =>
+    isReZero && item.number === 1 && rezeroVersion
+      ? { ...item, episodeCount: rezeroVersion === "directors-cut" ? 13 : 25 }
+      : item,
+  );
+  const [seasons, setSeasons] = useState<SeasonSummary[]>(adjustedSeasons);
   const [season, setSeason] = useState(progress?.season ?? seenThrough ?? seasons[0]?.number ?? 1);
   // Watching it now, or had finished it (up to a season) and is waiting for more.
   const [finished, setFinished] = useState(!progress && seenThrough !== null);
