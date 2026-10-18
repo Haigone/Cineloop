@@ -27,8 +27,10 @@ export function WatchOrder({
   parts,
   overrides,
   canChoose,
+  titleName,
 }: {
   titleId: string;
+  titleName: string;
   parts: WatchPart[];
   overrides: Overrides;
   canChoose: boolean;
@@ -55,8 +57,49 @@ export function WatchOrder({
     });
   }
 
+  const isReZero = /re\s*:?\s*zero/i.test(titleName);
+  const reZeroVersion = chosen["rezero-version"] === undefined ? null : chosen["rezero-version"] ? "directors-cut" : "2016";
+
+  function chooseReZeroVersion(version: "directors-cut" | "2016") {
+    const included = version === "directors-cut";
+    const before = chosen;
+    setChosen({ ...chosen, "rezero-version": included });
+    startTransition(async () => {
+      const res = await setPartIncluded(titleId, "rezero-version", included);
+      if (!res.ok) {
+        setChosen(before);
+        toast.show(res.error, { tone: "error" });
+      } else {
+        toast.show("Ordine di visione di Re:Zero aggiornato", { tone: "success" });
+      }
+    });
+  }
+
   return (
     <div>
+      {isReZero && (
+        <div className="mb-3 rounded-xl border border-line bg-surface p-4">
+          <h3 className="text-sm font-semibold">Prima stagione di Re:Zero</h3>
+          <p className="mt-1 text-xs text-fg-3">La scelta determina quale versione viene associata alla stagione 1 e quali ID AnimeUnity usare quando modifichi l’episodio.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <label className={cn("flex items-start gap-2 rounded-lg border border-line p-3", canChoose ? "cursor-pointer" : "opacity-70")}>
+              <input type="radio" name="rezero-watch-order" className="mt-1" checked={reZeroVersion === "directors-cut"} disabled={!canChoose} onChange={() => chooseReZeroVersion("directors-cut")} />
+              <span>
+                <span className="block text-sm font-medium">Director’s Cut (2019)</span>
+                <span className="mt-1 block text-xs text-fg-3">13 episodi più lunghi, rimontati dal formato originale, con alcune scene aggiuntive.</span>
+              </span>
+            </label>
+            <label className={cn("flex items-start gap-2 rounded-lg border border-line p-3", canChoose ? "cursor-pointer" : "opacity-70")}>
+              <input type="radio" name="rezero-watch-order" className="mt-1" checked={reZeroVersion === "2016"} disabled={!canChoose} onChange={() => chooseReZeroVersion("2016")} />
+              <span>
+                <span className="block text-sm font-medium">Versione originale (2016)</span>
+                <span className="mt-1 block text-xs text-fg-3">25 episodi nel montaggio e nel ritmo della prima trasmissione.</span>
+              </span>
+            </label>
+          </div>
+          {!canChoose && <p className="mt-2 text-xs text-fg-3">Aggiungi Re:Zero alla libreria per salvare o modificare la scelta.</p>}
+        </div>
+      )}
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
         {parts.map((part, i) => {
           const on = chosen[part.key] ?? includedByDefault(part);
