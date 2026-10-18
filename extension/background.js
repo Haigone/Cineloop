@@ -374,8 +374,8 @@ async function playerTitle(tabId, m) {
       episode,
       episodeId,
       progress: effectiveProgress,
-      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : was?.position ?? null,
-      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : was?.duration ?? null,
+      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : freshFrameProgress !== null ? entry.frameProgress?.position ?? was?.position ?? null : was?.position ?? null,
+      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : freshFrameProgress !== null ? entry.frameProgress?.duration ?? was?.duration ?? null : was?.duration ?? null,
       at: now,
       lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
     };
