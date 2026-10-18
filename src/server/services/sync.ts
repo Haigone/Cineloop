@@ -117,9 +117,11 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const reZero = presence.providerId === "animeunity" &&
       (presence.titleId === "anime-ann-17360" || /re\s*:?\s*zero/i.test(presence.label ?? ""));
     const libraryEntry = reZero ? (await repo.listLibrary(userId)).find((entry) => entry.titleId === presence.titleId) : null;
-    // Reserve mapping season 101 for Re:Zero's original 2016 cut. Season 1 remains
-    // the Director's Cut mapping, so the same on-screen season can have distinct provider IDs.
-    const mappingSeason = reZero && presence.season === 1 && libraryEntry?.partOverrides?.["rezero-version"] === false
+    // Identify the cut from the actual AnimeUnity page first. A saved choice is
+    // only a fallback for older observations whose URL cannot distinguish the edition.
+    const isDirectorsCutPage = /shin-henshuu-ban/i.test(presence.url);
+    const mappingSeason = reZero && presence.season === 1 &&
+      (!isDirectorsCutPage || libraryEntry?.partOverrides?.["rezero-version"] === false)
       ? 101
       : presence.season!;
     await repo.saveObservedEpisodeLink({
