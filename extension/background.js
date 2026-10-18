@@ -464,7 +464,6 @@ async function partyContext(tab) {
   if (isAnimeUrl(url) && auWatchId(url)) {
     const canonicalUrl = new URL(url);
     canonicalUrl.searchParams.delete("cineloopResume");
-    canonicalUrl.hash = "";
     return {
       providerId: "animeunity",
       externalId: canonicalUrl.toString(),
@@ -482,7 +481,6 @@ async function partyContext(tab) {
     canonicalUrl = new URL(url);
     if (canonicalUrl.origin !== resolved.origin) return null;
     canonicalUrl.hash = "";
-    canonicalUrl.searchParams.delete("cineloopResume");
   } catch { return null; }
   return {
     providerId: "streamingcommunity",
