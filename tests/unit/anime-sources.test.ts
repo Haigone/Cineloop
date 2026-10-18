@@ -395,4 +395,19 @@ describe("an airing run split into entries", () => {
     const f = (await cat.search("One Piece", 5)).find((t) => t.id === "anime-ann-836");
     expect(f && f.type !== "movie" ? f.seasons.map((s) => s.episodeCount) : []).toEqual([1155, 34, 0]);
   });
+  
+  it("normalizes ANN's unlabelled Re:ZERO 2020 Director's Cut entry", async () => {
+    const original = entry(17360, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">25</info><info type="Vintage">2016-04-03</info>`);
+    const directorsCut = entry(22005, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">13</info><info type="Vintage">2020-07-08</info>`);
+    const { cat } = catalog([], { ann: `<?xml version="1.0"?><ann>${original}${directorsCut}</ann>` });
+    const title = (await cat.getTitle("anime-ann-17360")) as Series;
+    expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 25]]);
+    expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.key, p.season])).toEqual([
+      ["ann-17360", 1],
+      ["ann-22005", 1],
+    ]);
+    expect((await cat.episodes(title.id, 1))!.length).toBe(25);
+    expect((await cat.episodes(title.id, 101))!.length).toBe(13);
+  });
+
 });
