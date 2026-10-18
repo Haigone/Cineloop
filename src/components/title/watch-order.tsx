@@ -62,7 +62,7 @@ export function WatchOrder({
       const second = first.ok && included ? await setPartIncluded(titleId, other, false) : first;
       if (!first.ok || !second.ok) {
         setChosen(before);
-        toast.show((!first.ok ? first : second).error, { tone: "error" });
+        toast.show(!first.ok ? first.error : !second.ok ? second.error : "Non siamo riusciti a salvare la scelta.", { tone: "error" });
       }
     });
   }
