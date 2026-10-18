@@ -95,19 +95,22 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       presence.titleId = titleId;
       await startWatching(repo, presence, fraction);
     }
-  } else if (!step.started) {
+  } else {
     // A session may already carry a stale AnimeUnity -> movie link from before
-    // this guard shipped. Re-resolve it as soon as the active page is an anime episode.
+    // this guard shipped. Repair it even on the first observation of a session:
+    // nextPresence can preserve a stale titleId while marking that session started.
     const [currentTitle] = presence.titleId ? await repo.getTitlesByIds([presence.titleId]) : [];
     const wrongAnimeMovie = presence.providerId === "animeunity" && currentTitle?.type === "movie";
     // The player's name arrived after the session was matched (by the show page,
     // which can be out of date): the player wins. Also repair any stale movie match.
-    const label = wrongAnimeMovie || presence.label !== before?.label ? await matchLabel(repo, presence, null) : null;
+    const label = wrongAnimeMovie || (!step.started && presence.label !== before?.label)
+      ? await matchLabel(repo, presence, null)
+      : null;
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
       await startWatching(repo, presence, fraction);
-    } else {
+    } else if (!step.started) {
       // Episode and position as the player reports them, every heartbeat.
       await syncProgress(repo, presence, fraction);
     }
@@ -486,12 +489,28 @@ async function inYourNight(repo: Repository, userId: string, titleId: string): P
  */
 async function recognise(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
   const linked = await repo.findProviderLink(presence.providerId, [presence.externalId]);
-  if (linked) {
-    const [linkedTitle] = await repo.getTitlesByIds([linked]);
-    // AnimeUnity episode URLs must never resolve to a movie, even if an old
-    // provider link was polluted by a previous incorrect match.
-    if (!(presence.providerId === "animeunity" && linkedTitle?.type === "movie")) {
-      return canonicalizeLinkedAnime(repo, linked);
+  const [linkedTitle] = linked ? await repo.getTitlesByIds([linked]) : [];
+  // A valid saved series link wins. A stale movie link, or a missing link, is
+  // repaired from the local catalogue before any remote lookup is attempted.
+  if (linked && !(presence.providerId === "animeunity" && linkedTitle?.type === "movie")) {
+    return canonicalizeLinkedAnime(repo, linked);
+  }
+  if (presence.providerId === "animeunity") {
+    const labelKey = searchKey(presence.label ?? "");
+    const sameNameSeries = labelKey
+      ? (await repo.listTitles())
+          .filter((title) => title.type !== "movie" && searchKey(title.title) === labelKey)
+          .sort((a, b) => a.year - b.year)[0]
+      : undefined;
+    if (sameNameSeries) {
+      const canonicalId = await canonicalizeLinkedAnime(repo, sameNameSeries.id);
+      await repo.saveProviderLink({
+        providerId: presence.providerId,
+        externalId: presence.externalId,
+        titleId: canonicalId,
+        userId: presence.userId,
+      });
+      return canonicalId;
     }
   }
   const named = presence.label ? await matchLabel(repo, presence, parentId) : null;
