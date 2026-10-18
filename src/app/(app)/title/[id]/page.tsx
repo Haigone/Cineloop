@@ -136,7 +136,14 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               </h2>
               <div className="flex items-center gap-2">
                 {entry?.status === "watching" && <StopWatching titleId={title.id} titleName={title.title} />}
-                <ProgressEditor title={title} progress={entry?.progress ?? null} seenThrough={entry?.seenThrough ?? null} />
+                <ProgressEditor
+                  title={title}
+                  progress={entry?.progress ?? null}
+                  seenThrough={entry?.seenThrough ?? null}
+                  rezeroVersion={entry?.partOverrides?.["rezero-version"] === undefined
+                    ? null
+                    : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
+                />
               </div>
             </div>
             {entry?.progress ? (
