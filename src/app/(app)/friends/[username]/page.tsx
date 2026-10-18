@@ -78,7 +78,7 @@ async function FriendContent({ params }: { params: PageProps<"/friends/[username
                     key={title.id}
                     title={title}
                     wishlisted={wishlist.has(title.id)}
-                    meta={entry.progress ? [episodeLabel(entry.progress, "short"), percent(entry.progress.fraction)].filter(Boolean).join(" · ") : undefined}
+                    meta={entry.progress ? [entry.partOverrides?.["rezero-version"] === true && entry.progress.providerId === "animeunity" && /shin[-_ ]henshuu-ban/i.test(entry.progress.url) ? "Director’s Cut" : null, episodeLabel(entry.progress, "short"), percent(entry.progress.fraction)].filter(Boolean).join(" · ") : undefined}
                   />
                 ))}
               </Rail>
