@@ -464,7 +464,10 @@ async function recognise(repo: Repository, presence: Presence, parentId: string 
   const named = presence.label ? await matchLabel(repo, presence, parentId) : null;
   if (named) return named;
   const parent = parentId ? await repo.findProviderLink(presence.providerId, [parentId]) : null;
-  return parent ? canonicalizeLinkedAnime(repo, parent) : null;
+  if (!parent) return null;
+  const [parentTitle] = await repo.getTitlesByIds([parent]);
+  if (presence.providerId === "animeunity" && parentTitle?.type === "movie") return null;
+  return canonicalizeLinkedAnime(repo, parent);
 }
 
 /** Old provider links may point at a TMDB anime ID saved before cross-catalog canonicalization. */
