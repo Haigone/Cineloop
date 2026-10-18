@@ -361,7 +361,7 @@ export class AnimeFirstCatalog implements CatalogService {
     if (MAL_ID.test(id) || AL_ID.test(id)) return null;
     if (!m) return this.base.episodes(id, season);
     const f = await this.franchise(m[1]!);
-    const rezero = Boolean(f && /re\\s*:?\\s*zero/i.test(f.title.title));
+    const rezero = Boolean(f && /re\s*:?\s*zero/i.test(f.title.title));
     const directorCutPart = f?.title.watchOrder?.find((p) =>
       p.kind === "season" && (p.key === "ann-22005" || /director.?s cut|shin[-_ ]+henshuu/i.test(p.name))
     );
