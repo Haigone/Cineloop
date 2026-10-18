@@ -12,6 +12,7 @@ import { getRepository } from "@/server/data";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
 import { shareProgress } from "@/server/services/shared-watch";
 import { getCatalog } from "@/integrations/catalog";
+import { migrateAnimeTitle } from "@/server/services/anime-migration";
 import type { EpisodeInfo } from "@/integrations/catalog/types";
 
 /**
@@ -127,10 +128,11 @@ export async function setWishlisted(id: string, wishlisted: boolean): Promise<Ac
   const parsed = titleId.safeParse(id);
   if (!parsed.success || !(await ensureTitle(parsed.data))) return { ok: false, error: "Titolo non trovato." };
   return run(async () => {
+    const resolvedId = (await migrateAnimeTitle(parsed.data)) ?? parsed.data;
     if (wishlisted) {
-      await getRepository().addToWishlist(user.id, parsed.data);
-      await record(user.id, "wishlisted", parsed.data);
-    } else await getRepository().removeFromWishlist(user.id, parsed.data);
+      await getRepository().addToWishlist(user.id, resolvedId);
+      await record(user.id, "wishlisted", resolvedId);
+    } else await getRepository().removeFromWishlist(user.id, resolvedId);
   }, "Non siamo riusciti ad aggiornare la wishlist.");
 }
 
@@ -161,19 +163,20 @@ export async function setStatus(id: string, status: string): Promise<ActionResul
   }
   return run(async () => {
     const repo = getRepository();
+    const resolvedId = (await migrateAnimeTitle(parsedId.data)) ?? parsedId.data;
     // "Da vedere" no longer exists in the library: a plan goes to the wishlist.
-    if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, parsedId.data);
-    const title = await cacheRemoteTitle(parsedId.data);
-    const latest = title ? airedSeasons(title, italianDay(), await overridesFor(user.id, parsedId.data)).at(-1) : undefined;
+    if (parsedStatus.data === "planned") return repo.addToWishlist(user.id, resolvedId);
+    const title = await cacheRemoteTitle(resolvedId);
+    const latest = title ? airedSeasons(title, italianDay(), await overridesFor(user.id, resolvedId)).at(-1) : undefined;
     // A series marked as seen is seen up to its latest season: a later one will be "Novità".
     if (parsedStatus.data === "completed" && latest) {
-      await repo.markSeenThrough(user.id, parsedId.data, latest.number);
-      await shareProgress(repo, user.id, parsedId.data, "seenThrough");
-    } else await repo.setLibraryStatus(user.id, parsedId.data, parsedStatus.data);
+      await repo.markSeenThrough(user.id, resolvedId, latest.number);
+      await shareProgress(repo, user.id, resolvedId, "seenThrough");
+    } else await repo.setLibraryStatus(user.id, resolvedId, parsedStatus.data);
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
-      await repo.removeFromWishlist(user.id, parsedId.data);
-      await record(user.id, parsedStatus.data, parsedId.data);
+      await repo.removeFromWishlist(user.id, resolvedId);
+      await record(user.id, parsedStatus.data, resolvedId);
     }
   }, "Non siamo riusciti ad aggiornare la libreria.");
 }
@@ -189,8 +192,9 @@ export async function rateTitle(id: string, value: number | null): Promise<Actio
   }
   const rating = parsedValue.data as RatingValue | null;
   return run(async () => {
-    await getRepository().setRating(user.id, parsedId.data, rating);
-    if (rating) await record(user.id, "rated", parsedId.data, rating);
+    const resolvedId = (await migrateAnimeTitle(parsedId.data)) ?? parsedId.data;
+    await getRepository().setRating(user.id, resolvedId, rating);
+    if (rating) await record(user.id, "rated", resolvedId, rating);
   }, "Non siamo riusciti a salvare il voto.");
 }
 
