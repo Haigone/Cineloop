@@ -37,12 +37,12 @@ async function animeUnityEpisodeUrl(
   const episodeId = await getRepository().resolveEpisodeExternalId({
     providerId: "animeunity", titleId, seasonNumber, episodeNumber,
   }).catch(() => null);
-  if (!episodeId || !/^\\d{1,12}$/.test(episodeId)) return fallback;
+  if (!episodeId || !/^\d{1,12}$/.test(episodeId)) return fallback;
 
   let storedPath: string | null = null;
   try {
     const current = storedUrl ? new URL(storedUrl) : null;
-    const match = current && /^\\/anime\\/(\\d+-[^/]+)\\/(\\d+)$/.exec(current.pathname);
+    const match = current && /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
     if (current && current.protocol === "https:" &&
       (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") && match) {
       storedPath = match[1]!;
@@ -51,7 +51,7 @@ async function animeUnityEpisodeUrl(
     // Invalid/stale stored URL: choose a known safe fallback below.
   }
 
-  const isReZero = /re\\s*:?\\s*zero/i.test(titleName);
+  const isReZero = /re\s*:?\s*zero/i.test(titleName);
   let slug = storedPath;
   if (isReZero && seasonNumber === 1) {
     // This is the known AnimeUnity page for the 13-episode Director's Cut.
@@ -68,7 +68,7 @@ async function animeUnityEpisodeUrl(
   }
   if (!slug) return fallback;
 
-  return `https://www.animeunity.so/anime/${slug}/${episodeId}`;
+  return "https://www.animeunity.so/anime/" + slug + "/" + episodeId;
 }
 
 /** Build StreamingCommunity URLs only from a verified mapping for the target episode. */
