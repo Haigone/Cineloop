@@ -22,6 +22,8 @@ export interface PlaybackReport {
   season?: number | null;
   episode?: number | null;
   position: number;
+  /** Actual HTML5 media duration in seconds when exposed by the player. */
+  duration?: number | null;
   paused: boolean;
   /** Set when the member themselves pressed play or pause, or moved to another point. */
   action?: "play" | "pause" | "seek";
