@@ -61,9 +61,11 @@ async function animeUnityEpisodeUrl(
       slug = "1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban";
     }
   } else if (isReZero && seasonNumber === 101) {
-    // Only use a stored page known to belong to the original cut; never combine
-    // its IDs with the Director's Cut title path.
-    if (!slug || /shin-henshuu-ban/i.test(slug)) return fallback;
+    // The original 2016 page has its own episode IDs and a stable, known slug.
+    // Never combine those IDs with the Director's Cut title path.
+    if (!slug || /shin-henshuu-ban/i.test(slug)) {
+      slug = "48-rezero-starting-life-in-another-world";
+    }
   } else if (!slug) {
     return fallback;
   }
