@@ -363,15 +363,24 @@ export async function saveManualProgress(
     episode = null;
   } else {
     const s = title.seasons.find((x) => x.number === season);
+    // The catalogue's canonical season count follows the 13-episode Director's Cut.
+    // The original 2016 cut has 25 episodes, while retaining season 1 for progress.
+    const reZeroOriginal = /re\s*:?\s*zero/i.test(title.title) && season === 1 &&
+      (await overridesFor(user.id, title.id))["rezero-version"] === false;
+    const episodeCount = reZeroOriginal ? 25 : (s?.episodeCount ?? 0);
     // When the catalogue does not list the seasons, any season and episode will do.
     const known = title.seasons.length > 0;
-    if (season === null || episode === null || (known && (!s || episode > s.episodeCount))) {
+    if (season === null || episode === null || (known && (!s || episode > episodeCount))) {
       return { ok: false, error: "Scegli una stagione e un episodio che esistono." };
     }
   }
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
+  const progressOverrides = await overridesFor(user.id, title.id);
+  const progressTitle = /re\s*:?\s*zero/i.test(title.title) && season === 1 && progressOverrides["rezero-version"] === false
+    ? { ...title, seasons: title.seasons.map((s) => s.number === 1 ? { ...s, episodeCount: 25 } : s) }
+    : title;
   // At the end of the last episode (or of the film): seen, and Home asks for a rating.
-  if (runtime > 1 && finishesTitle(title, { season, episode, fraction: minute / runtime }, italianDay(), await overridesFor(user.id, title.id))) {
+  if (runtime > 1 && finishesTitle(progressTitle, { season, episode, fraction: minute / runtime }, italianDay(), progressOverrides)) {
     return run(async () => {
       const repo = getRepository();
       await repo.markFinished(user.id, title.id, season);
@@ -381,7 +390,7 @@ export async function saveManualProgress(
     }, "Non siamo riusciti a salvare dove sei arrivato.");
   }
   // At the end of a season while a later one has already aired: seen up to there, the next season is "Novità".
-  if (runtime > 1 && finishesEarlierSeason(title, { season, episode, fraction: minute / runtime }, italianDay(), await overridesFor(user.id, title.id))) {
+  if (runtime > 1 && finishesEarlierSeason(progressTitle, { season, episode, fraction: minute / runtime }, italianDay(), progressOverrides)) {
     return run(async () => {
       const repo = getRepository();
       await repo.markSeenThrough(user.id, title.id, season!);
