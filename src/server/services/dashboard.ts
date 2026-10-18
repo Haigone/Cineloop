@@ -21,6 +21,7 @@ import { activateNights } from "./nights";
 import { listUpcomingNights, type UpcomingNight } from "./watch-party";
 import type { SagaStatus } from "@/domain/collections";
 import { getCatalog } from "@/integrations/catalog";
+import { migrateDuplicateAnimeInLibrary } from "./anime-migration";
 
 export interface FriendActivityItem {
   event: ActivityEvent;
@@ -93,6 +94,8 @@ const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 export async function getHomeView(asked: MediaType | null = null): Promise<HomeView> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
+  // Merge old cross-catalog anime duplicates before building Home's shelves.
+  await migrateDuplicateAnimeInLibrary(viewer.id);
   const now = new Date();
 
   // Nights whose time has come start now, so Home shows them already in "Serate insieme".
