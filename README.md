@@ -73,3 +73,7 @@ Next.js 16 (App Router), React 19, TypeScript strict, Tailwind CSS 4, Motion, Po
 - Nessun provider sincronizza automaticamente: "Continua su…" apre il servizio, ma l'avanzamento nelle serie viene per ora dai dati demo.
 - Anime Unity e Streaming Community rilevano il titolo e il progresso tramite l’estensione quando la pagina espone queste informazioni (vedi docs/providers.md).
 - Il tema è solo scuro.
+
+## Deploy
+
+Il deploy di produzione è gestito dall'integrazione GitHub di Vercel: i commit pubblicati su `main` devono avviare automaticamente una nuova distribuzione. Verificare in Vercel che il deployment risulti `READY` e punti al commit atteso.
