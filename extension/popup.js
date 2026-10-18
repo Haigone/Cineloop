@@ -81,7 +81,7 @@ async function render() {
     : otherProvider === "animeunity"
       ? "su AnimeUnity"
       : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
-  $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, ep, providerLabel].filter(Boolean).join(" · ");
+  $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, w.providerId === "animeunity" && /shin[-_ ]henshuu-ban/i.test(w.url ?? "") ? "Director’s Cut" : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
   // Manual episode/progress controls are shown for AnimeUnity and StreamingCommunity.
   // Do not touch a search-hint node: the current popup markup does not include it.
