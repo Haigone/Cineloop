@@ -12,10 +12,12 @@ function validExternalId(value: string): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
+    const animeUnity = host === "animeunity.so" || host.endsWith(".animeunity.so");
+    const streamingCommunity = /^(?:streaming[-]?community[a-z0-9-]*|streamingcommunityz[a-z0-9-]*)\.[a-z]{2,}$/i.test(host);
     return url.protocol === "https:" &&
-      (host === "animeunity.so" || host.endsWith(".animeunity.so")) &&
-      !url.username && !url.password &&
-      /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
+      (animeUnity && /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname) ||
+       streamingCommunity && /^(?:\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)|\/titles?\/\d{1,9}(?:[-/?#]|$))/i.test(url.pathname)) &&
+      !url.username && !url.password;
   } catch {
     return false;
   }
