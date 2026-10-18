@@ -66,6 +66,7 @@ async function animeUnityEpisodeUrl(
   } else if (!slug) {
     return fallback;
   }
+  if (!slug) return fallback;
 
   return `https://www.animeunity.so/anime/${slug}/${episodeId}`;
 }
