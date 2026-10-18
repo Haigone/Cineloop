@@ -620,7 +620,8 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
   // of season 1, not a new season. The player exposes only E1–E13 and no season,
   // so explicitly anchor it to S1 even if the user's saved progress is empty.
   const reZeroDirectorsCut = presence.providerId === "animeunity" &&
-    /^re\s*:?\s*zero kara hajimeru isekai seikatsu\s*:\s*shin henshuu-ban$/i.test(presence.label ?? "");
+    (/shin-henshuu-ban/i.test(presence.url) ||
+      /^re\s*:?\s*zero kara hajimeru isekai seikatsu\s*:\s*shin henshuu-ban$/i.test(presence.label ?? ""));
   if (reZeroDirectorsCut) presence.season = 1;
 
   // A part named in the player's title ("JoJo: Stone Ocean") is that season,
