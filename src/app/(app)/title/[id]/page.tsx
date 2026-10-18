@@ -119,7 +119,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
         : null;
   // The observed provider URL is authoritative for the edition actually being watched.
   const progressUrl = entry?.progress?.url ?? "";
-  const progressEdition = /\\/anime\\/48-rezero-starting-life-in-another-world\\//i.test(progressUrl)
+  const progressEdition = progressUrl.includes("/anime/48-rezero-starting-life-in-another-world/")
     ? "2016"
     : /shin-henshuu-ban/i.test(progressUrl)
       ? "directors-cut"
