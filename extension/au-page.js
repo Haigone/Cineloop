@@ -42,7 +42,7 @@
     video.addEventListener("loadedmetadata", sendNow);
     video.addEventListener("seeked", sendNow);
   }
-  const clean = (s) => (s ?? "").replace(/\\s+/g, " ").trim();
+  const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
 
   let lastReZeroCheckAt = 0;
   let lastReZeroCheckId = null;
