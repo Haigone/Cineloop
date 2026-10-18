@@ -141,9 +141,13 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                   title={title}
                   progress={entry?.progress ?? null}
                   seenThrough={entry?.seenThrough ?? null}
-                  rezeroVersion={entry?.partOverrides?.["rezero-version"] === undefined
-                    ? null
-                    : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
+                  rezeroVersion={entry?.partOverrides?.["rezero-directors-cut"] === true
+                    ? "directors-cut"
+                    : entry?.partOverrides?.["rezero-original-2016"] === true
+                      ? "2016"
+                      : entry?.partOverrides?.["rezero-version"] === undefined
+                        ? null
+                        : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
                 />
               </div>
             </div>
