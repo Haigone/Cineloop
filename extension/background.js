@@ -476,6 +476,7 @@ async function partyContext(tab) {
   if (isAnimeUrl(url) && auWatchId(url)) {
     const canonicalUrl = new URL(url);
     canonicalUrl.searchParams.delete("cineloopResume");
+    canonicalUrl.hash = "";
     return {
       providerId: "animeunity",
       externalId: canonicalUrl.toString(),
@@ -488,12 +489,16 @@ async function partyContext(tab) {
   const resolved = await getResolved();
   const id = scWatchId(url);
   if (!resolved?.origin || !id || !isStreamingUrl(url)) return null;
+  let canonicalUrl;
   try {
-    if (new URL(url).origin !== resolved.origin) return null;
+    canonicalUrl = new URL(url);
+    if (canonicalUrl.origin !== resolved.origin) return null;
+    canonicalUrl.hash = "";
+    canonicalUrl.searchParams.delete("cineloopResume");
   } catch { return null; }
   return {
     providerId: "streamingcommunity",
-    externalId: id,
+    externalId: canonicalUrl.toString(),
     title: player?.title ?? tab.title ?? "",
     season: player?.season ?? null,
     episode: player?.episode ?? null,
