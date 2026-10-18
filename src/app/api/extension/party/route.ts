@@ -28,6 +28,7 @@ const report = z
     season: z.number().int().min(0).max(999).nullable().optional(),
     episode: z.number().int().min(0).max(9999).nullable().optional(),
     position: z.number().min(0).max(24 * 3600),
+    duration: z.number().positive().max(24 * 3600).nullable().optional(),
     paused: z.boolean(),
     action: z.enum(["play", "pause", "seek"]).optional(),
     following: z.boolean().optional(),
