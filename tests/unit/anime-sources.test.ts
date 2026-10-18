@@ -397,8 +397,8 @@ describe("an airing run split into entries", () => {
   });
   
   it("normalizes ANN's unlabelled Re:ZERO 2020 Director's Cut entry", async () => {
-    const original = entry(17360, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">25</info><info type="Vintage">2016-04-03</info>`);
-    const directorsCut = entry(22005, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">13</info><info type="Vintage">2020-07-08</info>`);
+    const original = entry(17360, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">25</info><info type="Vintage">2016-04-03</info><related-next rel="sequel" id="22005"/>`);
+    const directorsCut = entry(22005, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">13</info><info type="Vintage">2020-07-08</info><related-prev rel="sequel of" id="17360"/>`);
     const { cat } = catalog([], { ann: `<?xml version="1.0"?><ann>${original}${directorsCut}</ann>` });
     const title = (await cat.getTitle("anime-ann-17360")) as Series;
     expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 25]]);
