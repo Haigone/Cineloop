@@ -67,7 +67,7 @@ export function WatchOrder({
     });
   }
 
-  const isReZero = /re\\s*:?\\s*zero/i.test(titleName) || parts.some((part) => /re\\s*:?\\s*zero/i.test(part.name));
+  const isReZero = /re\s*:?\s*zero/i.test(titleName) || parts.some((part) => /re\s*:?\s*zero/i.test(part.name));
   const legacyVersion = chosen["rezero-version"];
   const hasNewCutOverrides = chosen["rezero-directors-cut"] !== undefined || chosen["rezero-original-2016"] !== undefined;
 
