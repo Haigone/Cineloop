@@ -4,6 +4,7 @@ import { inferSeason, isLive, seasonFromLabel, nextPresence, normalizePartyUrl, 
 import { CONSENT_PROVIDERS, isConsentProvider, type ConsentProvider, type Presence, type PublicUser, type Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getAdapter } from "@/integrations/providers/registry";
+import { animeUnityReZeroEdition } from "@/integrations/providers/adapters/anime-unity";
 import type { SyncObservation } from "@/integrations/providers/types";
 import { plainQuotes, searchKey } from "@/lib/text";
 import { italianDay } from "@/lib/dates";
@@ -125,8 +126,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const libraryEntry = reZero ? (await repo.listLibrary(userId)).find((entry) => entry.titleId === presence.titleId) : null;
     // Identify the cut from the actual AnimeUnity page first. A saved choice is
     // only a fallback for older observations whose URL cannot distinguish the edition.
-    const isDirectorsCutPage = /shin-henshuu-ban/i.test(presence.url);
-    const isOriginalCutPage = /\/anime\/48-rezero-starting-life-in-another-world\//i.test(presence.url);
+    const observedCut = reZero ? animeUnityReZeroEdition(presence.url) : null;
     const cutOverrides = libraryEntry?.partOverrides ?? {};
     const selectedCut = cutOverrides["rezero-directors-cut"] === true && cutOverrides["rezero-original-2016"] !== true
       ? "directors-cut"
@@ -136,7 +136,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
           ? cutOverrides["rezero-version"] ? "directors-cut" : "2016"
           : null;
     const mappingSeason = reZero && presence.season === 1 &&
-      (isOriginalCutPage || (!isDirectorsCutPage && selectedCut === "2016"))
+      (observedCut === "2016" || (!observedCut && selectedCut === "2016"))
       ? 101
       : presence.season!;
     await repo.saveObservedEpisodeLink({
