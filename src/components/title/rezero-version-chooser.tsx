@@ -22,19 +22,37 @@ export function ReZeroVersionChooser({
 
   function choose(next: Version) {
     const previous = selected;
-    setSelected(next);
+    const target = selected === next ? null : next;
+    setSelected(target);
     startTransition(async () => {
-      const result = status
-        ? await setPartIncluded(titleId, "rezero-version", next === "directors-cut")
-        : await setStatus(titleId, "watching", next);
+      let result;
+      if (!status) {
+        if (!target) {
+          setSelected(previous);
+          toast.show("Avvia prima Re:ZERO per modificare le versioni.", { tone: "error" });
+          return;
+        }
+        result = await setStatus(titleId, "watching", target);
+      } else if (target === "directors-cut") {
+        result = await setPartIncluded(titleId, "rezero-directors-cut", true);
+        if (result.ok) result = await setPartIncluded(titleId, "rezero-original-2016", false);
+      } else if (target === "2016") {
+        result = await setPartIncluded(titleId, "rezero-original-2016", true);
+        if (result.ok) result = await setPartIncluded(titleId, "rezero-directors-cut", false);
+      } else {
+        result = await setPartIncluded(titleId, "rezero-directors-cut", false);
+        if (result.ok) result = await setPartIncluded(titleId, "rezero-original-2016", false);
+      }
       if (!result.ok) {
         setSelected(previous);
         toast.show(result.error, { tone: "error" });
       } else {
         toast.show(
-          next === "directors-cut"
-            ? "Director’s Cut selezionata: l’ordine di visione è stato aggiornato"
-            : "Versione originale 2016 selezionata: la Director’s Cut verrà saltata",
+          target === "directors-cut"
+            ? "Director’s Cut attivata; versione originale disattivata"
+            : target === "2016"
+              ? "Versione originale 2016 attivata; Director’s Cut disattivata"
+              : "Entrambe le versioni sono disattivate",
           { tone: "success" },
         );
       }
@@ -44,21 +62,21 @@ export function ReZeroVersionChooser({
   const options: { id: Version; title: string; description: string }[] = [
     {
       id: "directors-cut",
-      title: "Segui la Director’s Cut",
-      description: "13 episodi più lunghi, circa un’ora ciascuno. La versione rimontata con scene aggiuntive.",
+      title: "Director’s Cut",
+      description: "13 episodi più lunghi, rimontati con scene aggiuntive.",
     },
     {
       id: "2016",
-      title: "Segui la versione originale 2016",
-      description: "25 episodi nel formato originale. La Director’s Cut viene saltata nell’ordine di visione.",
+      title: "Versione originale 2016",
+      description: "25 episodi nel formato originale.",
     },
   ];
 
   return (
     <section aria-labelledby="rezero-version-heading" className="mt-5 border-t border-line pt-4">
-      <h3 id="rezero-version-heading" className="text-sm font-semibold">Come vuoi seguire Re:ZERO?</h3>
+      <h3 id="rezero-version-heading" className="text-sm font-semibold">Versioni della prima stagione di Re:ZERO</h3>
       <p className="mt-1 text-xs leading-relaxed text-fg-3">
-        Scegli una sola versione della prima stagione. La preferenza resta salvata e aggiorna automaticamente l’ordine di visione.
+        Puoi attivare o disattivare ciascuna versione. Attivandone una, l’altra si disattiva automaticamente.
       </p>
       <div className="mt-3 grid gap-2">
         {options.map((option) => {
@@ -78,7 +96,7 @@ export function ReZeroVersionChooser({
               <span className="min-w-0">
                 <span className="block text-sm font-medium">{option.title}</span>
                 <span className="mt-1 block text-xs leading-relaxed text-fg-3">{option.description}</span>
-                {active && <span className="mt-2 block text-xs font-medium text-fg">Selezionata</span>}
+                <span className="mt-2 block text-xs font-medium text-fg">{active ? "Attiva" : "Disattivata"}</span>
               </span>
             </button>
           );
