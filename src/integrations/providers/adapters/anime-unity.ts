@@ -14,7 +14,12 @@ export function animeUnityPartSeason(url: string, title: string): number | null 
   if (/the[-_\s]+conflict|\bconflict\b/.test(text)) return 3;
   if (/the[-_\s]+calamity|\bcalamity\b/.test(text)) return 4;
   const numbered = /(?:season|stagione|part|parte|cour)\s*[-:]?\s*([1-9]\d?)/i.exec(text);
-  return numbered ? Number(numbered[1]) : null;
+  if (numbered) return Number(numbered[1]);
+  const ordinalSeason = /(?:^|[-_\s])([2-9])(?:st|nd|rd|th)[-_\s]*season/i.exec(text);
+  if (ordinalSeason) return Number(ordinalSeason[1]);
+  // The original 2016 Re:Zero page also omits an explicit season marker.
+  if (/re\s*:?\s*zero/.test(text)) return 1;
+  return null;
 }
 
 
