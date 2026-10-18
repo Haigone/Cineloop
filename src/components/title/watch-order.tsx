@@ -17,11 +17,6 @@ function detail(part: WatchPart): string {
   return bits.join(" · ");
 }
 
-/**
- * The franchise in watching order, each part with a switch: what is on counts
- * towards progress and "finished", what is off is left out. Choices are saved
- * once the title is in the library.
- */
 export function WatchOrder({
   titleId,
   parts,
@@ -43,7 +38,6 @@ export function WatchOrder({
 
   function choose(key: string, included: boolean, fallback: boolean) {
     const before = chosen;
-    // Going back to the default is stored as no choice at all.
     const next = { ...chosen };
     if (included === fallback) delete next[key];
     else next[key] = included;
@@ -57,9 +51,25 @@ export function WatchOrder({
     });
   }
 
-  const isReZero = /re\s*:?\s*zero/i.test(titleName) || parts.some((part) => /re\s*:?\s*zero/i.test(part.name));
-  // Keep the two cuts mutually exclusive; the default matches the existing Director’s Cut mapping.
-  const reZeroVersion = chosen["rezero-version"] === undefined ? "directors-cut" : chosen["rezero-version"] ? "directors-cut" : "2016";
+  async function chooseReZeroCut(key: "rezero-directors-cut" | "rezero-original-2016", included: boolean) {
+    const before = chosen;
+    const other = key === "rezero-directors-cut" ? "rezero-original-2016" : "rezero-directors-cut";
+    const next = { ...chosen, [key]: included };
+    if (included) next[other] = false;
+    setChosen(next);
+    startTransition(async () => {
+      const first = await setPartIncluded(titleId, key, included);
+      const second = first.ok && included ? await setPartIncluded(titleId, other, false) : first;
+      if (!first.ok || !second.ok) {
+        setChosen(before);
+        toast.show((!first.ok ? first : second).error, { tone: "error" });
+      }
+    });
+  }
+
+  const isReZero = /re\\s*:?\\s*zero/i.test(titleName) || parts.some((part) => /re\\s*:?\\s*zero/i.test(part.name));
+  const legacyVersion = chosen["rezero-version"];
+  const hasNewCutOverrides = chosen["rezero-directors-cut"] !== undefined || chosen["rezero-original-2016"] !== undefined;
 
   return (
     <div>
@@ -67,8 +77,10 @@ export function WatchOrder({
         {parts.map((part, i) => {
           const isReZeroCut = isReZero && part.kind === "season" && part.season === 1;
           const isDirectorsCut = /director.?s cut|shin[-_ ]henshuu/i.test(part.name);
+          const key = isDirectorsCut ? "rezero-directors-cut" : "rezero-original-2016";
+          const legacyOn = legacyVersion === undefined ? isDirectorsCut : legacyVersion === true ? isDirectorsCut : !isDirectorsCut;
           const on = isReZeroCut
-            ? (reZeroVersion === "directors-cut") === isDirectorsCut
+            ? (hasNewCutOverrides ? chosen[key] ?? false : legacyOn)
             : chosen[part.key] ?? includedByDefault(part);
           const labelId = `part-${part.key}`;
           return (
@@ -77,9 +89,7 @@ export function WatchOrder({
                 {i + 1}
               </span>
               <div className={cn("min-w-0 flex-1", !on && "opacity-60")}>
-                <p id={labelId} className="truncate text-sm font-medium">
-                  {part.name}
-                </p>
+                <p id={labelId} className="truncate text-sm font-medium">{part.name}</p>
                 <p className="mt-0.5 text-xs text-fg-3">
                   {detail(part)}
                   {part.canon === false && " · non canon"}
@@ -87,9 +97,12 @@ export function WatchOrder({
                 </p>
               </div>
               {isReZeroCut ? (
-                <span className={cn("shrink-0 rounded-md px-2 py-1 text-xs", on ? "bg-accent/10 text-fg" : "bg-white/[0.04] text-fg-3")}>
-                  {on ? "Inclusa" : "Esclusa"}
-                </span>
+                <Switch
+                  checked={on}
+                  onChange={(v) => chooseReZeroCut(key, v)}
+                  labelledBy={labelId}
+                  disabled={!canChoose}
+                />
               ) : (
                 <Switch
                   checked={on}
@@ -105,23 +118,14 @@ export function WatchOrder({
       {hasFiller && (
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p id="part-filler" className="text-sm font-medium">
-              Guarda anche i filler
-            </p>
+            <p id="part-filler" className="text-sm font-medium">Guarda anche i filler</p>
             <p className="mt-0.5 text-xs text-fg-3">{fillerCount} episodi che non vengono dal manga: di base li saltiamo.</p>
           </div>
-          <Switch
-            checked={chosen[FILLER_KEY] === true}
-            onChange={(v) => choose(FILLER_KEY, v, false)}
-            labelledBy="part-filler"
-            disabled={!canChoose}
-          />
+          <Switch checked={chosen[FILLER_KEY] === true} onChange={(v) => choose(FILLER_KEY, v, false)} labelledBy="part-filler" disabled={!canChoose} />
         </div>
       )}
       <p className="mt-2 text-xs text-fg-3">
-        {canChoose
-          ? "Quello che è spento non conta per il progresso e per “finito”."
-          : "Potrai scegliere cosa includere appena inizi a guardarlo."}{" "}
+        {canChoose ? "Le parti attive contano per il progresso e per “finito”." : "Potrai scegliere cosa includere appena inizi a guardarlo."}{" "}
         Ordine di uscita; i dati vengono da Anime News Network e Anime Filler List.
       </p>
     </div>
