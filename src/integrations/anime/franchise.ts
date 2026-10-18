@@ -242,7 +242,11 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
     // Which service carries it is not something these sources say.
     providers: [],
     seasons,
-    episodeRuntimeMinutes: root.runtimeMinutes ?? 24,
+    // Re:Zero Director's Cut episodes are about an hour, not the original 24-minute format.
+    episodeRuntimeMinutes: /re\\s*:?\\s*zero/i.test(root.name)
+      && seasonEntries.some((e) => alternativeBases.get(e.id) === root.id && /director.?s cut|shin[-_ ]+henshuu/i.test(e.name))
+      ? 60
+      : root.runtimeMinutes ?? 24,
     watchOrder: parts,
   };
   return { title, entries };
