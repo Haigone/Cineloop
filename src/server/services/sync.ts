@@ -449,10 +449,22 @@ async function inYourNight(repo: Repository, userId: string, titleId: string): P
  */
 async function recognise(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
   const linked = await repo.findProviderLink(presence.providerId, [presence.externalId]);
-  if (linked) return linked;
+  if (linked) return canonicalizeLinkedAnime(repo, linked);
   const named = presence.label ? await matchLabel(repo, presence, parentId) : null;
   if (named) return named;
-  return parentId ? repo.findProviderLink(presence.providerId, [parentId]) : null;
+  const parent = parentId ? await repo.findProviderLink(presence.providerId, [parentId]) : null;
+  return parent ? canonicalizeLinkedAnime(repo, parent) : null;
+}
+
+/** Old provider links may point at a TMDB anime ID saved before cross-catalog canonicalization. */
+async function canonicalizeLinkedAnime(repo: Repository, id: string): Promise<string> {
+  const [title] = await repo.getTitlesByIds([id]);
+  if (!title || title.type !== "anime") return id;
+  const { asFranchise } = await import("./anime-migration");
+  const kept = await asFranchise(title);
+  if (kept.id === title.id) return id;
+  await repo.replaceTitle(title.id, kept);
+  return kept.id;
 }
 
 async function matchLabel(repo: Repository, presence: Presence, parentId: string | null): Promise<string | null> {
