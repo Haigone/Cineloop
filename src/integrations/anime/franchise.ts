@@ -160,6 +160,20 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
   const sorted = [...entries.values()].sort((a, b) => orderKey(a).localeCompare(orderKey(b)) || Number(a.id) - Number(b.id));
   const seasonEntries = sorted.filter((e) => kindOf(e) === "season");
   const alternativeBases = alternativeSeasonBases(sorted);
+  // ANN's Re:ZERO entry 22005 is the 13-episode Director's Cut, but its
+  // title omits the edition suffix and its relation is not always present.
+  // Treat it as an alternate edit of the 2016 season, never as season 2.
+  const reZeroRoot = seasonEntries.find((e) => e.id === "17360" && /re\s*:?\s*zero/i.test(e.name));
+  const reZeroDirectorsCut = reZeroRoot && seasonEntries.find((e) =>
+    e.id === "22005" || (
+      /re\s*:?\s*zero/i.test(e.name) &&
+      /director.?s cut|shin[-_ ]+henshuu/i.test(e.name) &&
+      (e.episodes ?? 0) === 13
+    )
+  );
+  if (reZeroRoot && reZeroDirectorsCut && !alternativeBases.has(reZeroDirectorsCut.id)) {
+    alternativeBases.set(reZeroDirectorsCut.id, reZeroRoot.id);
+  }
   const canonicalSeasons = seasonEntries.filter((e) => !alternativeBases.has(e.id));
   const root = canonicalSeasons[0] ?? seasonEntries[0];
   if (!root) return null;
@@ -205,6 +219,8 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
       canon: recap ? false : null,
     };
     if (kind === "season") {
+      // Alternate cuts keep the canonical season number in franchise metadata.
+      // The episode loader exposes their separate list through the private season-101 key.
       part.season = seasonNumberById.get(e.id)!;
       const quick = fillerBy.get(e.id);
       if (quick) {
@@ -218,9 +234,8 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
 
   const seasons: SeasonSummary[] = canonicalSeasons.map((base) => {
     const number = seasonNumberById.get(base.id)!;
-    const representative = seasonEntries
-      .filter((e) => (alternativeBases.get(e.id) ?? e.id) === base.id)
-      .at(-1) ?? base;
+    // An alternate cut must not replace the canonical season's episode count.
+    const representative = base;
     return {
       number,
       episodeCount: withinEntry(representative.episodes ?? 0, runOffset(entries, representative)),
@@ -244,7 +259,8 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
     seasons,
     // Re:Zero Director's Cut episodes are about an hour, not the original 24-minute format.
     episodeRuntimeMinutes: /re\s*:?\s*zero/i.test(root.name)
-      && seasonEntries.some((e) => alternativeBases.get(e.id) === root.id && /director.?s cut|shin[-_ ]+henshuu/i.test(e.name))
+      && seasonEntries.some((e) => alternativeBases.get(e.id) === root.id &&
+        (e.id === "22005" || /director.?s cut|shin[-_ ]+henshuu/i.test(e.name)))
       ? 60
       : root.runtimeMinutes ?? 24,
     watchOrder: parts,

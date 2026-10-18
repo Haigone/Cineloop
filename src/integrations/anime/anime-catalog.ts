@@ -361,7 +361,17 @@ export class AnimeFirstCatalog implements CatalogService {
     if (MAL_ID.test(id) || AL_ID.test(id)) return null;
     if (!m) return this.base.episodes(id, season);
     const f = await this.franchise(m[1]!);
-    const part = f?.title.watchOrder?.filter((p) => p.kind === "season" && p.season === season).at(-1);
+    const rezero = Boolean(f && /re\s*:?\s*zero/i.test(f.title.title));
+    const directorCutPart = f?.title.watchOrder?.find((p) =>
+      p.kind === "season" && (p.key === "ann-22005" || /director.?s cut|shin[-_ ]+henshuu/i.test(p.name))
+    );
+    // 101 is an internal lookup key for the alternate edition, not a real season.
+    // Season 1 always resolves to the original 25-episode run, not the later cut.
+    const part = rezero && season === 101
+      ? directorCutPart
+      : f?.title.watchOrder?.filter((p) =>
+          p.kind === "season" && p.season === season && (!rezero || p.key !== directorCutPart?.key)
+        ).at(-1);
     const entry = part && f?.entries.get(part.key.slice(4));
     if (!entry) return null;
     // A later entry of a long run may number its episodes from the start of the run.

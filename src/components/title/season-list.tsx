@@ -15,26 +15,55 @@ const day = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", y
  */
 export function SeasonList({
   titleId,
+  titleName,
   seasons,
   at,
   seenThrough,
+  progressEdition,
 }: {
   titleId: string;
+  titleName: string;
   seasons: SeasonSummary[];
   /** Where the viewer is, if watching. */
   at: { season: number | null; episode: number | null } | null;
   seenThrough: number | null;
+  progressEdition?: "directors-cut" | "2016" | null;
 }) {
+  const isReZero = /re\s*:?\s*zero/i.test(titleName);
+  // Older cached catalogues exposed the 2020 Director's Cut as season 2.
+  // Normalize that cached shape immediately, even before the background refresh completes.
+  const cachedDirectorsCut = isReZero
+    ? seasons.find((s) => s.number === 2 && s.episodeCount === 13 && s.airDate?.startsWith("2020"))
+    : undefined;
+  const canonicalSeasons = cachedDirectorsCut
+    ? seasons.filter((s) => s !== cachedDirectorsCut).map((s) => s.number > 2 ? { ...s, number: s.number - 1 } : s)
+    : seasons;
+  const displaySeasons: SeasonSummary[] = [];
+  for (const season of canonicalSeasons) {
+    displaySeasons.push(season);
+    if (isReZero && season.number === 1) {
+      // The alternate cut has its own episode list, but is still season one.
+      displaySeasons.push({ number: 101, episodeCount: 13, name: "Director’s Cut", airDate: "2020-01-01" });
+    }
+  }
+  const displayAtSeason = isReZero && at?.season === 1 && progressEdition === "directors-cut" ? 101 : at?.season;
   return (
     <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
-      {seasons.map((s) => (
-        <SeasonRow key={s.number} titleId={titleId} season={s} at={at?.season === s.number ? at.episode : null} seen={seenThrough !== null && s.number <= seenThrough} />
+      {displaySeasons.map((s) => (
+        <SeasonRow
+          key={s.number}
+          titleId={titleId}
+          season={s}
+          isReZero={isReZero}
+          at={displayAtSeason === s.number ? at?.episode ?? null : null}
+          seen={s.number !== 101 && seenThrough !== null && s.number <= seenThrough}
+        />
       ))}
     </ul>
   );
 }
 
-function SeasonRow({ titleId, season, at, seen }: { titleId: string; season: SeasonSummary; at: number | null; seen: boolean }) {
+function SeasonRow({ titleId, season, at, seen, isReZero }: { titleId: string; season: SeasonSummary; at: number | null; seen: boolean; isReZero: boolean }) {
   const [open, setOpen] = useState(false);
   const [episodes, setEpisodes] = useState<EpisodeInfo[] | null | "loading">(null);
   const panel = `season-${season.number}-episodes`;
@@ -61,8 +90,11 @@ function SeasonRow({ titleId, season, at, seen }: { titleId: string; season: Sea
       >
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-fg">
-            Stagione {season.number}
-            {season.name && <span className="text-fg-2"> · {season.name}</span>}
+            {season.number === 101
+              ? "Stagione 1 · Director’s Cut"
+              : isReZero && season.number === 1
+                ? "Stagione 1 · Originale 2016"
+                : <>Stagione {season.number}{season.name && <span className="text-fg-2"> · {season.name}</span>}</>}
           </span>
           <span className="block text-xs text-fg-3">
             {season.episodeCount === 1 ? "1 episodio" : `${season.episodeCount} episodi`}

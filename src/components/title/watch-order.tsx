@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { WatchPart } from "@/domain/types";
 import { FILLER_KEY, includedByDefault, type Overrides } from "@/domain/watch-order";
-import { setPartIncluded } from "@/server/actions/library";
+import { setPartIncluded, setReZeroVersion } from "@/server/actions/library";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -33,6 +33,10 @@ export function WatchOrder({
   const [chosen, setChosen] = useState<Record<string, boolean>>(overrides ?? {});
   const [, startTransition] = useTransition();
   const toast = useToast();
+  useEffect(() => {
+    setChosen(overrides ?? {});
+  }, [overrides]);
+
   const hasFiller = parts.some((p) => p.filler?.length);
   const fillerCount = parts.reduce((n, p) => n + (p.filler?.length ?? 0), 0);
 
@@ -55,30 +59,29 @@ export function WatchOrder({
     const before = chosen;
     const other = key === "rezero-directors-cut" ? "rezero-original-2016" : "rezero-directors-cut";
     const clearing = !included && chosen[key] === true;
+    const version = included
+      ? (key === "rezero-directors-cut" ? "directors-cut" : "2016")
+      : clearing ? null : (key === "rezero-directors-cut" ? "2016" : "directors-cut");
     const next = { ...chosen };
-    if (included) {
-      next[key] = true;
-      next[other] = false;
-      next["rezero-version"] = key === "rezero-directors-cut";
-    } else if (clearing) {
-      next[key] = false;
-      next[other] = false;
-      delete next["rezero-version"];
+    if (version === "directors-cut") {
+      next["rezero-directors-cut"] = true;
+      next["rezero-original-2016"] = false;
+      next["rezero-version"] = true;
+    } else if (version === "2016") {
+      next["rezero-directors-cut"] = false;
+      next["rezero-original-2016"] = true;
+      next["rezero-version"] = false;
     } else {
-      next[key] = false;
+      next["rezero-directors-cut"] = false;
+      next["rezero-original-2016"] = false;
+      delete next["rezero-version"];
     }
     setChosen(next);
     startTransition(async () => {
-      const first = await setPartIncluded(titleId, key, included ? true : false);
-      const second = first.ok && (included || clearing)
-        ? await setPartIncluded(titleId, other, false)
-        : first;
-      const third = second.ok && (included || clearing)
-        ? await setPartIncluded(titleId, "rezero-version", included ? key === "rezero-directors-cut" : null)
-        : second;
-      if (!first.ok || !second.ok || !third.ok) {
+      const res = await setReZeroVersion(titleId, version);
+      if (!res.ok) {
         setChosen(before);
-        toast.show(!first.ok ? first.error : !second.ok ? second.error : !third.ok ? third.error : "Non siamo riusciti a salvare la scelta.", { tone: "error" });
+        toast.show(res.error, { tone: "error" });
       }
     });
   }
@@ -91,8 +94,8 @@ export function WatchOrder({
     <div>
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
         {parts.map((part, i) => {
-          const isReZeroCut = isReZero && part.kind === "season" && part.season === 1;
-          const isDirectorsCut = /director.?s cut|shin[-_ ]henshuu/i.test(part.name);
+          const isDirectorsCut = part.season === 101 || part.key === "ann-22005" || /director.?s cut|shin[-_ ]henshuu/i.test(part.name);
+          const isReZeroCut = isReZero && part.kind === "season" && (part.season === 1 || part.season === 101 || part.key === "ann-22005");
           const key = isDirectorsCut ? "rezero-directors-cut" : "rezero-original-2016";
           const legacyOn = legacyVersion === undefined ? isDirectorsCut : legacyVersion === true ? isDirectorsCut : !isDirectorsCut;
           const on = isReZeroCut
@@ -105,7 +108,11 @@ export function WatchOrder({
                 {i + 1}
               </span>
               <div className={cn("min-w-0 flex-1", !on && "opacity-60")}>
-                <p id={labelId} className="truncate text-sm font-medium">{part.name}</p>
+                <p id={labelId} className="truncate text-sm font-medium">
+                  {isReZeroCut
+                    ? isDirectorsCut ? "Re:ZERO · Director’s Cut" : "Re:ZERO · Versione originale 2016"
+                    : part.name}
+                </p>
                 <p className="mt-0.5 text-xs text-fg-3">
                   {detail(part)}
                   {part.canon === false && " · non canon"}

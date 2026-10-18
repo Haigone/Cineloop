@@ -109,6 +109,21 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
   const view = await getTitleView(id);
   if (!view) notFound();
   const { title, entry, providers, friends, watchChoices } = view;
+  const reZeroOverrides = entry?.partOverrides ?? {};
+  const selectedReZeroVersion = reZeroOverrides["rezero-directors-cut"] === true
+    ? "directors-cut"
+    : reZeroOverrides["rezero-original-2016"] === true
+      ? "2016"
+      : typeof reZeroOverrides["rezero-version"] === "boolean"
+        ? reZeroOverrides["rezero-version"] ? "directors-cut" : "2016"
+        : null;
+  // The observed provider URL is authoritative for the edition actually being watched.
+  const progressUrl = entry?.progress?.url ?? "";
+  const progressEdition = progressUrl.includes("/anime/48-rezero-starting-life-in-another-world/")
+    ? "2016"
+    : /shin-henshuu-ban/i.test(progressUrl)
+      ? "directors-cut"
+      : selectedReZeroVersion;
 
   return (
     <article>
@@ -141,13 +156,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                   title={title}
                   progress={entry?.progress ?? null}
                   seenThrough={entry?.seenThrough ?? null}
-                  rezeroVersion={entry?.partOverrides?.["rezero-directors-cut"] === true
-                    ? "directors-cut"
-                    : entry?.partOverrides?.["rezero-original-2016"] === true
-                      ? "2016"
-                      : entry?.partOverrides?.["rezero-version"] === undefined
-                        ? null
-                        : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
+                  rezeroVersion={selectedReZeroVersion}
                 />
               </div>
             </div>
@@ -270,9 +279,11 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               </h2>
               <SeasonList
                 titleId={title.id}
+                titleName={title.title}
                 seasons={title.seasons}
                 at={entry?.progress ? { season: entry.progress.season, episode: entry.progress.episode } : null}
                 seenThrough={entry?.status === "completed" ? (entry.seenThrough ?? null) : null}
+                progressEdition={progressEdition}
               />
             </section>
           )}
@@ -330,17 +341,13 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               status={entry?.status ?? null}
               rating={entry?.rating ?? null}
               wishlisted={view.wishlisted}
-              rezeroVersion={entry?.partOverrides?.["rezero-version"] === undefined
-                ? null
-                : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
+              rezeroVersion={selectedReZeroVersion}
             />
             {title.type !== "movie" && (/re\s*:?\s*zero/i.test(title.title) || title.id === "anime-ann-17360") && (
               <ReZeroVersionChooser
                 titleId={title.id}
                 status={entry?.status === "watching" || entry?.status === "completed" ? entry.status : null}
-                version={entry?.partOverrides?.["rezero-version"] === undefined
-                  ? null
-                  : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
+                version={selectedReZeroVersion}
               />
             )}
             <div className="mt-3">

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Check } from "lucide-react";
-import { setPartIncluded, setStatus } from "@/server/actions/library";
+import { setReZeroVersion, setStatus } from "@/server/actions/library";
 import { useToast } from "@/components/ui/toast";
 
 type Version = "directors-cut" | "2016";
@@ -20,6 +20,10 @@ export function ReZeroVersionChooser({
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 
+  useEffect(() => {
+    setSelected(version);
+  }, [version]);
+
   function choose(next: Version) {
     const previous = selected;
     const target = selected === next ? null : next;
@@ -33,15 +37,8 @@ export function ReZeroVersionChooser({
           return;
         }
         result = await setStatus(titleId, "watching", target);
-      } else if (target === "directors-cut") {
-        result = await setPartIncluded(titleId, "rezero-directors-cut", true);
-        if (result.ok) result = await setPartIncluded(titleId, "rezero-original-2016", false);
-      } else if (target === "2016") {
-        result = await setPartIncluded(titleId, "rezero-original-2016", true);
-        if (result.ok) result = await setPartIncluded(titleId, "rezero-directors-cut", false);
       } else {
-        result = await setPartIncluded(titleId, "rezero-directors-cut", false);
-        if (result.ok) result = await setPartIncluded(titleId, "rezero-original-2016", false);
+        result = await setReZeroVersion(titleId, target);
       }
       if (!result.ok) {
         setSelected(previous);
