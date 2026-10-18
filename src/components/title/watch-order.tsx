@@ -108,7 +108,11 @@ export function WatchOrder({
                 {i + 1}
               </span>
               <div className={cn("min-w-0 flex-1", !on && "opacity-60")}>
-                <p id={labelId} className="truncate text-sm font-medium">{part.name}</p>
+                <p id={labelId} className="truncate text-sm font-medium">
+                  {isReZeroCut
+                    ? isDirectorsCut ? "Re:ZERO · Director’s Cut" : "Re:ZERO · Versione originale 2016"
+                    : part.name}
+                </p>
                 <p className="mt-0.5 text-xs text-fg-3">
                   {detail(part)}
                   {part.canon === false && " · non canon"}
