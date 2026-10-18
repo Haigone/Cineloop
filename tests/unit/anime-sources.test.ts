@@ -113,7 +113,7 @@ describe("remakes and alternative cuts share a season number", () => {
     expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 25]]);
     expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.name, p.season])).toEqual([
       ["Re:Zero - Starting Life in Another World", 1],
-      ["Re:Zero - Starting Life in Another World Director's Cut", 101],
+      ["Re:Zero - Starting Life in Another World Director's Cut", 1],
     ]);
     expect((await cat.episodes(title.id, 1))!.length).toBe(25);
     expect((await cat.episodes(title.id, 101))!.length).toBe(13);
@@ -127,7 +127,7 @@ describe("remakes and alternative cuts share a season number", () => {
     expect(title.seasons.map((s) => [s.number, s.episodeCount])).toEqual([[1, 25]]);
     expect(title.watchOrder!.filter((p) => p.kind === "season").map((p) => [p.name, p.season])).toEqual([
       ["Re:Zero - Starting Life in Another World", 1],
-      ["Re:Zero - Starting Life in Another World Director's Cut", 101],
+      ["Re:Zero - Starting Life in Another World Director's Cut", 1],
     ]);
     expect((await cat.episodes(title.id, 1))!.length).toBe(25);
     expect((await cat.episodes(title.id, 101))!.length).toBe(13);
