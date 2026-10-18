@@ -54,18 +54,31 @@ export function WatchOrder({
   async function chooseReZeroCut(key: "rezero-directors-cut" | "rezero-original-2016", included: boolean) {
     const before = chosen;
     const other = key === "rezero-directors-cut" ? "rezero-original-2016" : "rezero-directors-cut";
-    const next = { ...chosen, [key]: included };
+    const clearing = !included && chosen[key] === true;
+    const next = { ...chosen };
     if (included) {
+      next[key] = true;
       next[other] = false;
       next["rezero-version"] = key === "rezero-directors-cut";
+    } else if (clearing) {
+      delete next[key];
+      delete next[other];
+      delete next["rezero-version"];
+    } else {
+      next[key] = false;
     }
     setChosen(next);
     startTransition(async () => {
-      const first = await setPartIncluded(titleId, key, included);
-      const second = first.ok && included ? await setPartIncluded(titleId, other, false) : first;
-      if (!first.ok || !second.ok) {
+      const first = await setPartIncluded(titleId, key, included ? true : clearing ? null : false);
+      const second = first.ok && (included || clearing)
+        ? await setPartIncluded(titleId, other, included ? false : null)
+        : first;
+      const third = second.ok && (included || clearing)
+        ? await setPartIncluded(titleId, "rezero-version", included ? key === "rezero-directors-cut" : null)
+        : second;
+      if (!first.ok || !second.ok || !third.ok) {
         setChosen(before);
-        toast.show(!first.ok ? first.error : !second.ok ? second.error : "Non siamo riusciti a salvare la scelta.", { tone: "error" });
+        toast.show(!first.ok ? first.error : !second.ok ? second.error : !third.ok ? third.error : "Non siamo riusciti a salvare la scelta.", { tone: "error" });
       }
     });
   }
