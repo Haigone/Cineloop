@@ -10,6 +10,7 @@ import { getAdapter, resolveContinueUrl } from "@/integrations/providers/registr
 import { providerSearchUrl } from "@/integrations/providers/search-links";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
+import { migrateDuplicateAnimeInLibrary } from "./anime-migration";
 import { cacheTitles, ensureTitle } from "./explore";
 import { animeUnityResumeUrl, loadFriendBundles } from "./shared";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
@@ -31,6 +32,7 @@ export interface LibraryExtras {
 export async function getLibraryView(): Promise<Omit<LibraryView, "awaiting" | "newSeasons"> & { extras: Promise<LibraryExtras> }> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
+  await migrateDuplicateAnimeInLibrary(viewer.id);
   const [entries, wishlist] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id)]);
   const titles = new Map((await repo.getTitlesByIds(entries.map((e) => e.titleId))).map((t) => [t.id, t]));
   // Finished or still being watched: either way, something scheduled to come out is worth waiting for.
