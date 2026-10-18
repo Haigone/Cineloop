@@ -395,7 +395,7 @@ describe("an airing run split into entries", () => {
     const f = (await cat.search("One Piece", 5)).find((t) => t.id === "anime-ann-836");
     expect(f && f.type !== "movie" ? f.seasons.map((s) => s.episodeCount) : []).toEqual([1155, 34, 0]);
   });
-  
+
   it("normalizes ANN's unlabelled Re:ZERO 2020 Director's Cut entry", async () => {
     const original = entry(17360, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">25</info><info type="Vintage">2016-04-03</info><related-next rel="sequel" id="22005"/>`);
     const directorsCut = entry(22005, "TV", "Re:ZERO -Starting Life in Another World-", `<info type="Number of episodes">13</info><info type="Vintage">2020-07-08</info><related-prev rel="sequel of" id="17360"/>`);
