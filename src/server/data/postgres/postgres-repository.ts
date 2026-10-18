@@ -250,6 +250,28 @@ export class PostgresRepository implements Repository {
       const dup = (table: string) =>
         sql`delete from ${sql.raw(table)} o where o.title_id = ${oldId} and exists (select 1 from ${sql.raw(table)} n where n.user_id = o.user_id and n.title_id = ${next.id})`;
       await tx.execute(dup("wishlist_items"));
+      // When both IDs exist, merge the most recent playback position instead of silently
+      // discarding the duplicate row. Keep user preferences from either entry as well.
+      await tx.execute(sql`UPDATE library_entries n
+        SET progress = CASE
+              WHEN o.progress IS NOT NULL AND (
+                n.progress IS NULL OR
+                COALESCE((o.progress->>'updatedAt')::timestamptz, o.last_watched_at) >
+                COALESCE((n.progress->>'updatedAt')::timestamptz, n.last_watched_at)
+              ) THEN o.progress ELSE n.progress END,
+            status = CASE
+              WHEN o.last_watched_at IS NOT NULL AND
+                (n.last_watched_at IS NULL OR o.last_watched_at > n.last_watched_at)
+              THEN o.status ELSE n.status END,
+            added_at = LEAST(n.added_at, o.added_at),
+            last_watched_at = GREATEST(n.last_watched_at, o.last_watched_at),
+            rating = COALESCE(n.rating, o.rating),
+            seen_through = GREATEST(n.seen_through, o.seen_through),
+            ask_rating = n.ask_rating OR o.ask_rating,
+            part_overrides = o.part_overrides || n.part_overrides,
+            updates = CASE WHEN n.updates = 'all' AND o.updates <> 'all' THEN o.updates ELSE n.updates END
+        FROM library_entries o
+        WHERE o.title_id = ${oldId} AND n.title_id = ${next.id} AND n.user_id = o.user_id`);
       const mergedLibrary = await tx.execute(dup("library_entries"));
       const merged = (mergedLibrary as unknown as { count?: number }).count ?? 0;
       const moved = await tx.update(schema.libraryEntries).set({ titleId: next.id }).where(eq(schema.libraryEntries.titleId, oldId)).returning({ u: schema.libraryEntries.userId });
