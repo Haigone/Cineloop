@@ -103,6 +103,9 @@ export function WatchOrder({
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
         {parts.map((part, i) => {
           const on = chosen[part.key] ?? includedByDefault(part);
+          const displayedPart = isReZero && part.kind === "season" && part.season === 1 && reZeroVersion
+            ? { ...part, episodes: reZeroVersion === "directors-cut" ? 13 : 25 }
+            : part;
           const labelId = `part-${part.key}`;
           return (
             <li key={part.key} className="flex items-center gap-3 px-4 py-3">
@@ -114,7 +117,7 @@ export function WatchOrder({
                   {part.name}
                 </p>
                 <p className="mt-0.5 text-xs text-fg-3">
-                  {detail(part)}
+                  {detail(displayedPart)}
                   {part.canon === false && " · non canon"}
                   {part.filler?.length ? ` · ${part.filler.length} filler` : ""}
                 </p>
