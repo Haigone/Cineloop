@@ -4,6 +4,21 @@ import { ObservationAdapter } from "./base";
 const AU_HOST = "animeunity.so";
 const AU_HOME = "https://www.animeunity.so";
 
+export type AnimeUnityReZeroEdition = "directors-cut" | "2016";
+
+/** Resolve only the two verified AnimeUnity pages for Re:Zero season one. */
+export function animeUnityReZeroEdition(url: string): AnimeUnityReZeroEdition | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || !["animeunity.so", "www.animeunity.so"].includes(parsed.hostname.toLowerCase())) return null;
+    if (/^\\/anime\\/48-rezero-starting-life-in-another-world(?:\\/|$)/i.test(parsed.pathname)) return "2016";
+    if (/^\\/anime\\/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban(?:\\/|$)/i.test(parsed.pathname)) return "directors-cut";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve explicitly named AnimeUnity cours to their canonical season number. */
 export function animeUnityPartSeason(url: string, title: string): number | null {
   const text = (url + " " + title).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
