@@ -297,7 +297,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     return true;
   }
   if (message?.type === "player-progress" && sender.tab?.id && typeof message.progress === "number" && Number.isFinite(message.progress) && message.progress >= 0 && message.progress <= 1) {
-    frameProgress(sender.tab.id, message.progress).then(() => reply(true), () => reply(false));
+    frameProgress(sender.tab.id, message).then(() => reply(true), () => reply(false));
     return true;
   }
   if (message?.type === "party-context" && sender.tab?.id) {
@@ -366,7 +366,7 @@ async function playerTitle(tabId, m) {
     const effectiveProgress = progress ?? freshFrameProgress ?? was?.progress ?? null;
     const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
     const progressChanged = effectiveProgress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - effectiveProgress) >= 0.02);
-    const flush = identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
+    const flush = m.force === true || identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
@@ -374,6 +374,8 @@ async function playerTitle(tabId, m) {
       episode,
       episodeId,
       progress: effectiveProgress,
+      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : was?.position ?? null,
+      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : was?.duration ?? null,
       at: now,
       lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
     };
@@ -437,17 +439,29 @@ async function manualProgress(m) {
 }
 
 /** Aggiorna la posizione usando il video letto da un iframe accessibile. */
-async function frameProgress(tabId, progress) {
+async function frameProgress(tabId, m) {
   const now = Date.now();
-  const normalized = Math.round(progress * 1000) / 1000;
+  const normalized = Math.round(m.progress * 100000) / 100000;
   const flush = await updateTab(tabId, (entry) => {
     // The iframe can report before the AnimeUnity page has parsed its title.
     // Keep a short-lived sample so the first player-title message can use it.
-    entry.frameProgress = { progress: normalized, at: now };
+    entry.frameProgress = {
+      progress: normalized,
+      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : null,
+      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : null,
+      at: now,
+    };
     if (!entry.player || typeof entry.player.watchId !== "string" || typeof entry.player.title !== "string") return false;
-    const changed = entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.005;
+    const changed = m.force === true || entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.00001;
     if (!changed) return false;
-    entry.player = { ...entry.player, progress: normalized, at: now, lastFlushAt: now };
+    entry.player = {
+      ...entry.player,
+      progress: normalized,
+      position: entry.frameProgress.position ?? entry.player.position ?? null,
+      duration: entry.frameProgress.duration ?? entry.player.duration ?? null,
+      at: now,
+      lastFlushAt: now,
+    };
     return true;
   });
   if (flush) await tick();
@@ -514,7 +528,7 @@ async function partyReport(m) {
   soloCheckedAt = Date.now();
   // Prime Video: the id names the whole show, the season and episode tell the episodes apart.
   const where = Object.fromEntries(["season", "episode"].filter((k) => Number.isInteger(m[k])).map((k) => [k, m[k]]));
-  const body = { externalId: m.externalId, ...where, position: Math.max(0, m.position), paused: m.paused, ...(["play", "pause", "seek"].includes(m.action) ? { action: m.action } : {}), ...(typeof m.following === "boolean" ? { following: m.following } : {}) };
+  const body = { externalId: m.externalId, ...where, position: Math.max(0, m.position), ...(typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? { duration: m.duration } : {}), paused: m.paused, ...(["play", "pause", "seek"].includes(m.action) ? { action: m.action } : {}), ...(typeof m.following === "boolean" ? { following: m.following } : {}) };
   const { party } = await api("/api/extension/party", { method: "POST", body }).catch(() => ({ party: null }));
   await chrome.storage.session.set({ party: party ?? null });
   return { party };
