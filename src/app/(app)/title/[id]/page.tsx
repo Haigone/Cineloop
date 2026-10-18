@@ -149,7 +149,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
             </div>
             {entry?.progress ? (
               <>
-                <p className="mt-1 text-sm text-fg-2">{episodeLabel(entry.progress) ?? "In corso"}</p>
+                <p className="mt-1 text-sm text-fg-2">{entry.partOverrides?.["rezero-version"] === true && entry.progress.providerId === "animeunity" && /shin[-_ ]henshuu-ban/i.test(entry.progress.url) ? `Director’s Cut · ${episodeLabel(entry.progress) ?? "In corso"}` : episodeLabel(entry.progress) ?? "In corso"}</p>
                 <ProgressBar className="mt-3" value={entry.progress.fraction} label={`Avanzamento di ${title.title}`} />
                 <p className="mt-1.5 text-xs text-fg-3 tabular">{percent(entry.progress.fraction)} visto</p>
               </>
@@ -330,7 +330,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
                 ? null
                 : entry.partOverrides["rezero-version"] ? "directors-cut" : "2016"}
             />
-            {title.type !== "movie" && /re\s*:?\s*zero/i.test(title.title) && (
+            {title.type !== "movie" && (/re\s*:?\s*zero/i.test(title.title) || title.id === "anime-ann-17360") && (
               <ReZeroVersionChooser
                 titleId={title.id}
                 status={entry?.status === "watching" || entry?.status === "completed" ? entry.status : null}
