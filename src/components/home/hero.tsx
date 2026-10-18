@@ -40,7 +40,7 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
  * not play anything; the primary action hands the user back to the provider.
  */
 export function Hero({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
-  const { title, progress, providerName, continueUrl, continueOnSite, live, seriesFraction, seasonEpisodes } = item;
+  const { title, progress, providerName, continueUrl, continueOnSite, live, seriesFraction, seasonEpisodes, editionLabel } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
   const remaining = Math.max(1, Math.round(runtime * (1 - progress.fraction)));
@@ -86,6 +86,7 @@ export function Hero({ item, together }: { item: ContinueItem; together?: Shared
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-2">
           <ProviderBadge id={progress.providerId} />
           {ep && <span className="text-fg">{ep}</span>}
+          {editionLabel && <span className="rounded border border-line bg-black/20 px-1.5 py-0.5 text-xs">{editionLabel}</span>}
           {seasonEpisodes && progress.episode && <span>di {seasonEpisodes}</span>}
         </div>
         {together && <TogetherLine group={together} named className="mt-2 max-w-[420px] text-[13px]" />}
