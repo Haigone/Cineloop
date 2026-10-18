@@ -382,8 +382,12 @@ export async function saveManualProgress(
     const s = title.seasons.find((x) => x.number === season);
     // The catalogue's canonical season count follows the 13-episode Director's Cut.
     // The original 2016 cut has 25 episodes, while retaining season 1 for progress.
+    const reZeroOverrides = (await overridesFor(user.id, title.id) ?? {});
     const reZeroOriginal = /re\s*:?\s*zero/i.test(title.title) && season === 1 &&
-      (await overridesFor(user.id, title.id) ?? {})["rezero-version"] === false;
+      (reZeroOverrides["rezero-original-2016"] === true ||
+        (reZeroOverrides["rezero-original-2016"] !== true &&
+          reZeroOverrides["rezero-directors-cut"] !== true &&
+          reZeroOverrides["rezero-version"] === false));
     const episodeCount = reZeroOriginal ? 25 : (s?.episodeCount ?? 0);
     // When the catalogue does not list the seasons, any season and episode will do.
     const known = title.seasons.length > 0;
@@ -393,7 +397,11 @@ export async function saveManualProgress(
   }
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 1;
   const progressOverrides = (await overridesFor(user.id, title.id)) ?? {};
-  const progressTitle = title.type !== "movie" && /re\s*:?\s*zero/i.test(title.title) && season === 1 && progressOverrides["rezero-version"] === false
+  const progressUsesOriginal = progressOverrides["rezero-original-2016"] === true ||
+    (progressOverrides["rezero-original-2016"] !== true &&
+      progressOverrides["rezero-directors-cut"] !== true &&
+      progressOverrides["rezero-version"] === false);
+  const progressTitle = title.type !== "movie" && /re\s*:?\s*zero/i.test(title.title) && season === 1 && progressUsesOriginal
     ? { ...title, seasons: title.seasons.map((s) => s.number === 1 ? { ...s, episodeCount: 25 } : s) }
     : title;
   // At the end of the last episode (or of the film): seen, and Home asks for a rating.
@@ -425,7 +433,9 @@ export async function saveManualProgress(
       try { return prev?.url ? new URL(prev.url).pathname : ""; } catch { return ""; }
     })();
     const isReZeroSeasonOne = /re\s*:?\s*zero/i.test(title.title) && season === 1;
-    const selectedDirectorCut = entry?.partOverrides?.["rezero-version"] !== false;
+    const selectedDirectorCut = entry?.partOverrides?.["rezero-directors-cut"] === true ||
+      (entry?.partOverrides?.["rezero-original-2016"] !== true && entry?.partOverrides?.["rezero-directors-cut"] !== false &&
+        entry?.partOverrides?.["rezero-version"] !== false);
     const previousIsEpisodePath = /^\/anime\/\d+-[^/]+\/\d+$/.test(previousPath);
     const previousPathMatchesCut = !isReZeroSeasonOne ||
       (previousIsEpisodePath && (selectedDirectorCut ? /shin-henshuu-ban/i.test(previousPath) : !/shin-henshuu-ban/i.test(previousPath)));
