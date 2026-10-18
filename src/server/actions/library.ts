@@ -398,7 +398,7 @@ export async function saveManualProgress(
   const progressOverrides = (await overridesFor(user.id, title.id)) ?? {};
   const progressExplicitlyOriginal = progressOverrides["rezero-original-2016"] === true;
   const progressExplicitlyDirectorsCut = progressOverrides["rezero-directors-cut"] === true;
-  const progressUsesOriginal = progressExplicitlyOriginal ||
+  const progressUsesOriginal = progressExplicitlyOriginal || (!progressExplicitlyDirectorsCut && progressOverrides["rezero-version"] === false);
       progressOverrides["rezero-version"] === false);
   const progressTitle = title.type !== "movie" && /re\s*:?\s*zero/i.test(title.title) && season === 1 && progressUsesOriginal
     ? { ...title, seasons: title.seasons.map((s) => s.number === 1 ? { ...s, episodeCount: 25 } : s) }
