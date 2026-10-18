@@ -94,8 +94,8 @@ export function WatchOrder({
     <div>
       <ol className="divide-y divide-line rounded-xl border border-line bg-surface">
         {parts.map((part, i) => {
-          const isDirectorsCut = part.season === 101 || /director.?s cut|shin[-_ ]henshuu/i.test(part.name);
-          const isReZeroCut = isReZero && part.kind === "season" && (part.season === 1 || part.season === 101);
+          const isDirectorsCut = part.season === 101 || part.key === "ann-22005" || /director.?s cut|shin[-_ ]henshuu/i.test(part.name);
+          const isReZeroCut = isReZero && part.kind === "season" && (part.season === 1 || part.season === 101 || part.key === "ann-22005");
           const key = isDirectorsCut ? "rezero-directors-cut" : "rezero-original-2016";
           const legacyOn = legacyVersion === undefined ? isDirectorsCut : legacyVersion === true ? isDirectorsCut : !isDirectorsCut;
           const on = isReZeroCut
