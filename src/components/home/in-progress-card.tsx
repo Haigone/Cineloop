@@ -35,7 +35,7 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
  * you are (episode, or how much of the film) and how far through the series.
  */
 export function InProgressCard({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
-  const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live } = item;
+  const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live, editionLabel } = item;
   const ep = episodeLabel(progress, "short");
   // This card's bar represents the current episode (or film), not the whole series.
   const fraction = progress.fraction;
@@ -84,6 +84,7 @@ export function InProgressCard({ item, together }: { item: ContinueItem; togethe
               <span className="tabular">{ep}</span>
             </>
           )}
+          {editionLabel && <><span aria-hidden>·</span><span>{editionLabel}</span></>}
         </div>
         {together && <TogetherLine group={together} />}
         <div className="mt-2 flex items-center gap-2">
