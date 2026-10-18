@@ -57,7 +57,7 @@
   let lagging = false;
   let nudging = false;
 
-  const isAnimePlayerFrame = () =>
+  const isVixCloudPlayerFrame = () =>
     window !== window.top &&
     location.hostname !== "www.netflix.com" &&
     location.hostname !== "www.animeunity.so" &&
@@ -66,17 +66,17 @@
   const provider = () => {
     if (location.hostname === "www.netflix.com") return "netflix";
     if (onPrime) return "prime-video";
-    if (location.hostname === "www.animeunity.so" || isAnimePlayerFrame()) return "animeunity";
+    if (location.hostname === "www.animeunity.so" || isVixCloudPlayerFrame()) return "animeunity";
     return "streamingcommunity";
   };
-  let animeFrameContext = null;
-  let animeFrameContextAt = 0;
-  async function getAnimeFrameContext() {
-    if (!isAnimePlayerFrame()) return null;
-    if (animeFrameContext && Date.now() - animeFrameContextAt < 3000) return animeFrameContext;
-    animeFrameContext = await chrome.runtime.sendMessage({ type: "party-context" }).catch(() => null);
-    animeFrameContextAt = Date.now();
-    return animeFrameContext;
+  let playerFrameContext = null;
+  let playerFrameContextAt = 0;
+  async function getPlayerFrameContext() {
+    if (!isVixCloudPlayerFrame()) return null;
+    if (playerFrameContext && Date.now() - playerFrameContextAt < 3000) return playerFrameContext;
+    playerFrameContext = await chrome.runtime.sendMessage({ type: "party-context" }).catch(() => null);
+    playerFrameContextAt = Date.now();
+    return playerFrameContext;
   }
   /** Prime Video: what prime-page.js reads from the open player (null when closed or in an ad). */
   const primeNow = () => {
@@ -99,7 +99,11 @@
   const watchId = () => {
     if (provider() === "prime-video") return primeNow()?.watchId ?? null;
     if (provider() === "netflix") return /^\/watch\/(\d{1,12})/.exec(location.pathname)?.[1] ?? null;
-    if (provider() === "animeunity") return /^\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
+    if (provider() === "animeunity") {
+      const url = new URL(location.href);
+      url.searchParams.delete("cineloopResume");
+      return url.toString();
+    }
     const m = /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname);
     return m?.[1] ?? m?.[2] ?? null;
   };
@@ -173,18 +177,22 @@
     if (!v || !alive()) return;
     // AnimeUnity's actual <video> lives on VixCloud's cross-origin playlist
     // frame. Ask the background for the parent AnimeUnity URL; never guess an ID.
-    const frameContext = isAnimePlayerFrame() ? await getAnimeFrameContext() : null;
+    const frameContext = isVixCloudPlayerFrame() ? await getPlayerFrameContext() : null;
     const id = frameContext?.externalId ?? watchId();
     if (!id) return;
     const now = onPrime ? primeNow() : null;
     if (onPrime && (!now || now.video !== v)) return;
     const shift = now ? primeOffset(now) : 0;
-    const where = now ? { season: now.season ?? null, episode: now.episode ?? null } : {};
+    const where = now
+      ? { season: now.season ?? null, episode: now.episode ?? null }
+      : frameContext
+        ? { season: frameContext.season ?? null, episode: frameContext.episode ?? null }
+        : {};
     const n = ++sent;
     if (action) freshFrom = n;
     const t0 = performance.now();
     const res = await chrome.runtime
-      .sendMessage({ type: "party-report", externalId: id, ...where, position: Math.max(0, Math.round((v.currentTime - shift) * 10) / 10), paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
+      .sendMessage({ type: "party-report", externalId: id, ...where, position: Math.max(0, Math.round((v.currentTime - shift) * 100) / 100), duration: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null, paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
       .catch(() => null);
     if (n < freshFrom) return;
     if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000, shift);
@@ -275,7 +283,7 @@
       return clearInterval(timer);
     }
     const v = video();
-    if (!v || !watchId()) return;
+    if (!v || (!watchId() && !isVixCloudPlayerFrame())) return;
     bind(v);
     report(null);
   }, 2000);

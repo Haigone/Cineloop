@@ -12,10 +12,11 @@ function validExternalId(value: string): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
+    const animeUnity = host === "animeunity.so" || host.endsWith(".animeunity.so");
     return url.protocol === "https:" &&
-      (host === "animeunity.so" || host.endsWith(".animeunity.so")) &&
-      !url.username && !url.password &&
-      /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname);
+      animeUnity &&
+      /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname) &&
+      !url.username && !url.password;
   } catch {
     return false;
   }
@@ -28,6 +29,7 @@ const report = z
     season: z.number().int().min(0).max(999).nullable().optional(),
     episode: z.number().int().min(0).max(9999).nullable().optional(),
     position: z.number().min(0).max(24 * 3600),
+    duration: z.number().positive().max(24 * 3600).nullable().optional(),
     paused: z.boolean(),
     action: z.enum(["play", "pause", "seek"]).optional(),
     following: z.boolean().optional(),
