@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createContext, Suspense, use, useContext, useMemo, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
-import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, Search, SearchX } from "lucide-react";
+import { ArrowDown, ArrowUp, Clapperboard, GripVertical, Heart, LibraryBig, ListPlus, Plus, Search, SearchX } from "lucide-react";
 import type { Genre, MediaType } from "@/domain/types";
 import type { PlaylistView, WishlistRow } from "@/server/services/wishlist";
 import type { CommunityPlaylistView } from "@/server/services/community";
 import type { AwaitedRelease } from "@/server/services/awaited";
+import type { SagaStatus } from "@/domain/collections";
 import { setInPlaylist } from "@/server/actions/playlists";
 import { reorderWishlist, setWishlisted } from "@/server/actions/library";
 import { cn } from "@/lib/cn";
@@ -49,6 +49,7 @@ function RowReleaseTimer({ promise, titleId }: { promise: Promise<Record<string,
 
 type TypeFilter = "all" | MediaType;
 type Sort = "rank" | "added" | "rating";
+type LibraryCollectionItem = { id: string; name: string; saga: SagaStatus };
 
 const SORT_LABEL: Record<Sort, string> = { rank: "La mia classifica", added: "Data aggiunta", rating: "Voto community" };
 
@@ -56,12 +57,50 @@ const SORT_LABEL: Record<Sort, string> = { rank: "La mia classifica", added: "Da
  * The wishlist is a ranked queue. In "La mia classifica" order it can be
  * reordered by dragging the handle or with the up/down buttons (keyboard).
  */
+
+function PersonalCollectionsPanel({ kind, items }: { kind: "sagas" | "collections"; items: LibraryCollectionItem[] }) {
+  const [filter, setFilter] = useState<"all" | "watching" | "completed" | "wishlist">("all");
+  const isSaga = kind === "sagas";
+  const statusOf = (item: LibraryCollectionItem): "watching" | "completed" | "wishlist" =>
+    item.saga.total > 0 && item.saga.seen >= item.saga.total ? "completed" : item.saga.started ? "watching" : "wishlist";
+  const visible = items.filter((item) => filter === "all" || statusOf(item) === filter);
+  const catalogHref = isSaga ? "/sagas" : "/collections";
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-lg font-semibold">{isSaga ? "Le mie saghe" : "Le mie collezioni"}</h2><p className="mt-1 text-sm text-fg-2">Qui trovi solo gli elementi che hai aggiunto o iniziato a vedere.</p></div>
+        <Link href={catalogHref} className="inline-flex items-center gap-2 rounded-full border border-line-strong px-3.5 py-2 text-sm font-medium transition hover:bg-surface"><Plus aria-hidden className="size-4" /> Aggiungi {isSaga ? "una nuova saga" : "una nuova collezione"}</Link>
+      </div>
+      <Segmented label="Stato" value={filter} onChange={setFilter} options={[
+        { value: "all", label: "Tutte", count: items.length },
+        { value: "watching", label: "In corso", count: items.filter((item) => statusOf(item) === "watching").length },
+        { value: "completed", label: "Viste", count: items.filter((item) => statusOf(item) === "completed").length },
+        { value: "wishlist", label: "In wishlist", count: items.filter((item) => statusOf(item) === "wishlist").length },
+      ]} />
+      {visible.length > 0 ? <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{visible.map((item) => {
+        const status = statusOf(item);
+        const href = isSaga ? "/sagas/" + encodeURIComponent(item.id) : "/collections/" + encodeURIComponent(item.id.replace("demo-collection-", ""));
+        const progress = item.saga.total ? Math.round((item.saga.seen / item.saga.total) * 100) : 0;
+        return <li key={item.id} className="rounded-2xl border border-line bg-surface p-4">
+          <div className="flex items-start gap-3"><span className={"grid size-10 shrink-0 place-items-center rounded-xl " + (isSaga ? "bg-amber-300/10 text-amber-200" : "bg-violet-300/10 text-violet-200")}>{isSaga ? <Clapperboard className="size-5" /> : <LibraryBig className="size-5" />}</span>
+            <div className="min-w-0 flex-1"><h3 className="font-semibold">{item.name}</h3><p className="mt-1 text-xs text-fg-2">{status === "watching" ? "In corso" : status === "completed" ? "Vista" : "In wishlist"} · {item.saga.seen}/{item.saga.total} titoli visti</p></div></div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-accent" style={{ width: progress + "%" }} /></div>
+          <p className="mt-2 text-xs text-fg-2">{item.saga.remaining} da vedere{item.saga.upcoming.length ? " · " + item.saga.upcoming.length + " in arrivo" : ""}</p>
+          <Link href={href} className="mt-3 inline-flex rounded-full border border-line-strong px-3 py-1.5 text-sm font-medium hover:bg-surface-2">Apri {isSaga ? "saga" : "collezione"}</Link>
+        </li>;
+      })}</ul> : <div className="rounded-2xl border border-line bg-surface p-6"><p className="font-semibold">{items.length ? "Nessun elemento in questa categoria." : "Non hai ancora aggiunto " + (isSaga ? "saghe" : "collezioni") + " alla tua libreria."}</p><p className="mt-1 text-sm text-fg-2">{items.length ? "Prova a selezionare un altro stato." : "Puoi aggiungere una " + (isSaga ? "saga" : "collezione") + " dal catalogo."}</p>{!items.length && <Link href={catalogHref} className="mt-4 inline-flex rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white">Aggiungi {isSaga ? "una nuova saga" : "una nuova collezione"}</Link>}</div>}
+    </section>
+  );
+}
+
 export function WishlistBoard({
   initialRows,
   playlists,
   saved,
   releases,
   initialTab = "list",
+  sagas = [],
+  collections = [],
 }: {
   initialRows: WishlistRow[];
   playlists: PlaylistView[];
@@ -69,9 +108,10 @@ export function WishlistBoard({
   saved: CommunityPlaylistView[];
   releases: Promise<Record<string, AwaitedRelease>>;
   initialTab?: "list" | "playlists" | "sagas" | "collections";
+  sagas?: LibraryCollectionItem[];
+  collections?: LibraryCollectionItem[];
 }) {
   const [tab, setTab] = useState<"list" | "playlists" | "sagas" | "collections">(initialTab);
-  const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   // Server data wins whenever it changes (e.g. after adding from the dialog).
   const [source, setSource] = useState(initialRows);
@@ -184,11 +224,7 @@ export function WishlistBoard({
         label="Sezione"
         className="mb-6"
         value={tab}
-        onChange={(next) => {
-          if (next === "sagas") { router.push("/sagas?scope=wishlist"); return; }
-          if (next === "collections") { router.push("/collections?scope=wishlist"); return; }
-          setTab(next);
-        }}
+        onChange={setTab}
         options={[
           { value: "list", label: "Wishlist", count: rows.length },
           { value: "playlists", label: "Playlist", count: playlists.length + saved.length },
@@ -197,7 +233,11 @@ export function WishlistBoard({
         ]}
       />
 
-      {tab === "playlists" ? (
+      {tab === "sagas" ? (
+        <PersonalCollectionsPanel kind="sagas" items={sagas} />
+      ) : tab === "collections" ? (
+        <PersonalCollectionsPanel kind="collections" items={collections} />
+      ) : tab === "playlists" ? (
         <PlaylistsPanel playlists={playlists} saved={saved} wishlist={rows} />
       ) : rows.length === 0 ? (
         <EmptyState
