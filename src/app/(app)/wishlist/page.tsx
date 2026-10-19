@@ -25,5 +25,5 @@ export default function WishlistPage({ searchParams }: PageProps<"/wishlist">) {
 
 async function WishlistContent({ searchParams }: Pick<PageProps<"/wishlist">, "searchParams">) {
   const [{ rows, playlists, saved, releases }, { tab }] = await Promise.all([getWishlistView(), searchParams]);
-  return <WishlistBoard initialRows={rows} playlists={playlists} saved={saved} releases={releases} initialTab={tab === "playlists" ? "playlists" : "list"} />;
+  return <WishlistBoard initialRows={rows} playlists={playlists} saved={saved} releases={releases} initialTab={tab === "playlists" ? "playlists" : tab === "sagas" ? "sagas" : tab === "collections" ? "collections" : "list"} />;
 }

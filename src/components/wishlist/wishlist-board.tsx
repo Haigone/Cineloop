@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createContext, Suspense, use, useContext, useMemo, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
 import { ArrowDown, ArrowUp, GripVertical, Heart, ListPlus, Plus, Search, SearchX } from "lucide-react";
@@ -67,9 +68,10 @@ export function WishlistBoard({
   /** Community playlists the viewer saved: shown apart from their own, and never in the "Playlist" menu. */
   saved: CommunityPlaylistView[];
   releases: Promise<Record<string, AwaitedRelease>>;
-  initialTab?: "list" | "playlists";
+  initialTab?: "list" | "playlists" | "sagas" | "collections";
 }) {
-  const [tab, setTab] = useState<"list" | "playlists">(initialTab);
+  const [tab, setTab] = useState<"list" | "playlists" | "sagas" | "collections">(initialTab);
+  const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   // Server data wins whenever it changes (e.g. after adding from the dialog).
   const [source, setSource] = useState(initialRows);
@@ -182,10 +184,16 @@ export function WishlistBoard({
         label="Sezione"
         className="mb-6"
         value={tab}
-        onChange={setTab}
+        onChange={(next) => {
+          if (next === "sagas") { router.push("/sagas?scope=wishlist"); return; }
+          if (next === "collections") { router.push("/collections?scope=wishlist"); return; }
+          setTab(next);
+        }}
         options={[
           { value: "list", label: "Wishlist", count: rows.length },
           { value: "playlists", label: "Playlist", count: playlists.length + saved.length },
+          { value: "sagas", label: "Saghe" },
+          { value: "collections", label: "Collezioni" },
         ]}
       />
 

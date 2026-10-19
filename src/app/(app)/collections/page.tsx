@@ -9,10 +9,13 @@ import { KeyArt } from "@/components/media/key-art";
 
 export const metadata: Metadata = { title: "Collezioni" };
 
-export default function CollectionsPage() { return <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-line bg-surface" />}><CollectionsContent /></Suspense>; }
+export default function CollectionsPage({ searchParams }: PageProps<"/collections">) { return <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-line bg-surface" />}><CollectionsContent searchParams={searchParams} /></Suspense>; }
 
-async function CollectionsContent() {
-  const cards = await Promise.all(CURATED_COLLECTIONS.map(async (definition) => ({ definition, view: await getCollectionDetailView(`demo-collection-${definition.slug}`) })));
+async function CollectionsContent({ searchParams }: { searchParams: PageProps<"/collections">["searchParams"] }) {
+  const params = await searchParams;
+  const wishlistOnly = params.scope === "wishlist";
+  const allCards = await Promise.all(CURATED_COLLECTIONS.map(async (definition) => ({ definition, view: await getCollectionDetailView(`demo-collection-${definition.slug}`) })));
+  const cards = wishlistOnly ? allCards.filter(({ view }) => view?.followed) : allCards;
   return <main className="space-y-6">
     <section className="relative isolate overflow-hidden rounded-3xl border border-violet-300/25 bg-[radial-gradient(ellipse_at_top_left,rgba(139,92,246,.22),transparent_50%),linear-gradient(120deg,#171027,#0b0c12_72%)] px-5 py-8 sm:px-8 sm:py-10">
       <div aria-hidden className="absolute -left-10 -top-16 -z-10 size-64 rounded-full border border-violet-100/10 bg-violet-300/5 blur-2xl" />
@@ -21,7 +24,8 @@ async function CollectionsContent() {
       <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65">Universi condivisi e raccolte tematiche: ogni collezione ha la propria pagina, artwork, ordine di visione personale e una coda che puoi seguire dalla Home.</p>
     </section>
     <CollectionShortcuts compact />
-    <section><SectionHeader as="h2" title="Scegli il tuo universo" description="La lista dei titoli viene risolta sul catalogo collegato; i titoli non disponibili non vengono inventati." />
+    <section><SectionHeader as="h2" title={wishlistOnly ? "Collezioni seguite" : "Scegli il tuo universo"} description={wishlistOnly ? "Le raccolte che hai aggiunto alla tua libreria." : "La lista dei titoli viene risolta sul catalogo collegato; i titoli non disponibili non vengono inventati."} />
+      {wishlistOnly && cards.length === 0 && <p className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm text-fg-2">Non hai ancora aggiunto collezioni. Apri una collezione e scegli “Aggiungi alla mia libreria”.</p>}
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{cards.map(({ definition, view }) => {
         const c = view?.saga.collection; const image = c?.artwork.backdropUrl ?? c?.artwork.posterUrl;
         return <li key={definition.slug} className="group relative isolate min-h-72 overflow-hidden rounded-2xl border border-violet-200/20 bg-[#111017] transition hover:-translate-y-0.5 hover:border-violet-200/55">

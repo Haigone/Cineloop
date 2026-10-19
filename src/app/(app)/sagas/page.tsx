@@ -9,10 +9,13 @@ import { KeyArt } from "@/components/media/key-art";
 
 export const metadata: Metadata = { title: "Saghe" };
 
-export default function SagasPage() { return <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-line bg-surface" />}><SagasContent /></Suspense>; }
+export default function SagasPage({ searchParams }: PageProps<"/sagas">) { return <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-line bg-surface" />}><SagasContent searchParams={searchParams} /></Suspense>; }
 
-async function SagasContent() {
-  const items = await getSagaCatalogView();
+async function SagasContent({ searchParams }: { searchParams: PageProps<"/sagas">["searchParams"] }) {
+  const params = await searchParams;
+  const wishlistOnly = params.scope === "wishlist";
+  const allItems = await getSagaCatalogView();
+  const items = wishlistOnly ? allItems.filter(({ followed }) => followed) : allItems;
   return <main className="space-y-6">
     <section className="relative isolate overflow-hidden rounded-3xl border border-amber-300/25 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,.2),transparent_48%),linear-gradient(120deg,#1c1409,#0c0d12_72%)] px-5 py-8 sm:px-8 sm:py-10">
       <div aria-hidden className="absolute -right-10 -top-16 -z-10 size-64 rounded-full border border-amber-100/10 bg-amber-300/5 blur-2xl" />
@@ -21,7 +24,8 @@ async function SagasContent() {
       <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65">Storie collegate, trilogie e film numerati. Il catalogo viene ricostruito dalle appartenenze TMDB rilevate sui film, così le nuove parti possono comparire senza aggiornare una lista manuale.</p>
     </section>
     <CollectionShortcuts compact />
-    <section><SectionHeader as="h2" title="Catalogo delle saghe" description={`${items.length} saghe individuate nel catalogo collegato.`} />
+    <section><SectionHeader as="h2" title={wishlistOnly ? "Saghe seguite" : "Catalogo delle saghe"} description={wishlistOnly ? `${items.length} saghe aggiunte alla tua libreria.` : `${items.length} saghe individuate nel catalogo collegato.`} />
+      {wishlistOnly && items.length === 0 && <p className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm text-fg-2">Non hai ancora aggiunto saghe. Apri una saga e scegli “Aggiungi alla mia libreria”.</p>}
       {items.length ? <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{items.map(({ saga, followed }) => {
         const c = saga.collection; const image = c.artwork.backdropUrl ?? c.artwork.posterUrl;
         return <li key={c.id} className="group relative isolate min-h-64 overflow-hidden rounded-2xl border border-amber-200/20 bg-[#121116] transition hover:-translate-y-0.5 hover:border-amber-200/55">
