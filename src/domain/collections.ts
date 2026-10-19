@@ -7,6 +7,10 @@ import type { CollectionChoice, CollectionPart, FilmCollection, WatchStatus } fr
 
 export const DEFAULT_CHOICE: Omit<CollectionChoice, "collectionId"> = { order: [], excluded: [] };
 
+/** Reserved entries in CollectionChoice.excluded; they never match a real film ID. */
+export const COLLECTION_FOLLOW_MARKER = "__cineloop_follow_collection__";
+export const COLLECTION_CONTEXT_PREFIX = "__cineloop_context__:";
+
 /** Release order: dated films by date, then the ones announced without a date. */
 export function releaseOrder(parts: readonly CollectionPart[]): CollectionPart[] {
   return [...parts].sort((a, b) => (a.releaseDate ?? "9999").localeCompare(b.releaseDate ?? "9999") || a.title.title.localeCompare(b.title.title));

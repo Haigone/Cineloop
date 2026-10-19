@@ -14,6 +14,7 @@ import { FriendActivityList } from "@/components/social/friend-activity-list";
 import { LiveFriends } from "@/components/social/live-friends";
 import { Hero } from "@/components/home/hero";
 import { InProgressCard } from "@/components/home/in-progress-card";
+import { CollectionQueueCard } from "@/components/home/collection-queue-card";
 import { TogetherPlaceholder } from "@/components/home/together-placeholder";
 import { UpcomingNightCard } from "@/components/home/upcoming-night";
 import { HomeSkeleton } from "@/components/home/home-skeleton";
@@ -51,6 +52,24 @@ const EMPTY: Record<MediaType, { hero: string; wishlist: string }> = {
 async function NextEpisode({ later, titleId }: { later: Promise<HomeLater>; titleId: string }) {
   const release = (await later).upcomingEpisodes[titleId];
   return release ? <NewEpisodeNotice release={release} /> : null;
+}
+
+async function CollectionQueue({ later }: { later: Promise<HomeLater> }) {
+  const { collections } = await later;
+  if (!collections.length) return null;
+  return <RevealItem as="section" className="order-4 min-w-0"><SectionHeader title="La tua coda collezioni" description="Il prossimo film cambia automaticamente quando completi quello in corso." href="/collections" hrefLabel="Apri collezioni" /><ul className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 2xl:grid-cols-3">{collections.map((item) => <CollectionQueueCard key={item.collection.id} item={item} />)}</ul></RevealItem>;
+}
+
+async function CollectionAwareHero({ item, together, later }: { item: import("@/server/services/shared").ContinueItem; together: import("@/server/services/shared-watch").SharedWatchView | null; later: Promise<HomeLater> }) {
+  const { collections } = await later;
+  const collection = collections.find((entry) => entry.currentTitleId === item.title.id);
+  return <Hero item={item} together={together} collection={collection ? { name: collection.collection.name, nextTitle: collection.next?.title ?? null } : undefined} />;
+}
+
+async function CollectionAwareCard({ item, later }: { item: import("@/server/services/shared").ContinueItem; later: Promise<HomeLater> }) {
+  const { collections } = await later;
+  const collection = collections.find((entry) => entry.currentTitleId === item.title.id);
+  return <InProgressCard item={item} collection={collection ? { name: collection.collection.name, nextTitle: collection.next?.title ?? null } : undefined} />;
 }
 
 async function News({ later, wishlistIds }: { later: Promise<HomeLater>; wishlistIds: ReadonlySet<string> }) {
@@ -119,7 +138,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
         <RevealItem className="order-1">
           {view.nowWatching ? (
             <>
-              <Hero item={view.nowWatching} together={view.nowWatchingGroup} />
+              <CollectionAwareHero item={view.nowWatching} together={view.nowWatchingGroup} later={view.later} />
               {view.fillerRuns[view.nowWatching.title.id] && (
                 <FillerNotice titleId={view.nowWatching.title.id} titleName={view.nowWatching.title.title} run={view.fillerRuns[view.nowWatching.title.id]!} />
               )}
@@ -177,7 +196,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
             <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2 2xl:grid-cols-3">
               {view.continueWatching.map((item) => (
                 <li key={item.title.id} className="min-w-0">
-                  <InProgressCard item={item} />
+                  <CollectionAwareCard item={item} later={view.later} />
                   {view.fillerRuns[item.title.id] && <FillerNotice titleId={item.title.id} titleName={item.title.title} run={view.fillerRuns[item.title.id]!} />}
                   <Suspense fallback={null}>
                     <NextEpisode later={view.later} titleId={item.title.id} />
@@ -214,11 +233,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
           )}
         </RevealItem>
 
-        {view.category === "movie" && (
-          <Suspense fallback={null}>
-            <Sagas later={view.later} />
-          </Suspense>
-        )}
+        {view.category === "movie" && <><Suspense fallback={null}><Sagas later={view.later} /></Suspense><Suspense fallback={null}><CollectionQueue later={view.later} /></Suspense></>}
 
         <Suspense fallback={null}>
           <ComingFromWishlist later={view.later} />

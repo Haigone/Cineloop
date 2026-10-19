@@ -34,7 +34,7 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
  * A smaller rectangle under the hero for the other titles in progress: where
  * you are (episode, or how much of the film) and how far through the series.
  */
-export function InProgressCard({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
+export function InProgressCard({ item, together, collection }: { item: ContinueItem; together?: SharedWatchView | null; collection?: { name: string; nextTitle: import("@/domain/types").Title | null } }) {
   const { title, progress, continueUrl, continueOnSite, providerName, seriesFraction, live, editionLabel } = item;
   const ep = episodeLabel(progress, "short");
   // This card's bar represents the current episode (or film), not the whole series.
@@ -54,7 +54,7 @@ export function InProgressCard({ item, together }: { item: ContinueItem; togethe
       className={cn(
         "group/card relative flex items-center gap-3 rounded-lg border p-2 pr-3 transition-colors",
         // Watched together: a violet frame, so it reads as shared at a glance.
-        together ? "border-violet/55 bg-violet/[0.07] hover:border-violet/80 hover:bg-violet/[0.11]" : "border-line bg-surface hover:border-line-strong hover:bg-surface-2",
+        collection ? "border-violet-300/55 bg-[linear-gradient(110deg,rgba(91,33,182,.16),rgba(20,18,28,.98))] shadow-[0_0_22px_rgba(139,92,246,.08)] hover:border-violet-200/80" : together ? "border-violet/55 bg-violet/[0.07] hover:border-violet/80 hover:bg-violet/[0.11]" : "border-line bg-surface hover:border-line-strong hover:bg-surface-2",
       )}
     >
       <Wrapper
@@ -72,6 +72,7 @@ export function InProgressCard({ item, together }: { item: ContinueItem; togethe
         )}
       </div>
       <div className="pointer-events-none min-w-0 flex-1">
+        {collection && <span className="mb-1 inline-flex w-fit rounded-full border border-violet-200/35 bg-violet-950/60 px-2 py-0.5 text-[9px] font-extrabold tracking-[.15em] text-violet-100">COLLEZIONE · {collection.name}</span>}
         <p className="flex items-center gap-1.5 truncate text-sm font-medium text-fg">
           {live && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" />}
           <Link href={`/title/${title.id}`} className="pointer-events-auto relative z-10 truncate hover:text-accent hover:underline">{title.title}</Link>
@@ -87,6 +88,7 @@ export function InProgressCard({ item, together }: { item: ContinueItem; togethe
           {editionLabel && <><span aria-hidden>·</span><span>{editionLabel}</span></>}
         </div>
         {together && <TogetherLine group={together} />}
+        {collection?.nextTitle && <p className="mt-2 truncate text-[11px] font-medium text-violet-200">Dopo: {collection.nextTitle.title}</p>}
         <div className="mt-2 flex items-center gap-2">
           <ProgressBar value={fraction} label={`Avanzamento ${title.title}`} size="xs" className="flex-1" />
           <span className="text-[11px] tabular text-fg-2">{percent(fraction)}</span>

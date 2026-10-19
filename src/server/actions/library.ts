@@ -9,6 +9,7 @@ import { fillerRunAfter } from "@/domain/watch-order";
 import { italianDay } from "@/lib/dates";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
+import { COLLECTION_CONTEXT_PREFIX, COLLECTION_FOLLOW_MARKER } from "@/domain/collections";
 import { ensureTitle as cacheRemoteTitle } from "@/server/services/explore";
 import { shareProgress } from "@/server/services/shared-watch";
 import { getCatalog } from "@/integrations/catalog";
@@ -172,12 +173,13 @@ export async function reorderWishlist(orderedIds: string[]): Promise<ActionResul
 const statusSchema = z.enum(["watching", "completed", "planned", "dropped"]);
 
 
-export async function setStatus(id: string, status: string, rezeroVersion?: "directors-cut" | "2016"): Promise<ActionResult> {
+export async function setStatus(id: string, status: string, rezeroVersion?: "directors-cut" | "2016", collectionId?: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   const parsedId = titleId.safeParse(id);
   const parsedStatus = statusSchema.safeParse(status);
   const parsedReZeroVersion = z.enum(["directors-cut", "2016"]).optional().safeParse(rezeroVersion);
-  if (!parsedId.success || !parsedStatus.success || !parsedReZeroVersion.success || !(await ensureTitle(parsedId.data))) {
+  const parsedCollectionId = z.string().regex(/^(tmdb-collection-\d{1,12}|demo-collection-[a-z0-9-]{1,40})$/).optional().safeParse(collectionId);
+  if (!parsedId.success || !parsedStatus.success || !parsedReZeroVersion.success || !parsedCollectionId.success || !(await ensureTitle(parsedId.data))) {
     return { ok: false, error: "Richiesta non valida." };
   }
   return run(async () => {
@@ -199,6 +201,12 @@ export async function setStatus(id: string, status: string, rezeroVersion?: "dir
       // Keep the watch-order checkboxes aligned with the version selected on the title page.
       await repo.setPartOverride(user.id, resolvedId, "rezero-directors-cut", directorsCut);
       await repo.setPartOverride(user.id, resolvedId, "rezero-original-2016", !directorsCut);
+    }
+    // Keep the collection origin only when the title was opened from its collection page.
+    if (parsedCollectionId.data && (parsedStatus.data === "watching" || parsedStatus.data === "completed")) {
+      const current = (await repo.listCollectionChoices(user.id)).find((choice) => choice.collectionId === parsedCollectionId.data) ?? { order: [], excluded: [] };
+      const excluded = current.excluded.filter((value) => !value.startsWith(COLLECTION_CONTEXT_PREFIX));
+      await repo.saveCollectionChoice(user.id, { collectionId: parsedCollectionId.data, order: current.order, excluded: [...new Set([...excluded, COLLECTION_FOLLOW_MARKER, `${COLLECTION_CONTEXT_PREFIX}${resolvedId}`])] });
     }
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {

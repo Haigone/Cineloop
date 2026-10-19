@@ -24,9 +24,10 @@ interface Props {
   rating: RatingValue | null;
   wishlisted: boolean;
   rezeroVersion: "directors-cut" | "2016" | null;
+  collectionId?: string;
 }
 
-export function TitleActions({ titleId, titleName, status, rating, wishlisted, rezeroVersion }: Props) {
+export function TitleActions({ titleId, titleName, status, rating, wishlisted, rezeroVersion, collectionId }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useOptimistic<StatusChoice>(
@@ -54,7 +55,7 @@ export function TitleActions({ titleId, titleName, status, rating, wishlisted, r
             }
             startTransition(async () => {
               setOptimisticStatus(next);
-              const res = await setStatus(titleId, next);
+              const res = await setStatus(titleId, next, undefined, collectionId);
               toast.show(res.ok ? `${titleName}: ${OPTIONS.find((o) => o.value === next)!.label.toLowerCase()}` : res.error, {
                 tone: res.ok ? "success" : "error",
               });
@@ -95,7 +96,7 @@ export function TitleActions({ titleId, titleName, status, rating, wishlisted, r
                 setPendingStatus(null);
                 startTransition(async () => {
                   setOptimisticStatus(next);
-                  const res = await setStatus(titleId, next, version);
+                  const res = await setStatus(titleId, next, version, collectionId);
                   toast.show(res.ok ? `${titleName}: scelta di visione salvata` : res.error, { tone: res.ok ? "success" : "error" });
                 });
               }}

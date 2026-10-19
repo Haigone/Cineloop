@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { MapPin, Play } from "lucide-react";
 import type { ContinueItem } from "@/server/services/shared";
+import type { Title } from "@/domain/types";
 import type { SharedWatchView } from "@/server/services/shared-watch";
 import { cn } from "@/lib/cn";
 import { TogetherLine } from "./together-line";
@@ -39,7 +40,7 @@ function workerContinueUrl(titleId: string, titleName: string, sourceUrl: string
  * title opened: the single most important thing on Home. CineLoop does
  * not play anything; the primary action hands the user back to the provider.
  */
-export function Hero({ item, together }: { item: ContinueItem; together?: SharedWatchView | null }) {
+export function Hero({ item, together, collection }: { item: ContinueItem; together?: SharedWatchView | null; collection?: { name: string; nextTitle: Title | null } }) {
   const { title, progress, providerName, continueUrl, continueOnSite, live, seriesFraction, seasonEpisodes, editionLabel } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
@@ -53,7 +54,7 @@ export function Hero({ item, together }: { item: ContinueItem; together?: Shared
     : continueUrl;
 
   return (
-    <section aria-labelledby="hero-title" className={cn("relative isolate overflow-hidden rounded-xl border bg-surface", together ? "border-violet/60 ring-1 ring-violet/30" : "border-line")}>
+    <section aria-labelledby="hero-title" className={cn("relative isolate overflow-hidden rounded-xl border bg-surface", collection ? "border-violet-300/70 ring-1 ring-violet-300/25 shadow-[0_0_28px_rgba(139,92,246,.12)]" : together ? "border-violet/60 ring-1 ring-violet/30" : "border-line")}>
       <motion.div
         className="absolute inset-0 -z-10"
         initial={{ opacity: 0, scale: 1.06 }}
@@ -65,6 +66,7 @@ export function Hero({ item, together }: { item: ContinueItem; together?: Shared
         <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[linear-gradient(0deg,rgb(8_9_13/0.7),transparent)]" />
       </motion.div>
 
+      {collection && <span className="absolute top-4 left-4 z-10 inline-flex items-center rounded-full border border-violet-200/35 bg-violet-950/85 px-3 py-1.5 text-[10px] font-extrabold tracking-[.16em] text-violet-100">COLLEZIONE · {collection.name}</span>}
       {providerName && (
         <span className="absolute top-4 right-4 hidden rounded-md border border-white/10 bg-black/40 px-2.5 py-1 text-xs text-fg backdrop-blur-md sm:block">
           {providerName}
@@ -102,6 +104,7 @@ export function Hero({ item, together }: { item: ContinueItem; together?: Shared
             <span>{percent(progress.fraction)} {title.type === "movie" ? "visto" : "dell’episodio"}</span>
             <span>Mancano {formatDuration(remaining)}</span>
           </div>
+          {collection?.nextTitle && <p className="mt-3 truncate text-xs font-semibold text-violet-200">Dopo questo titolo: {collection.nextTitle.title}</p>}
           {seriesFraction !== null && (
             <div className="mt-3">
               <ProgressBar value={seriesFraction} label={`Avanzamento nella serie ${title.title}`} size="xs" />

@@ -22,6 +22,7 @@ import { TitleGrid } from "@/components/explore/title-grid";
 import { TastePicker } from "@/components/explore/taste-picker";
 import { TopTen } from "@/components/explore/top-ten";
 import { ReleaseRail } from "@/components/explore/release-rail";
+import { CollectionShortcuts } from "@/components/collections/category-shortcuts";
 
 const TYPE_PLURAL: Record<Filters["type"], string> = { all: "Tutto il catalogo", movie: "Tutti i film", series: "Tutte le serie", anime: "Tutti gli anime" };
 
@@ -31,6 +32,7 @@ export default function ExplorePage({ searchParams }: PageProps<"/explore">) {
   return (
     <>
       <SectionHeader as="h1" title="Esplora" description="Cerca nel catalogo o lasciati consigliare: tutto quello che trovi puoi aggiungerlo alla wishlist." />
+      <CollectionShortcuts />
       <Suspense fallback={<Skeleton className="h-12 rounded-xl" />}>
         <Filters searchParams={searchParams} />
       </Suspense>
