@@ -159,7 +159,7 @@ describe("TMDB collections", () => {
       ["tmdb-movie-122", "2003-12-01"],
       ["tmdb-movie-901", "2027-12-16"],
     ]);
-    expect(saga?.parts.every((p) => p.title.collection?.id === "tmdb-collection-119")).toBe(true);
+    expect(saga?.parts.every((p) => p.title.type === "movie" && p.title.collection?.id === "tmdb-collection-119")).toBe(true);
   });
 
   it("has a demo saga with a film still to come", async () => {

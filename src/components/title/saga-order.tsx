@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { moveInOrder } from "@/domain/collections";
-import type { Movie, WatchStatus } from "@/domain/types";
+import type { Title, WatchStatus } from "@/domain/types";
 import { setSagaFilmIncluded, setSagaOrder } from "@/server/actions/collections";
 import { KeyArt } from "@/components/media/key-art";
 import { ReleaseTimer } from "@/components/media/release-timer";
@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 export interface SagaFilmRow {
-  film: Movie;
+  film: Title;
   releaseDate: string | null;
   released: boolean;
   status: WatchStatus | null;
