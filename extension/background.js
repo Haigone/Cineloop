@@ -257,7 +257,10 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
     }).catch(() => {});
   }
 });
-chrome.tabs.onRemoved.addListener(() => tick());
+chrome.tabs.onRemoved.addListener((tabId) => {
+  // Capture completion before the normal heartbeat notices that the player closed.
+  finalizeNearEnd(tabId).catch(() => {}).finally(() => tick());
+});
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.scResolved) enableScPage();
   if (changes.paused || changes.token) tick();
@@ -349,9 +352,115 @@ async function remember(tab) {
   const onStreaming = Boolean(observedOrigin) || await isStreamingUrl(tab.url);
   if (!onNetflix && !onAnime && !onPrime && !onStreaming) return;
   await updateTab(tab.id, (entry) => {
+    entry.url = tab.url;
+    entry.documentTitle = tab.title ?? "";
     if (onNetflix && !watchId(tab.url)) entry.parentId = browseId(tab.url);
     if (tab.audible || !entry.audibleAt) entry.audibleAt = Date.now();
   });
+}
+
+/**
+ * When the user closes AnimeUnity/StreamingCommunity within the last four
+ * minutes, persist the current episode as finished and move the single library
+ * bookmark to the next episode, but only when the page exposed a verified next link.
+ */
+async function finalizeNearEnd(tabId) {
+  const { token, paused } = await getSettings();
+  if (!token || paused) return false;
+  const { tabs = {} } = await chrome.storage.session.get("tabs");
+  const entry = tabs[tabId];
+  const player = entry?.player;
+  const url = typeof entry?.url === "string" ? entry.url : "";
+  const providerId = isAnimeUrl(url) ? "animeunity" : "streamingcommunity";
+  if (!url || !player || (providerId === "streamingcommunity" && !(await isStreamingUrl(url)))) return false;
+  if (Date.now() - (player.at ?? 0) > 20_000) return false;
+  const position = player.position;
+  const duration = player.duration;
+  if (!Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0 || position < 0 || position > duration) return false;
+  if (duration - position > 4 * 60) return false;
+  if (!player.nextEpisodeUrl || !Number.isInteger(player.nextEpisode) || !Number.isInteger(player.episode)) return false;
+  const nextUrl = await validatedNextEpisodeUrl(url, player.nextEpisodeUrl);
+  if (!nextUrl) return false;
+
+  const commonHints = {
+    ...(player.title ? { title: player.title } : {}),
+    ...(Number.isInteger(player.season) && player.season > 0 ? { season: player.season } : {}),
+    ...(Number.isInteger(player.episode) && player.episode > 0 ? { episode: player.episode } : {}),
+    ...(player.episodeId ? { episodeId: player.episodeId } : {}),
+    position: Math.round(position * 10) / 10,
+    duration: Math.round(duration * 10) / 10,
+  };
+  // First persist the current episode at 100%, then move the single bookmark
+  // to the next episode at 0%.
+  await api("/api/extension/observe", {
+    method: "POST",
+    body: {
+      providerId,
+      url,
+      documentTitle: entry.documentTitle ?? "",
+      hints: { ...commonHints, progress: 1, position: Math.round(duration * 10) / 10 },
+      observedAt: new Date().toISOString(),
+    },
+  });
+  await api("/api/extension/observe", {
+    method: "POST",
+    body: {
+      providerId,
+      url: nextUrl,
+      documentTitle: entry.documentTitle ?? "",
+      hints: {
+        ...(player.title ? { title: player.title } : {}),
+        ...(Number.isInteger(player.season) && player.season > 0 ? { season: player.season } : {}),
+        episode: player.nextEpisode,
+        progress: 0,
+        position: 0,
+      },
+      observedAt: new Date().toISOString(),
+    },
+  });
+  return true;
+}
+
+/** Validate the page URL against the URL already observed for this tab. */
+async function validatedCurrentProviderUrl(reportedValue, knownValue) {
+  if (typeof reportedValue !== "string" || typeof knownValue !== "string") return knownValue;
+  let reported, known;
+  try { reported = new URL(reportedValue); known = new URL(knownValue); } catch { return knownValue; }
+  if (reported.protocol !== "https:" || reported.origin !== known.origin) return knownValue;
+  if (isAnimeUrl(knownValue)) {
+    return /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(reported.pathname) ? reported.toString() : knownValue;
+  }
+  if (!(await isStreamingUrl(knownValue))) return knownValue;
+  const validPath = /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)|^\/titles?\/\d{1,9}(?:[-/?#]|$)/i;
+  return validPath.test(reported.pathname) && reported.pathname === known.pathname ? reported.toString() : knownValue;
+}
+
+/** Accept only a next-episode link on the same provider title/page. */
+async function validatedNextEpisodeUrl(currentValue, candidateValue) {
+  if (typeof currentValue !== "string" || typeof candidateValue !== "string") return null;
+  let currentUrl, candidate;
+  try {
+    currentUrl = new URL(currentValue);
+    candidate = new URL(candidateValue);
+  } catch { return null; }
+  if (currentUrl.protocol !== "https:" || candidate.protocol !== "https:" || candidate.origin !== currentUrl.origin) return null;
+  candidate.hash = "";
+  candidate.searchParams.delete("cineloopResume");
+  if (isAnimeUrl(currentValue)) {
+    const currentMatch = /^\/anime\/(\d{1,9})(?:[-/]|$)/i.exec(currentUrl.pathname);
+    const nextMatch = /^\/anime\/(\d{1,9})[-/][^/]+\/(\d{1,12})(?:\/$|$)/i.exec(candidate.pathname);
+    if (!currentMatch || !nextMatch || currentMatch[1] !== nextMatch[1]) return null;
+    return candidate.toString();
+  }
+  if (!(await isStreamingUrl(currentValue))) return null;
+  const validPath = /^\/(?:[a-z]{2}\/)?watch\/\d{1,9}(?:\/|$)|^\/titles?\/\d{1,9}(?:[-/?#]|$)/i;
+  const currentEpisodeId = currentUrl.searchParams.get("e");
+  const nextEpisodeId = candidate.searchParams.get("e");
+  if (!validPath.test(currentUrl.pathname) || !validPath.test(candidate.pathname) ||
+      candidate.pathname !== currentUrl.pathname || !currentEpisodeId ||
+      !/^\d{1,12}$/.test(currentEpisodeId) || !nextEpisodeId ||
+      !/^\d{1,12}$/.test(nextEpisodeId) || nextEpisodeId === currentEpisodeId) return null;
+  return candidate.toString();
 }
 
 /** Cio' che il player dice essere sullo schermo, per scheda, finche' non cambia episodio. */
@@ -362,6 +471,13 @@ async function playerTitle(tabId, m) {
   const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
   const now = Date.now();
   const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null;
+  const { tabs: knownTabs = {} } = await chrome.storage.session.get("tabs");
+  const reportedPageUrl = typeof m.pageUrl === "string" ? m.pageUrl : knownTabs[tabId]?.url ?? "";
+  const pageUrl = await validatedCurrentProviderUrl(reportedPageUrl, knownTabs[tabId]?.url ?? "");
+  const nextEpisodeUrl = await validatedNextEpisodeUrl(pageUrl, m.nextEpisodeUrl);
+  const nextEpisode = Number.isInteger(m.nextEpisode) && episode !== null && m.nextEpisode === episode + 1
+    ? m.nextEpisode
+    : null;
   const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
     const freshFrameProgress = entry.frameProgress && now - entry.frameProgress.at < 15_000
@@ -380,6 +496,9 @@ async function playerTitle(tabId, m) {
       progress: effectiveProgress,
       position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : freshFrameProgress !== null ? entry.frameProgress?.position ?? was?.position ?? null : was?.position ?? null,
       duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : freshFrameProgress !== null ? entry.frameProgress?.duration ?? was?.duration ?? null : was?.duration ?? null,
+      ...(pageUrl ? { url: pageUrl } : {}),
+      nextEpisodeUrl: nextEpisodeUrl && nextEpisode !== null ? nextEpisodeUrl : null,
+      nextEpisode,
       at: now,
       lastFlushAt: flush ? now : (was?.lastFlushAt ?? now),
     };

@@ -191,6 +191,34 @@
     return episodeNumberFromElement(currentEpisodeLink());
   }
 
+  /** The next numbered episode link on this exact AnimeUnity title page. */
+  function nextEpisodeInfo(currentEpisode) {
+    const titleId = titleIdNow();
+    const currentLink = currentEpisodeLink();
+    if (!titleId || !currentLink || !Number.isInteger(currentEpisode) || currentEpisode < 1) return null;
+    const currentPath = new URL(currentLink.href, location.href).pathname.replace(/\/+$/, "");
+    const links = [];
+    const seen = new Set();
+    for (const link of document.querySelectorAll("a[href]")) {
+      try {
+        const url = new URL(link.href, location.href);
+        const path = url.pathname.replace(/\/+$/, "");
+        if (url.origin !== location.origin ||
+            !new RegExp("^/anime/" + titleId + "[-/][^/]+/\\d{1,12}$").test(path) ||
+            seen.has(path)) continue;
+        seen.add(path);
+        const number = episodeNumberFromElement(link);
+        if (number !== null) links.push({ path, url, number });
+      } catch {}
+    }
+    const index = links.findIndex((item) => item.path === currentPath);
+    const next = index >= 0 ? links.slice(index + 1).find((item) => item.number === currentEpisode + 1) : null;
+    if (!next) return null;
+    next.url.hash = "";
+    next.url.searchParams.delete("cineloopResume");
+    return { url: next.url.toString(), episode: next.number };
+  }
+
   function partSeasonFromPage() {
     const text = (location.pathname + " " + known.title + " " + document.title).toLowerCase();
     if (/the[-_\s]+blood[-_\s]+warfare|blood[-_\s]+warfare/.test(text)) return 1;
@@ -323,7 +351,13 @@
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
     const rawProgress = forcedProgress !== null ? forcedProgress : duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
     const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
-    const message = { type: "player-title", ...known, progress, position: video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null, duration, force };
+    const next = nextEpisodeInfo(known.episode);
+    const message = {
+      type: "player-title", ...known, pageUrl: location.href, progress,
+      position: video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null,
+      duration, force,
+      ...(next ? { nextEpisodeUrl: next.url, nextEpisode: next.episode } : {}),
+    };
     const key = JSON.stringify(known);
     const now = Date.now();
     const episodeChanged = key !== lastEpisodeKey;
