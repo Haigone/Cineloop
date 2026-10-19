@@ -117,6 +117,26 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
   }
   // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
   // The repository stores one anchor per season and enables arithmetic only after adjacent IDs verify a +1 sequence.
+  // Parent season/show IDs are kept separately and never treated as episode IDs.
+  if (presence.titleId && content.parentId && /^\d{1,12}$/.test(content.parentId) &&
+      Number.isSafeInteger(presence.season) && (presence.season ?? 0) > 0) {
+    const isReZeroTitle = presence.providerId === "animeunity" &&
+      (presence.titleId === "anime-ann-17360" || /re\s*:?\s*zero/i.test(presence.label ?? ""));
+    const observedCut = isReZeroTitle ? animeUnityReZeroEdition(presence.url) : null;
+    const libraryEntry = isReZeroTitle ? (await repo.listLibrary(userId)).find((entry) => entry.titleId === presence.titleId) : null;
+    const overrides = libraryEntry?.partOverrides ?? {};
+    const selectedCut = overrides["rezero-directors-cut"] === true && overrides["rezero-original-2016"] !== true
+      ? "directors-cut"
+      : overrides["rezero-original-2016"] === true && overrides["rezero-directors-cut"] !== true
+        ? "2016"
+        : typeof overrides["rezero-version"] === "boolean" ? (overrides["rezero-version"] ? "directors-cut" : "2016") : null;
+    const seasonKey = isReZeroTitle && presence.season === 1 &&
+      (observedCut === "2016" || (!observedCut && selectedCut === "2016")) ? 101 : presence.season!;
+    await repo.saveObservedSeasonLink({
+      providerId: presence.providerId, titleId: presence.titleId, seasonNumber: seasonKey, externalId: content.parentId,
+    });
+  }
+
   const observedEpisodeId = obs.hints?.episodeId;
   if (
     presence.titleId &&

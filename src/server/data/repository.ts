@@ -171,6 +171,8 @@ export interface Repository {
   /** Catalog title a provider id was matched to, trying ids in order. */
   findProviderLink(providerId: ProviderId, externalIds: readonly string[]): Promise<string | null>;
   saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }): Promise<void>;
+  saveObservedSeasonLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; externalId: string }): Promise<void>;
+  resolveSeasonExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number }): Promise<string | null>;
   /** Learn a verified episode reference; only enable ID arithmetic after adjacent episodes confirm it. */
   saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }): Promise<void>;
   /** Resolve an exact episode ID or infer only from a verified anchor in the same season. */

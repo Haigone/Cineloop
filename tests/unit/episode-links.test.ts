@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { getRepository } from "@/server/data";
 
 describe("provider episode link learning", () => {
+  it("stores season page IDs separately from episode mappings", async () => {
+    const repo = getRepository();
+    const titleId = `season-link-test-${crypto.randomUUID()}`;
+    const base = { providerId: "animeunity" as const, titleId, seasonNumber: 1 };
+    expect(await repo.resolveSeasonExternalId(base)).toBeNull();
+    await repo.saveObservedSeasonLink({ ...base, externalId: "1973" });
+    expect(await repo.resolveSeasonExternalId(base)).toBe("1973");
+    expect(await repo.resolveEpisodeExternalId({ ...base, episodeNumber: 1 })).toBeNull();
+  });
   it("infers only after adjacent episodes verify a sequence and never crosses seasons", async () => {
     const repo = getRepository();
     const titleId = `episode-link-test-${crypto.randomUUID()}`;

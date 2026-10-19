@@ -376,6 +376,19 @@ export const providerTitleLinks = pgTable(
   (t) => [primaryKey({ columns: [t.providerId, t.externalId] })],
 );
 
+/** Verified provider page ID for a season, separate from episode IDs. */
+export const providerSeasonLinks = pgTable("provider_season_links", {
+  providerId: text("provider_id").$type<ProviderId>().notNull(),
+  titleId: text("title_id").notNull().references(() => titles.id, { onDelete: "cascade" }),
+  seasonNumber: integer("season_number").notNull(),
+  externalId: text("external_id").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.providerId, t.titleId, t.seasonNumber] }),
+  index("provider_season_links_title_provider_idx").on(t.titleId, t.providerId),
+  check("provider_season_links_positive_season", sql`${t.seasonNumber} > 0`),
+]);
+
 /** Minimal provider episode map: one anchor per season plus only non-linear exceptions. */
 export const episodeLinks = pgTable(
   "episode_links",
