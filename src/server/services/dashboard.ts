@@ -16,7 +16,7 @@ import { getRepository } from "@/server/data";
 import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
 import { listLiveFriends, type LiveFriend } from "./sync";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
-import { listOpenSagas, notifySagas } from "./collections";
+import { listOpenSagas, notifySagas, getFollowedCollectionQueues, type CollectionQueueItem } from "./collections";
 import { activateNights } from "./nights";
 import { listUpcomingNights, type UpcomingNight } from "./watch-party";
 import type { SagaStatus } from "@/domain/collections";
@@ -51,6 +51,8 @@ export interface HomeLater {
   premieres: { title: Title; release: AwaitedRelease }[];
   /** Sagas the user started with films still to watch or still to come out. */
   sagas: SagaStatus[];
+  /** Followed collections with the next film in the personal Home queue. */
+  collections: CollectionQueueItem[];
 }
 
 export interface HomeView {
@@ -202,10 +204,11 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
       console.error("sagas failed", err);
       return [];
     }),
+    category === "movie" ? getFollowedCollectionQueues(repo, viewer.id, library).catch((err) => { console.error("collection queue failed", err); return []; }) : Promise.resolve([]),
     // From every section, like the saga reminders: these series are no longer shown anywhere on Home.
     notifyReleaseDay(repo, viewer.id, library, titles, today).catch((err) => console.error("release-day notifications failed", err)),
   ])
-    .then(async ([awaited, watchingAhead, newSeasons, premieres, sagas]) => {
+    .then(async ([awaited, watchingAhead, newSeasons, premieres, sagas, collections]) => {
       // Reminders go out from every section: the films are only shown under Film.
       if (sagas.length && getCatalog().complete) await notifySagas(repo, viewer.id, sagas, today).catch((err) => console.error("saga reminders failed", err));
       const upcomingEpisodes: Record<string, AwaitedRelease> = {};
@@ -215,12 +218,13 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
         upcomingEpisodes,
         premieres,
         sagas,
+        collections,
         awaiting: finished
           .flatMap((title) => (awaited.has(title.id) ? [{ title, release: awaited.get(title.id)! }] : []))
           .sort((a, b) => (a.release.date ?? "9999").localeCompare(b.release.date ?? "9999")),
       };
     })
-    .catch((): HomeLater => ({ newSeasons: [], upcomingEpisodes: {}, awaiting: [], premieres: [], sagas: [] }));
+    .catch((): HomeLater => ({ newSeasons: [], upcomingEpisodes: {}, awaiting: [], premieres: [], sagas: [], collections: [] }));
   return {
     viewer: toPublicUser(viewer),
     category,

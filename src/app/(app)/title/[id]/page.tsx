@@ -84,7 +84,7 @@ function siteWatchUrl(
  */
 const SHOW_SOURCE_CHOOSER = false;
 
-export default function TitlePage({ params }: PageProps<"/title/[id]">) {
+export default function TitlePage({ params, searchParams }: PageProps<"/title/[id]">) {
   return (
     <Suspense
       fallback={
@@ -93,13 +93,14 @@ export default function TitlePage({ params }: PageProps<"/title/[id]">) {
         </LoadingRegion>
       }
     >
-      <TitleContent params={params} />
+      <TitleContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function TitleContent({ params }: { params: PageProps<"/title/[id]">["params"] }) {
-  const { id } = await params;
+async function TitleContent({ params, searchParams }: { params: PageProps<"/title/[id]">["params"]; searchParams: PageProps<"/title/[id]">["searchParams"] }) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const collectionId = typeof query.collection === "string" && /^(tmdb-collection-\d{1,12}|demo-collection-[a-z0-9-]{1,40})$/.test(query.collection) ? query.collection : undefined;
   // A duplicate of another title opens the one kept in its place, with what was saved on it.
   const kept = await retireDuplicate(id);
   if (kept) redirect(`/title/${kept}`);
@@ -342,6 +343,7 @@ async function TitleContent({ params }: { params: PageProps<"/title/[id]">["para
               rating={entry?.rating ?? null}
               wishlisted={view.wishlisted}
               rezeroVersion={selectedReZeroVersion}
+              collectionId={collectionId}
             />
             {title.type !== "movie" && (/re\s*:?\s*zero/i.test(title.title) || title.id === "anime-ann-17360") && (
               <ReZeroVersionChooser
