@@ -23,6 +23,21 @@
   /** What the player last named, kept until the episode changes. */
   let known = { watchId: null, title: "", season: null, episode: null };
   let lastSent = "";
+  let lastProgressSentAt = 0;
+  let boundVideo = null;
+  const PROGRESS_SEND_INTERVAL_MS = 5_000;
+
+  function bindVideo(video) {
+    if (!video || boundVideo === video) return;
+    boundVideo = video;
+    video.addEventListener("timeupdate", () => {
+      if (Date.now() - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) read();
+    });
+    video.addEventListener("pause", () => read(true));
+    video.addEventListener("ended", () => read(true, 1));
+    video.addEventListener("loadedmetadata", () => read(true));
+    video.addEventListener("seeked", () => read(true));
+  }
 
   function parseEpisode(texts) {
     for (const t of texts) {
@@ -71,7 +86,7 @@
     return { title: show, ...parseEpisode(fields) };
   }
 
-  function read() {
+  function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
     const id = watchIdNow();
     if (!id) return;
@@ -79,20 +94,35 @@
     for (const found of [fromPlayer(), fromMediaSession()]) {
       if (!found) continue;
       if (found.title && !known.title) known.title = found.title.replace(/\s+/g, " ").slice(0, 200);
-      if (found.episode !== null && known.episode === null) known.episode = found.episode;
-      if (found.season !== null && known.season === null) known.season = found.season;
+      // Netflix can update the episode label after the watch page is already open.
+      if (found.episode !== null && found.episode !== undefined) known.episode = found.episode;
+      if (found.season !== null && found.season !== undefined) known.season = found.season;
     }
     const video = document.querySelector("video");
+    bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-    const progress = duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
-    const message = { type: "player-title", ...known, progress: progress === null ? null : Math.round(progress * 1000) / 1000 };
-    // Send names as soon as they appear; progress alone at most every half minute.
+    const position = video && Number.isFinite(video.currentTime) && video.currentTime >= 0 ? video.currentTime : null;
+    const rawProgress = forcedProgress !== null ? forcedProgress : duration && position !== null
+      ? Math.min(1, Math.max(0, position / duration))
+      : null;
+    const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
+    const message = {
+      type: "player-title",
+      ...known,
+      pageUrl: location.href,
+      progress,
+      position,
+      duration,
+      force,
+      ended: forcedProgress === 1,
+    };
     const key = JSON.stringify(known);
     const now = Date.now();
-    if (key === lastSent && now - (read.progressAt ?? 0) < 30_000) return;
+    const identityChanged = key !== lastSent;
+    if (!force && !identityChanged && now - lastProgressSentAt < PROGRESS_SEND_INTERVAL_MS) return;
     if (!known.title && progress === null) return;
     lastSent = key;
-    read.progressAt = now;
+    lastProgressSentAt = now;
     try {
       chrome.runtime.sendMessage(message).catch(() => {});
     } catch {
@@ -110,7 +140,7 @@
     }, 500);
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  const timer = setInterval(read, 5000);
+  const timer = setInterval(read, PROGRESS_SEND_INTERVAL_MS);
   function stop() {
     stopped = true;
     observer.disconnect();

@@ -108,8 +108,7 @@
         if (number !== null) links.push({ url, episodeId, number });
       } catch {}
     }
-    const index = links.findIndex((item) => item.episodeId === currentEpisodeId);
-    const next = index >= 0 ? links.slice(index + 1).find((item) => item.number === currentEpisode + 1) : null;
+    const next = links.find((item) => item.episodeId !== currentEpisodeId && item.number === currentEpisode + 1) ?? null;
     if (!next) return null;
     next.url.hash = "";
     next.url.searchParams.delete("cineloopResume");
