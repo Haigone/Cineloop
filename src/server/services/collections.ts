@@ -132,14 +132,14 @@ async function loadCuratedCollection(slugOrId: string): Promise<FilmCollection |
   const repo = getRepository();
   const cached = await repo.listTitles();
   const results = await Promise.all(definition.terms.map(async (term) => {
-    const cachedMatch = cached.find((title) => searchKey(title.title) === searchKey(term));
+    const cachedMatch = cached.find((title) => title.type === "movie" && searchKey(title.title) === searchKey(term));
     if (cachedMatch) return cachedMatch;
     const hits = await getCatalog().search(term, 5).catch(() => []);
     return hits.find((hit) => searchKey(hit.title) === searchKey(term))
       ?? hits.find((hit) => searchKey(hit.title).startsWith(searchKey(term)) || searchKey(term).startsWith(searchKey(hit.title)))
       ?? null;
   }));
-  const movies = [...new Map(results.filter((title): title is Title => Boolean(title && (title.type === "movie" || title.type === "series"))).map((movie) => [movie.id, movie])).values()];
+  const movies = [...new Map(results.filter((title): title is Movie => title?.type === "movie").map((movie) => [movie.id, movie])).values()];
   if (movies.length) await cacheTitles(getRepository(), movies);
   const first = movies[0];
   return {
