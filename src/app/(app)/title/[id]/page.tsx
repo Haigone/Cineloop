@@ -128,9 +128,12 @@ async function TitleContent({ params, searchParams }: { params: PageProps<"/titl
 
   return (
     <article>
-      <div className="relative isolate -mx-4 -mt-6 overflow-hidden md:mx-0 md:mt-0 md:rounded-xl md:border md:border-line">
+      <div className={collectionId?.includes("marvel-cinematic-universe") ? "relative isolate -mx-4 -mt-6 overflow-hidden border border-red-400/40 bg-[radial-gradient(ellipse_at_top_right,rgba(220,38,38,.32),transparent_48%),linear-gradient(135deg,#1b080c,#08090d_72%)] md:mx-0 md:mt-0 md:rounded-xl" : collectionId?.includes("wizarding-world") ? "relative isolate -mx-4 -mt-6 overflow-hidden border border-violet-300/40 bg-[radial-gradient(ellipse_at_top_right,rgba(139,92,246,.32),transparent_48%),linear-gradient(135deg,#130a20,#08090d_72%)] md:mx-0 md:mt-0 md:rounded-xl" : collectionId?.includes("star-wars") ? "relative isolate -mx-4 -mt-6 overflow-hidden border border-amber-200/40 bg-[radial-gradient(ellipse_at_top_right,rgba(234,179,8,.28),transparent_48%),linear-gradient(135deg,#11101a,#08090d_72%)] md:mx-0 md:mt-0 md:rounded-xl" : "relative isolate -mx-4 -mt-6 overflow-hidden md:mx-0 md:mt-0 md:rounded-xl md:border md:border-line"}>
         <KeyArt title={title} variant="backdrop" priority className="absolute inset-0 -z-10" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(0deg,#08090d_8%,rgb(8_9_13/0.6)_60%,rgb(8_9_13/0.25))]" />
+        {collectionId?.includes("marvel-cinematic-universe") && <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_20%,rgba(239,68,68,.22),transparent_24%),linear-gradient(120deg,rgba(127,29,29,.18),transparent_60%)]" />}
+        {collectionId?.includes("wizarding-world") && <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_18%,rgba(196,181,253,.25),transparent_20%),radial-gradient(circle_at_12%_75%,rgba(124,58,237,.2),transparent_24%)]" />}
+        {collectionId?.includes("star-wars") && <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_18%,rgba(253,224,71,.22),transparent_20%),radial-gradient(circle_at_15%_70%,rgba(59,130,246,.2),transparent_22%)]" />}
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(0deg,#08090d_8%,rgb(8_9_13/0.68)_60%,rgb(8_9_13/0.25))]" />
         <div className="flex flex-col gap-6 px-4 pt-28 pb-8 sm:flex-row sm:items-end sm:px-8 md:pt-40">
           <KeyArt title={title} variant="poster" showTitle className="hidden aspect-[2/3] w-40 shrink-0 rounded-lg border border-line-strong shadow-pop sm:block" />
           <div className="min-w-0">
