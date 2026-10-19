@@ -17,7 +17,7 @@ async function CollectionDetailContent({ params }: { params: PageProps<"/collect
   const { slug } = await params;
   const definition = CURATED_COLLECTIONS.find((item) => item.slug === slug);
   if (!definition) notFound();
-  const view = await getCollectionDetailView(`demo-collection-${slug}`).catch(() => null);
+  const view = await getCollectionDetailView(`demo-collection-${slug}`);
   if (!view) notFound();
   const { collection } = view.saga;
   const image = collection.artwork.backdropUrl ?? collection.artwork.posterUrl;

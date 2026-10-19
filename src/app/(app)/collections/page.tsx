@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Collezioni" };
 export default function CollectionsPage() { return <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-line bg-surface" />}><CollectionsContent /></Suspense>; }
 
 async function CollectionsContent() {
-  const cards = await Promise.all(CURATED_COLLECTIONS.map(async (definition) => ({ definition, view: await getCollectionDetailView(`demo-collection-${definition.slug}`).catch(() => null) })));
+  const cards = await Promise.all(CURATED_COLLECTIONS.map(async (definition) => ({ definition, view: await getCollectionDetailView(`demo-collection-${definition.slug}`) })));
   return <main className="space-y-6">
     <section className="relative isolate overflow-hidden rounded-3xl border border-violet-300/25 bg-[radial-gradient(ellipse_at_top_left,rgba(139,92,246,.22),transparent_50%),linear-gradient(120deg,#171027,#0b0c12_72%)] px-5 py-8 sm:px-8 sm:py-10">
       <div aria-hidden className="absolute -left-10 -top-16 -z-10 size-64 rounded-full border border-violet-100/10 bg-violet-300/5 blur-2xl" />
