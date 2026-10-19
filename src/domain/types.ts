@@ -82,7 +82,7 @@ export interface CollectionRef {
 
 /** One film of a saga, with its release date. */
 export interface CollectionPart {
-  title: Movie;
+  title: Title;
   /** First release in Italy when known, else worldwide (YYYY-MM-DD); null when announced without a date. */
   releaseDate: string | null;
 }
