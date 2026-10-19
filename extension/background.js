@@ -504,6 +504,8 @@ function playerHints(player, id) {
     ...(player.episode !== null ? { episode: player.episode } : {}),
     ...(player.episodeId ? { episodeId: player.episodeId } : {}),
     ...(player.progress !== null && player.progress !== undefined ? { progress: player.progress } : {}),
+    ...(Number.isFinite(player.position) && player.position >= 0 ? { position: player.position } : {}),
+    ...(Number.isFinite(player.duration) && player.duration > 0 ? { duration: player.duration } : {}),
   };
 }
 

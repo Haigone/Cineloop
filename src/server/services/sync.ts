@@ -93,7 +93,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const titleId = recognised && (await inYourNight(repo, userId, recognised));
     if (titleId) {
       presence.titleId = titleId;
-      await startWatching(repo, presence, fraction);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     }
   } else {
     // A session may already carry a stale AnimeUnity -> movie link from before
@@ -109,10 +109,10 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
-      await startWatching(repo, presence, fraction);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     } else if (!step.started) {
       // Episode and position as the player reports them, every heartbeat.
-      await syncProgress(repo, presence, fraction);
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     }
   }
   // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
@@ -621,9 +621,15 @@ async function matchLabel(repo: Repository, presence: Presence, parentId: string
 }
 
 /** First time a session is matched to a title: it goes to "In corso" (even if seen before) and friends see it. */
-async function startWatching(repo: Repository, presence: Presence, fraction: number | null = null): Promise<void> {
+async function startWatching(
+  repo: Repository,
+  presence: Presence,
+  fraction: number | null = null,
+  position?: number,
+  duration?: number,
+): Promise<void> {
   const titleId = presence.titleId!;
-  await syncProgress(repo, presence, fraction);
+  await syncProgress(repo, presence, fraction, position, duration);
   await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
     userId: presence.userId,
@@ -641,7 +647,13 @@ async function startWatching(repo: Repository, presence: Presence, fraction: num
  * how far into it. Watching a title marked as seen (a rewatch, a new season)
  * puts it back in progress. Writes only when something changed.
  */
-async function syncProgress(repo: Repository, presence: Presence, fraction: number | null): Promise<void> {
+async function syncProgress(
+  repo: Repository,
+  presence: Presence,
+  fraction: number | null,
+  position?: number,
+  duration?: number,
+): Promise<void> {
   const titleId = presence.titleId!;
   const [entry, title] = await Promise.all([
     repo.listLibrary(presence.userId).then((l) => l.find((e) => e.titleId === titleId)),
@@ -699,7 +711,19 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
       return;
     }
   }
-  const unchanged = entry?.status === "watching" && sameEpisode && Math.abs(prev!.fraction - next) < 0.01 && prev!.url === presence.url;
+  const nextPosition = Number.isFinite(position) && position! >= 0
+    ? Math.round(position! * 10) / 10
+    : sameEpisode ? prev?.positionSeconds : undefined;
+  const nextDuration = Number.isFinite(duration) && duration! > 0
+    ? Math.round(duration! * 10) / 10
+    : sameEpisode ? prev?.durationSeconds : undefined;
+  const positionUnchanged = nextPosition === undefined ||
+    (sameEpisode && prev?.positionSeconds !== undefined && Math.abs(prev.positionSeconds - nextPosition) < 10);
+  const durationUnchanged = nextDuration === undefined ||
+    (sameEpisode && prev?.durationSeconds !== undefined && Math.abs(prev.durationSeconds - nextDuration) < 1);
+  const unchanged = entry?.status === "watching" && sameEpisode &&
+    Math.abs(prev!.fraction - next) < 0.01 && prev!.url === presence.url &&
+    positionUnchanged && durationUnchanged;
   if (unchanged) return;
   await repo.saveProgress(presence.userId, {
     titleId,
@@ -707,6 +731,8 @@ async function syncProgress(repo: Repository, presence: Presence, fraction: numb
     season: presence.season,
     episode: presence.episode,
     fraction: next,
+    ...(nextPosition !== undefined ? { positionSeconds: nextPosition } : {}),
+    ...(nextDuration !== undefined ? { durationSeconds: nextDuration } : {}),
     url: presence.url,
     updatedAt: new Date().toISOString(),
   });

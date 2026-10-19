@@ -212,6 +212,10 @@ export interface WatchProgress {
   episode: number | null;
   /** 0–1. For series this is progress through the current episode. */
   fraction: number;
+  /** Exact player position in seconds, when the provider exposes it. */
+  positionSeconds?: number;
+  /** Actual current episode/movie duration in seconds, when exposed by the player. */
+  durationSeconds?: number;
   /** Deep link back to the provider, when the provider exposes one. */
   url: string | null;
   updatedAt: string;

@@ -16,6 +16,8 @@ const observation = z.object({
       episode: z.number().int().min(0).max(5000).optional(),
       episodeId: z.string().regex(/^\d{1,12}$/).optional(),
       progress: z.number().min(0).max(1).optional(),
+      position: z.number().min(0).max(24 * 3600).optional(),
+      duration: z.number().positive().max(24 * 3600).optional(),
       parentId: z.string().regex(/^\d{1,12}$/).optional(),
     })
     .strict()

@@ -43,7 +43,11 @@ export function Hero({ item, together }: { item: ContinueItem; together?: Shared
   const { title, progress, providerName, continueUrl, continueOnSite, live, seriesFraction, seasonEpisodes, editionLabel } = item;
   const ep = episodeLabel(progress);
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
-  const remaining = Math.max(1, Math.round(runtime * (1 - progress.fraction)));
+  const playerHasTiming = Number.isFinite(progress.durationSeconds) && (progress.durationSeconds ?? 0) > 0 &&
+    Number.isFinite(progress.positionSeconds) && (progress.positionSeconds ?? -1) >= 0;
+  const remaining = playerHasTiming
+    ? Math.max(0, Math.round(((progress.durationSeconds ?? runtime * 60) - (progress.positionSeconds ?? 0)) / 60))
+    : Math.max(1, Math.round(runtime * (1 - progress.fraction)));
   const destination = progress.providerId === "streamingcommunity"
     ? workerContinueUrl(title.id, title.title, progress.url ?? null, progress.fraction, runtime, title.type === "movie" ? null : (progress.season ?? null), title.type === "movie" ? null : (progress.episode ?? null))
     : continueUrl;

@@ -54,6 +54,10 @@ export interface SyncObservation {
     episodeId?: string;
     /** How far through the video the player is, 0–1. */
     progress?: number;
+    /** Exact playback position reported by the active player, in seconds. */
+    position?: number;
+    /** Total duration reported by the active player, in seconds. */
+    duration?: number;
     /** The provider's id for the show, when the tab came from its page (Netflix ?jbv= or /title/{id}). */
     parentId?: string;
   };
