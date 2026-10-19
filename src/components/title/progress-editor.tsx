@@ -60,9 +60,10 @@ function ProgressDialog({
   const runtime = (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) || 0;
   const isReZero = /re\s*:?\s*zero/i.test(title.title);
   const baseSeasons = title.type === "movie" ? [] : title.seasons;
+  const effectiveRezeroVersion = isReZero ? (rezeroVersion ?? "directors-cut") : null;
   const adjustedSeasons = baseSeasons.map((item) =>
-    isReZero && item.number === 1 && rezeroVersion
-      ? { ...item, episodeCount: rezeroVersion === "directors-cut" ? 13 : 25 }
+    isReZero && item.number === 1 && effectiveRezeroVersion
+      ? { ...item, episodeCount: effectiveRezeroVersion === "directors-cut" ? 13 : 25 }
       : item,
   );
   const [seasons, setSeasons] = useState<SeasonSummary[]>(adjustedSeasons);
@@ -178,7 +179,9 @@ function ProgressDialog({
               label={finished ? "Vista fino alla stagione" : "Stagione"}
               value={String(season)}
               onChange={(e) => {
-                setSeason(Number(e.target.value));
+                const nextSeason = Number(e.target.value);
+                if (nextSeason !== season) setMinute(0);
+                setSeason(nextSeason);
                 setEpisode(1);
               }}
             >
@@ -189,7 +192,11 @@ function ProgressDialog({
               ))}
             </Select>
             {!finished && (
-              <Select label="Episodio" value={String(Math.min(episode, episodes))} onChange={(e) => setEpisode(Number(e.target.value))}>
+              <Select label="Episodio" value={String(Math.min(episode, episodes))} onChange={(e) => {
+                const nextEpisode = Number(e.target.value);
+                if (nextEpisode !== episode) setMinute(0);
+                setEpisode(nextEpisode);
+              }}>
                 {Array.from({ length: episodes }, (_, i) => (
                   <option key={i + 1} value={i + 1}>
                     {i + 1}
