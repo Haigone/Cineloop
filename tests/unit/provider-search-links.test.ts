@@ -25,6 +25,12 @@ describe("provider title search links", () => {
     );
   });
 
+  it("converts the bare legacy .so domain to .to before resuming", () => {
+    expect(animeUnityResumeUrl("https://animeunity.so/anime/123-bleach", 0.7)).toBe(
+      "https://animeunity.to/anime/123-bleach?cineloopResume=0.7",
+    );
+  });
+
   it("appends a one-shot seek hint to a saved anime detail page", () => {
     expect(animeUnityResumeUrl("https://www.animeunity.to/anime/123-bleach", 0.7)).toBe(
       "https://www.animeunity.to/anime/123-bleach?cineloopResume=0.7",
