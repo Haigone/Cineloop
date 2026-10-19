@@ -63,6 +63,7 @@ export class MemoryRepository implements Repository {
   private rooms = new Map<string, PartyState>();
   private providerLinks = new Map<string, string>();
   private episodeLinks = new Map<string, { episodeNumber: number; externalId: string; idStep: number | null; linkType: "anchor" | "exact" }>();
+  private seasonLinks = new Map<string, string>();
   /** Seeded presences that stay live without an extension sending heartbeats. */
   private demoLive = new Set<string>();
   private charts = new Map<string, { data: unknown; fetchedAt: Date }>();
@@ -689,6 +690,16 @@ export class MemoryRepository implements Repository {
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {
     this.providerLinks.set(`${input.providerId}:${input.externalId}`, input.titleId);
+  }
+
+  async saveObservedSeasonLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !/^\d{1,12}$/.test(input.externalId)) return;
+    this.seasonLinks.set(`${input.providerId}:${input.titleId}:${input.seasonNumber}`, input.externalId);
+  }
+
+  async resolveSeasonExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1) return null;
+    return this.seasonLinks.get(`${input.providerId}:${input.titleId}:${input.seasonNumber}`) ?? null;
   }
 
   async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {

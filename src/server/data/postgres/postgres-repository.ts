@@ -281,6 +281,7 @@ export class PostgresRepository implements Repository {
       await tx.update(schema.watchEvents).set({ titleId: next.id }).where(eq(schema.watchEvents.titleId, oldId));
       await tx.update(schema.activity).set({ titleId: next.id }).where(eq(schema.activity.titleId, oldId));
       await tx.update(schema.providerTitleLinks).set({ titleId: next.id }).where(eq(schema.providerTitleLinks.titleId, oldId));
+      await tx.update(schema.providerSeasonLinks).set({ titleId: next.id }).where(eq(schema.providerSeasonLinks.titleId, oldId));
       await tx.update(schema.presence).set({ titleId: next.id }).where(eq(schema.presence.titleId, oldId));
       await tx.update(schema.watchParties).set({ pickedTitleId: next.id }).where(eq(schema.watchParties.pickedTitleId, oldId));
       await tx.update(schema.sharedWatches).set({ titleId: next.id }).where(eq(schema.sharedWatches.titleId, oldId));
@@ -791,6 +792,24 @@ export class PostgresRepository implements Repository {
       if (hit) return hit.titleId;
     }
     return null;
+  }
+
+  async saveObservedSeasonLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; externalId: string }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !/^\d{1,12}$/.test(input.externalId)) return;
+    await this.db.insert(schema.providerSeasonLinks).values({ ...input, updatedAt: new Date() }).onConflictDoUpdate({
+      target: [schema.providerSeasonLinks.providerId, schema.providerSeasonLinks.titleId, schema.providerSeasonLinks.seasonNumber],
+      set: { externalId: input.externalId, updatedAt: new Date() },
+    });
+  }
+
+  async resolveSeasonExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number }) {
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1) return null;
+    const [row] = await this.db.select({ externalId: schema.providerSeasonLinks.externalId }).from(schema.providerSeasonLinks).where(and(
+      eq(schema.providerSeasonLinks.providerId, input.providerId),
+      eq(schema.providerSeasonLinks.titleId, input.titleId),
+      eq(schema.providerSeasonLinks.seasonNumber, input.seasonNumber),
+    )).limit(1);
+    return row?.externalId ?? null;
   }
 
   async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {

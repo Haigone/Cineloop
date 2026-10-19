@@ -34,12 +34,12 @@ async function animeUnityEpisodeUrl(
 ): Promise<string | null> {
   const { providerSearchUrl } = await import("@/integrations/providers/search-links");
   const fallback = providerSearchUrl("animeunity", titleName);
-  if (seasonNumber === null || episodeNumber === null) return fallback;
+  if (seasonNumber === null) return fallback;
 
-  const episodeId = await getRepository().resolveEpisodeExternalId({
+  const repo = getRepository();
+  const episodeId = episodeNumber === null ? null : await repo.resolveEpisodeExternalId({
     providerId: "animeunity", titleId, seasonNumber, episodeNumber,
   }).catch(() => null);
-  if (!episodeId || !/^\d{1,12}$/.test(episodeId)) return fallback;
 
   let storedPath: string | null = null;
   try {
@@ -72,7 +72,15 @@ async function animeUnityEpisodeUrl(
   }
   if (!slug) return fallback;
 
-  return "https://www.animeunity.so/anime/" + slug + "/" + episodeId;
+  // Exact episode ID wins; otherwise use the independently observed season page ID.
+  if (episodeId && /^\d{1,12}$/.test(episodeId)) {
+    return "https://www.animeunity.so/anime/" + slug + "/" + episodeId;
+  }
+  const seasonId = await repo.resolveSeasonExternalId({ providerId: "animeunity", titleId, seasonNumber }).catch(() => null);
+  if (seasonId && /^\d{1,12}$/.test(seasonId)) {
+    return "https://www.animeunity.so/anime/" + seasonId + "-" + slug.replace(/^\d+-/, "");
+  }
+  return fallback;
 }
 
 /** Build StreamingCommunity URLs only from a verified mapping for the target episode. */

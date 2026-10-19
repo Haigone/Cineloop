@@ -155,6 +155,13 @@
       "when": 1792151200102,
       "tag": "0021_provider_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792410000000,
+      "tag": "0022_provider_season_links",
+      "breakpoints": true
     }
   ]
 }
