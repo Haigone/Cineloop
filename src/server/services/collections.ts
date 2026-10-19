@@ -111,10 +111,109 @@ export async function notifySagas(repo: Repository, userId: string, sagas: reado
 
 
 /** Editorial collections are CineLoop-owned; their membership is resolved against the live catalogue. */
+type CuratedItem = readonly [label: string, tmdbId: number | null, mediaType: "movie" | "tv"];
+
+/** These IDs are editorial data: never resolve a curated item by its title. */
 export const CURATED_COLLECTIONS = [
-  { slug: "marvel-cinematic-universe", name: "Marvel Universe", description: "Marvel Cinematic Universe: film e serie della Saga dell'Infinito e della Saga del Multiverso, in ordine cronologico narrativo. I progetti futuri verranno aggiunti quando saranno disponibili nel catalogo.", terms: ["Eyes of Wakanda", "Captain America: The First Avenger", "Captain Marvel", "Iron Man", "Iron Man 2", "The Incredible Hulk", "Thor", "The Avengers", "Thor: The Dark World", "Iron Man 3", "Captain America: The Winter Soldier", "Guardians of the Galaxy", "Guardians of the Galaxy Vol. 2", "Avengers: Age of Ultron", "Ant-Man", "Captain America: Civil War", "Black Widow", "Black Panther", "Spider-Man: Homecoming", "Doctor Strange", "Thor: Ragnarok", "Ant-Man and the Wasp", "Avengers: Infinity War", "Avengers: Endgame", "Loki", "WandaVision", "The Falcon and the Winter Soldier", "Spider-Man: Far From Home", "Shang-Chi and the Legend of the Ten Rings", "Eternals", "Hawkeye", "Spider-Man: No Way Home", "Moon Knight", "Doctor Strange in the Multiverse of Madness", "Ms. Marvel", "Thor: Love and Thunder", "She-Hulk: Attorney at Law", "Black Panther: Wakanda Forever", "Werewolf by Night", "The Guardians of the Galaxy Holiday Special", "Ant-Man and the Wasp: Quantumania", "Guardians of the Galaxy Vol. 3", "Secret Invasion", "The Marvels", "Echo", "Agatha All Along", "Deadpool & Wolverine", "Captain America: Brave New World", "Daredevil: Born Again", "Thunderbolts*", "Ironheart", "The Fantastic Four: First Steps", "Marvel Zombies", "Wonder Man", "Spider-Man: Brand New Day"], palette: ["#b91c1c", "#160b10", "#fbbf24"] as const },
-  { slug: "wizarding-world", name: "Harry Potter e Animali Fantastici", description: "Il Wizarding World: tutti gli otto film di Harry Potter e i tre film di Animali Fantastici, in ordine cronologico interno.", terms: ["Fantastic Beasts and Where to Find Them", "Fantastic Beasts: The Crimes of Grindelwald", "Fantastic Beasts: The Secrets of Dumbledore", "Harry Potter and the Philosopher's Stone", "Harry Potter and the Chamber of Secrets", "Harry Potter and the Prisoner of Azkaban", "Harry Potter and the Goblet of Fire", "Harry Potter and the Order of the Phoenix", "Harry Potter and the Half-Blood Prince", "Harry Potter and the Deathly Hallows: Part 1", "Harry Potter and the Deathly Hallows: Part 2"], palette: ["#7c3aed", "#10091c", "#c4b5fd"] as const },
-  { slug: "star-wars", name: "Star Wars", description: "La galassia di Star Wars: saga degli Skywalker, film antologici e serie animate e live-action. L'ordine segue la cronologia interna quando disponibile.", terms: ["Star Wars: Episode I - The Phantom Menace", "Star Wars: Episode II - Attack of the Clones", "Star Wars: The Clone Wars", "Star Wars: Episode III - Revenge of the Sith", "The Bad Batch", "Solo: A Star Wars Story", "Obi-Wan Kenobi", "Andor", "Rogue One: A Star Wars Story", "Star Wars: Episode IV - A New Hope", "Star Wars: Episode V - The Empire Strikes Back", "Star Wars: Episode VI - Return of the Jedi", "The Mandalorian", "The Book of Boba Fett", "Ahsoka", "Star Wars: Resistance", "Star Wars: Episode VII - The Force Awakens", "Star Wars: Episode VIII - The Last Jedi", "Star Wars: Episode IX - The Rise of Skywalker", "Tales of the Jedi", "Tales of the Empire", "Tales of the Underworld", "Star Wars: Visions", "Young Jedi Adventures", "Skeleton Crew", "The Acolyte"], palette: ["#ca8a04", "#100e16", "#fef3c7"] as const }
+  { slug: "marvel-cinematic-universe", name: "Marvel Universe", description: "Marvel Cinematic Universe: film e serie della Saga dell'Infinito e della Saga del Multiverso, nell'ordine narrativo scelto da CineLoop.", items: [
+    ["Eyes of Wakanda", 241388, "tv"],
+    ["Captain America: The First Avenger", 1771, "movie"],
+    ["Captain Marvel", 299537, "movie"],
+    ["Iron Man", 1726, "movie"],
+    ["Iron Man 2", 10138, "movie"],
+    ["The Incredible Hulk", 1724, "movie"],
+    ["Thor", 10195, "movie"],
+    ["The Avengers", 24428, "movie"],
+    ["Thor: The Dark World", 76338, "movie"],
+    ["Iron Man 3", 68721, "movie"],
+    ["Captain America: The Winter Soldier", 100402, "movie"],
+    ["Guardians of the Galaxy", 118340, "movie"],
+    ["Guardians of the Galaxy Vol. 2", 283995, "movie"],
+    ["Avengers: Age of Ultron", 99861, "movie"],
+    ["Ant-Man", 102899, "movie"],
+    ["Captain America: Civil War", 271110, "movie"],
+    ["Black Widow", 497698, "movie"],
+    ["Black Panther", 284054, "movie"],
+    ["Spider-Man: Homecoming", 315635, "movie"],
+    ["Doctor Strange", 284052, "movie"],
+    ["Thor: Ragnarok", 284053, "movie"],
+    ["Ant-Man and the Wasp", 363088, "movie"],
+    ["Avengers: Infinity War", 299536, "movie"],
+    ["Avengers: Endgame", 299534, "movie"],
+    ["Loki", 84958, "tv"],
+    ["WandaVision", 85271, "tv"],
+    ["The Falcon and the Winter Soldier", 88396, "tv"],
+    ["Spider-Man: Far From Home", 429617, "movie"],
+    ["Shang-Chi and the Legend of the Ten Rings", 566525, "movie"],
+    ["Eternals", 524434, "movie"],
+    ["Hawkeye", 88329, "tv"],
+    ["Spider-Man: No Way Home", 634649, "movie"],
+    ["Moon Knight", 92749, "tv"],
+    ["Doctor Strange in the Multiverse of Madness", 453395, "movie"],
+    ["Ms. Marvel", 92783, "tv"],
+    ["Thor: Love and Thunder", 616037, "movie"],
+    ["She-Hulk: Attorney at Law", 92782, "tv"],
+    ["Black Panther: Wakanda Forever", 505642, "movie"],
+    ["Werewolf by Night", 1065414, "movie"],
+    ["The Guardians of the Galaxy Holiday Special", 838330, "movie"],
+    ["Ant-Man and the Wasp: Quantumania", 640146, "movie"],
+    ["Guardians of the Galaxy Vol. 3", 447365, "movie"],
+    ["Secret Invasion", 114461, "tv"],
+    ["The Marvels", 609681, "movie"],
+    ["Echo", 209265, "tv"],
+    ["Agatha All Along", 121361, "tv"],
+    ["Deadpool & Wolverine", 533535, "movie"],
+    ["Captain America: Brave New World", 822119, "movie"],
+    ["Daredevil: Born Again", 202555, "tv"],
+    ["Thunderbolts*", 986056, "movie"],
+    ["Ironheart", 114464, "tv"],
+    ["The Fantastic Four: First Steps", 617127, "movie"],
+    ["Marvel Zombies", 196553, "tv"],
+    ["Wonder Man", 125988, "tv"],
+    ["Spider-Man: Brand New Day", 969681, "movie"],
+  ] as const, palette: ["#b91c1c", "#160b10", "#fbbf24"] as const },
+  { slug: "wizarding-world", name: "Harry Potter e Animali Fantastici", description: "Il Wizarding World: tutti gli otto film di Harry Potter e i tre film di Animali Fantastici, in ordine cronologico interno.", items: [
+    ["Fantastic Beasts and Where to Find Them", 259316, "movie"],
+    ["Fantastic Beasts: The Crimes of Grindelwald", 338952, "movie"],
+    ["Fantastic Beasts: The Secrets of Dumbledore", 338953, "movie"],
+    ["Harry Potter and the Philosopher's Stone", 671, "movie"],
+    ["Harry Potter and the Chamber of Secrets", 672, "movie"],
+    ["Harry Potter and the Prisoner of Azkaban", 673, "movie"],
+    ["Harry Potter and the Goblet of Fire", 674, "movie"],
+    ["Harry Potter and the Order of the Phoenix", 675, "movie"],
+    ["Harry Potter and the Half-Blood Prince", 767, "movie"],
+    ["Harry Potter and the Deathly Hallows: Part 1", 12444, "movie"],
+    ["Harry Potter and the Deathly Hallows: Part 2", 12445, "movie"],
+  ] as const, palette: ["#7c3aed", "#10091c", "#c4b5fd"] as const },
+  { slug: "star-wars", name: "Star Wars", description: "La galassia di Star Wars: saga degli Skywalker, film antologici e serie animate e live-action, nell'ordine narrativo scelto da CineLoop.", items: [
+    ["Star Wars: Episode I - The Phantom Menace", 1893, "movie"],
+    ["Star Wars: Episode II - Attack of the Clones", 1894, "movie"],
+    ["Star Wars: The Clone Wars (film)", 12180, "movie"],
+    ["Star Wars: The Clone Wars (serie TV)", 4194, "tv"],
+    ["Star Wars: Episode III - Revenge of the Sith", 1895, "movie"],
+    ["The Bad Batch", 105971, "tv"],
+    ["Solo: A Star Wars Story", 348350, "movie"],
+    ["Obi-Wan Kenobi", 93405, "tv"],
+    ["Andor", 83867, "tv"],
+    ["Rogue One: A Star Wars Story", 330459, "movie"],
+    ["Star Wars: Episode IV - A New Hope", 11, "movie"],
+    ["Star Wars: Episode V - The Empire Strikes Back", 1891, "movie"],
+    ["Star Wars: Episode VI - Return of the Jedi", 1892, "movie"],
+    ["The Mandalorian", 82856, "tv"],
+    ["The Book of Boba Fett", 115036, "tv"],
+    ["Ahsoka", 114474, "tv"],
+    ["Star Wars: Resistance", 81283, "tv"],
+    ["Star Wars: Episode VII - The Force Awakens", 140607, "movie"],
+    ["Star Wars: Episode VIII - The Last Jedi", 181808, "movie"],
+    ["Star Wars: Episode IX - The Rise of Skywalker", 181812, "movie"],
+    ["Tales of the Jedi", 202758, "tv"],
+    ["Tales of the Empire", 247544, "tv"],
+    ["Tales of the Underworld", null, "tv"],
+    ["Star Wars: Visions", 129712, "tv"],
+    ["Young Jedi Adventures", 215802, "tv"],
+    ["Skeleton Crew", 198086, "tv"],
+    ["The Acolyte", 115034, "tv"],
+  ] as const, palette: ["#ca8a04", "#100e16", "#fef3c7"] as const }
 ] as const;
 const DISPLAYED_SAGA_TERMS = ["James Bond", "Mission: Impossible", "Fast & Furious", "Jurassic Park", "Jurassic World", "The Lord of the Rings", "The Hobbit", "Toy Story", "Shrek", "John Wick", "The Hunger Games", "Planet of the Apes", "Transformers", "Pirates of the Caribbean", "The Matrix", "Back to the Future", "Rocky", "Creed", "Terminator", "Alien", "Predator", "Die Hard", "Bourne", "Kung Fu Panda", "Ice Age", "Madagascar", "Despicable Me", "How to Train Your Dragon", "Scream", "Halloween", "Final Destination", "Saw", "The Conjuring", "Indiana Jones", "Star Trek", "Ghostbusters", "Men in Black", "The Karate Kid", "Rambo", "Beverly Hills Cop", "Godzilla", "King Kong", "Lethal Weapon", "Bad Boys", "Ocean's", "Blade Runner", "Tron"] as const;
 
@@ -131,23 +230,22 @@ async function loadCuratedCollection(slugOrId: string): Promise<FilmCollection |
   if (!definition) return null;
   const repo = getRepository();
   const cached = await repo.listTitles();
-  const results = await Promise.all(definition.terms.map(async (term) => {
-    const cachedMatch = cached.find((title) => title.type === "movie" && searchKey(title.title) === searchKey(term));
+  const titles = await Promise.all(definition.items.map(async ([, tmdbId, mediaType]) => {
+    if (tmdbId === null) return null;
+    const id = `tmdb-${mediaType}-${tmdbId}`;
+    const cachedMatch = cached.find((title) => title.id === id);
     if (cachedMatch) return cachedMatch;
-    const hits = await getCatalog().search(term, 5).catch(() => []);
-    return hits.find((hit) => searchKey(hit.title) === searchKey(term))
-      ?? hits.find((hit) => searchKey(hit.title).startsWith(searchKey(term)) || searchKey(term).startsWith(searchKey(hit.title)))
-      ?? null;
+    return getCatalog().getTitle(id).catch(() => null);
   }));
-  const movies = [...new Map(results.filter((title): title is Movie => title?.type === "movie").map((movie) => [movie.id, movie])).values()];
-  if (movies.length) await cacheTitles(getRepository(), movies);
-  const first = movies[0];
+  const uniqueTitles = [...new Map(titles.filter((title): title is Title => title !== null).map((title) => [title.id, title])).values()];
+  if (uniqueTitles.length) await cacheTitles(repo, uniqueTitles);
+  const first = uniqueTitles[0];
   return {
     id: `demo-collection-${definition.slug}`,
     name: definition.name,
     overview: definition.description,
     artwork: first?.artwork ?? { posterUrl: null, backdropUrl: null, palette: definition.palette },
-    parts: movies.map((title) => ({ title, releaseDate: title.year ? `${title.year}-01-01` : null })),
+    parts: uniqueTitles.map((title) => ({ title, releaseDate: title.year ? `${title.year}-01-01` : null })),
   };
 }
 async function loadCineLoopCollection(id: string) {
