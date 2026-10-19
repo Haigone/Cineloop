@@ -704,7 +704,9 @@ export class MemoryRepository implements Repository {
   }
 
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
-    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 ||
+      !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1 ||
+      !/^\d{1,12}$/.test(input.externalId)) return;
     const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
     const anchorKey = `${input.providerId}:${input.titleId}:${input.seasonNumber}`;
     const anchor = [...this.episodeLinks.entries()].find(([k, v]) => k.startsWith(anchorKey + ":") && v.linkType === "anchor");
@@ -713,21 +715,29 @@ export class MemoryRepository implements Repository {
       return;
     }
     const [anchorRowKey, row] = anchor;
-    if (row.episodeNumber === input.episodeNumber) return;
     const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
-    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
-    if (row.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      const expected = anchorId + input.episodeNumber - row.episodeNumber;
-      if (expected === observedId) return;
-      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
-      this.episodeLinks.set(key(input.episodeNumber), { episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact" });
+    const observedId = Number(input.externalId);
+    if (row.episodeNumber === input.episodeNumber) {
+      this.episodeLinks.set(anchorRowKey, {
+        ...row,
+        externalId: input.externalId,
+        idStep: row.idStep === 1 && Number.isSafeInteger(anchorId) && observedId === anchorId ? 1 : null,
+      });
       return;
     }
-    if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
-      observedId - anchorId === input.episodeNumber - row.episodeNumber &&
-      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+
+    // Keep every explicitly observed episode ID. Only use numeric inference
+    // when adjacent episodes prove a stable +1 progression.
+    if (row.idStep === 1 && Number.isSafeInteger(anchorId) &&
+      observedId !== anchorId + input.episodeNumber - row.episodeNumber) {
+      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
+    } else if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
+      Number.isSafeInteger(anchorId) && observedId - anchorId === input.episodeNumber - row.episodeNumber) {
       this.episodeLinks.set(anchorRowKey, { ...row, idStep: 1 });
     }
+    this.episodeLinks.set(key(input.episodeNumber), {
+      episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
+    });
   }
 
   // Sagas -------------------------------------------------------------------

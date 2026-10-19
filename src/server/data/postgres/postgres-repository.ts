@@ -815,45 +815,65 @@ export class PostgresRepository implements Repository {
   }
 
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
-    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return;
+    if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 ||
+      !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1 ||
+      !/^\d{1,12}$/.test(input.externalId)) return;
     const scope = and(
       eq(schema.episodeLinks.providerId, input.providerId),
       eq(schema.episodeLinks.titleId, input.titleId),
       eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
     );
-    const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(scope, eq(schema.episodeLinks.linkType, "anchor"))).limit(1);
+    const [anchor] = await this.db.select().from(schema.episodeLinks)
+      .where(and(scope, eq(schema.episodeLinks.linkType, "anchor"))).limit(1);
     if (!anchor) {
       await this.db.insert(schema.episodeLinks).values({
         providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
         episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "anchor",
-      }).onConflictDoNothing();
+      }).onConflictDoUpdate({
+        target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
+        set: { externalId: input.externalId, idStep: null, linkType: "anchor" },
+      });
       return;
     }
-    if (anchor.episodeNumber === input.episodeNumber) return;
+
+    // Every ID explicitly observed for an episode is persisted, even when IDs
+    // are not consecutive. Arithmetic is an optimization only after +1 is verified.
     const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
-    const observedId = /^\d+$/.test(input.externalId) ? Number(input.externalId) : NaN;
-    if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      const expected = anchorId + input.episodeNumber - anchor.episodeNumber;
-      if (expected === observedId) return;
+    const observedId = Number(input.externalId);
+    if (anchor.episodeNumber === input.episodeNumber) {
+      const preservesStep = anchor.idStep === 1 && Number.isSafeInteger(anchorId) &&
+        observedId - anchorId === 0;
+      await this.db.update(schema.episodeLinks).set({
+        externalId: input.externalId, idStep: preservesStep ? 1 : null,
+      }).where(and(scope, eq(schema.episodeLinks.episodeNumber, input.episodeNumber), eq(schema.episodeLinks.linkType, "anchor")));
+      return;
+    }
+
+    if (anchor.idStep === 1 && Number.isSafeInteger(anchorId) &&
+      observedId !== anchorId + input.episodeNumber - anchor.episodeNumber) {
       await this.db.update(schema.episodeLinks).set({ idStep: null }).where(and(
         scope,
         eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
         eq(schema.episodeLinks.linkType, "anchor"),
       ));
-      await this.db.insert(schema.episodeLinks).values({
-        providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
-        episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
-      }).onConflictDoUpdate({
-        target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
-        set: { externalId: input.externalId, idStep: null, linkType: "exact" },
-      });
-      return;
+    } else if (anchor.idStep === null &&
+      Math.abs(input.episodeNumber - anchor.episodeNumber) === 1 &&
+      Number.isSafeInteger(anchorId) &&
+      observedId - anchorId === input.episodeNumber - anchor.episodeNumber) {
+      await this.db.update(schema.episodeLinks).set({ idStep: 1 }).where(and(
+        scope,
+        eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber),
+        eq(schema.episodeLinks.linkType, "anchor"),
+      ));
     }
-    if (anchor.idStep === null && Math.abs(input.episodeNumber - anchor.episodeNumber) === 1 &&
-      observedId - anchorId === input.episodeNumber - anchor.episodeNumber &&
-      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
-      await this.db.update(schema.episodeLinks).set({ idStep: 1 }).where(and(scope, eq(schema.episodeLinks.episodeNumber, anchor.episodeNumber), eq(schema.episodeLinks.linkType, "anchor")));
-    }
+
+    await this.db.insert(schema.episodeLinks).values({
+      providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
+      episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
+    }).onConflictDoUpdate({
+      target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
+      set: { externalId: input.externalId, idStep: null, linkType: "exact" },
+    });
   }
 
   async saveProviderLink(input: { providerId: ProviderId; externalId: string; titleId: string; userId: string }) {

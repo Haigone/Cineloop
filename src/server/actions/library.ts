@@ -420,7 +420,10 @@ export async function saveManualProgress(
     const explicitlyDirectorsCut = reZeroOverrides["rezero-directors-cut"] === true;
     const reZeroOriginal = /re\s*:?\s*zero/i.test(title.title) && season === 1 &&
       (explicitlyOriginal || (!explicitlyDirectorsCut && Object.is(reZeroOverrides["rezero-version"], false)));
-    const episodeCount = reZeroOriginal ? 25 : (s?.episodeCount ?? 0);
+    const isReZeroSeasonOne = /re\s*:?\s*zero/i.test(title.title) && season === 1;
+    // The Director's Cut is always 13 episodes; TMDB's cached canonical
+    // season shape may still describe the original 25-episode broadcast.
+    const episodeCount = reZeroOriginal ? 25 : (isReZeroSeasonOne ? 13 : (s?.episodeCount ?? 0));
     // When the catalogue does not list the seasons, any season and episode will do.
     const known = title.seasons.length > 0;
     if (season === null || episode === null || (known && (!s || episode > episodeCount))) {
