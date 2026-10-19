@@ -291,12 +291,12 @@ describe("filler quick list and artwork", () => {
     await repo.setLibraryStatus("u_marco", old.id, "watching");
     await repo.saveProgress("u_marco", {
       titleId: old.id, providerId: "animeunity", season: 1, episode: 310, fraction: 0.191,
-      url: "https://www.animeunity.so/anime/69-bleach/5027", updatedAt: "2026-10-16T11:58:22.296Z",
+      url: "https://www.animeunity.to/anime/69-bleach/5027", updatedAt: "2026-10-16T11:58:22.296Z",
     });
     await repo.setLibraryStatus("u_marco", next.id, "watching");
     await repo.saveProgress("u_marco", {
       titleId: next.id, providerId: "animeunity", season: 1, episode: 309, fraction: 0.4,
-      url: "https://www.animeunity.so/anime/69-bleach/5026", updatedAt: "2026-10-16T11:30:56.165Z",
+      url: "https://www.animeunity.to/anime/69-bleach/5026", updatedAt: "2026-10-16T11:30:56.165Z",
     });
     await repo.setRating("u_marco", next.id, 8);
 
