@@ -9,7 +9,7 @@ export function providerSearchUrl(providerId: ProviderId, title: string): string
     case "netflix":
       return `https://www.netflix.com/search?q=${encoded}`;
     case "animeunity":
-      return `https://www.animeunity.so/archivio?title=${encoded}`;
+      return `https://www.animeunity.to/archivio?title=${encoded}`;
     case "streamingcommunity":
       // The domain rotates; this directory is the safe fallback until a current host is observed.
       return "https://www.streaming-community.how";

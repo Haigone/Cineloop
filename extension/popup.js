@@ -31,7 +31,7 @@ async function render() {
   // had never been authorized (or their permissions had been revoked).
   const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activeUrl = activeTab?.url ?? "";
-  const onAnimeWithoutAccess = activeUrl.startsWith("https://www.animeunity.so/") && !animeOk;
+  const onAnimeWithoutAccess = activeUrl.startsWith("https://www.animeunity.to/") && !animeOk;
   const resolvedForPrompt = await getResolved();
   let onStreamingWithoutAccess = false;
   try {

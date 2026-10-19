@@ -1,8 +1,8 @@
 import type { ProviderCapabilities, CurrentContent, SyncObservation, Content, AdapterWatchProgress, AdapterContext } from "../types";
 import { ObservationAdapter } from "./base";
 
-const AU_HOST = "animeunity.so";
-const AU_HOME = "https://www.animeunity.so";
+const AU_HOST = "animeunity.to";
+const AU_HOME = "https://www.animeunity.to";
 
 export type AnimeUnityReZeroEdition = "directors-cut" | "2016";
 
@@ -10,7 +10,7 @@ export type AnimeUnityReZeroEdition = "directors-cut" | "2016";
 export function animeUnityReZeroEdition(url: string): AnimeUnityReZeroEdition | null {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:" || !["animeunity.so", "www.animeunity.so"].includes(parsed.hostname.toLowerCase())) return null;
+    if (parsed.protocol !== "https:" || !["animeunity.to", "www.animeunity.to"].includes(parsed.hostname.toLowerCase())) return null;
     if (parsed.pathname.startsWith("/anime/48-rezero-starting-life-in-another-world/")) return "2016";
     if (parsed.pathname.startsWith("/anime/1973-rezero-kara-hajimeru-isekai-seikatsu-shin-henshuu-ban/")) return "directors-cut";
     return null;

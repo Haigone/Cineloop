@@ -50,7 +50,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     id: "animeunity",
     name: "Anime Unity",
     tint: "#8c7cf0",
-    homepage: "https://www.animeunity.so",
+    homepage: "https://www.animeunity.to",
     integration: "available",
   },
   streamingcommunity: {

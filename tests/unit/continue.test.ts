@@ -39,15 +39,15 @@ describe("Continua for progress set by hand", () => {
   });
 
   it("adds a one-shot resume fraction for a saved Anime Unity page", () => {
-    const entry = { ...byHand, progress: { ...byHand.progress!, providerId: "animeunity" as const, url: "https://www.animeunity.so/anime/123-example" } };
+    const entry = { ...byHand, progress: { ...byHand.progress!, providerId: "animeunity" as const, url: "https://www.animeunity.to/anime/123-example" } };
     const item = toContinueItem(entry, got([]))!;
-    expect(item.continueUrl).toBe("https://www.animeunity.so/anime/123-example?cineloopResume=0.4");
+    expect(item.continueUrl).toBe("https://www.animeunity.to/anime/123-example?cineloopResume=0.4");
     expect(item.providerName).toBe("Anime Unity");
     expect(item.continueOnSite).toBe(false);
   });
 
   it("only adds the resume hint to Anime Unity HTTPS URLs", () => {
-    expect(animeUnityResumeUrl("https://www.animeunity.so/anime/123", 1.4)).toBe("https://www.animeunity.so/anime/123?cineloopResume=1");
+    expect(animeUnityResumeUrl("https://www.animeunity.to/anime/123", 1.4)).toBe("https://www.animeunity.to/anime/123?cineloopResume=1");
     expect(animeUnityResumeUrl("https://evil.example/anime/123", 0.5)).toBe("https://evil.example/anime/123");
   });
 });

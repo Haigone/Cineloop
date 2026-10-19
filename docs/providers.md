@@ -76,9 +76,9 @@ Da TMDB, aggiornati al massimo una volta al giorno: per le serie viste o in cors
 
 ### Anime Unity
 
-L'estensione CineLoop ha già un permesso host opzionale per `https://www.animeunity.so/*` e uno script dedicato alla pagina. Dopo che l'utente concede il permesso dal popup, il server riconosce le osservazioni Anime Unity e registra titolo, episodio e frazione del video quando disponibili.
+L'estensione CineLoop ha già un permesso host opzionale per `https://www.animeunity.to/*` e uno script dedicato alla pagina. Dopo che l'utente concede il permesso dal popup, il server riconosce le osservazioni Anime Unity e registra titolo, episodio e frazione del video quando disponibili.
 
-- Le osservazioni sono accettate solo per pagine HTTPS del dominio `animeunity.so` (o suoi sottodomini) nel percorso `/anime/{id}`.
+- Le osservazioni sono accettate solo per pagine HTTPS del dominio `animeunity.to` (o suoi sottodomini) nel percorso `/anime/{id}`.
 - Il progresso usa la frazione del video fornita dall'estensione; non si tenta di leggere player cross-origin o estrarre URL multimediali.
 - La libreria salva l'URL della pagina osservata. Il comando "Continua" aggiunge un parametro temporaneo con la frazione salvata; lo script Anime Unity prova a riposizionare il video quando i metadati sono pronti e poi rimuove il parametro dall'URL.
 - Le pagine anime di CineLoop includono un collegamento alla homepage di Anime Unity. Se è stato salvato un progresso, "Continua" preferisce la pagina esatta registrata.

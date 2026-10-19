@@ -38,7 +38,7 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 ## Politica provider (aggiornare docs/providers.md prima di aggiungere capacità)
 - Vietati: scraping, aggirare DRM o autenticazione, intercettare token, automazioni contro i ToS. Nulla è `available` senza un percorso di sincronizzazione legittimo e verificato (c'è un test).
 - Netflix: nessuna API pubblica; stato `planned`; il server non chiama mai Netflix. Classifiche: Top 10 Italia dal TSV pubblico di Tudum.
-- Rifiutati: rilevamento/dominio automatico di Streaming Community, deploy dell'estensione 0.5.0 con AU/SC, animeunity.so come fonte dati, export di Netflix tramite pagine interne.
+- Rifiutati: rilevamento/dominio automatico di Streaming Community, deploy dell'estensione 0.5.0 con AU/SC, AnimeUnity come fonte dati, export di Netflix tramite pagine interne.
 - Esistono: pulsante manuale "Dove sei arrivato" (stagione/episodio/minuto) e il pulsante "Guarda in streaming" di Riccardo (NON toccare).
 - Marketing: mai promuovere AU/SC, mai nominare siti pirata, Netflix/Prime solo come "funziona con"; attribuzione TMDB.
 

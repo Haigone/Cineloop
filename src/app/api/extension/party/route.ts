@@ -12,7 +12,7 @@ function validExternalId(value: string): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    const animeUnity = host === "animeunity.so" || host.endsWith(".animeunity.so");
+    const animeUnity = host === "animeunity.to" || host.endsWith(".animeunity.to");
     return url.protocol === "https:" &&
       animeUnity &&
       /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname) &&

@@ -75,7 +75,7 @@ export function animeUnityResumeUrl(value: string, fraction: number): string {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    if (url.protocol !== "https:" || !(host === "animeunity.so" || host.endsWith(".animeunity.so")) || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)) return value;
+    if (url.protocol !== "https:" || !(host === "animeunity.to" || host.endsWith(".animeunity.to")) || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)) return value;
     url.searchParams.set("cineloopResume", String(Math.min(1, Math.max(0, fraction))));
     return url.toString();
   } catch {

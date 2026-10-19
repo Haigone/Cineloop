@@ -1,7 +1,7 @@
 // AnimeUnity: dominio fisso, nessuna risoluzione da fare. Legge solo URL delle schede.
 
-export const AU_ORIGIN = "https://www.animeunity.so";
-export const AU_ORIGINS = ["https://www.animeunity.so/*"];
+export const AU_ORIGIN = "https://www.animeunity.to";
+export const AU_ORIGINS = ["https://www.animeunity.to/*"];
 // Common VixCloud player hosts are requested in the same gesture as AnimeUnity,
 // so the user does not have to approve the embed separately.
 export const VIXCLOUD_ORIGINS = [

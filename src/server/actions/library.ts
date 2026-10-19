@@ -46,7 +46,7 @@ async function animeUnityEpisodeUrl(
     const current = storedUrl ? new URL(storedUrl) : null;
     const match = current && /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
     if (current && current.protocol === "https:" &&
-      (current.hostname === "animeunity.so" || current.hostname === "www.animeunity.so") && match) {
+      (current.hostname === "animeunity.to" || current.hostname === "www.animeunity.to") && match) {
       storedPath = match[1]!;
     }
   } catch {
@@ -74,11 +74,11 @@ async function animeUnityEpisodeUrl(
 
   // Exact episode ID wins; otherwise use the independently observed season page ID.
   if (episodeId && /^\d{1,12}$/.test(episodeId)) {
-    return "https://www.animeunity.so/anime/" + slug + "/" + episodeId;
+    return "https://www.animeunity.to/anime/" + slug + "/" + episodeId;
   }
   const seasonId = await repo.resolveSeasonExternalId({ providerId: "animeunity", titleId, seasonNumber }).catch(() => null);
   if (seasonId && /^\d{1,12}$/.test(seasonId)) {
-    return "https://www.animeunity.so/anime/" + seasonId + "-" + slug.replace(/^\d+-/, "");
+    return "https://www.animeunity.to/anime/" + seasonId + "-" + slug.replace(/^\d+-/, "");
   }
   return fallback;
 }
