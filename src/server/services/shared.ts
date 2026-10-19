@@ -75,7 +75,14 @@ export function animeUnityResumeUrl(value: string, fraction: number): string {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    if (url.protocol !== "https:" || !(host === "animeunity.to" || host.endsWith(".animeunity.to")) || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)) return value;
+    if (url.protocol !== "https:") return value;
+
+    // Existing library progress can still contain links saved before the
+    // AnimeUnity domain change. Canonicalize them before returning them to the browser.
+    const legacyHost = host === "animeunity.so" || host.endsWith(".animeunity.so");
+    const currentHost = host === "animeunity.to" || host.endsWith(".animeunity.to");
+    if ((!legacyHost && !currentHost) || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)) return value;
+    if (legacyHost) url.hostname = host.replace(/\.animeunity\.so$/i, ".animeunity.to");
     url.searchParams.set("cineloopResume", String(Math.min(1, Math.max(0, fraction))));
     return url.toString();
   } catch {
