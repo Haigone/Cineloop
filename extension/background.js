@@ -812,7 +812,7 @@ async function tick() {
       await remember(found.tab);
       const providerId = /^https:\/\/www\.netflix\.com\//.test(found.tab.url)
         ? "netflix"
-        : /^https:\/\/www\.animeunity\.so\//.test(found.tab.url)
+        : /^https:\/\/www\.animeunity\.to\//.test(found.tab.url)
           ? "animeunity"
           : isPrimeUrl(found.tab.url)
             ? "prime-video"
