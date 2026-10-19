@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Saghe" };
 export default function SagasPage() { return <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl border border-line bg-surface" />}><SagasContent /></Suspense>; }
 
 async function SagasContent() {
-  const items = await getSagaCatalogView().catch((error) => { console.error("saga catalogue failed", error); return []; });
+  const items = await getSagaCatalogView();
   return <main className="space-y-6">
     <section className="relative isolate overflow-hidden rounded-3xl border border-amber-300/25 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,.2),transparent_48%),linear-gradient(120deg,#1c1409,#0c0d12_72%)] px-5 py-8 sm:px-8 sm:py-10">
       <div aria-hidden className="absolute -right-10 -top-16 -z-10 size-64 rounded-full border border-amber-100/10 bg-amber-300/5 blur-2xl" />

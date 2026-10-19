@@ -16,7 +16,7 @@ export default function SagaDetailPage({ params }: PageProps<"/sagas/[id]">) { r
 async function SagaDetailContent({ params }: { params: PageProps<"/sagas/[id]">["params"] }) {
   const { id } = await params;
   if (!/^tmdb-collection-\d{1,12}$/.test(id)) notFound();
-  const view = await getCollectionDetailView(id).catch(() => null);
+  const view = await getCollectionDetailView(id);
   if (!view) notFound();
   const { collection, rows, next, seen, total, remaining, upcoming } = view.saga;
   const image = collection.artwork.backdropUrl ?? collection.artwork.posterUrl;
