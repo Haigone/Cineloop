@@ -26,6 +26,7 @@ export function HomeSectionTabs({ current, background }: { current: MediaType; b
               <li key={s.type}>
                 <Link
                   href={`/home?c=${s.slug}`}
+                  prefetch={false}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "block rounded-full px-4 py-1.5 text-sm font-medium transition-colors sm:px-5",
