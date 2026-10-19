@@ -566,13 +566,29 @@ async function frameProgress(tabId, m) {
   const now = Date.now();
   const normalized = Math.round(m.progress * 100000) / 100000;
   const flush = await updateTab(tabId, (entry) => {
-    // The iframe can report before the AnimeUnity page has parsed its title.
-    // Keep a short-lived sample so the first player-title message can use it.
-    entry.frameProgress = { progress: normalized, position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : null, duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : null, at: now };
-    if (!entry.player || typeof entry.player.watchId !== "string" || typeof entry.player.title !== "string") return false;
-    const changed = m.force === true || entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.00001;
-    if (!changed) return false;
-    entry.player = { ...entry.player, progress: normalized, position: entry.frameProgress.position ?? entry.player.position ?? null, duration: entry.frameProgress.duration ?? entry.player.duration ?? null, at: now, lastFlushAt: now };
+    // A cross-origin player frame may report before the page script identifies
+    // the title. Keep its sample and forward it periodically instead of dropping it.
+    const sample = {
+      progress: normalized,
+      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : null,
+      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : null,
+      at: now,
+    };
+    entry.frameProgress = sample;
+    const hasPlayer = entry.player && typeof entry.player.watchId === "string" && typeof entry.player.title === "string";
+    const changed = hasPlayer && (m.force === true || entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.00001);
+    if (changed) {
+      entry.player = {
+        ...entry.player,
+        progress: normalized,
+        position: sample.position ?? entry.player.position ?? null,
+        duration: sample.duration ?? entry.player.duration ?? null,
+        at: now,
+        lastFlushAt: now,
+      };
+    }
+    if (now - (entry.lastFrameFlushAt ?? 0) < 10_000 && !m.force) return false;
+    entry.lastFrameFlushAt = now;
     return true;
   });
   if (flush) await tick();
@@ -754,7 +770,7 @@ async function pickPlaying(tabs, idOf) {
   const tab = tabs.find((t) => t.active) ?? tabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
   const info = seen[tab.id] ?? {};
   if (!tab.audible && info.audibleAt && Date.now() - info.audibleAt > SILENT_LIMIT_MS) return SILENT;
-  return { tab, parentId: info.parentId ?? null, player: info.player ?? null, id: idOf(tab.url ?? "") };
+  return { tab, parentId: info.parentId ?? null, player: info.player ?? null, frameProgress: info.frameProgress ?? null, id: idOf(tab.url ?? "") };
 }
 
 let running = null;
@@ -801,7 +817,17 @@ async function tick() {
           : isPrimeUrl(found.tab.url)
             ? "prime-video"
             : "streamingcommunity";
-      const hints = { ...playerHints(found.player, id), ...(found.parentId ? { parentId: found.parentId } : {}) };
+      const frame = found.frameProgress && Date.now() - found.frameProgress.at <= 15_000 ? found.frameProgress : null;
+      const frameHints = frame ? {
+        ...(typeof frame.progress === "number" ? { progress: frame.progress } : {}),
+        ...(Number.isFinite(frame.position) && frame.position >= 0 ? { position: frame.position } : {}),
+        ...(Number.isFinite(frame.duration) && frame.duration > 0 ? { duration: frame.duration } : {}),
+      } : {};
+      const hints = {
+        ...playerHints(found.player, id),
+        ...frameHints,
+        ...(found.parentId ? { parentId: found.parentId } : {}),
+      };
       const status = await api("/api/extension/observe", {
         method: "POST",
         body: {
