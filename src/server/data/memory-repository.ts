@@ -706,7 +706,7 @@ export class MemoryRepository implements Repository {
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 ||
       !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1 ||
-      !/^\\d{1,12}$/.test(input.externalId)) return;
+      !/^\d{1,12}$/.test(input.externalId)) return;
     const key = (episode: number) => `${input.providerId}:${input.titleId}:${input.seasonNumber}:${episode}`;
     const anchorKey = `${input.providerId}:${input.titleId}:${input.seasonNumber}`;
     const anchor = [...this.episodeLinks.entries()].find(([k, v]) => k.startsWith(anchorKey + ":") && v.linkType === "anchor");
@@ -715,7 +715,7 @@ export class MemoryRepository implements Repository {
       return;
     }
     const [anchorRowKey, row] = anchor;
-    const anchorId = /^\\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
     const observedId = Number(input.externalId);
     if (row.episodeNumber === input.episodeNumber) {
       this.episodeLinks.set(anchorRowKey, {
