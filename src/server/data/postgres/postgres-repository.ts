@@ -817,7 +817,7 @@ export class PostgresRepository implements Repository {
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 ||
       !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1 ||
-      !/^\\d{1,12}$/.test(input.externalId)) return;
+      !/^\d{1,12}$/.test(input.externalId)) return;
     const scope = and(
       eq(schema.episodeLinks.providerId, input.providerId),
       eq(schema.episodeLinks.titleId, input.titleId),
@@ -838,7 +838,7 @@ export class PostgresRepository implements Repository {
 
     // Every ID explicitly observed for an episode is persisted, even when IDs
     // are not consecutive. Arithmetic is an optimization only after +1 is verified.
-    const anchorId = /^\\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
+    const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
     const observedId = Number(input.externalId);
     if (anchor.episodeNumber === input.episodeNumber) {
       const preservesStep = anchor.idStep === 1 && Number.isSafeInteger(anchorId) &&
