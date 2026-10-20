@@ -656,7 +656,7 @@ async function partyReport(m) {
   const { token, paused } = await getSettings();
   if (!token || paused || typeof m.externalId !== "string" || typeof m.position !== "number" || typeof m.paused !== "boolean") return null;
   const { party: known = null } = await chrome.storage.session.get("party");
-  if (!known && !m.action && Date.now() - soloCheckedAt < SOLO_CHECK_MS) return null;
+  if (!known && !m.action && !m.initializing && Date.now() - soloCheckedAt < SOLO_CHECK_MS) return null;
   soloCheckedAt = Date.now();
   // Prime Video: the id names the whole show, the season and episode tell the episodes apart.
   const where = Object.fromEntries(["season", "episode"].filter((k) => Number.isInteger(m[k])).map((k) => [k, m[k]]));

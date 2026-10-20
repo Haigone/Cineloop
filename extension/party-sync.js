@@ -56,6 +56,10 @@
   /** Was it too far from the room at the last check (still catching up)? */
   let lagging = false;
   let nudging = false;
+  // Give a newly opened VixCloud frame a short window to discover the room
+  // while AnimeUnity's presence is still being registered by the extension.
+  const startedAt = Date.now();
+  const VIXCLOUD_JOIN_WINDOW_MS = 20_000;
 
   const isVixCloudPlayerFrame = () =>
     window !== window.top &&
@@ -192,7 +196,7 @@
     if (action) freshFrom = n;
     const t0 = performance.now();
     const res = await chrome.runtime
-      .sendMessage({ type: "party-report", externalId: id, ...where, position: Math.max(0, Math.round((v.currentTime - shift) * 100) / 100), duration: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null, paused: v.paused, following: heard && !lagging, ...(action ? { action } : {}) })
+      .sendMessage({ type: "party-report", externalId: id, ...where, position: Math.max(0, Math.round((v.currentTime - shift) * 100) / 100), duration: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null, paused: v.paused, following: heard && !lagging, ...(isVixCloudPlayerFrame() && !heard && Date.now() - startedAt < VIXCLOUD_JOIN_WINDOW_MS ? { initializing: true } : {}), ...(action ? { action } : {}) })
       .catch(() => null);
     if (n < freshFrom) return;
     if (res?.party) apply(res.party, v, (performance.now() - t0) / 1000, shift);
