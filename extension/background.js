@@ -279,6 +279,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     enableAnimePage().then(() => reply(true), () => reply(false));
     return true;
   }
+  if (message?.type === "enable-sc") {
+    enableScPage().then(() => reply(true), () => reply(false));
+    return true;
+  }
   if (message?.type === "sc-origin") {
     getResolved().then((r) => reply(r?.origin ?? null), () => reply(null));
     return true;
