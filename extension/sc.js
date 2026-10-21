@@ -21,6 +21,7 @@ const RESOLVED_KEY = "scResolved";
 const CACHE_MS = 6 * 60 * 60 * 1000; // il dominio dura giorni: risolvi al massimo ogni 6 ore
 
 export async function hasDirectoryAccess() {
+  if (await chrome.permissions.contains({ origins: ["https://*/*"] })) return true;
   return chrome.permissions.contains({ origins: DIRECTORY_ORIGINS });
 }
 
@@ -35,6 +36,7 @@ export async function hasStreamingAccess() {
   const resolved = await getResolved();
   if (!resolved?.origin) return false;
   try {
+    if (await chrome.permissions.contains({ origins: ["https://*/*"] })) return true;
     return await chrome.permissions.contains({ origins: [`${resolved.origin}/*`] });
   } catch {
     return false;
