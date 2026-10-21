@@ -130,6 +130,11 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
   await luca.getByRole("button", { name: "Genera codice" }).click();
   const lucaCode = (await luca.getByText(/^[2-9A-Z]{4}-[2-9A-Z]{4}$/).textContent())!;
   const paired = await (await luca.request.post(`${baseURL}/api/extension/pair`, { data: { code: lucaCode } })).json();
+  // Luca's extension reports Netflix too: the demo store is shared, and another spec may have left him on Prime Video.
+  await luca.request.post(`${baseURL}/api/extension/observe`, {
+    headers: { Authorization: `Bearer ${paired.token}` },
+    data: { providerId: "netflix", url: `https://www.netflix.com/watch/${ep2}`, documentTitle: "Netflix", observedAt: new Date().toISOString() },
+  });
   expect(await netflix.evaluate(() => document.querySelector("video")!.paused)).toBe(false);
   await expect(async () => {
     const res = await luca.request.post(`${baseURL}/api/extension/party`, {

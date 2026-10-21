@@ -16,7 +16,7 @@ Hub personale e sociale per film, serie e anime (NON una piattaforma di streamin
 - `npm run dev`; `npm run typecheck`; `npm run lint`; `npm test` (Vitest); `npm run test:e2e` (Playwright + axe; nei container cloud `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
 - Senza `DATABASE_URL`: repository in memoria con dati demo (login `marco@cineloop.dev` / `cineloop-demo`). Con `DATABASE_URL`: Postgres, `npm run db:migrate && npm run db:seed`.
 - `npm run build` impacchetta l'estensione, esegue le migrazioni e carica il catalogo base. Prossima migrazione: **0022** (0020 = link episodi, 0021 = consenso provider).
-- `npm run typecheck` su clone pulito richiede prima un build (tipi `PageProps` generati). Dal 21/10 le PR hanno CI (`.github/workflows/ci.yml`: lint, build, typecheck, unit, E2E Chromium). I test E2E dell'estensione ("pair the extension", "Prime Video is recognised") sono esclusi (rossi/timeout su CI, docs/difetti.md): quando l'area Estensione lo corregge, togli `--grep-invert` dal workflow.
+- `npm run typecheck` su clone pulito richiede prima un build (tipi `PageProps` generati). Dal 21/10 le PR hanno CI (`.github/workflows/ci.yml`: lint, build, typecheck, unit, E2E Chromium). Tutti i test E2E girano in CI.
 - Next.js 16.4 ha API diverse da quelle note: leggi `node_modules/next/dist/docs/` prima di scrivere codice (vedi AGENTS.md).
 - Stack: Next 16.4 (cacheComponents, partialPrefetching, `proxy.ts`), React 19, Tailwind 4, Motion, Drizzle + PostgreSQL, zod. Dati reali del catalogo richiedono `TMDB_READ_TOKEN` (già su Vercel).
 
@@ -62,6 +62,8 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 - Vercel limita i deploy (~1 ogni 15 minuti): distanzia i push.
 - ANN, Filler List, Tudum e Netflix/Prime non sono raggiungibili dal sandbox: selettori e parser testati solo su fixture.
 - Il test E2E dell'estensione (Netflix) falliva al controllo di pausa per un difetto del test, non dell'estensione: `party-sync.js` ignora i `<video>` senza durata finita (come quelli veri di Netflix) e lo stub era un flusso live. Ora lo stub riproduce un WAV muto. Un nuovo stub di player deve avere una durata finita.
+
+- Estensione 0.7.1: ogni pausa/seek/cambio episodio manda subito un'osservazione, quindi `/api/extension/observe` ha un bucket di limite proprio (60/min). I test E2E dell'estensione condividono lo store demo: Luca (seed Netflix) diventa Prime dopo `extension-prime.spec`, quindi `extension.spec` lo rimette su Netflix con un `observe`.
 
 ## File chiave
 - `src/proxy.ts`: reindirizza le pagine private a `/start`; controllo ottimistico del cookie.
