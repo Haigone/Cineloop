@@ -317,7 +317,7 @@ async function renderGrant() {
   const activeAnimeOrigin = isAnimeUrl(activeAnimeUrl) ? new URL(activeAnimeUrl).origin : null;
   const activeAnimeGranted = Boolean(activeAnimeOrigin && animeOrigins.includes(activeAnimeOrigin + "/*"));
   const animeBundleEnabled = animeOrigins.length > 0 && await chrome.permissions.contains({ origins: VIXCLOUD_ORIGINS });
-  if (animeBundleEnabled) {
+  if (animeBundleEnabled && (!activeAnimeOrigin || activeAnimeGranted)) {
     auBtn.textContent = "AnimeUnity e VixCloud attivi ✓";
     auBtn.disabled = true;
   } else {
