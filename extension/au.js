@@ -13,12 +13,26 @@ export function isAnimeUrl(url) {
 
 export async function getAnimeOrigins() {
   const { origins = [] } = await chrome.permissions.getAll();
-  return origins.filter((origin) => {
+  const isAnimeOrigin = (origin) => {
     try {
       const parsed = new URL(origin.replace(/\/\*$/, "/"));
       return parsed.protocol === "https:" && /^(?:[a-z0-9-]+\.)*animeunity(?:\.[a-z0-9-]{2,})+$/i.test(parsed.hostname);
     } catch { return false; }
-  });
+  };
+  const known = origins.filter(isAnimeOrigin);
+  // With the one-time all-HTTPS grant, remember the actual AnimeUnity origins
+  // currently open. Never register a page script on unrelated sites.
+  if (origins.includes("https://*/*")) {
+    const tabs = await chrome.tabs.query({}).catch(() => []);
+    for (const tab of tabs) {
+      if (!tab.url || !isAnimeUrl(tab.url)) continue;
+      try {
+        const origin = new URL(tab.url).origin + "/*";
+        if (!known.includes(origin)) known.push(origin);
+      } catch {}
+    }
+  }
+  return [...new Set(known)];
 }
 // Common VixCloud player hosts are requested in the same gesture as AnimeUnity,
 // so the user does not have to approve the embed separately.

@@ -29,33 +29,19 @@
     <!-- Paired, site access not granted yet -->
     <section id="grant" hidden>
       <h1>Attiva il monitoraggio</h1>
-      <p class="muted">
-        CineLoop legge l’indirizzo delle schede dei siti che attivi e, nel player, il titolo e l’episodio in riproduzione. Nient’altro:
-        niente password né cookie, e nessun altro sito.
-      </p>
-
       <div class="card">
-        <p class="title">Netflix</p>
-        <p class="muted small">Rileva film e serie su netflix.com; con un amico mette in play o in pausa il tuo video insieme al suo.</p>
-        <button id="grant-btn" class="primary">Consenti su netflix.com</button>
-      </div>
-
-      <div class="card">
-        <p class="title">AnimeUnity</p>
-        <p class="muted small">Rileva anime, episodio e punto raggiunto anche quando AnimeUnity cambia dominio. Autorizza il nuovo indirizzo dal popup.</p>
-        <button id="au-grant-btn" class="primary">Consenti AnimeUnity sul dominio attuale</button>
-      </div>
-
-      <div class="card">
-        <p class="title">StreamingCommunity</p>
-        <p id="sc-grant-status" class="muted small">
-          Il sito cambia indirizzo di continuo: CineLoop trova quello attuale dal pulsante StreamingCommunity di
-          streaming-community.how e te lo chiede qui.
+        <p class="title">Un solo consenso per i provider supportati</p>
+        <p class="muted">
+          Per seguire AnimeUnity e StreamingCommunity anche quando cambiano dominio, browser ti chiederà un'autorizzazione ampia ai siti HTTPS.
+          È un permesso del browser che può coprire anche altri siti, ma CineLoop è progettato per leggere soltanto le pagine dei provider supportati:
+          indirizzo della pagina, titolo, stagione, episodio e posizione del video. Non legge password o cookie e non invia contenuti di altri siti.
         </p>
-        <button id="sc-grant-btn" class="primary" hidden></button>
+        <p class="muted small">
+          Puoi fermare la raccolta in qualsiasi momento con “Metti in pausa” nel popup. La pausa interrompe il monitoraggio e gli aggiornamenti a CineLoop;
+          non revoca il permesso concesso a Firefox. Puoi revocarlo anche dalle impostazioni del browser.
+        </p>
+        <button id="grant-all-btn" class="primary">Consenti e attiva CineLoop</button>
       </div>
-
-      <button id="grant-skip" class="quiet link">Vai al pannello principale</button>
     </section>
 
     <!-- Paired and active -->
