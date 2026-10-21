@@ -177,7 +177,7 @@ async function enableAnimePage() {
     if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
     if (animeOrigins.length > 0) {
       await chrome.scripting.registerContentScripts([
-        { id: AU_SCRIPT, matches: animeOrigins, js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
+        { id: AU_SCRIPT, matches: animeOrigins, js: ["compat.js", "au-page.js", "party-sync.js"], runAt: "document_idle", persistAcrossSessions: true },
       ]);
     }
   } catch {
@@ -188,7 +188,7 @@ async function enableAnimePage() {
   const allTabs = await chrome.tabs.query({}).catch(() => []);
   const animeTabs = allTabs.filter((tab) => isAnimeUrl(tab.url ?? ""));
   for (const tab of animeTabs) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
   // Register each supported VixCloud host under the same AnimeUnity permission
   // grant and inject into currently open embedded players without another prompt.
@@ -236,7 +236,7 @@ async function enableAnimeFrameOrigin(origin) {
   }
   // Inject into every currently open AnimeUnity tab. A single remembered tab ID
   // caused the last opened tab to steal progress/watch-party updates from others.
-  const animeTabs = await chrome.tabs.query({ url: await getAnimeOrigins() });
+  const animeTabs = (await chrome.tabs.query({}).catch(() => [])).filter((tab) => isAnimeUrl(tab.url ?? ""));
   await Promise.all(animeTabs.filter((tab) => tab.id).map((tab) =>
     chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
@@ -259,7 +259,7 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
     hasAnimeAccess().then((allowed) => {
       if (allowed) {
         chrome.scripting.executeScript({
-          target: { tabId, allFrames: true },
+          target: { tabId },
           files: ["compat.js", "au-page.js", "party-sync.js"],
         }).catch(() => {});
       }
@@ -718,7 +718,7 @@ async function netflixOpen() {
 /** C'e' almeno una scheda aperta su AnimeUnity? */
 async function animeOpen() {
   if (!(await hasAnimeAccess())) return false;
-  return (await chrome.tabs.query({ url: await getAnimeOrigins() })).length > 0;
+  return (await chrome.tabs.query({}).catch(() => [])).some((tab) => isAnimeUrl(tab.url ?? ""));
 }
 
 /** C'e' almeno una scheda aperta sul dominio StreamingCommunity risolto? */
@@ -744,7 +744,7 @@ async function current() {
   const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activeUrl = active?.url ?? "";
   if (isAnimeUrl(activeUrl) && auWatchId(activeUrl) && await hasAnimeAccess()) {
-    const tabs = (await chrome.tabs.query({ url: await getAnimeOrigins() })).filter((t) => auWatchId(t.url ?? ""));
+    const tabs = (await chrome.tabs.query({}).catch(() => [])).filter((t) => isAnimeUrl(t.url ?? "") && auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
   }
   if (scWatchId(activeUrl) && await hasStreamingAccess()) {
@@ -762,7 +762,7 @@ async function current() {
 
   // No active provider player: retain the existing fallback order.
   if (await hasAnimeAccess()) {
-    const tabs = (await chrome.tabs.query({ url: await getAnimeOrigins() })).filter((t) => auWatchId(t.url ?? ""));
+    const tabs = (await chrome.tabs.query({}).catch(() => [])).filter((t) => isAnimeUrl(t.url ?? "") && auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
   }
   if (await hasNetflixAccess()) {
