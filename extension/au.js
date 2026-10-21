@@ -1,7 +1,7 @@
 // AnimeUnity: dominio fisso, nessuna risoluzione da fare. Legge solo URL delle schede.
 
 export const AU_ORIGIN = "https://www.animeunity.to";
-export const AU_ORIGINS = ["https://www.animeunity.to/*"];
+export const AU_ORIGINS = ["https://www.animeunity.to/*", "https://animeunity.to/*"];
 // Common VixCloud player hosts are requested in the same gesture as AnimeUnity,
 // so the user does not have to approve the embed separately.
 export const VIXCLOUD_ORIGINS = [
@@ -26,5 +26,5 @@ export function auWatchId(url) {
 
 /** True se l'URL appartiene ad AnimeUnity. */
 export function isAnimeUrl(url) {
-  return typeof url === "string" && url.startsWith(`${AU_ORIGIN}/`);
+  try { const parsed = new URL(url); return parsed.protocol === "https:" && ["animeunity.to", "www.animeunity.to"].includes(parsed.hostname.toLowerCase()); } catch { return false; }
 }
