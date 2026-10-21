@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
 import { setReZeroVersion, setStatus } from "@/server/actions/library";
 import { useToast } from "@/components/ui/toast";
@@ -20,9 +20,11 @@ export function ReZeroVersionChooser({
   const [pending, startTransition] = useTransition();
   const toast = useToast();
 
-  useEffect(() => {
+  const [seenVersion, setSeenVersion] = useState(version);
+  if (seenVersion !== version) {
+    setSeenVersion(version);
     setSelected(version);
-  }, [version]);
+  }
 
   function choose(next: Version) {
     const previous = selected;

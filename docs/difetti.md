@@ -9,7 +9,7 @@ Nessun flusso principale (primo accesso, Home, libreria, Esplora, Wishlist, Comm
 
 ## Medi
 - **Il test E2E `progress.spec.ts` fallisce se eseguito dopo altri** (passa da solo): la hero della Home mostra "Dark" invece dell'ultimo titolo aperto, perché lo stato demo in memoria è condiviso tra test. Probabile difetto di isolamento del test, ma verificare che in produzione l'ultimo titolo aperto vinca davvero sulla hero. File: `src/components/home/hero.tsx`, `tests/e2e/progress.spec.ts`. Stima: P-M.
-- **Nessuna CI sulle PR**: in `.github/workflows` ci sono solo bridge, APK TV e monitor del dominio. Typecheck, lint, unit ed E2E non girano mai in automatico, ed è così che la regressione sopra è passata (il merge "a CI verde" oggi si appoggia solo al deploy Vercel). Stima: M.
+- **(Risolto il 21/10: `ci.yml`) Nessuna CI sulle PR**: in `.github/workflows` ci sono solo bridge, APK TV e monitor del dominio. Typecheck, lint, unit ed E2E non girano mai in automatico, ed è così che la regressione sopra è passata (il merge "a CI verde" oggi si appoggia solo al deploy Vercel). Stima: M.
 
 ## Minori
 - **Lint: 2 errori** "setState dentro un effect" in `src/components/title/rezero-version-chooser.tsx:24` e `watch-order.tsx:37` (funzionano, ma React 19 li segnala come render a cascata); 22 avvisi di variabili inutilizzate. Stima: P.

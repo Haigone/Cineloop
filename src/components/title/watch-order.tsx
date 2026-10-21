@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { WatchPart } from "@/domain/types";
 import { FILLER_KEY, includedByDefault, type Overrides } from "@/domain/watch-order";
 import { setPartIncluded, setReZeroVersion } from "@/server/actions/library";
@@ -33,9 +33,11 @@ export function WatchOrder({
   const [chosen, setChosen] = useState<Record<string, boolean>>(overrides ?? {});
   const [, startTransition] = useTransition();
   const toast = useToast();
-  useEffect(() => {
+  const [seenOverrides, setSeenOverrides] = useState(overrides);
+  if (seenOverrides !== overrides) {
+    setSeenOverrides(overrides);
     setChosen(overrides ?? {});
-  }, [overrides]);
+  }
 
   const hasFiller = parts.some((p) => p.filler?.length);
   const fillerCount = parts.reduce((n, p) => n + (p.filler?.length ?? 0), 0);

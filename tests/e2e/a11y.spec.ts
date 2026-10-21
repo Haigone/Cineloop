@@ -22,6 +22,8 @@ test("username-only start page and the guest banner have no serious accessibilit
 });
 
 test("app pages have no serious accessibility violations", async ({ page }) => {
+  // 15 pagine in sequenza: il timeout predefinito è troppo stretto sui runner lenti.
+  test.setTimeout(150_000);
   await signIn(page);
   for (const path of PAGES) {
     await page.goto(path);
