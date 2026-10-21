@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium, expect, test } from "@playwright/test";
@@ -14,6 +14,11 @@ test("Prime Video is recognised with no permission to grant", async ({ baseURL }
   const dir = mkdtempSync(path.join(tmpdir(), "cineloop-ext-prime-"));
   const ext = path.join(dir, "extension");
   cpSync("extension", ext, { recursive: true });
+  // A headless browser cannot click a permission prompt: the test copy grants the optional sites up front.
+  const manifest = JSON.parse(readFileSync(path.join(ext, "manifest.json"), "utf8"));
+  manifest.host_permissions = [...manifest.host_permissions, ...manifest.optional_host_permissions];
+  delete manifest.optional_host_permissions;
+  writeFileSync(path.join(ext, "manifest.json"), JSON.stringify(manifest));
 
   const ctx = await chromium.launchPersistentContext(path.join(dir, "profile"), {
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
