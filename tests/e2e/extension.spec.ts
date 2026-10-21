@@ -22,6 +22,8 @@ test("pair the extension, watch on Netflix, and a friend joins", async ({ baseUR
 
   const ctx = await chromium.launchPersistentContext(path.join(dir, "profile"), {
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
+    // Extensions need the full Chromium, not the headless shell Playwright picks by default on CI.
+    channel: process.env.PLAYWRIGHT_CHROMIUM_PATH ? undefined : "chromium",
     headless: true,
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, "--headless=new"],
   });

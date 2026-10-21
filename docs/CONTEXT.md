@@ -63,7 +63,7 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 - ANN, Filler List, Tudum e Netflix/Prime non sono raggiungibili dal sandbox: selettori e parser testati solo su fixture.
 - Il test E2E dell'estensione (Netflix) falliva al controllo di pausa per un difetto del test, non dell'estensione: `party-sync.js` ignora i `<video>` senza durata finita (come quelli veri di Netflix) e lo stub era un flusso live. Ora lo stub riproduce un WAV muto. Un nuovo stub di player deve avere una durata finita.
 
-- Estensione 0.7.1: ogni pausa/seek/cambio episodio manda subito un'osservazione, quindi `/api/extension/observe` ha un bucket di limite proprio (60/min). I test E2E dell'estensione condividono lo store demo: Luca (seed Netflix) diventa Prime dopo `extension-prime.spec`, quindi `extension.spec` lo rimette su Netflix con un `observe`.
+- Estensione 0.7.1: ogni pausa/seek/cambio episodio manda subito un'osservazione, quindi `/api/extension/observe` ha un bucket di limite proprio (60/min). I test E2E dell'estensione condividono lo store demo: Luca (seed Netflix) diventa Prime dopo `extension-prime.spec`, quindi `extension.spec` lo rimette su Netflix con un `observe`. Nei test con estensione `launchPersistentContext` usa `channel: "chromium"` (senza `PLAYWRIGHT_CHROMIUM_PATH`): l'headless shell predefinito di Playwright non carica le estensioni e il test va in timeout (era la causa su GitHub Actions).
 
 ## File chiave
 - `src/proxy.ts`: reindirizza le pagine private a `/start`; controllo ottimistico del cookie.
