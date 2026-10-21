@@ -1,7 +1,7 @@
 // CineLoop: cosa sta guardando questa scheda di AnimeUnity.
 //
-// Gira solo su www.animeunity.to, dopo che l'utente ha concesso quel sito
-// all'estensione. Legge titolo, episodio e avanzamento del video. Il parametro
+// Gira sulle pagine AnimeUnity autorizzate. Legge titolo, episodio e avanzamento
+// del video solo quando il monitoraggio CineLoop non è in pausa. Il parametro
 // cineloopResume è un'indicazione di ripresa generata da CineLoop: viene
 // applicata al video visibile una sola volta, quando i metadati sono pronti.
 (() => {
