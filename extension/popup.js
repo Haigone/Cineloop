@@ -413,10 +413,6 @@ $("change-btn").addEventListener("click", async () => {
   $("q").focus();
 });
 
-$("grant-btn").addEventListener("click", async () => {
-  // Must run inside the click: browsers only show the prompt for a user gesture.
-  if (await chrome.permissions.request({ origins: [NETFLIX_ORIGIN] })) await render();
-});
 
 $("party-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -451,7 +447,6 @@ $("unpair-btn").addEventListener("click", async () => {
   await render();
 });
 
-$("grant-skip").addEventListener("click", () => render());
 
 $("manual-form").addEventListener("submit", async (e) => {
   e.preventDefault();
