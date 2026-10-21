@@ -21,6 +21,9 @@ export default defineConfig({
     baseURL,
     locale: "it-IT",
     trace: "retain-on-failure",
+    // A missing element fails in seconds with its name, instead of hanging until the test timeout.
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : undefined,
   },
   projects: [
