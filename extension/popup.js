@@ -31,7 +31,7 @@ async function render() {
   // had never been authorized (or their permissions had been revoked).
   const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activeUrl = activeTab?.url ?? "";
-  const onAnimeWithoutAccess = activeUrl.startsWith("https://www.animeunity.to/") && !animeOk;
+  const onAnimeWithoutAccess = /^https:\/\/(?:www\.)?animeunity\.to\//i.test(activeUrl) && !animeOk;
   const resolvedForPrompt = await getResolved();
   let onStreamingWithoutAccess = false;
   try {
@@ -276,8 +276,11 @@ async function togglePermission(provider) {
       // explicit user gesture to grant this new host before reading the player.
       await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
     } else if (directory) {
+      // Resolve first, then let the next explicit click request the new host.
+      // Firefox may discard the transient user gesture across the async message.
       const origin = await chrome.runtime.sendMessage({ type: "resolve-sc", force: true }).catch(() => null);
-      if (origin) await chrome.permissions.request({ origins: [`${origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
+      if (origin) await render();
+      else $("manage-sc-status").textContent = "Non trovo il dominio attuale. Apri una pagina StreamingCommunity e riprova.";
     } else {
       await chrome.permissions.request({ origins: DIRECTORY_ORIGINS });
     }
