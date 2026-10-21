@@ -2,7 +2,7 @@ import "./compat.js";
 import { api, getSettings } from "./api.js";
 import { browseId, hasNetflixAccess, watchId } from "./netflix.js";
 import { getResolved, hasDirectoryAccess, hasStreamingAccess, isStreamingUrl, rememberObservedStreamingUrl, resolveStreamingUrl, scWatchId, SC_VIXCLOUD_ORIGINS } from "./sc.js";
-import { auWatchId, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
+import { auWatchId, getAnimeOrigins, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
 import { hasPrimeAccess, isPrimeUrl, PRIME_ORIGINS } from "./prime.js";
 
 /*
@@ -166,7 +166,7 @@ async function enableScFrameOrigin(origin) {
   return true;
 }
 
-/** Su animeunity.to fa girare au-page.js: titolo, episodio e avanzamento del video. */
+/** Sui domini AnimeUnity autorizzati fa girare au-page.js: titolo, episodio e avanzamento del video. */
 async function enableAnimePage() {
   if (!(await hasAnimeAccess())) return;
   // Firefox can reject dynamic registrations on some versions/installation
@@ -176,12 +176,12 @@ async function enableAnimePage() {
     const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
     if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
     await chrome.scripting.registerContentScripts([
-      { id: AU_SCRIPT, matches: ["https://www.animeunity.to/*", "https://animeunity.to/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
+      { id: AU_SCRIPT, matches: await getAnimeOrigins(), js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
     ]);
   } catch {
     // Explicit injection below also covers Firefox builds where registration fails.
   }
-  const animeTabs = await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] });
+  const animeTabs = await chrome.tabs.query({ url: await getAnimeOrigins() });
   for (const tab of animeTabs) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
@@ -199,7 +199,7 @@ async function rememberAnimeFrameOrigin(tabId, senderUrl, origin) {
   if (!isAnimeUrl(senderUrl)) return;
   let parsed;
   try { parsed = new URL(origin); } catch { return; }
-  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.to") return;
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || isAnimeUrl(parsed.origin)) return;
   const { auFrameOrigins = [] } = await chrome.storage.session.get("auFrameOrigins");
   await chrome.storage.session.set({
     auFrameOrigins: [...new Set([...auFrameOrigins, parsed.origin])].slice(-10),
@@ -211,7 +211,7 @@ async function rememberAnimeFrameOrigin(tabId, senderUrl, origin) {
 async function enableAnimeFrameOrigin(origin) {
   let parsed;
   try { parsed = new URL(origin); } catch { return false; }
-  if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.origin === "https://www.animeunity.to") return false;
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || isAnimeUrl(parsed.origin)) return false;
   if (!(await chrome.permissions.contains({ origins: [parsed.origin + "/*"] }))) return false;
   const id = "au-frame-" + parsed.hostname.replace(/[^a-z0-9_-]/gi, "-");
   // Registration may fail in Firefox; still inject into already-open frames.
@@ -227,7 +227,7 @@ async function enableAnimeFrameOrigin(origin) {
   }
   // Inject into every currently open AnimeUnity tab. A single remembered tab ID
   // caused the last opened tab to steal progress/watch-party updates from others.
-  const animeTabs = await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] });
+  const animeTabs = await chrome.tabs.query({ url: await getAnimeOrigins() });
   await Promise.all(animeTabs.filter((tab) => tab.id).map((tab) =>
     chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
@@ -701,7 +701,7 @@ async function netflixOpen() {
 /** C'e' almeno una scheda aperta su AnimeUnity? */
 async function animeOpen() {
   if (!(await hasAnimeAccess())) return false;
-  return (await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] })).length > 0;
+  return (await chrome.tabs.query({ url: await getAnimeOrigins() })).length > 0;
 }
 
 /** C'e' almeno una scheda aperta sul dominio StreamingCommunity risolto? */
@@ -727,7 +727,7 @@ async function current() {
   const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activeUrl = active?.url ?? "";
   if (isAnimeUrl(activeUrl) && auWatchId(activeUrl) && await hasAnimeAccess()) {
-    const tabs = (await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] })).filter((t) => auWatchId(t.url ?? ""));
+    const tabs = (await chrome.tabs.query({ url: await getAnimeOrigins() })).filter((t) => auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
   }
   if (scWatchId(activeUrl) && await hasStreamingAccess()) {
@@ -745,7 +745,7 @@ async function current() {
 
   // No active provider player: retain the existing fallback order.
   if (await hasAnimeAccess()) {
-    const tabs = (await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] })).filter((t) => auWatchId(t.url ?? ""));
+    const tabs = (await chrome.tabs.query({ url: await getAnimeOrigins() })).filter((t) => auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
   }
   if (await hasNetflixAccess()) {
@@ -812,7 +812,7 @@ async function tick() {
       await remember(found.tab);
       const providerId = /^https:\/\/www\.netflix\.com\//.test(found.tab.url)
         ? "netflix"
-        : /^https:\/\/www\.animeunity\.to\//.test(found.tab.url)
+        : isAnimeUrl(found.tab.url)
           ? "animeunity"
           : isPrimeUrl(found.tab.url)
             ? "prime-video"
