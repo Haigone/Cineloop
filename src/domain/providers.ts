@@ -1,4 +1,5 @@
 import type { Provider, ProviderId } from "./types";
+import { ANIMEUNITY_ORIGIN } from "./provider-domains";
 
 /**
  * Static provider metadata. Status reflects implemented behaviour (see docs/providers.md).
@@ -50,7 +51,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     id: "animeunity",
     name: "Anime Unity",
     tint: "#8c7cf0",
-    homepage: "https://www.animeunity.to",
+    homepage: ANIMEUNITY_ORIGIN,
     integration: "available",
   },
   streamingcommunity: {

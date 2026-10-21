@@ -13,7 +13,7 @@ describe("provider registry", () => {
   });
 
   it("marks Anime Unity and Streaming Community detection available", () => {
-    expect(PROVIDERS.animeunity).toMatchObject({ homepage: "https://www.animeunity.to", integration: "available" });
+    expect(PROVIDERS.animeunity).toMatchObject({ homepage: "https://www.animeunity.co", integration: "available" });
     expect(PROVIDERS.streamingcommunity).toMatchObject({ homepage: null, integration: "available" });
   });
 });
@@ -52,7 +52,7 @@ describe("Anime Unity adapter", () => {
   const adapter = getAdapter("animeunity");
   const observation: SyncObservation = {
     providerId: "animeunity",
-    url: "https://www.animeunity.to/anime/123-example",
+    url: "https://www.animeunity.co/anime/123-example",
     documentTitle: "Example Anime - Anime Unity",
     hints: { title: "Example Anime", season: 1, episode: 4, progress: 0.42 },
     observedAt: "2026-10-09T12:00:00Z",
@@ -66,10 +66,10 @@ describe("Anime Unity adapter", () => {
   });
 
   it("rejects non-Anime Unity pages and hostname lookalikes", async () => {
-    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "http://www.animeunity.to/anime/123-example" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "http://www.animeunity.co/anime/123-example" }))).toBeNull();
     expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://evil.example/animeunity/anime/123" }))).toBeNull();
-    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://animeunity.to.evil.test/anime/123" }))).toBeNull();
-    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://www.animeunity.to/search?q=x" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://animeunity.co.evil.test/anime/123" }))).toBeNull();
+    expect(await adapter.getCurrentContent(ctx({ ...observation, url: "https://www.animeunity.co/search?q=x" }))).toBeNull();
     expect(await adapter.getCurrentContent(ctx({ ...observation, providerId: "netflix" }))).toBeNull();
   });
 

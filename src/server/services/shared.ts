@@ -2,6 +2,7 @@ import "server-only";
 import type { LibraryEntry, PublicUser, Title, User, WatchProgress } from "@/domain/types";
 import { seriesProgress } from "@/domain/library";
 import { getProvider } from "@/domain/providers";
+import { ANIMEUNITY_DOMAIN, isAnimeUnityHost } from "@/domain/provider-domains";
 import { resolveContinueUrl } from "@/integrations/providers/registry";
 import type { Repository } from "@/server/data";
 
@@ -80,11 +81,11 @@ export function animeUnityResumeUrl(value: string, fraction: number): string {
     // Existing library progress can still contain links saved before the
     // AnimeUnity domain change. Canonicalize them before returning them to the browser.
     const legacyHost = host === "animeunity.so" || host.endsWith(".animeunity.so");
-    const currentHost = host === "animeunity.to" || host.endsWith(".animeunity.to");
+    const currentHost = isAnimeUnityHost(host)
     if ((!legacyHost && !currentHost) || !/^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname)) return value;
     if (legacyHost) {
       // The suffix regex handles subdomains (e.g. www), but not the bare apex domain.
-      url.hostname = host === "animeunity.so" ? "animeunity.to" : host.replace(/\.animeunity\.so$/i, ".animeunity.to");
+      url.hostname = host === "animeunity.so" ? ANIMEUNITY_DOMAIN : host.replace(/\.animeunity\.so$/i, `.${ANIMEUNITY_DOMAIN}`);
     }
     url.searchParams.set("cineloopResume", String(Math.min(1, Math.max(0, fraction))));
     return url.toString();

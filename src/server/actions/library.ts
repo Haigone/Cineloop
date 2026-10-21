@@ -1,6 +1,7 @@
 "use server";
 
 import { getProvider } from "@/domain/providers";
+import { ANIMEUNITY_ORIGIN, isAnimeUnityHost } from "@/domain/provider-domains";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import type { ActivityKind, ProviderId, RatingValue, SeasonSummary, TitleUpdates } from "@/domain/types";
@@ -46,7 +47,7 @@ async function animeUnityEpisodeUrl(
     const current = storedUrl ? new URL(storedUrl) : null;
     const match = current && /^\/anime\/(\d+-[^/]+)\/(\d+)$/.exec(current.pathname);
     if (current && current.protocol === "https:" &&
-      (current.hostname === "animeunity.to" || current.hostname === "www.animeunity.to") && match) {
+      isAnimeUnityHost(current.hostname) && match) {
       storedPath = match[1]!;
     }
   } catch {
@@ -74,11 +75,11 @@ async function animeUnityEpisodeUrl(
 
   // Exact episode ID wins; otherwise use the independently observed season page ID.
   if (episodeId && /^\d{1,12}$/.test(episodeId)) {
-    return "https://www.animeunity.to/anime/" + slug + "/" + episodeId;
+    return ANIMEUNITY_ORIGIN + "/anime/" + slug + "/" + episodeId;
   }
   const seasonId = await repo.resolveSeasonExternalId({ providerId: "animeunity", titleId, seasonNumber }).catch(() => null);
   if (seasonId && /^\d{1,12}$/.test(seasonId)) {
-    return "https://www.animeunity.to/anime/" + seasonId + "-" + slug.replace(/^\d+-/, "");
+    return ANIMEUNITY_ORIGIN + "/anime/" + seasonId + "-" + slug.replace(/^\d+-/, "");
   }
   return fallback;
 }

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { authenticate, json, preflight, readJson } from "@/server/extension/http";
 import { reportPlayback } from "@/server/services/sync";
+import { isAnimeUnityHost } from "@/domain/provider-domains";
 
 export const OPTIONS = preflight;
 
@@ -12,7 +13,7 @@ function validExternalId(value: string): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    const animeUnity = host === "animeunity.to" || host.endsWith(".animeunity.to");
+    const animeUnity = isAnimeUnityHost(host);
     return url.protocol === "https:" &&
       animeUnity &&
       /^\/anime\/\d{1,9}(?:[-/?#]|$)/i.test(url.pathname) &&

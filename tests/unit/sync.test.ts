@@ -134,7 +134,7 @@ describe("AnimeUnity title matching", () => {
       genres: ["Animazione"], overview: "", communityRating: null, artwork: art, providers: [],
       runtimeMinutes: 94,
     };
-    const url = "https://www.animeunity.to/anime/69-bleach/5027";
+    const url = "https://www.animeunity.co/anime/69-bleach/5027";
     await repo.updatePreferences("u_marco", { providerConsent: { animeunity: "accepted" } });
     await repo.upsertTitles([series, movie]);
     // Reproduce the bad association already seen in production.

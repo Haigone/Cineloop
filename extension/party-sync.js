@@ -64,13 +64,13 @@
   const isVixCloudPlayerFrame = () =>
     window !== window.top &&
     location.hostname !== "www.netflix.com" &&
-    !["www.animeunity.to", "animeunity.to"].includes(location.hostname) &&
+    !["www.animeunity.co", "animeunity.co"].includes(location.hostname) &&
     /^\/playlist\/\d+(?:\/|$)/i.test(location.pathname);
   const onPrime = location.hostname === "www.primevideo.com" || location.hostname === "www.amazon.it";
   const provider = () => {
     if (location.hostname === "www.netflix.com") return "netflix";
     if (onPrime) return "prime-video";
-    if (["www.animeunity.to", "animeunity.to"].includes(location.hostname) || isVixCloudPlayerFrame()) return "animeunity";
+    if (["www.animeunity.co", "animeunity.co"].includes(location.hostname) || isVixCloudPlayerFrame()) return "animeunity";
     return "streamingcommunity";
   };
   let playerFrameContext = null;

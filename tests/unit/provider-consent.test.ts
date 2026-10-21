@@ -6,7 +6,7 @@ import { getExtensionStatus, handleObservation } from "@/server/services/sync";
 const repo = getRepository();
 const anime: SyncObservation = {
   providerId: "animeunity",
-  url: "https://www.animeunity.to/anime/123-example",
+  url: "https://www.animeunity.co/anime/123-example",
   documentTitle: "Example Anime - Anime Unity",
   hints: { title: "Example Anime", season: 1, episode: 4, progress: 0.4 },
   observedAt: "2026-10-16T12:00:00Z",

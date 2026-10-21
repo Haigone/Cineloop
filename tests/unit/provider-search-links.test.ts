@@ -10,30 +10,30 @@ describe("provider title search links", () => {
   });
 
   it("opens Anime Unity archive search when the canonical anime ID is unknown", () => {
-    expect(providerSearchUrl("animeunity", "Bleach")).toBe("https://www.animeunity.to/archivio?title=Bleach");
+    expect(providerSearchUrl("animeunity", "Bleach")).toBe("https://www.animeunity.co/archivio?title=Bleach");
   });
 
   it("does not append a playback seek hint to a search page", () => {
-    expect(animeUnityResumeUrl("https://www.animeunity.to/archivio?title=Bleach", 0.7)).toBe(
-      "https://www.animeunity.to/archivio?title=Bleach",
+    expect(animeUnityResumeUrl("https://www.animeunity.co/archivio?title=Bleach", 0.7)).toBe(
+      "https://www.animeunity.co/archivio?title=Bleach",
     );
   });
 
   it("converts saved legacy .so links to .to before resuming", () => {
     expect(animeUnityResumeUrl("https://www.animeunity.so/anime/123-bleach", 0.7)).toBe(
-      "https://www.animeunity.to/anime/123-bleach?cineloopResume=0.7",
+      "https://www.animeunity.co/anime/123-bleach?cineloopResume=0.7",
     );
   });
 
   it("converts the bare legacy .so domain to .to before resuming", () => {
     expect(animeUnityResumeUrl("https://animeunity.so/anime/123-bleach", 0.7)).toBe(
-      "https://animeunity.to/anime/123-bleach?cineloopResume=0.7",
+      "https://animeunity.co/anime/123-bleach?cineloopResume=0.7",
     );
   });
 
   it("appends a one-shot seek hint to a saved anime detail page", () => {
-    expect(animeUnityResumeUrl("https://www.animeunity.to/anime/123-bleach", 0.7)).toBe(
-      "https://www.animeunity.to/anime/123-bleach?cineloopResume=0.7",
+    expect(animeUnityResumeUrl("https://www.animeunity.co/anime/123-bleach", 0.7)).toBe(
+      "https://www.animeunity.co/anime/123-bleach?cineloopResume=0.7",
     );
   });
 });

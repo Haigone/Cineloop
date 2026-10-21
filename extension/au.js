@@ -1,8 +1,9 @@
 // AnimeUnity cambia spesso TLD e hostname: riconosciamo la famiglia animeunity.<tld>.
 // L'estensione legge solo gli host HTTPS autorizzati esplicitamente dall'utente.
 
-export const AU_ORIGIN = "https://www.animeunity.to";
-export const AU_ORIGINS = ["https://www.animeunity.to/*", "https://animeunity.to/*"];
+export const AU_DOMAIN = "animeunity.co";
+export const AU_ORIGIN = `https://www.${AU_DOMAIN}`;
+export const AU_ORIGINS = [`https://www.${AU_DOMAIN}/*`, `https://${AU_DOMAIN}/*`];
 
 export function isAnimeUrl(url) {
   try {
