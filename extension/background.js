@@ -227,7 +227,7 @@ async function enableAnimeFrameOrigin(origin) {
   }
   // Inject into every currently open AnimeUnity tab. A single remembered tab ID
   // caused the last opened tab to steal progress/watch-party updates from others.
-  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.to/*" });
+  const animeTabs = await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] });
   await Promise.all(animeTabs.filter((tab) => tab.id).map((tab) =>
     chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
@@ -701,7 +701,7 @@ async function netflixOpen() {
 /** C'e' almeno una scheda aperta su AnimeUnity? */
 async function animeOpen() {
   if (!(await hasAnimeAccess())) return false;
-  return (await chrome.tabs.query({ url: "https://www.animeunity.to/*" })).length > 0;
+  return (await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] })).length > 0;
 }
 
 /** C'e' almeno una scheda aperta sul dominio StreamingCommunity risolto? */
@@ -727,7 +727,7 @@ async function current() {
   const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activeUrl = active?.url ?? "";
   if (isAnimeUrl(activeUrl) && auWatchId(activeUrl) && await hasAnimeAccess()) {
-    const tabs = (await chrome.tabs.query({ url: "https://www.animeunity.to/*" })).filter((t) => auWatchId(t.url ?? ""));
+    const tabs = (await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] })).filter((t) => auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
   }
   if (scWatchId(activeUrl) && await hasStreamingAccess()) {
@@ -745,7 +745,7 @@ async function current() {
 
   // No active provider player: retain the existing fallback order.
   if (await hasAnimeAccess()) {
-    const tabs = (await chrome.tabs.query({ url: "https://www.animeunity.to/*" })).filter((t) => auWatchId(t.url ?? ""));
+    const tabs = (await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] })).filter((t) => auWatchId(t.url ?? ""));
     if (tabs.length > 0) return pickPlaying(tabs, auWatchId);
   }
   if (await hasNetflixAccess()) {
