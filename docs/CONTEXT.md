@@ -65,6 +65,8 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 
 - Estensione 0.7.1: ogni pausa/seek/cambio episodio manda subito un'osservazione, quindi `/api/extension/observe` ha un bucket di limite proprio (60/min). I test E2E dell'estensione condividono lo store demo: Luca (seed Netflix) diventa Prime dopo `extension-prime.spec`, quindi `extension.spec` lo rimette su Netflix con un `observe`. Nei test con estensione `launchPersistentContext` usa `channel: "chromium"` (senza `PLAYWRIGHT_CHROMIUM_PATH`): l'headless shell predefinito di Playwright non carica le estensioni e il test va in timeout (era la causa su GitHub Actions).
 
+- Donazioni/pubblicità (22/10): spenti di default, si accendono con `DONATION_URL` e `ADS_ENABLED`/`ADSENSE_*`; vedi docs/ads-and-donations.md. Manca il consenso cookie (CMP) prima degli annunci.
+
 ## File chiave
 - `src/proxy.ts`: reindirizza le pagine private a `/start`; controllo ottimistico del cookie.
 - `src/server/data/postgres/schema.ts`, `drizzle/`: schema e migrazioni (ultima 0019).
