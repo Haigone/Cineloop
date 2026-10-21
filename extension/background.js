@@ -177,7 +177,7 @@ async function enableAnimePage() {
     if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
     if (animeOrigins.length > 0) {
       await chrome.scripting.registerContentScripts([
-        { id: AU_SCRIPT, matches: animeOrigins, js: ["compat.js", "au-page.js", "party-sync.js"], runAt: "document_idle", persistAcrossSessions: true },
+        { id: AU_SCRIPT, matches: animeOrigins, js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
       ]);
     }
   } catch {
@@ -188,7 +188,7 @@ async function enableAnimePage() {
   const allTabs = await chrome.tabs.query({}).catch(() => []);
   const animeTabs = allTabs.filter((tab) => isAnimeUrl(tab.url ?? ""));
   for (const tab of animeTabs) {
-    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
+    if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
   // Register each supported VixCloud host under the same AnimeUnity permission
   // grant and inject into currently open embedded players without another prompt.
@@ -259,7 +259,7 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
     hasAnimeAccess().then((allowed) => {
       if (allowed) {
         chrome.scripting.executeScript({
-          target: { tabId },
+          target: { tabId, allFrames: true },
           files: ["compat.js", "au-page.js", "party-sync.js"],
         }).catch(() => {});
       }
