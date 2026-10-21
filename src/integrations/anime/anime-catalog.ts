@@ -6,7 +6,7 @@ import { searchKey } from "@/lib/text";
 import { AnnClient } from "./ann";
 import { FillerList } from "./filler-list";
 import { AL_ID, AniListClient, type AniListAnime, alSeries, alDate, alNames } from "./anilist";
-import { JikanClient, MAL_ID, airDate, namesOf, toSeries } from "./jikan";
+import { JikanClient, MAL_ID, airDate, toSeries } from "./jikan";
 import { ANIME_ID, animeId, buildFranchise, collectEntries, kindOf, runOffset, withinEntry, type Franchise } from "./franchise";
 import type { AnimeEntry } from "./types";
 

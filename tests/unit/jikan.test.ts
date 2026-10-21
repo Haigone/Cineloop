@@ -21,7 +21,6 @@ const jikan = (data: JikanAnime[], byId: Record<string, JikanAnime> = {}) =>
     return new Response(JSON.stringify({ data }), { status: 200 });
   }) as unknown as typeof fetch);
 
-const known = { id: "tmdb-tv-1", type: "anime", title: "New Show 1" } as Title;
 const base = (up: Release[] = []): CatalogService =>
   ({ name: "tmdb", complete: true, search: async () => [], getTitle: async () => null, nextSeasons: async () => [], trending: async () => [], related: async () => [], episodes: async () => null, upcoming: vi.fn(async () => up), premieres: async () => [] }) as unknown as CatalogService;
 const al = (media: AniListAnime[], one?: AniListAnime) =>

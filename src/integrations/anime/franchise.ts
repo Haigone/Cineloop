@@ -111,7 +111,10 @@ export async function collectEntries(seeds: readonly string[], ann: AnnClient, k
       grew = false;
       for (const e of all.values()) {
         if (out.has(e.id)) {
-          for (const id of linksOf(e)) if (all.has(id) && !out.has(id)) (out.add(id), (grew = true));
+          for (const id of linksOf(e)) if (all.has(id) && !out.has(id)) {
+            out.add(id);
+            grew = true;
+          }
         } else if (linksOf(e).some((id) => out.has(id))) {
           out.add(e.id);
           grew = true;

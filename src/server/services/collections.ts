@@ -111,7 +111,6 @@ export async function notifySagas(repo: Repository, userId: string, sagas: reado
 
 
 /** Editorial collections are CineLoop-owned; their membership is resolved against the live catalogue. */
-type CuratedItem = readonly [label: string, tmdbId: number | null, mediaType: "movie" | "tv"];
 
 /** These IDs are editorial data: never resolve a curated item by its title. */
 export const CURATED_COLLECTIONS = [
