@@ -8,7 +8,22 @@
   const alive = () => Boolean(globalThis.chrome?.runtime?.id);
   if (typeof globalThis.__cineloopAuPage === "function" && globalThis.__cineloopAuPage()) return;
   let stopped = false;
+  let trackingPaused = true;
   globalThis.__cineloopAuPage = () => !stopped && alive();
+
+  // Do not inspect player/page state while the user has paused CineLoop.
+  chrome.storage.local.get("paused").then(({ paused }) => {
+    trackingPaused = Boolean(paused);
+    if (!trackingPaused) read(true);
+  }).catch(() => {
+    trackingPaused = false;
+    read(true);
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.paused) return;
+    trackingPaused = Boolean(changes.paused.newValue);
+    if (!trackingPaused) read(true);
+  });
 
   const EPISODE_WORD = /(?:^|\b)(?:Ep\.?|Episodio|Episode)\s*(\d{1,4})\b/i;
   const titleIdNow = () => /\/anime\/(\d{1,9})(?:[-/?#]|$)/.exec(location.pathname)?.[1] ?? null;
@@ -297,6 +312,7 @@
 
   function read(force = false, forcedProgress = null) {
     if (!alive()) return stop();
+    if (trackingPaused) return;
     const id = titleIdNow();
     checkReZeroEdition(id);
     // Detect cross-origin player frames; the popup can request their permission.
@@ -386,5 +402,4 @@
     observer.disconnect();
     clearInterval(timer);
   }
-  read();
 })();
