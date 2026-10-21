@@ -44,10 +44,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      # I due test E2E dell'estensione (extension.spec.ts, extension-prime.spec.ts)
-      # sono rossi/in timeout su CI (docs/difetti.md): esclusi finché l'area
-      # Estensione non li corregge.
-      - run: npm run test:e2e -- --grep-invert "pair the extension|Prime Video is recognised"
+      - run: npm run test:e2e --
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -27,9 +27,13 @@ const observation = z.object({
 
 export const OPTIONS = preflight;
 
-/** A heartbeat from the tab the user is watching in. */
+/**
+ * A heartbeat from the tab the user is watching in. Since extension 0.7.1 a
+ * pause, seek or episode change also reports at once, so it has its own bucket
+ * (the popup's status and search calls no longer eat into it).
+ */
 export async function POST(request: NextRequest) {
-  const auth = await authenticate(request);
+  const auth = await authenticate(request, 60, "observe");
   if (!("userId" in auth)) return auth;
   const parsed = observation.safeParse(await readJson(request));
   if (!parsed.success) return json(request, { error: "invalid_request" }, 400);

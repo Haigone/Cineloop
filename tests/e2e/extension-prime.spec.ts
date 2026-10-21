@@ -17,6 +17,8 @@ test("Prime Video is recognised with no permission to grant", async ({ baseURL }
 
   const ctx = await chromium.launchPersistentContext(path.join(dir, "profile"), {
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
+    // Extensions need the full Chromium, not the headless shell Playwright picks by default on CI.
+    channel: process.env.PLAYWRIGHT_CHROMIUM_PATH ? undefined : "chromium",
     headless: true,
     args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, "--headless=new"],
   });
