@@ -59,7 +59,6 @@ export function WatchOrder({
 
   async function chooseReZeroCut(key: "rezero-directors-cut" | "rezero-original-2016", included: boolean) {
     const before = chosen;
-    const other = key === "rezero-directors-cut" ? "rezero-original-2016" : "rezero-directors-cut";
     const clearing = !included && chosen[key] === true;
     const version = included
       ? (key === "rezero-directors-cut" ? "directors-cut" : "2016")

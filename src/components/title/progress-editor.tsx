@@ -87,7 +87,6 @@ function ProgressDialog({
       live = false;
     };
     // Runs once per opening.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, title.id]);
   const [episode, setEpisode] = useState(progress?.episode ?? 1);
   const [minute, setMinute] = useState(progress ? Math.round(progress.fraction * runtime) : 0);
