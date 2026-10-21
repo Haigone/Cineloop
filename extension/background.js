@@ -176,12 +176,12 @@ async function enableAnimePage() {
     const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
     if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
     await chrome.scripting.registerContentScripts([
-      { id: AU_SCRIPT, matches: ["https://www.animeunity.to/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
+      { id: AU_SCRIPT, matches: ["https://www.animeunity.to/*", "https://animeunity.to/*"], js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
     ]);
   } catch {
     // Explicit injection below also covers Firefox builds where registration fails.
   }
-  const animeTabs = await chrome.tabs.query({ url: "https://www.animeunity.to/*" });
+  const animeTabs = await chrome.tabs.query({ url: ["https://www.animeunity.to/*", "https://animeunity.to/*"] });
   for (const tab of animeTabs) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
