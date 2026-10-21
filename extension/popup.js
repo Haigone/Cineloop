@@ -413,6 +413,7 @@ $("change-btn").addEventListener("click", async () => {
   $("q").focus();
 });
 
+
 $("party-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const value = $("party-url").value.trim();
@@ -445,6 +446,7 @@ $("unpair-btn").addEventListener("click", async () => {
   await chrome.storage.local.remove(["token", "user"]);
   await render();
 });
+
 
 $("manual-form").addEventListener("submit", async (e) => {
   e.preventDefault();
