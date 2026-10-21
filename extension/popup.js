@@ -2,7 +2,7 @@ import "./compat.js";
 import { api, ApiError, getSettings, normalizeServer, request } from "./api.js";
 import { hasNetflixAccess, NETFLIX_ORIGIN } from "./netflix.js";
 import { DIRECTORY_ORIGINS, SC_VIXCLOUD_ORIGINS, getResolved, hasDirectoryAccess, hasStreamingAccess } from "./sc.js";
-import { ANIMEUNITY_ACCESS_ORIGINS, hasAnimeAccess } from "./au.js";
+import { ANIMEUNITY_ACCESS_ORIGINS, getAnimeOrigins, hasAnimeAccess, isAnimeUrl, VIXCLOUD_ORIGINS } from "./au.js";
 import { hasPrimeAccess, PRIME_ORIGINS } from "./prime.js";
 
 const $ = (id) => document.getElementById(id);
@@ -31,7 +31,7 @@ async function render() {
   // had never been authorized (or their permissions had been revoked).
   const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activeUrl = activeTab?.url ?? "";
-  const onAnimeWithoutAccess = /^https:\/\/(?:www\.)?animeunity\.to\//i.test(activeUrl) && !animeOk;
+  const onAnimeWithoutAccess = isAnimeUrl(activeUrl) && !(await chrome.permissions.contains({ origins: [new URL(activeUrl).origin + "/*"] }));
   const resolvedForPrompt = await getResolved();
   let onStreamingWithoutAccess = false;
   try {
@@ -263,7 +263,12 @@ async function togglePermission(provider) {
     // Firefox may drop the transient user gesture across an await. Use the
     // permission snapshot rendered before the click so request() is called
     // immediately from the click handler.
-    if (!perms.animeBundle) await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+    if (!perms.animeBundle) {
+      const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+      const activeUrl = active?.url ?? "";
+      const requestedOrigin = isAnimeUrl(activeUrl) ? [new URL(activeUrl).origin + "/*"] : ANIMEUNITY_ACCESS_ORIGINS;
+      await chrome.permissions.request({ origins: [...requestedOrigin, ...VIXCLOUD_ORIGINS] });
+    }
   } else {
     const { resolved, directory, streaming } = perms;
     if (streaming && !perms.vixcloud) {
@@ -306,15 +311,25 @@ async function renderGrant() {
   const auBtn = $("au-grant-btn");
   auBtn.hidden = false;
   const animeEnabled = await hasAnimeAccess();
-  const animeBundleEnabled = await chrome.permissions.contains({ origins: ANIMEUNITY_ACCESS_ORIGINS });
+  const animeOrigins = await getAnimeOrigins();
+  const [activeAnimeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+  const activeAnimeUrl = activeAnimeTab?.url ?? "";
+  const activeAnimeOrigin = isAnimeUrl(activeAnimeUrl) ? new URL(activeAnimeUrl).origin : null;
+  const activeAnimeGranted = Boolean(activeAnimeOrigin && animeOrigins.includes(activeAnimeOrigin + "/*"));
+  const animeBundleEnabled = animeOrigins.length > 0 && await chrome.permissions.contains({ origins: VIXCLOUD_ORIGINS });
   if (animeBundleEnabled) {
     auBtn.textContent = "AnimeUnity e VixCloud attivi ✓";
     auBtn.disabled = true;
   } else {
-    auBtn.textContent = animeEnabled ? "Abilita anche il player VixCloud" : "Consenti AnimeUnity e VixCloud";
+    auBtn.textContent = activeAnimeOrigin && !activeAnimeGranted
+      ? `Consenti su ${new URL(activeAnimeOrigin).hostname} e VixCloud`
+      : animeEnabled ? "Abilita anche il player VixCloud" : "Consenti AnimeUnity e VixCloud";
     auBtn.disabled = false;
     auBtn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: ANIMEUNITY_ACCESS_ORIGINS })) await renderGrant();
+      const origins = activeAnimeOrigin && !activeAnimeGranted
+        ? [activeAnimeOrigin + "/*", ...VIXCLOUD_ORIGINS]
+        : [...ANIMEUNITY_ACCESS_ORIGINS, ...VIXCLOUD_ORIGINS];
+      if (await chrome.permissions.request({ origins })) await renderGrant();
     };
   }
   const btn = $("sc-grant-btn");
