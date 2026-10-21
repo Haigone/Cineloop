@@ -1,6 +1,6 @@
 # CineLoop: contesto per i thread
 
-Leggi questo file all'inizio di ogni lavoro; a fine lavoro aggiungi poche righe (decisione nuova, file chiave, migrazione). Dettagli tecnici: [architecture.md](./architecture.md), [providers.md](./providers.md), [browser-extension.md](./browser-extension.md). Ultimo aggiornamento: 2026-10-16 (sera).
+Leggi questo file all'inizio di ogni lavoro; a fine lavoro aggiungi poche righe (decisione nuova, file chiave, migrazione). Dettagli tecnici: [architecture.md](./architecture.md), [providers.md](./providers.md), [browser-extension.md](./browser-extension.md). Ultimo aggiornamento: 2026-10-21. Elenco difetti noti e priorità: [difetti.md](./difetti.md).
 
 ## Cos'è
 Hub personale e sociale per film, serie e anime (NON una piattaforma di streaming). Repo `haigone/cineloop`, branch `main`, produzione su Vercel + Neon (Frankfurt), deploy da `main`. Il proprietario, Riccardo (GitHub Haigone), scrive in italiano: rispondi sempre in italiano. Il catalogo e i consigli sono "la parte fondamentale del sito".
@@ -16,6 +16,7 @@ Hub personale e sociale per film, serie e anime (NON una piattaforma di streamin
 - `npm run dev`; `npm run typecheck`; `npm run lint`; `npm test` (Vitest); `npm run test:e2e` (Playwright + axe; nei container cloud `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
 - Senza `DATABASE_URL`: repository in memoria con dati demo (login `marco@cineloop.dev` / `cineloop-demo`). Con `DATABASE_URL`: Postgres, `npm run db:migrate && npm run db:seed`.
 - `npm run build` impacchetta l'estensione, esegue le migrazioni e carica il catalogo base. Prossima migrazione: **0022** (0020 = link episodi, 0021 = consenso provider).
+- `npm run typecheck` su clone pulito richiede prima un build (tipi `PageProps` generati). Le PR non hanno CI su GitHub: esegui tu typecheck, unit ed E2E.
 - Next.js 16.4 ha API diverse da quelle note: leggi `node_modules/next/dist/docs/` prima di scrivere codice (vedi AGENTS.md).
 - Stack: Next 16.4 (cacheComponents, partialPrefetching, `proxy.ts`), React 19, Tailwind 4, Motion, Drizzle + PostgreSQL, zod. Dati reali del catalogo richiedono `TMDB_READ_TOKEN` (già su Vercel).
 

@@ -32,7 +32,7 @@ test("publish a playlist in Community and take it back", async ({ page }) => {
   await page.getByLabel("Nome della playlist").fill("Pubblica di prova");
   await page.getByRole("button", { name: "Crea playlist" }).click();
   // Any catalogue title can go in, not only the wishlist's.
-  await page.getByLabel("Cerca nel catalogo").fill("Narcos");
+  await page.getByRole("searchbox", { name: "Cerca nel catalogo" }).fill("Narcos");
   await page.getByRole("button", { name: "Aggiungi Narcos a Pubblica di prova" }).click();
   await expect(page.getByRole("list", { name: "Titoli di Pubblica di prova" }).getByRole("link", { name: /^Narcos/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Narcos è già in Pubblica di prova" })).toBeDisabled();
