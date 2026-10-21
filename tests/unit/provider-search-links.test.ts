@@ -19,13 +19,13 @@ describe("provider title search links", () => {
     );
   });
 
-  it("converts saved legacy .so links to .to before resuming", () => {
+  it("converts saved legacy .so links to .co before resuming", () => {
     expect(animeUnityResumeUrl("https://www.animeunity.so/anime/123-bleach", 0.7)).toBe(
       "https://www.animeunity.co/anime/123-bleach?cineloopResume=0.7",
     );
   });
 
-  it("converts the bare legacy .so domain to .to before resuming", () => {
+  it("converts the bare legacy .so domain to .co before resuming", () => {
     expect(animeUnityResumeUrl("https://animeunity.so/anime/123-bleach", 0.7)).toBe(
       "https://animeunity.co/anime/123-bleach?cineloopResume=0.7",
     );

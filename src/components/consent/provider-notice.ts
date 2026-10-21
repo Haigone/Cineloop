@@ -5,7 +5,7 @@ export const PROVIDER_NOTICE: Record<ConsentProvider, { name: string; lead: stri
   animeunity: {
     name: "AnimeUnity",
     lead: "AnimeUnity è un sito di streaming non ufficiale: non ha la licenza dei contenuti che offre.",
-    detail: "Se lo attivi, l’estensione legge solo indirizzo e titolo della scheda di animeunity.to che hai aperto tu e il punto del video, per aggiornare la tua libreria.",
+    detail: "Se lo attivi, l’estensione legge solo indirizzo e titolo della scheda di animeunity.co che hai aperto tu e il punto del video, per aggiornare la tua libreria.",
   },
   streamingcommunity: {
     name: "StreamingCommunity",
