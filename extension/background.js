@@ -205,6 +205,10 @@ async function rememberAnimeFrameOrigin(tabId, senderUrl, origin) {
     auFrameOrigins: [...new Set([...auFrameOrigins, parsed.origin])].slice(-10),
     auFrameTabId: tabId,
   });
+  // A one-time HTTPS grant also covers newly discovered embedded player hosts.
+  if (await chrome.permissions.contains({ origins: ["https://*/*"] })) {
+    await enableAnimeFrameOrigin(parsed.origin);
+  }
 }
 
 /** Inject the reader into the video iframe after the user grants its host. */
