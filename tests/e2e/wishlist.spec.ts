@@ -100,7 +100,8 @@ test("Home has a section each for films, series and anime, and reopens on the la
   // Back to the default for the other tests.
   await page.goto("/settings#sfondi");
   await page.getByLabel("Sfondo Film").selectOption("");
-  await expect(page.getByText("Sfondo di Film salvato")).toBeVisible();
+  // The earlier toast may still be on screen, so there can be two.
+  await expect(page.getByText("Sfondo di Film salvato").last()).toBeVisible();
   await page.goto("/home?c=serie");
   await expect(tabs.getByRole("link", { name: "Serie TV" })).toHaveAttribute("aria-current", "page");
 });
