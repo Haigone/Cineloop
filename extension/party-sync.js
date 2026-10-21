@@ -64,7 +64,7 @@
   const isVixCloudPlayerFrame = () =>
     window !== window.top &&
     location.hostname !== "www.netflix.com" &&
-    !["www.animeunity.to", "animeunity.to"].includes(location.hostname) && &&
+    !["www.animeunity.to", "animeunity.to"].includes(location.hostname) &&
     /^\/playlist\/\d+(?:\/|$)/i.test(location.pathname);
   const onPrime = location.hostname === "www.primevideo.com" || location.hostname === "www.amazon.it";
   const provider = () => {
