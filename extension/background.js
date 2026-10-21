@@ -275,6 +275,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     resolveStreamingUrl({ force: Boolean(message.force) }).then(reply, () => reply(null));
     return true;
   }
+  if (message?.type === "enable-anime") {
+    enableAnimePage().then(() => reply(true), () => reply(false));
+    return true;
+  }
   if (message?.type === "sc-origin") {
     getResolved().then((r) => reply(r?.origin ?? null), () => reply(null));
     return true;

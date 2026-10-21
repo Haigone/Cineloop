@@ -43,6 +43,19 @@ async function render() {
     return;
   }
 
+  // Keep setup visible until both dynamic providers are configured. Granting one
+  // provider must not hide the other provider's independent permission request.
+  const animeOriginsForSetup = await getAnimeOrigins();
+  const animeBundleReady = animeOriginsForSetup.length > 0 &&
+    await chrome.permissions.contains({ origins: VIXCLOUD_ORIGINS });
+  const streamingBundleReady = streamingOk &&
+    await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS });
+  if (!animeBundleReady || !streamingBundleReady) {
+    showOnly("grant");
+    await renderGrant();
+    return;
+  }
+
   if (!netflixOk && !primeOk && !animeOk && !streamingOk) {
     showOnly("grant");
     await renderGrant();
@@ -230,7 +243,12 @@ async function renderProviderPermissions() {
   const streaming = await hasStreamingAccess();
   const vixcloud = await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS });
   const resolved = await getResolved();
-  perms = { netflix, prime, anime, animeBundle, directory, streaming, vixcloud, resolved };
+  const [activePermissionTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+  const activePermissionUrl = activePermissionTab?.url ?? "";
+  const activeAnimeOrigin = isAnimeUrl(activePermissionUrl) ? new URL(activePermissionUrl).origin : null;
+  const grantedAnimeOrigins = await getAnimeOrigins();
+  const activeAnimeGranted = Boolean(activeAnimeOrigin && grantedAnimeOrigins.includes(activeAnimeOrigin + "/*"));
+  perms = { netflix, prime, anime, animeBundle, directory, streaming, vixcloud, resolved, activeAnimeOrigin, activeAnimeGranted };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
@@ -263,11 +281,12 @@ async function togglePermission(provider) {
     // Firefox may drop the transient user gesture across an await. Use the
     // permission snapshot rendered before the click so request() is called
     // immediately from the click handler.
-    if (!perms.animeBundle) {
-      const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
-      const activeUrl = active?.url ?? "";
-      const requestedOrigin = isAnimeUrl(activeUrl) ? [new URL(activeUrl).origin + "/*"] : ANIMEUNITY_ACCESS_ORIGINS;
-      await chrome.permissions.request({ origins: [...requestedOrigin, ...VIXCLOUD_ORIGINS] });
+    if (!perms.animeBundle || (perms.activeAnimeOrigin && !perms.activeAnimeGranted)) {
+      const requestedOrigin = perms.activeAnimeOrigin && !perms.activeAnimeGranted
+        ? [perms.activeAnimeOrigin + "/*"]
+        : ANIMEUNITY_ACCESS_ORIGINS;
+      const granted = await chrome.permissions.request({ origins: [...requestedOrigin, ...VIXCLOUD_ORIGINS] });
+      if (granted) await chrome.runtime.sendMessage({ type: "enable-anime" }).catch(() => null);
     }
   } else {
     const { resolved, directory, streaming } = perms;
@@ -329,12 +348,25 @@ async function renderGrant() {
       const origins = activeAnimeOrigin && !activeAnimeGranted
         ? [activeAnimeOrigin + "/*", ...VIXCLOUD_ORIGINS]
         : [...ANIMEUNITY_ACCESS_ORIGINS, ...VIXCLOUD_ORIGINS];
-      if (await chrome.permissions.request({ origins })) await renderGrant();
+      if (await chrome.permissions.request({ origins })) {
+        await chrome.runtime.sendMessage({ type: "enable-anime" }).catch(() => null);
+        await render();
+      }
     };
   }
   const btn = $("sc-grant-btn");
   btn.hidden = false;
   const resolved = await getResolved();
+  if (resolved?.origin && await hasStreamingAccess() &&
+      !(await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS }))) {
+    $("sc-grant-status").textContent = "Il sito è autorizzato, ma manca il permesso per il player incorporato. Completa qui l'attivazione.";
+    btn.textContent = "Completa permessi del player";
+    btn.onclick = async () => {
+      const granted = await chrome.permissions.request({ origins: [...SC_VIXCLOUD_ORIGINS] });
+      if (granted) await render();
+    };
+    return;
+  }
   if (resolved?.origin && !(await hasStreamingAccess())) {
     $("sc-grant-status").textContent = "Ho rilevato il dominio dalla scheda che hai aperto. Consentilo una volta per leggere titolo, episodio e avanzamento.";
     btn.textContent = `Consenti su ${new URL(resolved.origin).hostname}`;
@@ -348,7 +380,7 @@ async function renderGrant() {
       "Per aggiornare il dominio dalla directory streaming-community.how, consenti l'accesso alla directory.";
     btn.textContent = "Consenti su streaming-community.how";
     btn.onclick = async () => {
-      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await renderGrant();
+      if (await chrome.permissions.request({ origins: DIRECTORY_ORIGINS })) await render();
     };
     return;
   }

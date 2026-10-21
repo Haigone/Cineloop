@@ -7,7 +7,7 @@ export const AU_ORIGINS = ["https://www.animeunity.to/*", "https://animeunity.to
 export function isAnimeUrl(url) {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" && /^(?:www\.)?animeunity\.[a-z]{2,}(?:\.[a-z]{2,})?$/i.test(parsed.hostname);
+    return parsed.protocol === "https:" && /^(?:[a-z0-9-]+\.)*animeunity(?:\.[a-z0-9-]{2,})+$/i.test(parsed.hostname);
   } catch { return false; }
 }
 
@@ -16,7 +16,7 @@ export async function getAnimeOrigins() {
   return origins.filter((origin) => {
     try {
       const parsed = new URL(origin.replace(/\/\*$/, "/"));
-      return parsed.protocol === "https:" && /^(?:www\.)?animeunity\.[a-z]{2,}(?:\.[a-z]{2,})?$/i.test(parsed.hostname);
+      return parsed.protocol === "https:" && /^(?:[a-z0-9-]+\.)*animeunity(?:\.[a-z0-9-]{2,})+$/i.test(parsed.hostname);
     } catch { return false; }
   });
 }
