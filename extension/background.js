@@ -169,19 +169,24 @@ async function enableScFrameOrigin(origin) {
 /** Sui domini AnimeUnity autorizzati fa girare au-page.js: titolo, episodio e avanzamento del video. */
 async function enableAnimePage() {
   if (!(await hasAnimeAccess())) return;
-  // Firefox can reject dynamic registrations on some versions/installation
-  // states. Keep registration for future tabs, but never let that prevent the
-  // direct injection fallback for AnimeUnity tabs that are already open.
+  // Derive concrete origins from open AnimeUnity tabs as well as stored grants.
+  // Firefox may report a broad HTTPS grant differently in permissions.getAll().
+  const animeOrigins = await getAnimeOrigins();
   try {
     const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [AU_SCRIPT] });
     if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [AU_SCRIPT] });
-    await chrome.scripting.registerContentScripts([
-      { id: AU_SCRIPT, matches: await getAnimeOrigins(), js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
-    ]);
+    if (animeOrigins.length > 0) {
+      await chrome.scripting.registerContentScripts([
+        { id: AU_SCRIPT, matches: animeOrigins, js: ["compat.js", "au-page.js", "party-sync.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: true },
+      ]);
+    }
   } catch {
     // Explicit injection below also covers Firefox builds where registration fails.
   }
-  const animeTabs = await chrome.tabs.query({ url: await getAnimeOrigins() });
+  // Query/filter tabs directly instead of relying on URL patterns that may be
+  // missing when the browser reports only the broad HTTPS permission.
+  const allTabs = await chrome.tabs.query({}).catch(() => []);
+  const animeTabs = allTabs.filter((tab) => isAnimeUrl(tab.url ?? ""));
   for (const tab of animeTabs) {
     if (tab.id) chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["compat.js", "au-page.js", "party-sync.js"] }).catch(() => {});
   }
