@@ -515,6 +515,12 @@ export class PostgresRepository implements Repository {
     if (existing?.status === "pending" || existing?.status === "rejected") {
       return { ...existing, createdAt: iso(existing.createdAt), updatedAt: iso(existing.updatedAt) };
     }
+    if (existing?.status === "accepted") {
+      const [row] = await this.db.update(schema.friendRequests)
+        .set({ status: "pending", updatedAt: new Date() })
+        .where(eq(schema.friendRequests.id, existing.id)).returning();
+      return { ...row!, createdAt: iso(row!.createdAt), updatedAt: iso(row!.updatedAt) };
+    }
     const [row] = await this.db.insert(schema.friendRequests).values({
       id: `fr_${crypto.randomUUID()}`, fromUserId, toUserId, status: "pending",
     }).returning();
