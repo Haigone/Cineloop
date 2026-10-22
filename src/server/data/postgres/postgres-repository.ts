@@ -47,12 +47,20 @@ export function createDb(url: string): Db {
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
+  private titlesCache: { at: number; value: Title[] } | null = null;
+  private static readonly TITLES_CACHE_MS = 5 * 60 * 1000;
   constructor(private db: Db) {}
 
   // Catalog -----------------------------------------------------------------
 
   async listTitles() {
-    return (await this.db.select().from(schema.titles).orderBy(asc(schema.titles.title))).map(toTitle);
+    const now = Date.now();
+    if (this.titlesCache && now - this.titlesCache.at < PostgresRepository.TITLES_CACHE_MS) {
+      return [...this.titlesCache.value];
+    }
+    const value = (await this.db.select().from(schema.titles).orderBy(asc(schema.titles.title))).map(toTitle);
+    this.titlesCache = { at: now, value };
+    return [...value];
   }
 
   async getTitlesByIds(ids: readonly string[]) {
@@ -75,10 +83,12 @@ export class PostgresRepository implements Repository {
   }
 
   async upsertTitles(list: readonly Title[]) {
+    if (list.length === 0) return;
     for (const t of list) {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
+    this.titlesCache = null;
   }
 
   // Users -------------------------------------------------------------------
@@ -243,6 +253,7 @@ export class PostgresRepository implements Repository {
   }
 
   async replaceTitle(oldId: string, next: Title) {
+    this.titlesCache = null;
     return this.db.transaction(async (tx) => {
       const row = titleToRow(next);
       await tx.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
