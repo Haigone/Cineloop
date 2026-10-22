@@ -41,6 +41,8 @@ export interface Repository {
   // Catalog cache
   listTitles(): Promise<Title[]>;
   getTitlesByIds(ids: readonly string[]): Promise<Title[]>;
+  /** Titles whose search key (`searchKey(title)`) is exactly `key`. */
+  findTitlesBySearchKey(key: string): Promise<Title[]>;
   searchTitles(query: string, limit: number): Promise<Title[]>;
   /**
    * Replace a catalog title by another everywhere it is used (libraries, wishlists, activity,
