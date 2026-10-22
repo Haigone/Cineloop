@@ -203,6 +203,27 @@ export interface Friend {
   since: string;
 }
 
+export type ConsentRequestStatus = "pending" | "accepted" | "rejected";
+
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: ConsentRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WatchPartyInvitation {
+  id: string;
+  partyId: string;
+  hostId: string;
+  userId: string;
+  status: ConsentRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type WatchStatus = "watching" | "completed" | "planned" | "dropped";
 
 export interface WatchProgress {
