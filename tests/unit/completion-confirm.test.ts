@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
+// @ts-expect-error jsdom is available as a test dependency but has no installed type declarations.
 import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const script = readFileSync("extension/completion-confirm.js", "utf8");
-const doms: JSDOM[] = [];
+const doms: Array<{ window: { close: () => void } }> = [];
 afterEach(() => {
   for (const dom of doms.splice(0)) dom.window.close();
 });
