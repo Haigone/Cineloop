@@ -71,7 +71,7 @@ export async function respondToWatchPartyInvitation(partyId: string, accept: boo
   }
   const repo = getRepository();
   const party = (await repo.listWatchParties(viewer.id, 100)).find((item) => item.id === partyId);
-  if (!party || party.hostId === viewer.id || !(party.pendingParticipantIds ?? []).includes(viewer.id)) {
+  if (!party || party.status === "done" || party.hostId === viewer.id || !(party.pendingParticipantIds ?? []).includes(viewer.id)) {
     return { ok: false, error: "Questo invito non è più disponibile." };
   }
   try {
@@ -105,6 +105,7 @@ export async function cancelWatchParty(partyId: string): Promise<ActionResult> {
   const repo = getRepository();
   const party = (await repo.listWatchParties(viewer.id, 100)).find((p) => p.id === String(partyId).slice(0, 80));
   if (!party || party.hostId !== viewer.id || (party.status !== "scheduled" && party.status !== "queued")) return { ok: false, error: "Serata non trovata." };
+  await repo.updateWatchParty(party.id, { pendingParticipantIds: [] });
   await repo.setWatchPartyStatus(party.id, "done");
   refresh();
   return { ok: true };
