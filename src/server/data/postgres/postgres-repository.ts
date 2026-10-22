@@ -139,7 +139,7 @@ export class PostgresRepository implements Repository {
   async searchUsers(query: string, limit: number) {
     const q = query.trim();
     if (!q) return [];
-    const pattern = `%${q.replace(/[\\%_]/g, (c) => `${c}`)}%`;
+    const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const rows = await this.db
       .select()
       .from(schema.users)
