@@ -8,6 +8,7 @@ import { Reveal, RevealItem } from "@/components/ui/reveal";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { AddFriendForm } from "@/components/friends/add-friend-form";
+import { FriendRequests } from "@/components/friends/friend-requests";
 import { FriendCard } from "@/components/friends/friend-card";
 import { FriendActivityList } from "@/components/social/friend-activity-list";
 
@@ -38,6 +39,7 @@ async function FriendsContent() {
     <Reveal className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
       <RevealItem as="section" className="min-w-0">
         <h2 className="sr-only">I tuoi amici</h2>
+        <FriendRequests requests={view.requests} />
         {view.friends.length === 0 ? (
           <EmptyState
             icon={<Users />}
