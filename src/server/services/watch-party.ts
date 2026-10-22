@@ -25,6 +25,8 @@ export interface WatchPartyView {
   recent: { party: WatchParty; title: Title | null; names: string[] }[];
   /** Nights scheduled or queued, soonest first. */
   upcoming: UpcomingNight[];
+  /** Invitations awaiting the viewer's decision. */
+  invitations: { party: WatchParty; title: Title; hostName: string }[];
   /** Nights going on now ("Serate insieme"): they can be managed or ended here. */
   running: SharedWatchView[];
 }
@@ -32,7 +34,7 @@ export interface WatchPartyView {
 /** Scheduled and queued nights the user is part of, scheduled ones by date, then the queue in order. */
 export async function listUpcomingNights(repo: Repository, userId: string, parties?: WatchParty[]): Promise<UpcomingNight[]> {
   const all = parties ?? (await repo.listWatchParties(userId, 100));
-  const waiting = all.filter((p) => (p.status === "scheduled" || p.status === "queued") && p.pickedTitleId);
+  const waiting = all.filter((p) => (p.hostId === userId || p.participantIds.includes(userId)) && (p.status === "scheduled" || p.status === "queued") && p.pickedTitleId);
   if (waiting.length === 0) return [];
   const titles = new Map((await repo.getTitlesByIds(waiting.map((p) => p.pickedTitleId!))).map((t) => [t.id, t]));
   const people = new Map(
@@ -81,15 +83,23 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
   ];
   const byId = new Map(titles.map((t) => [t.id, t]));
   const names = new Map(friends.map((f) => [f.user.id, f.user.displayName.split(" ")[0]!]));
+  const invitations = parties
+    .filter((party) => (party.pendingParticipantIds ?? []).includes(viewer.id) && party.pickedTitleId)
+    .flatMap((party) => {
+      const title = byId.get(party.pickedTitleId!);
+      if (!title) return [];
+      return [{ party, title, hostName: names.get(party.hostId) ?? "Un amico" }];
+    });
   return {
     host: toPartyMember(toPublicUser(viewer), library, wishlist),
     friends: friends.map((f) => toPartyMember(f.user, f.library, f.wishlist)),
     titles,
     sources,
     upcoming: await listUpcomingNights(repo, viewer.id, parties),
+    invitations,
     running: await listSharedWatchViews(repo, viewer.id, byId),
     recent: parties
-      .filter((p) => p.status !== "scheduled" && p.status !== "queued")
+      .filter((p) => (p.hostId === viewer.id || p.participantIds.includes(viewer.id)) && p.status !== "scheduled" && p.status !== "queued")
       .slice(0, 5)
       .map((party) => ({
         party,
