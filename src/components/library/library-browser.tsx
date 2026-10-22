@@ -12,6 +12,7 @@ import {
   type LibrarySort,
   type LibraryStatusFilter,
   type LibraryTypeFilter,
+  type PersonalLibraryGroup,
 } from "@/domain/library";
 import { sectionOf, type Title } from "@/domain/types";
 import type { AwaitedRelease } from "@/server/services/awaited";
@@ -26,12 +27,15 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { AwaitingList } from "./awaiting-list";
 import { NewSeasonsRail } from "./new-seasons-rail";
 import { TitleCard } from "@/components/media/title-card";
+import { PersonalCollectionCard } from "@/components/collections/personal-collection-card";
 
 const TYPE_OPTIONS: { value: LibraryTypeFilter; label: string }[] = [
   { value: "all", label: "Tutti" },
   { value: "movie", label: "Film" },
   { value: "series", label: "Serie" },
   { value: "anime", label: "Anime" },
+  { value: "saga", label: "Saghe" },
+  { value: "collection", label: "Collezioni" },
 ];
 
 const STATUS_OPTIONS: { value: LibraryStatusFilter; label: string }[] = [
@@ -49,6 +53,7 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 
 interface Props {
   items: LibraryItem[];
+  groups: PersonalLibraryGroup[];
   wishlistIds: string[];
   /** Finished series with a new season out, and series waiting on one; they follow the type chosen below. */
   extras: Promise<{ newSeasons: { title: Title; label: string }[]; awaiting: { title: Title; release: AwaitedRelease }[] }>;
@@ -62,6 +67,7 @@ interface Props {
 /** Filters live in the URL (replaceState), so a view can be bookmarked or shared. */
 export function LibraryBrowser({
   items,
+  groups,
   wishlistIds,
   extras,
   initial,
@@ -90,17 +96,16 @@ export function LibraryBrowser({
     () => filterLibrary(items, "all", status),
     [items, status],
   );
+  const matchingGroups = groups.filter((group) => type === "all" || group.kind === type);
+  const visibleGroups = matchingGroups.filter((group) => status === "all" || (status === "completed" ? group.completed > 0 : group.watching > 0));
   const typeCounts = countBy(byType, (i) => sectionOf(i.title));
-  const statusCounts = countBy(
-    filterLibrary(items, type, "all"),
-    (i) => i.entry.status,
-  );
+  const statusCounts = countBy(filterLibrary(items, type, "all"), (i) => i.entry.status);
   const shown = useMemo(
     () => sortLibrary(filterLibrary(items, type, status), sort),
     [items, type, status, sort],
   );
 
-  if (items.length === 0) {
+  if (items.length === 0 && groups.length === 0) {
     return (
       <EmptyState
         icon={<LibraryBig />}
@@ -123,7 +128,10 @@ export function LibraryBrowser({
             options={TYPE_OPTIONS.map((o) => ({
               ...o,
               count:
-                o.value === "all" ? byType.length : (typeCounts[o.value] ?? 0),
+                o.value === "all" ? byType.length + groups.filter((group) => status === "all" || (status === "completed" ? group.completed > 0 : group.watching > 0)).length
+                : o.value === "saga" || o.value === "collection"
+                  ? groups.filter((group) => group.kind === o.value && (status === "all" || (status === "completed" ? group.completed > 0 : group.watching > 0))).length
+                  : (typeCounts[o.value] ?? 0),
             }))}
             value={type}
             onChange={(v) => {
@@ -142,7 +150,7 @@ export function LibraryBrowser({
               count:
                 o.value === "all"
                   ? filterLibrary(items, type, "all").length
-                  : (statusCounts[o.value] ?? 0),
+                  : (statusCounts[o.value] ?? 0) + matchingGroups.filter((group) => o.value === "completed" ? group.completed > 0 : group.watching > 0).length,
             }))}
             value={status}
             onChange={(v) => {
@@ -172,7 +180,7 @@ export function LibraryBrowser({
         {shown.length} titoli
       </p>
 
-      {shown.length === 0 ? (
+      {shown.length === 0 && visibleGroups.length === 0 ? (
         <EmptyState
           className="mt-6"
           icon={<SearchX />}
@@ -198,6 +206,19 @@ export function LibraryBrowser({
           className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(156px,1fr))]"
         >
           <AnimatePresence initial={false} mode="popLayout">
+            {visibleGroups.map((group) => (
+              <motion.li
+                key={group.id}
+                layout
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.2 }}
+                className="relative focus-within:z-20"
+              >
+                <PersonalCollectionCard group={group} />
+              </motion.li>
+            ))}
             {shown.map(({ entry, title }) => (
               <motion.li
                 key={title.id}
