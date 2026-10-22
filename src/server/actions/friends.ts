@@ -18,6 +18,8 @@ export async function addFriend(rawUsername: string): Promise<ActionResult> {
     if (!other || other.id === viewer.id) return { ok: false, error: `Nessun utente con username @${parsed.data}.` };
     const existing = await repo.listFriendRequests(viewer.id);
     if ((await repo.listFriends(viewer.id)).some((f) => f.user.id === other.id)) return { ok: false, error: "Siete già amici." };
+    const outgoing = existing.find((r) => r.fromUserId === viewer.id && r.toUserId === other.id && r.status === "pending");
+    if (outgoing) { refresh(); return { ok: true }; }
     const incoming = existing.find((r) => r.fromUserId === other.id && r.toUserId === viewer.id && r.status === "pending");
     if (incoming) return { ok: false, error: "Hai già ricevuto una richiesta da questo utente: accettala o rifiutala dalla sezione Amici." };
     const request = await repo.createFriendRequest(viewer.id, other.id);
