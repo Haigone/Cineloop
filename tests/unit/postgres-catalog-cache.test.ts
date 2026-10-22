@@ -1,13 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 import { PostgresRepository } from "@/server/data/postgres/postgres-repository";
+import type { Title } from "@/domain/types";
 
 function repositoryWithEmptyCatalog() {
   const orderBy = vi.fn(async () => []);
   const from = vi.fn(() => ({ orderBy }));
   const select = vi.fn(() => ({ from }));
-  const repo = new PostgresRepository({ select } as never);
-  return { repo, select, orderBy };
+  const onConflictDoUpdate = vi.fn(async () => undefined);
+  const values = vi.fn(() => ({ onConflictDoUpdate }));
+  const insert = vi.fn(() => ({ values }));
+  const repo = new PostgresRepository({ select, insert } as never);
+  return { repo, select, orderBy, insert, values, onConflictDoUpdate };
 }
+
+const title: Title = {
+  id: "test-title",
+  type: "movie",
+  title: "Test title",
+  year: 2026,
+  genres: [],
+  overview: "",
+  communityRating: null,
+  artwork: { posterUrl: null, backdropUrl: null, palette: ["#000000", "#111111", "#222222"] },
+  providers: [],
+  runtimeMinutes: 90,
+};
 
 describe("Postgres catalog cache", () => {
   it("shares one in-flight listTitles query and caches the result", async () => {
@@ -24,13 +41,15 @@ describe("Postgres catalog cache", () => {
   });
 
   it("invalidates the catalog cache after title writes", async () => {
-    const { repo, select } = repositoryWithEmptyCatalog();
+    const { repo, select, insert, values, onConflictDoUpdate } = repositoryWithEmptyCatalog();
 
     await repo.listTitles();
-    await repo.upsertTitles([]);
+    await repo.upsertTitles([title]);
     await repo.listTitles();
 
-    // An empty upsert makes no catalog change, so the existing cache is retained.
-    expect(select).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(values).toHaveBeenCalledTimes(1);
+    expect(onConflictDoUpdate).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(2);
   });
 });
