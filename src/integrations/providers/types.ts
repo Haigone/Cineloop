@@ -58,6 +58,8 @@ export interface SyncObservation {
     position?: number;
     /** Total duration reported by the active player, in seconds. */
     duration?: number;
+    /** Explicit confirmation from the user that this playback item has ended. */
+    completionConfirmed?: boolean;
     /** The provider's id for the show, when the tab came from its page (Netflix ?jbv= or /title/{id}). */
     parentId?: string;
   };

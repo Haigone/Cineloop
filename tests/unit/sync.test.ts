@@ -66,8 +66,13 @@ describe("extension sync", () => {
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 3, progress: 0.95 } }));
     expect((await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence")?.status).toBe("watching");
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.5 } }));
-    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.93 } }));
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.99 } }));
     let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
+    expect(entry).toMatchObject({ status: "watching", progress: { fraction: 0.99 } });
+
+    // A nearly finished player must not mark the title seen until the user confirms it.
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 1, completionConfirmed: true } }));
+    entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
     expect(entry).toMatchObject({ status: "completed", seenThrough: 1, askRating: true, progress: null });
     // Events recorded within the same millisecond have no fixed order: look at the last few.
     const recent = await repo.listActivity(["u_marco"], 5);
@@ -160,6 +165,22 @@ describe("films read from the player", () => {
     expect(status.watching?.title?.id).toBe("interstellar");
     const entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
     expect(entry?.status).toBe("watching");
+  });
+
+  it("uses player position and duration when a progress fraction is missing", async () => {
+    await repo.clearPresence("u_marco");
+    const { ep } = ids();
+    await handleObservation("u_marco", watch(ep, {
+      hints: { title: "Interstellar", position: 91 * 60, duration: 100 * 60 },
+    }));
+    let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
+    expect(entry).toMatchObject({ status: "watching", progress: { fraction: 0.91 } });
+
+    await handleObservation("u_marco", watch(ep, {
+      hints: { title: "Interstellar", position: 100 * 60, duration: 100 * 60, completionConfirmed: true },
+    }));
+    entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
+    expect(entry).toMatchObject({ status: "completed", progress: null, askRating: true });
   });
 
   it("treats typographic and plain apostrophes alike", async () => {

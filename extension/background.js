@@ -248,11 +248,22 @@ async function enableAnimeFrameOrigin(origin) {
 
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
 
-chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
+  // When a provider page is replaced by CineLoop in the same tab, capture the
+  // old provider state before remember() overwrites its stored URL.
+  if (change.url && tab.url) {
+    const { server } = await getSettings().catch(() => ({ server: "" }));
+    try {
+      if (server && new URL(tab.url).origin === new URL(server).origin) {
+        await queueCompletionConfirmation(tabId).catch(() => {});
+      }
+    } catch {}
+  }
   if (change.url || change.title || "audible" in change) {
-    remember(tab);
+    await remember(tab).catch(() => {});
     if (change.url || change.title) tick();
   }
+  if (change.status === "complete" || change.url) await showCompletionPrompt(tabId).catch(() => {});
   // Reliable Firefox fallback: inject after AnimeUnity finishes loading, even
   // if the dynamic content-script registration was rejected or not persisted.
   if (change.status === "complete" && isAnimeUrl(tab.url)) {
@@ -267,8 +278,16 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   }
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
-  // Capture completion before the normal heartbeat notices that the player closed.
-  finalizeNearEnd(tabId).catch(() => {}).finally(() => tick());
+  // Closing a provider tab is not proof of completion: ask on the next CineLoop visit.
+  queueCompletionConfirmation(tabId).then(async () => {
+    const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+    if (active?.id) await showCompletionPrompt(active.id).catch(() => {});
+  }).catch(() => {});
+  tick();
+});
+chrome.tabs.onActivated.addListener(async ({ tabId, previousTabId }) => {
+  if (Number.isInteger(previousTabId)) await queueCompletionConfirmation(previousTabId).catch(() => {});
+  await showCompletionPrompt(tabId).catch(() => {});
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.scResolved) enableScPage();
@@ -298,6 +317,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
   if (message?.type === "manual-progress") {
     manualProgress(message).then((ok) => reply(ok), () => reply(false));
+    return true;
+  }
+  if (message?.type === "completion-pending") {
+    chrome.storage.local.get("pendingCompletion").then(({ pendingCompletion }) => reply(pendingCompletion ?? null), () => reply(null));
+    return true;
+  }
+  if (message?.type === "completion-decision" && typeof message.key === "string" && ["confirm", "dismiss"].includes(message.action)) {
+    finishPendingCompletion(message.key, message.action === "confirm").then(reply, () => reply(false));
     return true;
   }
   if (message?.type === "rezero-choice" && sender.tab?.id && isAnimeUrl(sender.url ?? "")) {
@@ -377,64 +404,123 @@ async function remember(tab) {
 }
 
 /**
- * When the user closes AnimeUnity/StreamingCommunity within the last four
- * minutes, persist the current episode as finished and move the single library
- * bookmark to the next episode, but only when the page exposed a verified next link.
+ * A nearly-finished episode creates a pending question, never an automatic completion.
+ * The decision is shown only when the user returns to the configured CineLoop origin.
  */
-async function finalizeNearEnd(tabId) {
+async function queueCompletionConfirmation(tabId) {
   const { token, paused } = await getSettings();
   if (!token || paused) return false;
   const { tabs = {} } = await chrome.storage.session.get("tabs");
   const entry = tabs[tabId];
   const player = entry?.player;
   const url = typeof entry?.url === "string" ? entry.url : "";
-  const providerId = isAnimeUrl(url) ? "animeunity" : "streamingcommunity";
-  if (!url || !player || (providerId === "streamingcommunity" && !(await isStreamingUrl(url)))) return false;
-  if (Date.now() - (player.at ?? 0) > 20_000) return false;
+  const providerId = isAnimeUrl(url) ? "animeunity"
+    : (await isStreamingUrl(url)) ? "streamingcommunity"
+    : watchId(url) ? "netflix" : null;
+  if (!providerId || !player || Date.now() - (player.at ?? 0) > 20_000) return false;
   const position = player.position;
   const duration = player.duration;
   if (!Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0 || position < 0 || position > duration) return false;
-  if (duration - position > 4 * 60) return false;
-  if (!player.nextEpisodeUrl || !Number.isInteger(player.nextEpisode) || !Number.isInteger(player.episode)) return false;
-  const nextUrl = await validatedNextEpisodeUrl(url, player.nextEpisodeUrl);
-  if (!nextUrl) return false;
+  const threshold = Math.max(30, Math.min(120, duration * 0.03));
+  if (duration - position > threshold) return false;
 
+  const episodeKey = [
+    providerId, player.watchId ?? "", player.season ?? "", player.episode ?? "",
+    player.episodeId ?? "", (() => { try { return new URL(url).pathname; } catch { return url; } })(),
+  ].join("|");
+  const { completionDecisions = {}, pendingCompletion: existing } = await chrome.storage.local.get(["completionDecisions", "pendingCompletion"]);
+  const decision = completionDecisions[episodeKey];
+  const decisionCooldown = decision?.decision === "confirmed" ? 30 * 24 * 60 * 60 * 1000 : 10 * 60 * 1000;
+  if (decision && Date.now() - decision.at < decisionCooldown) return false;
+  if (existing?.key === episodeKey && Date.now() - existing.createdAt < 24 * 60 * 60 * 1000) return true;
+
+  const nextUrl = player.nextEpisodeUrl
+    ? await validatedNextEpisodeUrl(url, player.nextEpisodeUrl)
+    : null;
+  const pending = {
+    key: episodeKey, providerId, url, documentTitle: entry.documentTitle ?? "",
+    player: {
+      watchId: player.watchId ?? "",
+      title: typeof player.title === "string" ? player.title.slice(0, 200) : "",
+      season: Number.isInteger(player.season) ? player.season : null,
+      episode: Number.isInteger(player.episode) ? player.episode : null,
+      episodeId: typeof player.episodeId === "string" ? player.episodeId : null,
+      position, duration,
+      nextEpisode: Number.isInteger(player.nextEpisode) ? player.nextEpisode : null,
+    },
+    nextUrl, createdAt: Date.now(),
+  };
+  await chrome.storage.local.set({ pendingCompletion: pending });
+  return true;
+}
+
+async function showCompletionPrompt(tabId) {
+  const { pendingCompletion: pending } = await chrome.storage.local.get("pendingCompletion");
+  if (!pending || Date.now() - pending.createdAt > 24 * 60 * 60 * 1000) return false;
+  const { server, token, paused } = await getSettings();
+  if (!server || !token || paused) return false;
+  let tab;
+  try { tab = await chrome.tabs.get(tabId); } catch { return false; }
+  let serverOrigin, tabOrigin;
+  try { serverOrigin = new URL(server).origin; tabOrigin = new URL(tab.url ?? "").origin; } catch { return false; }
+  if (tabOrigin !== serverOrigin) return false;
+  const allowed = await chrome.permissions.contains({ origins: [serverOrigin + "/*"] }).catch(() => false);
+  if (!allowed) return false;
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["completion-confirm.js"] }).catch(() => {});
+  return true;
+}
+
+async function finishPendingCompletion(key, confirmed) {
+  const { pendingCompletion: pending, completionDecisions = {} } = await chrome.storage.local.get(["pendingCompletion", "completionDecisions"]);
+  if (!pending || pending.key !== key || Date.now() - pending.createdAt > 24 * 60 * 60 * 1000) return false;
+  completionDecisions[key] = { decision: confirmed ? "confirmed" : "dismissed", at: Date.now() };
+  const recent = Object.entries(completionDecisions).sort((a, b) => b[1].at - a[1].at).slice(0, 100);
+  if (!confirmed) {
+    await chrome.storage.local.set({ completionDecisions: Object.fromEntries(recent), pendingCompletion: null });
+    return true;
+  }
+
+  const player = pending.player;
   const commonHints = {
+    completionConfirmed: true,
     ...(player.title ? { title: player.title } : {}),
     ...(Number.isInteger(player.season) && player.season > 0 ? { season: player.season } : {}),
     ...(Number.isInteger(player.episode) && player.episode > 0 ? { episode: player.episode } : {}),
     ...(player.episodeId ? { episodeId: player.episodeId } : {}),
-    position: Math.round(position * 10) / 10,
-    duration: Math.round(duration * 10) / 10,
+    position: Math.round(player.duration * 10) / 10,
+    duration: Math.round(player.duration * 10) / 10,
+    progress: 1,
   };
-  // First persist the current episode at 100%, then move the single bookmark
-  // to the next episode at 0%.
-  await api("/api/extension/observe", {
-    method: "POST",
-    body: {
-      providerId,
-      url,
-      documentTitle: entry.documentTitle ?? "",
-      hints: { ...commonHints, progress: 1, position: Math.round(duration * 10) / 10 },
-      observedAt: new Date().toISOString(),
-    },
-  });
-  await api("/api/extension/observe", {
-    method: "POST",
-    body: {
-      providerId,
-      url: nextUrl,
-      documentTitle: entry.documentTitle ?? "",
-      hints: {
-        ...(player.title ? { title: player.title } : {}),
-        ...(Number.isInteger(player.season) && player.season > 0 ? { season: player.season } : {}),
-        episode: player.nextEpisode,
-        progress: 0,
-        position: 0,
+  try {
+    await api("/api/extension/observe", {
+      method: "POST",
+      body: {
+        providerId: pending.providerId, url: pending.url,
+        documentTitle: pending.documentTitle, hints: commonHints,
+        observedAt: new Date().toISOString(),
       },
-      observedAt: new Date().toISOString(),
-    },
-  });
+    });
+    // Advance only when the provider exposed a verified next-episode URL.
+    if (pending.nextUrl && Number.isInteger(player.nextEpisode)) {
+      await api("/api/extension/observe", {
+        method: "POST",
+        body: {
+          providerId: pending.providerId, url: pending.nextUrl,
+          documentTitle: pending.documentTitle,
+          hints: {
+            ...(player.title ? { title: player.title } : {}),
+            ...(Number.isInteger(player.season) && player.season > 0 ? { season: player.season } : {}),
+            episode: player.nextEpisode, progress: 0, position: 0,
+          },
+          observedAt: new Date().toISOString(),
+        },
+      });
+    }
+  } catch {
+    return false;
+  }
+  await chrome.storage.local.set({ completionDecisions: Object.fromEntries(recent), pendingCompletion: null });
+  await tick().catch(() => {});
   return true;
 }
 
@@ -521,6 +607,10 @@ async function playerTitle(tabId, m) {
     };
     return flush;
   });
+  // Capture the episode before a provider auto-advances and overwrites its player state.
+  if (m.ended === true || (shouldFlush && effectiveProgress !== null && effectiveProgress >= 0.995)) {
+    await queueCompletionConfirmation(tabId).catch(() => {});
+  }
   if (shouldFlush) await tick();
 }
 

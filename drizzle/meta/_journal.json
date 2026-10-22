@@ -162,6 +162,13 @@
       "when": 1792410000000,
       "tag": "0022_provider_season_links",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792668211013,
+      "tag": "0023_social_consent",
+      "breakpoints": true
     }
   ]
 }

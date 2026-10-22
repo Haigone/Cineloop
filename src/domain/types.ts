@@ -203,6 +203,12 @@ export interface Friend {
   since: string;
 }
 
+/** A pending request from another account; it does not establish a friendship until accepted. */
+export interface FriendRequest {
+  user: PublicUser;
+  requestedAt: string;
+}
+
 export type WatchStatus = "watching" | "completed" | "planned" | "dropped";
 
 export interface WatchProgress {
@@ -341,7 +347,10 @@ export type WatchPartyFilter = "common" | "movie" | "series" | "anime" | "all";
 export interface WatchParty {
   id: string;
   hostId: string;
+  /** Participants who explicitly accepted the invitation. */
   participantIds: string[];
+  /** Invitations awaiting each recipient's consent. */
+  pendingParticipantIds?: string[];
   filter: WatchPartyFilter;
   genre: Genre | null;
   candidateTitleIds: string[];

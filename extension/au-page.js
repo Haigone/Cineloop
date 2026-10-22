@@ -334,11 +334,11 @@
       bindVideo(frameVideo);
       const frameDuration = frameVideo && Number.isFinite(frameVideo.duration) && frameVideo.duration > 0 ? frameVideo.duration : null;
       if (frameDuration) {
-        const frameProgress = Math.round(Math.min(1, Math.max(0, frameVideo.currentTime / frameDuration)) * 100000) / 100000;
+        const frameProgress = Math.round(Math.min(0.99, Math.max(0, frameVideo.currentTime / frameDuration)) * 100000) / 100000;
         const now = Date.now();
         if (force || now - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) {
           lastProgressSentAt = now;
-          try { chrome.runtime.sendMessage({ type: "player-progress", progress: forcedProgress !== null ? forcedProgress : frameProgress, position: frameVideo.currentTime, duration: frameDuration, force }).catch(() => {}); } catch {}
+          try { chrome.runtime.sendMessage({ type: "player-progress", progress: forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : frameProgress, position: frameVideo.currentTime, duration: frameDuration, force }).catch(() => {}); } catch {}
         }
       }
       return;
@@ -364,11 +364,11 @@
     applyResume(video);
     bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-    const rawProgress = forcedProgress !== null ? forcedProgress : duration ? Math.min(1, Math.max(0, video.currentTime / duration)) : null;
+    const rawProgress = forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : duration ? Math.min(0.99, Math.max(0, video.currentTime / duration)) : null;
     const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
     const next = nextEpisodeInfo(known.episode);
     const message = {
-      type: "player-title", ...known, pageUrl: location.href, progress,
+      type: "player-title", ...known, pageUrl: location.href, progress, ended: forcedProgress === 1,
       position: video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null,
       duration, force,
       ...(next ? { nextEpisodeUrl: next.url, nextEpisode: next.episode } : {}),

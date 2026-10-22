@@ -18,6 +18,7 @@ const observation = z.object({
       progress: z.number().min(0).max(1).optional(),
       position: z.number().min(0).max(24 * 3600).optional(),
       duration: z.number().positive().max(24 * 3600).optional(),
+      completionConfirmed: z.boolean().optional(),
       parentId: z.string().regex(/^\d{1,12}$/).optional(),
     })
     .strict()

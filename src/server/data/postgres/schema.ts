@@ -135,6 +135,21 @@ export const friendships = pgTable(
   (t) => [primaryKey({ columns: [t.userA, t.userB] }), check("ordered_pair", sql`${t.userA} < ${t.userB}`), index("friendships_b_idx").on(t.userB)],
 );
 
+/** Friend requests are directional and remain pending until the recipient accepts or declines. */
+export const friendRequests = pgTable(
+  "friend_requests",
+  {
+    requesterId: text("requester_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    recipientId: text("recipient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    requestedAt: ts("requested_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.requesterId, t.recipientId] }),
+    check("friend_requests_distinct_users", sql`${t.requesterId} <> ${t.recipientId}`),
+    index("friend_requests_recipient_idx").on(t.recipientId, t.requestedAt),
+  ],
+);
+
 export const watchEvents = pgTable(
   "watch_events",
   {
@@ -227,6 +242,7 @@ export const watchParties = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     participantIds: text("participant_ids").array().notNull(),
+    pendingParticipantIds: text("pending_participant_ids").array().notNull().default(sql`'{}'::text[]`),
     filter: text("filter").$type<WatchPartyFilter>().notNull(),
     genre: text("genre").$type<Genre>(),
     candidateTitleIds: text("candidate_title_ids").array().notNull(),

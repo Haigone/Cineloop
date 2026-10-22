@@ -79,6 +79,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     url: content.url,
   };
   const fraction = obs.hints?.progress ?? null;
+  const completionConfirmed = obs.hints?.completionConfirmed === true;
   const now = new Date();
   const before = await repo.getPresence(userId);
   const step = nextPresence(userId, before, seen, now);
@@ -93,7 +94,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const titleId = recognised && (await inYourNight(repo, userId, recognised));
     if (titleId) {
       presence.titleId = titleId;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
     }
   } else {
     // A session may already carry a stale AnimeUnity -> movie link from before
@@ -109,10 +110,10 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
     } else if (!step.started) {
       // Episode and position as the player reports them, every heartbeat.
-      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
     }
   }
   // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
@@ -647,9 +648,10 @@ async function startWatching(
   fraction: number | null = null,
   position?: number,
   duration?: number,
+  completionConfirmed = false,
 ): Promise<void> {
   const titleId = presence.titleId!;
-  await syncProgress(repo, presence, fraction, position, duration);
+  await syncProgress(repo, presence, fraction, position, duration, completionConfirmed);
   await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
     userId: presence.userId,
@@ -673,6 +675,7 @@ async function syncProgress(
   fraction: number | null,
   position?: number,
   duration?: number,
+  completionConfirmed = false,
 ): Promise<void> {
   const titleId = presence.titleId!;
   const [entry, title] = await Promise.all([
@@ -718,13 +721,23 @@ async function syncProgress(
     if (presence.season === null) presence.season = inferSeason(title, prev, presence.episode);
   }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
-  const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
+  // Some provider players expose position/duration more reliably than a normalized
+  // progress hint. Derive the fraction from those values so an episode can finish
+  // instead of remaining stuck near 99% when the progress field is absent.
+  const measuredFraction =
+    fraction !== null && Number.isFinite(fraction)
+      ? Math.max(0, Math.min(1, fraction))
+      : Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
+        ? Math.max(0, Math.min(1, position! / duration!))
+        : null;
+  const next = measuredFraction ?? (sameEpisode ? prev!.fraction : 0);
   if (title) {
     const today = italianDay();
     const at = { season: presence.season, episode: presence.episode, fraction: next };
     // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today, entry?.partOverrides) && (fraction === null || fraction >= 0.5)) return;
-    if (finishesTitle(title, at, today, entry?.partOverrides)) {
+    const providerNeedsConfirmation = ["netflix", "animeunity", "streamingcommunity"].includes(presence.providerId);
+    if ((!providerNeedsConfirmation || completionConfirmed) && finishesTitle(title, at, today, entry?.partOverrides)) {
       await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
       await shareProgress(repo, presence.userId, titleId, "finished");
       await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });

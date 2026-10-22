@@ -30,6 +30,50 @@ export interface Wrapped {
   busiestMonth: number | null;
 }
 
+export interface ProviderWrapped extends Wrapped {
+  providerId: string | null;
+  providerLabel: string;
+  firstWatched: string;
+  lastWatched: string;
+  sourceDescription: string;
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  netflix: "Netflix",
+  "prime-video": "Prime Video",
+  "disney-plus": "Disney+",
+  "apple-tv": "Apple TV",
+  now: "NOW",
+  crunchyroll: "Crunchyroll",
+  animeunity: "AnimeUnity",
+  streamingcommunity: "Streaming Community",
+};
+
+/** Splits the same yearly events as the general Wrapped without inferred attribution. */
+export function summarizeByProvider(year: number, events: readonly WatchEvent[], titles: ReadonlyMap<string, Title>): ProviderWrapped[] {
+  const groups = new Map<string, WatchEvent[]>();
+  for (const event of events) {
+    if (new Date(event.watchedAt).getUTCFullYear() !== year) continue;
+    const key = event.providerId ?? "unknown";
+    const group = groups.get(key) ?? [];
+    group.push(event);
+    groups.set(key, group);
+  }
+  return [...groups.entries()].map(([key, group]) => {
+    const ordered = group.map((event) => event.watchedAt.slice(0, 10)).sort();
+    const providerId = key === "unknown" ? null : key;
+    const providerLabel = providerId ? (PROVIDER_LABELS[providerId] ?? providerId) : "Servizio non specificato";
+    return {
+      ...summarizeYear(year, group, titles),
+      providerId,
+      providerLabel,
+      firstWatched: ordered[0]!,
+      lastWatched: ordered[ordered.length - 1]!,
+      sourceDescription: providerId === "netflix" ? "Storico Netflix importato o eventi attribuiti a Netflix dall’estensione. Le importazioni precedenti a questa correzione possono contenere durate stimate non distinguibili con certezza" : providerId ? "Eventi registrati con il servizio indicato dall’estensione" : "Eventi senza un servizio di provenienza registrato",
+    };
+  }).sort((a, b) => b.totalMinutes - a.totalMinutes);
+}
+
 /** What a film costs when the catalogue knows no length, and a usual episode. */
 const FALLBACK_FILM_MINUTES = 100;
 const FALLBACK_EPISODE_MINUTES = 45;
@@ -60,7 +104,11 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
     if (at.getUTCFullYear() !== year) continue;
     const title = titles.get(e.titleId);
     const isFilm = title ? title.type === "movie" : e.season === null && e.episode === null;
-    const known = e.minutes > 0;
+    // Netflix CSV imports only know the day and title, not the actual time watched.
+    // Older versions stored a runtime estimate as if it were measured; noon UTC plus
+    // no episode number identifies those imported day-level events so Wrapped can correct them.
+    const importedNetflixHistory = e.providerId === "netflix" && e.episode === null && e.watchedAt.endsWith("T12:00:00.000Z");
+    const known = e.minutes > 0 && !importedNetflixHistory;
     const minutes = known ? e.minutes : guess(title, isFilm);
     months[at.getUTCMonth()]! += minutes;
     total += minutes;
