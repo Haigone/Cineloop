@@ -430,7 +430,8 @@ async function queueCompletionConfirmation(tabId) {
   ].join("|");
   const { completionDecisions = {}, pendingCompletion: existing } = await chrome.storage.local.get(["completionDecisions", "pendingCompletion"]);
   const decision = completionDecisions[episodeKey];
-  if (decision && Date.now() - decision.at < 30 * 24 * 60 * 60 * 1000) return false;
+  const decisionCooldown = decision?.decision === "confirmed" ? 30 * 24 * 60 * 60 * 1000 : 10 * 60 * 1000;
+  if (decision && Date.now() - decision.at < decisionCooldown) return false;
   if (existing?.key === episodeKey && Date.now() - existing.createdAt < 24 * 60 * 60 * 1000) return true;
 
   const nextUrl = player.nextEpisodeUrl
