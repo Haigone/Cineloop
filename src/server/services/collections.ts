@@ -46,7 +46,7 @@ export async function getSagaView(title: Title): Promise<(SagaStatus & { followe
   ]);
   if (!collection || collection.parts.length < 2) return null;
   const choice = choices.find((c) => c.collectionId === collection.id);
-  return { ...sagaStatus(collection, choice, new Map(library.map((e) => [e.titleId, e.status])), italianDay()), followed: Boolean(choice) };
+  return { ...sagaStatus(collection, choice, new Map(library.map((e) => [e.titleId, e.status])), italianDay()), followed: Boolean(choice && hasMarker(choice, COLLECTION_FOLLOW_MARKER)) };
 }
 
 /**
