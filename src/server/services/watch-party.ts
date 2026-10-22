@@ -84,7 +84,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
   const byId = new Map(titles.map((t) => [t.id, t]));
   const names = new Map(friends.map((f) => [f.user.id, f.user.displayName.split(" ")[0]!]));
   const invitations = parties
-    .filter((party) => (party.pendingParticipantIds ?? []).includes(viewer.id) && party.pickedTitleId)
+    .filter((party) => party.status !== "done" && (party.pendingParticipantIds ?? []).includes(viewer.id) && party.pickedTitleId)
     .flatMap((party) => {
       const title = byId.get(party.pickedTitleId!);
       if (!title) return [];
