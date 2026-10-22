@@ -30,5 +30,5 @@ async function PlannerContent({ searchParams }: { searchParams: PageProps<"/watc
   const [params, view] = await Promise.all([searchParams, getWatchPartyView()]);
   const withParam = params.with;
   const preselected = (Array.isArray(withParam) ? withParam : withParam ? [withParam] : []).flatMap((s) => s.split(","));
-  return <><PartyInvitations invitations={view.invitations} /><NightWizard view={view} preselected={preselected} /></>;
+  return <><PartyInvitations invitations={view.invitations} sentInvitations={view.sentInvitations} /><NightWizard view={view} preselected={preselected} /></>;
 }
