@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRepository } from "@/server/data";
 
-export const dynamic = "force-dynamic";
-
 /** Cheap database reachability probe, used by the error screen to tell "database down" from other failures. */
 export async function GET() {
   try {
