@@ -234,6 +234,8 @@
   }
 
   function partSeasonFromPage() {
+    // The Frozen Bond is a standalone prequel film, not Re:Zero S1.
+    if (/^\\/anime\\/2177-rezero-starting-life-in-another-world-the-frozen-bond(?:[/?#]|$)/i.test(location.pathname)) return null;
     const text = (location.pathname + " " + known.title + " " + document.title).toLowerCase();
     if (/the[-_\s]+blood[-_\s]+warfare|blood[-_\s]+warfare/.test(text)) return 1;
     if (/the[-_\s]+separation|\bseparation\b/.test(text)) return 2;
@@ -350,15 +352,22 @@
       if (found.title && !known.title) known.title = found.title;
       if (found.episode !== undefined && found.episode !== null && known.episode === null) known.episode = found.episode;
     }
-    if (known.season === null) known.season = partSeasonFromPage();
-    const active = activeEpisodeEl();
-    if (active) {
-      const t = clean(active.textContent);
-      const m = EPISODE_WORD.exec(t);
-      known.episode = m ? Number(m[1]) : Number(t);
-    } else if (known.episode === null) {
-      const guessed = parseEpisodeFromDom();
-      if (guessed !== null) known.episode = guessed;
+    const isReZeroMovie = /^\\/anime\\/2177-rezero-starting-life-in-another-world-the-frozen-bond(?:[/?#]|$)/i.test(location.pathname);
+    if (isReZeroMovie) {
+      // Never infer S1E1 from unrelated numbered controls on the movie page.
+      known.season = null;
+      known.episode = null;
+    } else {
+      if (known.season === null) known.season = partSeasonFromPage();
+      const active = activeEpisodeEl();
+      if (active) {
+        const t = clean(active.textContent);
+        const m = EPISODE_WORD.exec(t);
+        known.episode = m ? Number(m[1]) : Number(t);
+      } else if (known.episode === null) {
+        const guessed = parseEpisodeFromDom();
+        if (guessed !== null) known.episode = guessed;
+      }
     }
     const video = findVideo();
     applyResume(video);
