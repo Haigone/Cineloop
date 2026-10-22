@@ -1,21 +1,13 @@
 import "server-only";
 
-import type { Artwork, FilmCollection, Title } from "@/domain/types";
+import type { Title } from "@/domain/types";
+import type { PersonalLibraryGroup } from "@/domain/library";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { COLLECTION_FOLLOW_MARKER } from "@/domain/collections";
 import { CURATED_COLLECTIONS, loadCollection } from "@/server/services/collections";
 
-export type PersonalLibraryGroup = {
-  id: string;
-  kind: "saga" | "collection";
-  name: string;
-  href: string;
-  total: number;
-  completed: number;
-  watching: number;
-  artwork: Artwork;
-};
+
 
 const fallbackArtwork = (palette: readonly [string, string, string]): Artwork => ({
   posterUrl: null,
