@@ -10,6 +10,10 @@ import { ensureTitle } from "./explore";
 
 /** TMDB ids already tried without finding a franchise: asking again on every visit would be slow. */
 const noMatch = new Set<string>();
+/** Avoid repeating the same repair queries on every Home/library navigation. */
+const repairedUsers = new Map<string, number>();
+const repairsInFlight = new Map<string, Promise<void>>();
+const REPAIR_CACHE_MS = 5 * 60 * 1000;
 
 /** The franchise card of the anime sources that stands for this TMDB anime, when one clearly does. */
 export async function franchiseFor(old: Title): Promise<Title | null> {
@@ -75,6 +79,19 @@ export async function asFranchise(title: Title): Promise<Title> {
  * replaceTitle performs the actual merge for every profile and preserves progress.
  */
 export async function migrateDuplicateAnimeInLibrary(userId: string): Promise<void> {
+  const checkedAt = repairedUsers.get(userId);
+  if (checkedAt !== undefined && Date.now() - checkedAt < REPAIR_CACHE_MS) return;
+  const pending = repairsInFlight.get(userId);
+  if (pending) return pending;
+
+  const repair = repairDuplicateAnimeInLibrary(userId)
+    .then(() => { repairedUsers.set(userId, Date.now()); })
+    .finally(() => { repairsInFlight.delete(userId); });
+  repairsInFlight.set(userId, repair);
+  return repair;
+}
+
+async function repairDuplicateAnimeInLibrary(userId: string): Promise<void> {
   const repo = getRepository();
   const entries = await repo.listLibrary(userId);
   if (entries.length < 2) return;
