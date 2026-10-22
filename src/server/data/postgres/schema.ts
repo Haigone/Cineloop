@@ -145,7 +145,7 @@ export const friendRequests = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [check("friend_requests_not_self", sql`${t.fromUserId} <> ${t.toUserId}`), index("friend_requests_to_status_idx").on(t.toUserId, t.status), index("friend_requests_from_status_idx").on(t.fromUserId, t.status)],
+  (t) => [check("friend_requests_not_self", sql`${t.fromUserId} <> ${t.toUserId}`), uniqueIndex("friend_requests_pair_unique").on(t.fromUserId, t.toUserId), index("friend_requests_to_status_idx").on(t.toUserId, t.status), index("friend_requests_from_status_idx").on(t.fromUserId, t.status)],
 );
 
 export const watchEvents = pgTable(
