@@ -7,14 +7,14 @@ import type { WatchPartyView } from "@/server/services/watch-party";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
-export function PartyInvitations({ invitations }: { invitations: WatchPartyView["invitations"] }) {
+export function PartyInvitations({ invitations, sentInvitations }: { invitations: WatchPartyView["invitations"]; sentInvitations: WatchPartyView["sentInvitations"] }) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
-  if (invitations.length === 0) return null;
+  if (invitations.length === 0 && sentInvitations.length === 0) return null;
   return (
     <section className="mb-6 rounded-xl border border-violet/40 bg-surface p-5" aria-labelledby="party-invitations-heading">
       <h2 id="party-invitations-heading" className="text-[15px] font-semibold">Inviti alle serate</h2>
-      <ul className="mt-3 divide-y divide-line">
+      {invitations.length > 0 && <ul className="mt-3 divide-y divide-line">
         {invitations.map(({ invitation, title, host }) => (
           <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3">
             <span className="grid size-9 place-items-center rounded-full bg-violet/10 text-violet"><Popcorn aria-hidden className="size-4" /></span>
@@ -34,7 +34,24 @@ export function PartyInvitations({ invitations }: { invitations: WatchPartyView[
             </div>
           </li>
         ))}
-      </ul>
+      </ul>}
+      {sentInvitations.length > 0 && (
+        <div className="mt-5 border-t border-line pt-4">
+          <h3 className="text-sm font-medium">Inviti inviati</h3>
+          <ul className="mt-2 divide-y divide-line">
+            {sentInvitations.map(({ invitation, title, recipient }) => (
+              <li key={invitation.id} className="flex items-center gap-3 py-2.5 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="block">{recipient.displayName} · {title?.title ?? "Serata"}</span>
+                  <span className="block text-xs text-fg-3">
+                    {invitation.status === "pending" ? "In attesa di risposta" : invitation.status === "accepted" ? "Invito accettato" : "Invito rifiutato"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
