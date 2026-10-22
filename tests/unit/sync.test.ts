@@ -66,8 +66,13 @@ describe("extension sync", () => {
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 3, progress: 0.95 } }));
     expect((await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence")?.status).toBe("watching");
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.5 } }));
-    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.93 } }));
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.99 } }));
     let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
+    expect(entry).toMatchObject({ status: "watching", progress: { fraction: 0.99 } });
+
+    // A nearly finished player must not mark the title seen until the user confirms it.
+    await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 1, completionConfirmed: true } }));
+    entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
     expect(entry).toMatchObject({ status: "completed", seenThrough: 1, askRating: true, progress: null });
     // Events recorded within the same millisecond have no fixed order: look at the last few.
     const recent = await repo.listActivity(["u_marco"], 5);
