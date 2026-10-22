@@ -1,6 +1,5 @@
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
 import type {
   ActivityEvent,
   AppNotification,
@@ -32,6 +31,7 @@ import type {
 } from "@/domain/types";
 import { searchKey } from "@/lib/text";
 import type { Repository } from "../repository";
+import { connect } from "./connection";
 import * as schema from "./schema";
 
 type Db = PostgresJsDatabase<typeof schema>;
@@ -44,7 +44,7 @@ const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
 
 export function createDb(url: string): Db {
   // A small pool is plenty for a personal app; serverless hosts should point at a pooler.
-  const client = postgres(url, { max: 10, prepare: false });
+  const client = connect(url, 10);
   return drizzle(client, { schema });
 }
 

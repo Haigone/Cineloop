@@ -85,3 +85,5 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 - `/mnt/project-files/marketing/campagne.md`, `team-social-grafica.md`: piano e registro marketing; `guide/`, `screenshots/`: guide e immagini da riusare.
 
 - Consumo Neon (22/10): la causa era `listTitles()` (tutta la tabella `titles`) a ogni vista di Home/Amici/Classifiche/Serate. Ora ha cache in memoria di 5 min (azzerata su `upsertTitles`/`replaceTitle`); per cercare o verificare pochi id usa `getTitlesByIds` / `findTitlesBySearchKey`, mai `listTitles`. Diagnosi e stime: `/mnt/project-files/economia/consumi.md`.
+
+- Supabase (22/10): Neon sospeso per quota Network Transfer; per i test fino al 1/11 `DATABASE_URL` può puntare a Supabase (pooler, vedi docs/architecture.md). Nulla cancellato su Neon. Il DB nuovo parte vuoto: solo catalogo.
