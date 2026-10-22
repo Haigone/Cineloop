@@ -139,7 +139,7 @@ export class PostgresRepository implements Repository {
   async searchUsers(query: string, limit: number) {
     const q = query.trim();
     if (!q) return [];
-    const pattern = `%${q.replace(/[\\%_]/g, (c) => `\${c}`)}%`;
+    const pattern = `%${q.replace(/[\\%_]/g, (c) => `${c}`)}%`;
     const rows = await this.db
       .select()
       .from(schema.users)
@@ -771,10 +771,12 @@ export class PostgresRepository implements Repository {
         .returning({ id: schema.watchPartyInvitations.id });
       if (!updated) return false;
       if (status === "accepted") {
-        const [party] = await tx.select().from(schema.watchParties).where(eq(schema.watchParties.id, invite.partyId)).limit(1);
-        if (party && !party.participantIds.includes(userId)) {
-          await tx.update(schema.watchParties).set({ participantIds: [...party.participantIds, userId] }).where(eq(schema.watchParties.id, invite.partyId));
-        }
+        await tx.update(schema.watchParties)
+          .set({ participantIds: sql`array_append(${schema.watchParties.participantIds}, ${userId})` })
+          .where(and(
+            eq(schema.watchParties.id, invite.partyId),
+            sql`not (${userId} = any(${schema.watchParties.participantIds}))`,
+          ));
       }
       return true;
     });
