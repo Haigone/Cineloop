@@ -505,20 +505,22 @@ export class PostgresRepository implements Repository {
     return rows.map((row) => ({ user: toPublic(toUser(row.user)), requestedAt: iso(row.requestedAt) }));
   }
 
-  async createFriendRequest(requesterId: string, recipientId: string) {
-    if (requesterId === recipientId) return;
+  async createFriendRequest(requesterId: string, recipientId: string): Promise<boolean> {
+    if (requesterId === recipientId) return false;
     const [userA, userB] = [requesterId, recipientId].sort() as [string, string];
     const [friendship] = await this.db.select({ userA: schema.friendships.userA })
       .from(schema.friendships)
       .where(and(eq(schema.friendships.userA, userA), eq(schema.friendships.userB, userB)))
       .limit(1);
-    if (friendship) return;
+    if (friendship) return false;
     const [incoming] = await this.db.select({ requesterId: schema.friendRequests.requesterId })
       .from(schema.friendRequests)
       .where(and(eq(schema.friendRequests.requesterId, recipientId), eq(schema.friendRequests.recipientId, requesterId)))
       .limit(1);
     if (incoming) throw new Error("An incoming friend request already exists");
-    await this.db.insert(schema.friendRequests).values({ requesterId, recipientId }).onConflictDoNothing();
+    const inserted = await this.db.insert(schema.friendRequests).values({ requesterId, recipientId })
+      .onConflictDoNothing().returning({ requesterId: schema.friendRequests.requesterId });
+    return inserted.length > 0;
   }
 
   async respondFriendRequest(recipientId: string, requesterId: string, accept: boolean): Promise<boolean> {
