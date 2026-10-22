@@ -31,7 +31,8 @@ export const STATUS_LABEL: Record<WatchStatus, string> = {
 
 export function filterLibrary(items: LibraryItem[], type: LibraryTypeFilter, status: LibraryStatusFilter): LibraryItem[] {
   return items.filter(
-    (i) => (type === "all" || sectionOf(i.title) === type) && (status === "all" || i.entry.status === status),
+    (i) => (type === "all" || ((type === "movie" || type === "series" || type === "anime") && sectionOf(i.title) === type)) &&
+      (status === "all" || i.entry.status === status),
   );
 }
 
