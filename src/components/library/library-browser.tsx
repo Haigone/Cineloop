@@ -149,7 +149,7 @@ export function LibraryBrowser({
               ...o,
               count:
                 o.value === "all"
-                  ? filterLibrary(items, type, "all").length
+                  ? filterLibrary(items, type, "all").length + matchingGroups.length
                   : (statusCounts[o.value] ?? 0) + matchingGroups.filter((group) => o.value === "completed" ? group.completed > 0 : group.watching > 0).length,
             }))}
             value={status}
@@ -177,7 +177,7 @@ export function LibraryBrowser({
       </div>
 
       <p className="sr-only" aria-live="polite">
-        {shown.length} titoli
+        {shown.length + visibleGroups.length} elementi
       </p>
 
       {shown.length === 0 && visibleGroups.length === 0 ? (
