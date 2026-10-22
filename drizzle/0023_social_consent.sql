@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS "friend_requests" (
   CONSTRAINT "friend_requests_pkey" PRIMARY KEY ("requester_id", "recipient_id"),
   CONSTRAINT "friend_requests_distinct_users" CHECK ("requester_id" <> "recipient_id")
 );
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "friend_requests_recipient_idx" ON "friend_requests" ("recipient_id", "requested_at");
+--> statement-breakpoint
 ALTER TABLE "watch_parties"
   ADD COLUMN IF NOT EXISTS "pending_participant_ids" text[] NOT NULL DEFAULT '{}'::text[];
