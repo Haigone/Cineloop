@@ -5,6 +5,7 @@ import type {
   ChartEntry,
   ExtensionDevice,
   Friend,
+  FriendRequest,
   LibraryEntry,
   OAuthProvider,
   PartyState,
@@ -112,6 +113,9 @@ export interface Repository {
 
   // Social
   listFriends(userId: string): Promise<Friend[]>;
+  listFriendRequests(userId: string): Promise<FriendRequest[]>;
+  createFriendRequest(requesterId: string, recipientId: string): Promise<void>;
+  respondFriendRequest(recipientId: string, requesterId: string, accept: boolean): Promise<boolean>;
   addFriend(userId: string, friendId: string): Promise<void>;
   removeFriend(userId: string, friendId: string): Promise<void>;
   listActivity(userIds: readonly string[], limit: number): Promise<ActivityEvent[]>;
@@ -141,7 +145,7 @@ export interface Repository {
   listWatchParties(userId: string, limit: number): Promise<WatchParty[]>;
   setWatchPartyStatus(partyId: string, status: WatchPartyStatus): Promise<void>;
   /** Changes who is in a night that has not started yet, and when it starts. */
-  updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }): Promise<void>;
+  updateWatchParty(partyId: string, patch: { participantIds?: string[]; pendingParticipantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }): Promise<void>;
 
   // Serate insieme: shared progress on a series or anime
   /** The groups the user is in, newest first. */
