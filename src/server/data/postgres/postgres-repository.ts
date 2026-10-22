@@ -96,7 +96,7 @@ export class PostgresRepository implements Repository {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
-    if (list.length) titleListCache = null;
+    titleListCache = null;
   }
 
   // Users -------------------------------------------------------------------
