@@ -64,7 +64,7 @@ export async function getFriendsView(): Promise<FriendsView> {
   // Live first, then most compatible.
   summaries.sort((a, b) => Number(Boolean(b.latest?.live)) - Number(Boolean(a.latest?.live)) || b.compatibility - a.compatibility);
 
-  const requestViews = await Promise.all(requests.filter((r) => r.status === "pending").map(async (request) => {
+  const requestViews = await Promise.all(requests.filter((r) => r.toUserId === viewer.id ? r.status === "pending" : true).map(async (request) => {
     const incoming = request.toUserId === viewer.id;
     const person = await repo.getUserById(incoming ? request.fromUserId : request.toUserId);
     return person ? { request, user: toPublicUser(person), direction: incoming ? "incoming" as const : "outgoing" as const } : null;
