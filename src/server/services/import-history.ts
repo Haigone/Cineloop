@@ -64,7 +64,7 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     const day = e.watchedAt.slice(0, 10);
     const k = keyOf(e.titleId, day, e.season, e.providerId ?? null);
     seen.set(k, (seen.get(k) ?? 0) + 1);
-    if (e.providerId === "netflix" && e.season === null && e.episode === null && e.minutes === 0) {
+    if (e.providerId === "netflix" && e.season === null && e.episode === null && e.watchedAt.endsWith("T12:00:00.000Z")) {
       const dayKey = dayKeyOf(e.titleId, day);
       legacySeen.set(dayKey, (legacySeen.get(dayKey) ?? 0) + 1);
     }
