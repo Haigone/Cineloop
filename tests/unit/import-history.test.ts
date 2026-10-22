@@ -29,7 +29,7 @@ describe("importing the Netflix viewing history", () => {
 });
 
 describe("importing the history records when it was watched", () => {
-  it("adds one play per episode with its length, tops up on a second import, never doubles", async () => {
+  it("records dated plays without inventing duration, tops up on a second import, never doubles", async () => {
     const repo = getRepository();
     const item = (n: number) => ({
       title: "Arcane",
@@ -44,7 +44,7 @@ describe("importing the history records when it was watched", () => {
     expect((await importNetflixHistory("u_marco", [item(5)])).days).toBe(2);
     const events = (await repo.listWatchEvents("u_marco", new Date(0))).filter((e) => e.watchedAt.startsWith("2024-03"));
     expect(events).toHaveLength(6);
-    expect(events.every((e) => e.minutes > 0 && e.providerId === "netflix")).toBe(true);
+    expect(events.every((e) => e.minutes === 0 && e.providerId === "netflix")).toBe(true);
   });
 });
 
