@@ -4,6 +4,7 @@ import { getWatchPartyView } from "@/server/services/watch-party";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { NightWizard } from "@/components/watch-party/night-wizard";
+import { PartyInvitations } from "@/components/watch-party/party-invitations";
 
 export const metadata: Metadata = { title: "Serate insieme" };
 
@@ -29,5 +30,5 @@ async function PlannerContent({ searchParams }: { searchParams: PageProps<"/watc
   const [params, view] = await Promise.all([searchParams, getWatchPartyView()]);
   const withParam = params.with;
   const preselected = (Array.isArray(withParam) ? withParam : withParam ? [withParam] : []).flatMap((s) => s.split(","));
-  return <NightWizard view={view} preselected={preselected} />;
+  return <><PartyInvitations invitations={view.invitations} /><NightWizard view={view} preselected={preselected} /></>;
 }
