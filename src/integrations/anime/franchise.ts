@@ -238,7 +238,7 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
   // The Frozen Bond (AnimeUnity ID 2177) is not always connected to the
   // franchise by ANN relations. Keep it in the watch order after either
   // season-one edition and before season two, without treating it as an episode.
-  if (/re\\s*:?\\s*zero/i.test(root.name)) {
+  if (/re\s*:?\s*zero/i.test(root.name)) {
     for (let i = parts.length - 1; i >= 0; i--) {
       if (/frozen bond/i.test(parts[i].name)) parts.splice(i, 1);
     }
