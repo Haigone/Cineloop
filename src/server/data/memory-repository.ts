@@ -5,6 +5,7 @@ import type {
   ChartEntry,
   ExtensionDevice,
   Friend,
+  FriendRequest,
   LibraryEntry,
   OAuthProvider,
   PartyState,
@@ -46,6 +47,7 @@ export class MemoryRepository implements Repository {
   /** "provider:providerUserId" → user id. */
   private oauthAccounts = new Map<string, string>();
   private friendships: { a: string; b: string; since: string }[] = [];
+  private friendRequests: { requesterId: string; recipientId: string; requestedAt: string }[] = [];
   private library: LibraryEntry[] = [];
   private wishlist: WishlistItem[] = [];
   private watchEvents: WatchEvent[] = [];
@@ -459,6 +461,35 @@ export class MemoryRepository implements Repository {
     return friends;
   }
 
+  async listFriendRequests(userId: string): Promise<FriendRequest[]> {
+    return this.friendRequests
+      .filter((request) => request.recipientId === userId)
+      .sort((a, b) => Date.parse(b.requestedAt) - Date.parse(a.requestedAt))
+      .flatMap((request) => {
+        const user = this.users.get(request.requesterId);
+        return user ? [{ user: toPublic(user), requestedAt: request.requestedAt }] : [];
+      });
+  }
+
+  async createFriendRequest(requesterId: string, recipientId: string) {
+    if (requesterId === recipientId) return;
+    const alreadyFriends = this.friendships.some((f) => (f.a === requesterId && f.b === recipientId) || (f.a === recipientId && f.b === requesterId));
+    if (alreadyFriends) return;
+    if (this.friendRequests.some((r) => r.requesterId === recipientId && r.recipientId === requesterId)) {
+      throw new Error("An incoming friend request already exists");
+    }
+    if (this.friendRequests.some((r) => r.requesterId === requesterId && r.recipientId === recipientId)) return;
+    this.friendRequests.push({ requesterId, recipientId, requestedAt: new Date().toISOString() });
+  }
+
+  async respondFriendRequest(recipientId: string, requesterId: string, accept: boolean): Promise<boolean> {
+    const request = this.friendRequests.find((r) => r.requesterId === requesterId && r.recipientId === recipientId);
+    if (!request) return false;
+    if (accept) await this.addFriend(recipientId, requesterId);
+    this.friendRequests = this.friendRequests.filter((r) => r !== request);
+    return true;
+  }
+
   async addFriend(userId: string, friendId: string) {
     if (userId === friendId) return;
     const exists = this.friendships.some((f) => (f.a === userId && f.b === friendId) || (f.a === friendId && f.b === userId));
@@ -468,6 +499,9 @@ export class MemoryRepository implements Repository {
   async removeFriend(userId: string, friendId: string) {
     this.friendships = this.friendships.filter(
       (f) => !((f.a === userId && f.b === friendId) || (f.a === friendId && f.b === userId)),
+    );
+    this.friendRequests = this.friendRequests.filter(
+      (request) => !((request.requesterId === userId && request.recipientId === friendId) || (request.requesterId === friendId && request.recipientId === userId)),
     );
   }
 
@@ -588,7 +622,7 @@ export class MemoryRepository implements Repository {
   // Watch parties -----------------------------------------------------------
 
   async createWatchParty(input: Omit<WatchParty, "id" | "createdAt">) {
-    const party: WatchParty = { ...input, id: `wp_${crypto.randomUUID()}`, createdAt: new Date().toISOString() };
+    const party: WatchParty = { ...input, participantIds: [...input.participantIds], pendingParticipantIds: [...(input.pendingParticipantIds ?? [])], id: `wp_${crypto.randomUUID()}`, createdAt: new Date().toISOString() };
     this.parties.push(party);
     return party;
   }
@@ -603,17 +637,18 @@ export class MemoryRepository implements Repository {
     if (party) party.status = status;
   }
 
-  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; pendingParticipantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
     const party = this.parties.find((p) => p.id === partyId);
     if (!party) return;
     if (patch.participantIds) party.participantIds = [...patch.participantIds];
+    if (patch.pendingParticipantIds) party.pendingParticipantIds = [...patch.pendingParticipantIds];
     if (patch.status) party.status = patch.status;
     if (patch.scheduledFor !== undefined) party.scheduledFor = patch.scheduledFor;
   }
 
   async listWatchParties(userId: string, limit: number) {
     return this.parties
-      .filter((p) => p.hostId === userId || p.participantIds.includes(userId))
+      .filter((p) => p.hostId === userId || p.participantIds.includes(userId) || (p.pendingParticipantIds ?? []).includes(userId))
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, limit);
   }
