@@ -48,20 +48,34 @@ export function createDb(url: string): Db {
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
-  private titlesCache: { at: number; value: Title[] } | null = null;
-  private static readonly TITLES_CACHE_MS = 5 * 60 * 1000;
+  private titlesCache: { expiresAt: number; value: Title[] } | null = null;
+  private titlesCachePromise: Promise<Title[]> | null = null;
+  private readonly titlesCacheTtlMs = 5 * 60 * 1000;
+
   constructor(private db: Db) {}
+
+  private invalidateTitlesCache() {
+    this.titlesCache = null;
+    this.titlesCachePromise = null;
+  }
 
   // Catalog -----------------------------------------------------------------
 
   async listTitles() {
     const now = Date.now();
-    if (this.titlesCache && now - this.titlesCache.at < PostgresRepository.TITLES_CACHE_MS) {
-      return [...this.titlesCache.value];
+    if (this.titlesCache && this.titlesCache.expiresAt > now) return [...this.titlesCache.value];
+    if (this.titlesCachePromise) return [...(await this.titlesCachePromise)];
+
+    const pending = this.db.select().from(schema.titles).orderBy(asc(schema.titles.title)).then((rows) => rows.map(toTitle));
+    this.titlesCachePromise = pending;
+    try {
+      const titles = await pending;
+      // Do not repopulate the cache if a write invalidated it while this read was in flight.
+      if (this.titlesCachePromise === pending) this.titlesCache = { expiresAt: Date.now() + this.titlesCacheTtlMs, value: titles };
+      return [...titles];
+    } finally {
+      if (this.titlesCachePromise === pending) this.titlesCachePromise = null;
     }
-    const value = (await this.db.select().from(schema.titles).orderBy(asc(schema.titles.title))).map(toTitle);
-    this.titlesCache = { at: now, value };
-    return [...value];
   }
 
   async getTitlesByIds(ids: readonly string[]) {
@@ -84,12 +98,11 @@ export class PostgresRepository implements Repository {
   }
 
   async upsertTitles(list: readonly Title[]) {
-    if (list.length === 0) return;
     for (const t of list) {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
-    this.titlesCache = null;
+    if (list.length) this.invalidateTitlesCache();
   }
 
   // Users -------------------------------------------------------------------
@@ -254,7 +267,7 @@ export class PostgresRepository implements Repository {
   }
 
   async replaceTitle(oldId: string, next: Title) {
-    this.titlesCache = null;
+    this.invalidateTitlesCache();
     return this.db.transaction(async (tx) => {
       const row = titleToRow(next);
       await tx.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
