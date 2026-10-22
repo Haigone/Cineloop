@@ -8,6 +8,8 @@ import type {
   ChartEntry,
   ExtensionDevice,
   Friend,
+  FriendRequest,
+  WatchPartyInvitation,
   LibraryEntry,
   OAuthProvider,
   PartyState,
@@ -494,6 +496,50 @@ export class PostgresRepository implements Repository {
     await this.db.delete(schema.friendships).where(and(eq(schema.friendships.userA, userA), eq(schema.friendships.userB, userB)));
   }
 
+  async listFriendRequests(userId: string): Promise<FriendRequest[]> {
+    const rows = await this.db.select().from(schema.friendRequests)
+      .where(or(eq(schema.friendRequests.fromUserId, userId), eq(schema.friendRequests.toUserId, userId)))
+      .orderBy(desc(schema.friendRequests.createdAt));
+    return rows.map((r) => ({ ...r, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) }));
+  }
+
+  async createFriendRequest(fromUserId: string, toUserId: string): Promise<FriendRequest> {
+    if (fromUserId === toUserId) throw new Error("Non puoi inviare una richiesta a te stesso.");
+    const [a, b] = [fromUserId, toUserId].sort();
+    const [friendship] = await this.db.select().from(schema.friendships)
+      .where(and(eq(schema.friendships.userA, a!), eq(schema.friendships.userB, b!))).limit(1);
+    if (friendship) throw new Error("Siete già amici.");
+    const [existing] = await this.db.select().from(schema.friendRequests)
+      .where(and(eq(schema.friendRequests.fromUserId, fromUserId), eq(schema.friendRequests.toUserId, toUserId)))
+      .orderBy(desc(schema.friendRequests.createdAt)).limit(1);
+    if (existing?.status === "pending" || existing?.status === "rejected") {
+      return { ...existing, createdAt: iso(existing.createdAt), updatedAt: iso(existing.updatedAt) };
+    }
+    const [row] = await this.db.insert(schema.friendRequests).values({
+      id: \`fr_\${crypto.randomUUID()}\`, fromUserId, toUserId, status: "pending",
+    }).returning();
+    return { ...row!, createdAt: iso(row!.createdAt), updatedAt: iso(row!.updatedAt) };
+  }
+
+  async respondFriendRequest(requestId: string, userId: string, status: "accepted" | "rejected"): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [request] = await tx.select().from(schema.friendRequests)
+        .where(and(eq(schema.friendRequests.id, requestId), eq(schema.friendRequests.toUserId, userId), eq(schema.friendRequests.status, "pending")))
+        .limit(1);
+      if (!request) return false;
+      const [updated] = await tx.update(schema.friendRequests)
+        .set({ status, updatedAt: new Date() })
+        .where(and(eq(schema.friendRequests.id, requestId), eq(schema.friendRequests.toUserId, userId), eq(schema.friendRequests.status, "pending")))
+        .returning({ id: schema.friendRequests.id });
+      if (!updated) return false;
+      if (status === "accepted") {
+        const [userA, userB] = [request.fromUserId, request.toUserId].sort() as [string, string];
+        await tx.insert(schema.friendships).values({ userA, userB }).onConflictDoNothing();
+      }
+      return true;
+    });
+  }
+
   async listActivity(userIds: readonly string[], limit: number) {
     if (userIds.length === 0) return [];
     const rows = await this.db
@@ -695,6 +741,43 @@ export class PostgresRepository implements Repository {
     if (patch.status) set.status = patch.status;
     if (patch.scheduledFor !== undefined) set.scheduledFor = patch.scheduledFor ? new Date(patch.scheduledFor) : null;
     if (Object.keys(set).length) await this.db.update(schema.watchParties).set(set).where(eq(schema.watchParties.id, partyId));
+  }
+
+
+  async listWatchPartyInvitations(userId: string): Promise<WatchPartyInvitation[]> {
+    const rows = await this.db.select().from(schema.watchPartyInvitations)
+      .where(or(eq(schema.watchPartyInvitations.userId, userId), eq(schema.watchPartyInvitations.hostId, userId)))
+      .orderBy(desc(schema.watchPartyInvitations.createdAt));
+    return rows.map((r) => ({ ...r, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) }));
+  }
+
+  async createWatchPartyInvitations(partyId: string, hostId: string, userIds: readonly string[]) {
+    const unique = [...new Set(userIds)].filter((id) => id !== hostId);
+    if (!unique.length) return;
+    await this.db.insert(schema.watchPartyInvitations).values(unique.map((userId) => ({
+      id: \`wpi_\${partyId}_\${userId}\`, partyId, hostId, userId, status: "pending" as const,
+    }))).onConflictDoNothing();
+  }
+
+  async respondWatchPartyInvitation(invitationId: string, userId: string, status: "accepted" | "rejected"): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [invite] = await tx.select().from(schema.watchPartyInvitations)
+        .where(and(eq(schema.watchPartyInvitations.id, invitationId), eq(schema.watchPartyInvitations.userId, userId), eq(schema.watchPartyInvitations.status, "pending")))
+        .limit(1);
+      if (!invite) return false;
+      const [updated] = await tx.update(schema.watchPartyInvitations)
+        .set({ status, updatedAt: new Date() })
+        .where(and(eq(schema.watchPartyInvitations.id, invitationId), eq(schema.watchPartyInvitations.userId, userId), eq(schema.watchPartyInvitations.status, "pending")))
+        .returning({ id: schema.watchPartyInvitations.id });
+      if (!updated) return false;
+      if (status === "accepted") {
+        const [party] = await tx.select().from(schema.watchParties).where(eq(schema.watchParties.id, invite.partyId)).limit(1);
+        if (party && !party.participantIds.includes(userId)) {
+          await tx.update(schema.watchParties).set({ participantIds: [...party.participantIds, userId] }).where(eq(schema.watchParties.id, invite.partyId));
+        }
+      }
+      return true;
+    });
   }
 
   async listWatchParties(userId: string, limit: number) {
