@@ -162,6 +162,16 @@ describe("films read from the player", () => {
     expect(entry?.status).toBe("watching");
   });
 
+  it("uses player position and duration when a progress fraction is missing", async () => {
+    await repo.clearPresence("u_marco");
+    const { ep } = ids();
+    await handleObservation("u_marco", watch(ep, {
+      hints: { title: "Interstellar", position: 91 * 60, duration: 100 * 60 },
+    }));
+    const entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
+    expect(entry).toMatchObject({ status: "completed", progress: null, askRating: true });
+  });
+
   it("treats typographic and plain apostrophes alike", async () => {
     const { searchKey } = await import("@/lib/text");
     expect(searchKey("Il 7 E l’8")).toBe(searchKey("Il 7 e l'8"));
