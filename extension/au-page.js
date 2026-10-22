@@ -368,7 +368,7 @@
     const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
     const next = nextEpisodeInfo(known.episode);
     const message = {
-      type: "player-title", ...known, pageUrl: location.href, progress,
+      type: "player-title", ...known, pageUrl: location.href, progress, ended: forcedProgress === 1,
       position: video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null,
       duration, force,
       ...(next ? { nextEpisodeUrl: next.url, nextEpisode: next.episode } : {}),
