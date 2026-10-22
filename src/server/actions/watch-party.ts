@@ -140,7 +140,7 @@ export async function updateWatchParty(partyId: string, input: z.input<typeof up
     await repo.updateWatchParty(party.id, { participantIds, pendingParticipantIds, status: when === "now" ? party.status : status, scheduledFor: next.scheduledFor });
     if (when === "now") await startNight(repo, next, title);
     const newlyInvited = pendingParticipantIds.filter((id) => !(party.pendingParticipantIds ?? []).includes(id));
-    if (newlyInvited.length) await announceNight(repo, { ...next, pendingParticipantIds: newlyInvited }, title, viewer.displayName);
+    if (newlyInvited.length) await announceNight(repo, { ...next, participantIds: [viewer.id], pendingParticipantIds: newlyInvited }, title, viewer.displayName);
     refresh();
     return { ok: true };
   } catch (err) {
