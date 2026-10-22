@@ -26,10 +26,7 @@ export function PersonalCollectionCard({ group }: { group: PersonalLibraryGroup 
           <div className="absolute top-5 left-5 right-5 flex items-start justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-extrabold tracking-[.13em] text-black shadow-lg" style={{ backgroundColor: accent }}>
               {isSaga ? <Clapperboard className="size-3" /> : <Layers3 className="size-3" />}
-              {label}
-            </span>
-            <span className="rounded-full border border-white/20 bg-black/65 px-2.5 py-1.5 text-[10px] font-bold text-white backdrop-blur">
-              {group.total} {group.total === 1 ? "TITOLO" : "TITOLI"}
+              {label} · {group.total} {group.total === 1 ? "TITOLO" : "TITOLI"}
             </span>
           </div>
           <div className="absolute inset-x-0 bottom-0 p-5">
