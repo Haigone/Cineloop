@@ -135,6 +135,19 @@ export const friendships = pgTable(
   (t) => [primaryKey({ columns: [t.userA, t.userB] }), check("ordered_pair", sql`${t.userA} < ${t.userB}`), index("friendships_b_idx").on(t.userB)],
 );
 
+export const friendRequests = pgTable(
+  "friend_requests",
+  {
+    id: text("id").primaryKey(),
+    fromUserId: text("from_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    toUserId: text("to_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").$type<"pending" | "accepted" | "rejected">().notNull().default("pending"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [check("friend_requests_not_self", sql\`\${t.fromUserId} <> \${t.toUserId}\`), index("friend_requests_to_status_idx").on(t.toUserId, t.status), index("friend_requests_from_status_idx").on(t.fromUserId, t.status)],
+);
+
 export const watchEvents = pgTable(
   "watch_events",
   {
@@ -236,6 +249,20 @@ export const watchParties = pgTable(
     scheduledFor: ts("scheduled_for"),
   },
   (t) => [index("watch_parties_host_idx").on(t.hostId, t.createdAt)],
+);
+
+export const watchPartyInvitations = pgTable(
+  "watch_party_invitations",
+  {
+    id: text("id").primaryKey(),
+    partyId: text("party_id").notNull().references(() => watchParties.id, { onDelete: "cascade" }),
+    hostId: text("host_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").$type<"pending" | "accepted" | "rejected">().notNull().default("pending"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.partyId, t.userId] }), check("watch_party_invites_not_host", sql\`\${t.hostId} <> \${t.userId}\`), index("watch_party_invites_user_status_idx").on(t.userId, t.status), index("watch_party_invites_host_status_idx").on(t.hostId, t.status)],
 );
 
 /** "Serate insieme": a series or anime followed by a group, with one shared place. */
