@@ -171,7 +171,7 @@ $("import-btn").addEventListener("click", async () => {
     const missing = total.notFound.length - failed;
     $("import-status").textContent = [
       `Aggiunti alla libreria: ${total.added}.`,
-      total.days ? `Date di visione registrate: ${total.days}.` : "",
+      `Date di visione registrate: ${total.days}${total.days ? "" : " (già presenti, oppure il file non ha date leggibili)"}.`,
       total.already ? `Già su CineLoop: ${total.already}.` : "",
       missing ? `Non trovati nel catalogo: ${missing}.` : "",
       failed ? `Non importati perché CineLoop non ha risposto: ${failed} (sono nel log, riprova più tardi).` : "",

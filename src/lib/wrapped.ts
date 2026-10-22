@@ -99,28 +99,48 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
   let episodes = 0;
   let films = 0;
 
+  // The extension stores a watch event per ~10 minutes of viewing, not per play, and the
+  // heartbeat used to keep counting while the player was paused. So events of one episode
+  // (or film) on one day and service are one play, capped at the real length of the title.
+  // Day-level history imports (no minutes) are one play each, and give way to measured
+  // viewing of the same title, day and service, so import and extension never add up twice.
+  interface Play { at: Date; title: Title | undefined; titleId: string; isFilm: boolean; measured: number; imported: number }
+  const isImport = (e: WatchEvent) => e.providerId === "netflix" && e.episode === null && e.watchedAt.endsWith("T12:00:00.000Z");
+  const dayOf = (e: WatchEvent) => `${e.titleId}|${e.providerId ?? ""}|${e.watchedAt.slice(0, 10)}`;
+  const measuredDays = new Set<string>();
+  for (const e of events) if (e.minutes > 0 && !isImport(e)) measuredDays.add(dayOf(e));
+  const plays = new Map<string, Play>();
+  let importSeq = 0;
   for (const e of events) {
     const at = new Date(e.watchedAt);
     if (at.getUTCFullYear() !== year) continue;
     const title = titles.get(e.titleId);
     const isFilm = title ? title.type === "movie" : e.season === null && e.episode === null;
-    // Netflix CSV imports only know the day and title, not the actual time watched.
-    // Older versions stored a runtime estimate as if it were measured; noon UTC plus
-    // no episode number identifies those imported day-level events so Wrapped can correct them.
-    const importedNetflixHistory = e.providerId === "netflix" && e.episode === null && e.watchedAt.endsWith("T12:00:00.000Z");
-    const known = e.minutes > 0 && !importedNetflixHistory;
-    const minutes = known ? e.minutes : guess(title, isFilm);
-    months[at.getUTCMonth()]! += minutes;
+    const imported = e.minutes <= 0 || isImport(e);
+    if (imported && measuredDays.has(dayOf(e))) continue;
+    const key = imported ? `import|${importSeq++}` : `${dayOf(e)}|${isFilm ? "" : `${e.season ?? ""}|${e.episode ?? ""}`}`;
+    const play = plays.get(key) ?? { at, title, titleId: e.titleId, isFilm, measured: 0, imported: 0 };
+    if (imported) play.imported += 1;
+    else play.measured += e.minutes;
+    plays.set(key, play);
+  }
+
+  for (const play of plays.values()) {
+    const { title, isFilm } = play;
+    const runtime = title ? (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) : 0;
+    const known = play.measured > 0;
+    const minutes = known ? (runtime > 0 ? Math.min(play.measured, runtime) : play.measured) : guess(title, isFilm);
+    months[play.at.getUTCMonth()]! += minutes;
     total += minutes;
     if (!known) estimated += minutes;
     if (isFilm) films += 1;
     else episodes += 1;
-    const row = byTitle.get(e.titleId);
+    const row = byTitle.get(play.titleId);
     if (row) {
       row.minutes += minutes;
       row.plays += 1;
     } else {
-      byTitle.set(e.titleId, { titleId: e.titleId, name: title?.title ?? "Titolo sconosciuto", posterUrl: title?.artwork.posterUrl ?? null, minutes, plays: 1, isFilm });
+      byTitle.set(play.titleId, { titleId: play.titleId, name: title?.title ?? "Titolo sconosciuto", posterUrl: title?.artwork.posterUrl ?? null, minutes, plays: 1, isFilm });
     }
   }
 
