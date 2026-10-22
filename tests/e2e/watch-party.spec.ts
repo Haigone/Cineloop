@@ -66,7 +66,7 @@ test("a title already chosen, planned for tomorrow, shows on Home", async ({ pag
   await expect(page.getByRole("status").filter({ hasText: "Serata programmata" })).toBeVisible();
 
   await page.goto("/home?c=film");
-  await expect(page.getByRole("link", { name: /Dune - Parte due.*Con Giulia/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Dune - Parte due.*Da solo/ })).toBeVisible();
 
   // Tidy up: the demo account is shared with the other tests.
   await page.goto("/watch-party");
@@ -92,10 +92,14 @@ test("a planned night can be changed and deleted after it is made", async ({ pag
   await dialog.getByRole("list", { name: "Partecipanti alla serata" }).getByText("Luca").click();
   await dialog.getByRole("button", { name: "Salva le modifiche" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("listitem").filter({ hasText: "Dune - Parte due" }).getByText("Con Giulia, Luca")).toBeVisible();
+
+  // Friends are invited, not enrolled: both invitations are still kept when the night is reopened.
+  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).click();
+  const people = dialog.getByRole("list", { name: "Partecipanti alla serata" });
+  await expect(people.getByRole("checkbox", { name: /Giulia/ })).toBeChecked();
+  await expect(people.getByRole("checkbox", { name: /Luca/ })).toBeChecked();
 
   // Delete it: a second, named button confirms.
-  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).click();
   await dialog.getByRole("button", { name: "Elimina la serata" }).click();
   await dialog.getByRole("button", { name: "Elimina “Dune - Parte due”" }).click();
   await expect(page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" })).toHaveCount(0);
