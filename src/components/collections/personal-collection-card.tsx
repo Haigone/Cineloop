@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Check, Clock3, Layers3, Clapperboard } from "lucide-react";
-import type { PersonalLibraryGroup } from "@/server/services/personal-collections";
-import { cn } from "@/lib/cn";
+import type { PersonalLibraryGroup } from "@/domain/library";
 
 export function PersonalCollectionCard({ group }: { group: PersonalLibraryGroup }) {
   const isSaga = group.kind === "saga";
