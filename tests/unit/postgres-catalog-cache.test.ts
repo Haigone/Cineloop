@@ -29,6 +29,7 @@ const title: Title = {
 describe("Postgres catalog cache", () => {
   it("shares one in-flight listTitles query and caches the result", async () => {
     const { repo, select, orderBy } = repositoryWithEmptyCatalog();
+    await repo.upsertTitles([]);
 
     const [first, second] = await Promise.all([repo.listTitles(), repo.listTitles()]);
     const third = await repo.listTitles();
@@ -42,6 +43,7 @@ describe("Postgres catalog cache", () => {
 
   it("invalidates the catalog cache after title writes", async () => {
     const { repo, select, insert, values, onConflictDoUpdate } = repositoryWithEmptyCatalog();
+    await repo.upsertTitles([]);
 
     await repo.listTitles();
     await repo.upsertTitles([title]);
