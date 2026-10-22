@@ -66,6 +66,8 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 - Test E2E dell'estensione "instabili" (21/10): non era instabilità. In 0.7.5 `popup.js` cercava `grant-btn` e `grant-skip`, tolti dall'HTML: il `null` bloccava lo script e il popup restava vuoto per tutti. Corretto in 0.7.6 (PR separata), qui aggiunto un test unit che confronta gli `$("id")` di popup.js con popup.html. `actionTimeout` 15s in Playwright: un elemento mancante fallisce subito invece di attendere il timeout del test. I test con estensione spostano le `optional_host_permissions` in `host_permissions` nella copia di prova.
 - Estensione 0.7.1: ogni pausa/seek/cambio episodio manda subito un'osservazione, quindi `/api/extension/observe` ha un bucket di limite proprio (60/min). I test E2E dell'estensione condividono lo store demo: Luca (seed Netflix) diventa Prime dopo `extension-prime.spec`, quindi `extension.spec` lo rimette su Netflix con un `observe`. Nei test con estensione `launchPersistentContext` usa `channel: "chromium"` (senza `PLAYWRIGHT_CHROMIUM_PATH`): l'headless shell predefinito di Playwright non carica le estensioni e il test va in timeout (era la causa su GitHub Actions).
 
+- Controllo mobile (22/10): `tests/e2e/mobile-layout.spec.ts` (Pixel 7) verifica che nessuna pagina principale scorra in orizzontale; aggiungi qui le nuove rotte. Tutte passano.
+
 ## File chiave
 - `src/proxy.ts`: reindirizza le pagine private a `/start`; controllo ottimistico del cookie.
 - `src/server/data/postgres/schema.ts`, `drizzle/`: schema e migrazioni (ultima 0019).
