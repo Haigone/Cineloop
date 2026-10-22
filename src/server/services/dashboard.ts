@@ -12,7 +12,7 @@ import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
 import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getRepository } from "@/server/data";
+import { getHomeCatalogRepository, getRepository } from "@/server/data";
 import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
 import { listLiveFriends, type LiveFriend } from "./sync";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
@@ -89,6 +89,23 @@ export interface HomeView {
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
+/** Prefer the secondary catalog DB for Home, falling back to the primary on failure. */
+async function loadHomeTitles(fallbackRepo: ReturnType<typeof getRepository>) {
+  const catalogRepo = getHomeCatalogRepository();
+  try {
+    return await catalogRepo.listTitles();
+  } catch (error) {
+    console.error("Home catalog database failed; falling back to primary database", error);
+    if (catalogRepo === fallbackRepo) return [];
+    try {
+      return await fallbackRepo.listTitles();
+    } catch (fallbackError) {
+      console.error("Primary catalog fallback failed", fallbackError);
+      return [];
+    }
+  }
+}
+
 /**
  * Home for one section. With no section asked for, the one opened last; an
  * explicit one is remembered for next time.
@@ -112,7 +129,7 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     repo.listWatchEvents(viewer.id, weekStart(now)),
     loadFriendBundles(repo, viewer.id),
     repo.getPresence(viewer.id),
-    repo.listTitles(),
+    loadHomeTitles(repo),
   ]);
   const friendIds = friends.map((f) => f.user.id);
   const titles = new Map(allTitles.map((t) => [t.id, t]));
