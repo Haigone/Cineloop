@@ -606,6 +606,8 @@ async function playerTitle(tabId, m) {
     return flush;
   });
   if (shouldFlush) await tick();
+  // Capture the episode before a provider auto-advances and overwrites its player state.
+  if (m.ended === true) await queueCompletionConfirmation(tabId).catch(() => {});
 }
 
 /**
