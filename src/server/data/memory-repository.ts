@@ -126,7 +126,7 @@ export class MemoryRepository implements Repository {
   }
 
   async findTitlesBySearchKey(key: string) {
-    return key ? [...this.titles.values()].filter((title) => searchKey(title.title) === key) : [];
+    return key ? [...this.titles.values()].filter((t) => searchKey(t.title) === key) : [];
   }
 
   async getTitlesByIds(ids: readonly string[]) {
