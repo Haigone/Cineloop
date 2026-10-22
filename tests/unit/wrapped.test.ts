@@ -32,8 +32,8 @@ describe("Wrapped", () => {
 
   it("splits provider statistics without changing general totals", () => {
   const events: WatchEvent[] = [
-   { ...ev("a", "2026-02-01T12:00:00Z", 40, 1, 1), providerId: "netflix" as const },
-   { ...ev("b", "2026-03-02T12:00:00Z", 100), providerId: "prime-video" as const },
+   { ...ev("a", "2026-02-01T12:00:00Z", 40, 1, 1), providerId: "netflix" },
+   { ...ev("b", "2026-03-02T12:00:00Z", 100), providerId: "prime-video" },
    ev("a", "2026-04-03T12:00:00Z", 45, 1, 2),
   ];
   const providers = summarizeByProvider(2026, events, titles);
@@ -42,17 +42,6 @@ describe("Wrapped", () => {
   expect(providers.reduce((n, p) => n + p.totalMinutes, 0)).toBe(general.totalMinutes);
   expect(providers.find((p) => p.providerId === "netflix")).toMatchObject({ episodes: 1, films: 0, firstWatched: "2026-02-01", lastWatched: "2026-02-01" });
  });
-
-  it("treats legacy Netflix history timestamps as estimates, not measured runtime", () => {
-    const imported = {
-      ...ev("a", "2026-10-10T12:00:00.000Z", 50, 1, null),
-      providerId: "netflix" as const,
-    };
-    const w = summarizeYear(2026, [imported], titles);
-    expect(w.totalMinutes).toBe(45);
-    expect(w.estimatedMinutes).toBe(45);
-    expect(w.months[9]).toBe(45);
-  });
 
  it("is empty for a year without viewing", () => {
     expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });

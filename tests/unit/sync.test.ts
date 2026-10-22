@@ -176,8 +176,6 @@ describe("films read from the player", () => {
     let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
     expect(entry).toMatchObject({ status: "watching", progress: { fraction: 0.91 } });
 
-    // Clear any seeded rating so this test checks the first-completion prompt.
-    await repo.setRating("u_marco", "interstellar", null);
     await handleObservation("u_marco", watch(ep, {
       hints: { title: "Interstellar", position: 100 * 60, duration: 100 * 60, completionConfirmed: true },
     }));

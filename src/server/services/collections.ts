@@ -46,7 +46,7 @@ export async function getSagaView(title: Title): Promise<(SagaStatus & { followe
   ]);
   if (!collection || collection.parts.length < 2) return null;
   const choice = choices.find((c) => c.collectionId === collection.id);
-  return { ...sagaStatus(collection, choice, new Map(library.map((e) => [e.titleId, e.status])), italianDay()), followed: Boolean(choice && hasMarker(choice, COLLECTION_FOLLOW_MARKER)) };
+  return { ...sagaStatus(collection, choice, new Map(library.map((e) => [e.titleId, e.status])), italianDay()), followed: Boolean(choice) };
 }
 
 /**
@@ -214,7 +214,7 @@ export const CURATED_COLLECTIONS = [
     ["The Acolyte", 115034, "tv"],
   ] as const, palette: ["#ca8a04", "#100e16", "#fef3c7"] as const }
 ] as const;
-const DISPLAYED_SAGA_TERMS = ["James Bond", "Mission: Impossible", "Fast & Furious", "Jurassic Park", "Jurassic World", "The Lord of the Rings", "The Hobbit", "Toy Story", "Shrek", "John Wick", "The Hunger Games", "Planet of the Apes", "Transformers", "Pirates of the Caribbean", "The Matrix", "Back to the Future", "Rocky", "Creed", "Terminator", "Alien", "Predator", "Die Hard", "Bourne", "Kung Fu Panda", "Ice Age", "Madagascar", "Despicable Me", "How to Train Your Dragon", "Scream", "Halloween", "Final Destination", "Saw", "The Conjuring", "Indiana Jones", "Star Trek", "Ghostbusters", "Men in Black", "The Karate Kid", "Rambo", "Beverly Hills Cop", "Godzilla", "King Kong", "Lethal Weapon", "Bad Boys", "Ocean's", "Blade Runner", "Tron"] as const;
+const DISPLAYED_SAGA_TERMS = ["The Godfather", "Il Padrino", "Knives Out", "Now You See Me", "James Bond", "Mission: Impossible", "Fast & Furious", "Jurassic Park", "Jurassic World", "The Lord of the Rings", "The Hobbit", "Toy Story", "Shrek", "John Wick", "The Hunger Games", "Planet of the Apes", "Transformers", "Pirates of the Caribbean", "The Matrix", "Back to the Future", "Rocky", "Creed", "Terminator", "Alien", "Predator", "Die Hard", "Bourne", "Kung Fu Panda", "Ice Age", "Madagascar", "Despicable Me", "How to Train Your Dragon", "Scream", "Halloween", "Final Destination", "Saw", "The Conjuring", "Indiana Jones", "Star Trek", "Ghostbusters", "Men in Black", "The Karate Kid", "Rambo", "Beverly Hills Cop", "Godzilla", "King Kong", "Lethal Weapon", "Bad Boys", "Ocean's", "Blade Runner", "Tron"] as const;
 
 export interface CollectionQueueItem {
   collection: FilmCollection;
