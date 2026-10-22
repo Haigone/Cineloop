@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Clock3 } from "lucide-react";
 import { moveInOrder } from "@/domain/collections";
 import type { Title, WatchStatus } from "@/domain/types";
 import { setSagaFilmIncluded, setSagaOrder } from "@/server/actions/collections";
@@ -125,6 +125,10 @@ export function SagaOrder({
                 </p>
                 {meta && <p className="mt-0.5 truncate text-xs text-fg-3">{meta}</p>}
                 {!row.released && <ReleaseTimer className="mt-1.5" date={row.releaseDate} />}
+              </div>
+              <div className="hidden shrink-0 items-center gap-1.5 text-xs sm:flex">
+                {row.status === "completed" && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="size-4" /> Visto</span>}
+                {row.status === "watching" && <span className="inline-flex items-center gap-1 text-sky-300"><Clock3 className="size-4" /> In corso</span>}
               </div>
               <div className="flex shrink-0 items-center">
                 <IconButton size="sm" label={`Sposta ${film.title} prima`} icon={<ChevronUp aria-hidden className="size-4" />} disabled={i === 0} onClick={() => move(id, -1)} />
