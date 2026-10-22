@@ -139,7 +139,7 @@ export class PostgresRepository implements Repository {
   async searchUsers(query: string, limit: number) {
     const q = query.trim();
     if (!q) return [];
-    const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const pattern = `%${q.replace(/[\\%_]/g, (c) => `\${c}`)}%`;
     const rows = await this.db
       .select()
       .from(schema.users)
@@ -516,7 +516,7 @@ export class PostgresRepository implements Repository {
       return { ...existing, createdAt: iso(existing.createdAt), updatedAt: iso(existing.updatedAt) };
     }
     const [row] = await this.db.insert(schema.friendRequests).values({
-      id: \`fr_\${crypto.randomUUID()}\`, fromUserId, toUserId, status: "pending",
+      id: `fr_${crypto.randomUUID()}`, fromUserId, toUserId, status: "pending",
     }).returning();
     return { ...row!, createdAt: iso(row!.createdAt), updatedAt: iso(row!.updatedAt) };
   }
@@ -755,7 +755,7 @@ export class PostgresRepository implements Repository {
     const unique = [...new Set(userIds)].filter((id) => id !== hostId);
     if (!unique.length) return;
     await this.db.insert(schema.watchPartyInvitations).values(unique.map((userId) => ({
-      id: \`wpi_\${partyId}_\${userId}\`, partyId, hostId, userId, status: "pending" as const,
+      id: `wpi_${partyId}_${userId}`, partyId, hostId, userId, status: "pending" as const,
     }))).onConflictDoNothing();
   }
 
