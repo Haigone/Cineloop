@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT friend_requests_not_self CHECK (from_user_id <> to_user_id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS friend_requests_pair_unique ON friend_requests(from_user_id, to_user_id);
 CREATE INDEX IF NOT EXISTS friend_requests_to_status_idx ON friend_requests(to_user_id, status);
 CREATE INDEX IF NOT EXISTS friend_requests_from_status_idx ON friend_requests(from_user_id, status);
 CREATE TABLE IF NOT EXISTS watch_party_invitations (
