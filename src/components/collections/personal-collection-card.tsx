@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Check, Clock3, Layers3, Clapperboard } from "lucide-react";
+import { Check, Clock3 } from "lucide-react";
 import type { PersonalLibraryGroup } from "@/domain/library";
 
 export function PersonalCollectionCard({ group }: { group: PersonalLibraryGroup }) {
   const isSaga = group.kind === "saga";
   const label = isSaga ? "SAGA" : "COLLEZIONE";
-  const accent = isSaga ? "#f59e0b" : "#a78bfa";
+  const accent = isSaga ? "#22d3ee" : "#fb7185";
   const image = group.artwork.backdropUrl ?? group.artwork.posterUrl;
 
   return (
@@ -23,10 +23,9 @@ export function PersonalCollectionCard({ group }: { group: PersonalLibraryGroup 
           )}
           <div aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(0,0,0,.08)_0%,rgba(0,0,0,.15)_32%,rgba(0,0,0,.92)_100%)]" />
           <div aria-hidden className="absolute inset-3 rounded-lg border" style={{ borderColor: `${accent}66` }} />
-          <div className="absolute top-5 left-5 right-5 flex items-start justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-extrabold tracking-[.13em] text-black shadow-lg" style={{ backgroundColor: accent }}>
-              {isSaga ? <Clapperboard className="size-3" /> : <Layers3 className="size-3" />}
-              {label} · {group.total} {group.total === 1 ? "TITOLO" : "TITOLI"}
+          <div className="absolute left-4 top-4">
+            <span className="inline-flex max-w-full items-center rounded-full px-2 py-1 text-[9px] font-extrabold tracking-[.08em] text-black shadow-lg" style={{ backgroundColor: accent }}>
+              {label}
             </span>
           </div>
           <div className="absolute inset-x-0 bottom-0 p-5">
