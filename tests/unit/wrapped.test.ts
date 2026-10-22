@@ -43,6 +43,17 @@ describe("Wrapped", () => {
   expect(providers.find((p) => p.providerId === "netflix")).toMatchObject({ episodes: 1, films: 0, firstWatched: "2026-02-01", lastWatched: "2026-02-01" });
  });
 
+  it("treats legacy Netflix history timestamps as estimates, not measured runtime", () => {
+    const imported = {
+      ...ev("a", "2026-10-10T12:00:00.000Z", 50, 1, null),
+      providerId: "netflix",
+    };
+    const w = summarizeYear(2026, [imported], titles);
+    expect(w.totalMinutes).toBe(50);
+    expect(w.estimatedMinutes).toBe(50);
+    expect(w.months[9]).toBe(50);
+  });
+
  it("is empty for a year without viewing", () => {
     expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });
   });
