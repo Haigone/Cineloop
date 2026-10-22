@@ -46,7 +46,7 @@ describe("Wrapped", () => {
   it("treats legacy Netflix history timestamps as estimates, not measured runtime", () => {
     const imported = {
       ...ev("a", "2026-10-10T12:00:00.000Z", 50, 1, null),
-      providerId: "netflix",
+      providerId: "netflix" as const,
     };
     const w = summarizeYear(2026, [imported], titles);
     expect(w.totalMinutes).toBe(45);
