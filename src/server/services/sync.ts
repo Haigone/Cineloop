@@ -82,7 +82,16 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
   const completionConfirmed = obs.hints?.completionConfirmed === true;
   const now = new Date();
   const before = await repo.getPresence(userId);
-  const step = nextPresence(userId, before, seen, now);
+  // Same episode, same position as the last saved one: the player is paused, so no viewing time.
+  const position = obs.hints?.position;
+  let playing = true;
+  if (before?.titleId && typeof position === "number" && Number.isFinite(position)) {
+    const saved = (await repo.listLibrary(userId)).find((e) => e.titleId === before.titleId)?.progress;
+    if (saved?.positionSeconds !== undefined && saved.season === (content.season ?? before.season) && saved.episode === (content.episode ?? before.episode)) {
+      playing = Math.abs(position - saved.positionSeconds) >= 10;
+    }
+  }
+  const step = nextPresence(userId, before, seen, now, playing);
   if (step.ended) await storeMinutes(repo, step.ended, remainingMinutes(step.ended), now);
 
   const presence = step.presence;

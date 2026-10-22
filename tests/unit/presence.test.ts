@@ -24,6 +24,14 @@ describe("nextPresence", () => {
     expect(isLive(p, at(2.5 + PRESENCE_TTL_MS / 60_000 + 0.1))).toBe(false);
   });
 
+  it("does not count a paused player", () => {
+    let p = nextPresence("u", null, seen, t0).presence;
+    p = nextPresence("u", p, seen, at(1), false).presence;
+    expect(p.pendingMinutes).toBe(0);
+    p = nextPresence("u", p, seen, at(2)).presence;
+    expect(p.pendingMinutes).toBeCloseTo(1);
+  });
+
   it("stores watch time in chunks once the title is known", () => {
     let p: Presence = { ...nextPresence("u", null, seen, t0).presence, titleId: "dark" };
     let flushed = 0;

@@ -57,4 +57,18 @@ describe("Wrapped", () => {
  it("is empty for a year without viewing", () => {
     expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });
   });
+
+  it("counts the ~10 minute chunks of one episode as one play, capped at its length", () => {
+    const t = new Map([["a", { id: "a", title: "OB", type: "series", episodeRuntimeMinutes: 45, artwork: { posterUrl: null } } as unknown as Title]]);
+    const chunks = Array.from({ length: 8 }, (_, n) => ({ ...ev("a", `2026-10-14T20:0${n}:00Z`, 10, 1, 3), providerId: "netflix" as const }));
+    const w = summarizeYear(2026, [...chunks, { ...ev("a", "2026-10-15T20:00:00Z", 20, 1, 4), providerId: "netflix" as const }], t);
+    expect(w).toMatchObject({ episodes: 2, totalMinutes: 65, estimatedMinutes: 0 });
+  });
+
+  it("does not add a Netflix history import on top of measured viewing of the same day", () => {
+    const t = new Map([["a", { id: "a", title: "OB", type: "series", episodeRuntimeMinutes: 45, artwork: { posterUrl: null } } as unknown as Title]]);
+    const imported = { ...ev("a", "2026-10-14T12:00:00.000Z", 0, 1), providerId: "netflix" as const };
+    const measured = { ...ev("a", "2026-10-14T20:00:00.000Z", 40, 1, 2), providerId: "netflix" as const };
+    expect(summarizeYear(2026, [imported, measured], t)).toMatchObject({ episodes: 1, totalMinutes: 40 });
+  });
 });
