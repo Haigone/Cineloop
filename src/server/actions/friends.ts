@@ -15,7 +15,7 @@ export async function addFriend(rawUsername: string): Promise<ActionResult> {
   try {
     const repo = getRepository();
     const other = await repo.getUserByUsername(parsed.data);
-    if (!other || other.id === viewer.id) return { ok: false, error: \`Nessun utente con username @\${parsed.data}.\` };
+    if (!other || other.id === viewer.id) return { ok: false, error: `Nessun utente con username @${parsed.data}.` };
     const existing = await repo.listFriendRequests(viewer.id);
     if ((await repo.listFriends(viewer.id)).some((f) => f.user.id === other.id)) return { ok: false, error: "Siete già amici." };
     const incoming = existing.find((r) => r.fromUserId === other.id && r.toUserId === viewer.id && r.status === "pending");
@@ -23,7 +23,7 @@ export async function addFriend(rawUsername: string): Promise<ActionResult> {
     const request = await repo.createFriendRequest(viewer.id, other.id);
     if (request.status === "rejected") return { ok: false, error: "La richiesta precedente è stata rifiutata e non può essere duplicata." };
     if (request.status === "pending") {
-      await repo.createNotification({ userId: other.id, kind: "system", message: \`\${viewer.displayName} ti ha inviato una richiesta di amicizia.\`, href: "/friends", at: new Date().toISOString() });
+      await repo.createNotification({ userId: other.id, kind: "system", message: `${viewer.displayName} ti ha inviato una richiesta di amicizia.`, href: "/friends", at: new Date().toISOString() });
     }
     refresh();
     return { ok: true };
@@ -47,7 +47,7 @@ export async function respondFriendRequest(requestId: string, status: "accepted"
       const sender = await repo.getUserById(request.fromUserId);
       if (sender) await repo.createNotification({
         userId: sender.id, kind: "system",
-        message: status === "accepted" ? \`\${viewer.displayName} ha accettato la tua richiesta di amicizia.\` : \`\${viewer.displayName} ha rifiutato la tua richiesta di amicizia.\`,
+        message: status === "accepted" ? `${viewer.displayName} ha accettato la tua richiesta di amicizia.` : `${viewer.displayName} ha rifiutato la tua richiesta di amicizia.`,
         href: "/friends", at: new Date().toISOString(),
       });
     }
