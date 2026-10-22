@@ -43,7 +43,8 @@ export async function saveWatchParty(input: z.input<typeof schema>): Promise<Act
   try {
     const party = await repo.createWatchParty({
       hostId: viewer.id,
-      participantIds: [...new Set([viewer.id, ...participants])],
+      // Invitees are not participants until they explicitly accept.
+      participantIds: [viewer.id],
       filter: parsed.data.filter,
       genre: parsed.data.genre,
       candidateTitleIds: parsed.data.candidateTitleIds,
@@ -51,6 +52,17 @@ export async function saveWatchParty(input: z.input<typeof schema>): Promise<Act
       status: when === "now" ? "started" : when,
       scheduledFor: when === "scheduled" ? new Date(scheduledFor!).toISOString() : null,
     });
+    const inviteeIds = [...new Set(participants)].filter((id) => id !== viewer.id);
+    await repo.createWatchPartyInvitations(party.id, viewer.id, inviteeIds);
+    for (const id of inviteeIds) {
+      await repo.createNotification({
+        userId: id,
+        kind: "watch-party",
+        message: `${viewer.displayName} ti ha invitato a una serata insieme: ${title.title}.`,
+        href: "/watch-party",
+        at: new Date().toISOString(),
+      });
+    }
     if (when === "now") await startNight(repo, party, title);
     await announceNight(repo, party, title, viewer.displayName);
     refresh();
@@ -58,6 +70,41 @@ export async function saveWatchParty(input: z.input<typeof schema>): Promise<Act
   } catch (err) {
     console.error("saveWatchParty failed", err);
     return { ok: false, error: "Non siamo riusciti a salvare la serata. Riprova." };
+  }
+}
+
+/** Only the invited user can accept or reject their invitation. */
+export async function respondWatchPartyInvitation(invitationId: string, status: "accepted" | "rejected"): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  if (!z.string().min(1).max(160).safeParse(invitationId).success || !["accepted", "rejected"].includes(status)) {
+    return { ok: false, error: "Invito non valido." };
+  }
+  try {
+    const repo = getRepository();
+    const invite = (await repo.listWatchPartyInvitations(viewer.id)).find((i) => i.id === invitationId && i.userId === viewer.id && i.status === "pending");
+    if (!invite) return { ok: false, error: "L'invito non è più in attesa o non è destinato a te." };
+    const parties = await repo.listWatchParties(invite.hostId, 100);
+    const party = parties.find((p) => p.id === invite.partyId);
+    if (!party || party.status === "done") return { ok: false, error: "Questa serata non è più disponibile." };
+    const changed = await repo.respondWatchPartyInvitation(invitationId, viewer.id, status);
+    if (!changed) return { ok: false, error: "L'invito è già stato gestito." };
+    const host = await repo.getUserById(invite.hostId);
+    if (host) await repo.createNotification({
+      userId: host.id,
+      kind: "watch-party",
+      message: status === "accepted" ? `${viewer.displayName} ha accettato il tuo invito alla serata.` : `${viewer.displayName} ha rifiutato il tuo invito alla serata.`,
+      href: "/watch-party",
+      at: new Date().toISOString(),
+    });
+    if (status === "accepted" && party.status === "started" && party.pickedTitleId) {
+      const title = (await repo.getTitlesByIds([party.pickedTitleId]))[0];
+      if (title) await startNight(repo, { ...party, participantIds: [...new Set([...party.participantIds, viewer.id])] }, title);
+    }
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("respondWatchPartyInvitation failed", err);
+    return { ok: false, error: "Non siamo riusciti ad aggiornare l'invito. Riprova." };
   }
 }
 
