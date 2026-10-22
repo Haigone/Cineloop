@@ -67,7 +67,10 @@ test("reorder the wishlist from Home, by dragging and with the arrows", async ({
 });
 
 test("Home has a section each for films, series and anime, and reopens on the last one", async ({ page }) => {
-  await signIn(page, "/home");
+  // Establish a known starting preference instead of inheriting whichever section
+  // the preceding E2E test happened to leave in the shared demo store.
+  await signIn(page, "/home?c=serie");
+  await page.goto("/home");
   const tabs = page.getByRole("navigation", { name: "Sezioni della Home" });
   await expect(tabs.getByRole("link", { name: "Serie TV" })).toHaveAttribute("aria-current", "page");
   const queue = page.getByRole("list", { name: "Wishlist, in ordine di priorità" });
