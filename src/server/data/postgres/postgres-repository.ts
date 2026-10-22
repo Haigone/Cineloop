@@ -50,7 +50,7 @@ export function createDb(url: string, max = 10): Db {
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
-  private this.titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
+  private titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
   constructor(private db: Db) {}
 
   // Catalog -----------------------------------------------------------------
