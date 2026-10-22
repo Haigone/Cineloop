@@ -17,10 +17,10 @@ export async function addFriend(rawUsername: string): Promise<ActionResult> {
     const other = await repo.getUserByUsername(parsed.data);
     if (!other || other.id === viewer.id) return { ok: false, error: `Nessun utente con username @${parsed.data}.` };
     if ((await repo.listFriends(viewer.id)).some((friend) => friend.user.id === other.id)) {
-      return { ok: false, error: `@ ${parsed.data} è già tra i tuoi amici.`.replace("@ ", "@") };
+      return { ok: false, error: `@${parsed.data} è già tra i tuoi amici.` };
     }
     if ((await repo.listFriendRequests(viewer.id)).some((request) => request.user.id === other.id)) {
-      return { ok: false, error: `@ ${parsed.data} ti ha già inviato una richiesta: puoi accettarla qui.`.replace("@ ", "@") };
+      return { ok: false, error: `@${parsed.data} ti ha già inviato una richiesta: puoi accettarla qui.` };
     }
     const created = await repo.createFriendRequest(viewer.id, other.id);
     if (!created) return { ok: false, error: "Hai già inviato una richiesta a questo utente." };
