@@ -37,34 +37,34 @@ import * as schema from "./schema";
 type Db = PostgresJsDatabase<typeof schema>;
 
 const TITLE_LIST_TTL_MS = 5 * 60_000;
-let titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
 
 const iso = (d: Date) => d.toISOString();
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
 
-export function createDb(url: string): Db {
+export function createDb(url: string, max = 10): Db {
   // A small pool is plenty for a personal app; serverless hosts should point at a pooler.
-  const client = connect(url, 10);
+  const client = connect(url, max);
   return drizzle(client, { schema });
 }
 
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
+  private this.titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
   constructor(private db: Db) {}
 
   // Catalog -----------------------------------------------------------------
 
   async listTitles() {
     const now = Date.now();
-    if (!titleListCache || now - titleListCache.at > TITLE_LIST_TTL_MS) {
+    if (!this.titleListCache || now - this.titleListCache.at > TITLE_LIST_TTL_MS) {
       const load = this.db.select().from(schema.titles).orderBy(asc(schema.titles.title)).then((rows) => rows.map(toTitle));
-      titleListCache = { at: now, rows: load };
+      this.titleListCache = { at: now, rows: load };
       load.catch(() => {
-        if (titleListCache?.rows === load) titleListCache = null;
+        if (this.titleListCache?.rows === load) this.titleListCache = null;
       });
     }
-    return [...(await titleListCache.rows)];
+    return [...(await this.titleListCache.rows)];
   }
 
   async findTitlesBySearchKey(key: string) {
@@ -96,7 +96,7 @@ export class PostgresRepository implements Repository {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
-    titleListCache = null;
+    this.titleListCache = null;
   }
 
   // Users -------------------------------------------------------------------
@@ -306,7 +306,7 @@ export class PostgresRepository implements Repository {
       await tx.execute(sql`update watch_parties set candidate_title_ids = array_replace(candidate_title_ids, ${oldId}, ${next.id}) where ${oldId} = any(candidate_title_ids)`);
       await tx.update(schema.titles).set({ partOf: next.id }).where(eq(schema.titles.partOf, oldId));
       await tx.delete(schema.titles).where(eq(schema.titles.id, oldId));
-      titleListCache = null;
+      this.titleListCache = null;
       return { moved: moved.length, merged };
     });
   }
