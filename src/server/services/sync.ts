@@ -110,7 +110,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
     } else if (!step.started) {
       // Episode and position as the player reports them, every heartbeat.
       await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
