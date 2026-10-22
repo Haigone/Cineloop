@@ -145,7 +145,7 @@ export const friendRequests = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [check("friend_requests_not_self", sql`${t.fromUserId} <> ${t.toUserId}\`), index("friend_requests_to_status_idx").on(t.toUserId, t.status), index("friend_requests_from_status_idx").on(t.fromUserId, t.status)],
+  (t) => [check("friend_requests_not_self", sql`${t.fromUserId} <> ${t.toUserId}`), index("friend_requests_to_status_idx").on(t.toUserId, t.status), index("friend_requests_from_status_idx").on(t.fromUserId, t.status)],
 );
 
 export const watchEvents = pgTable(
@@ -262,7 +262,7 @@ export const watchPartyInvitations = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.partyId, t.userId] }), uniqueIndex("watch_party_invites_id_idx").on(t.id), check("watch_party_invites_not_host", sql`${t.hostId} <> ${t.userId}\`), index("watch_party_invites_user_status_idx").on(t.userId, t.status), index("watch_party_invites_host_status_idx").on(t.hostId, t.status)],
+  (t) => [primaryKey({ columns: [t.partyId, t.userId] }), uniqueIndex("watch_party_invites_id_idx").on(t.id), check("watch_party_invites_not_host", sql`${t.hostId} <> ${t.userId}`), index("watch_party_invites_user_status_idx").on(t.userId, t.status), index("watch_party_invites_host_status_idx").on(t.hostId, t.status)],
 );
 
 /** "Serate insieme": a series or anime followed by a group, with one shared place. */
