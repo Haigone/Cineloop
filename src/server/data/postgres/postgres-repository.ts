@@ -36,6 +36,9 @@ import * as schema from "./schema";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
+const TITLE_LIST_TTL_MS = 5 * 60_000;
+let titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
+
 const iso = (d: Date) => d.toISOString();
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
 
@@ -48,34 +51,25 @@ export function createDb(url: string): Db {
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
-  private titlesCache: { expiresAt: number; value: Title[] } | null = null;
-  private titlesCachePromise: Promise<Title[]> | null = null;
-  private readonly titlesCacheTtlMs = 5 * 60 * 1000;
-
   constructor(private db: Db) {}
-
-  private invalidateTitlesCache() {
-    this.titlesCache = null;
-    this.titlesCachePromise = null;
-  }
 
   // Catalog -----------------------------------------------------------------
 
   async listTitles() {
     const now = Date.now();
-    if (this.titlesCache && this.titlesCache.expiresAt > now) return [...this.titlesCache.value];
-    if (this.titlesCachePromise) return [...(await this.titlesCachePromise)];
-
-    const pending = this.db.select().from(schema.titles).orderBy(asc(schema.titles.title)).then((rows) => rows.map(toTitle));
-    this.titlesCachePromise = pending;
-    try {
-      const titles = await pending;
-      // Do not repopulate the cache if a write invalidated it while this read was in flight.
-      if (this.titlesCachePromise === pending) this.titlesCache = { expiresAt: Date.now() + this.titlesCacheTtlMs, value: titles };
-      return [...titles];
-    } finally {
-      if (this.titlesCachePromise === pending) this.titlesCachePromise = null;
+    if (!titleListCache || now - titleListCache.at > TITLE_LIST_TTL_MS) {
+      const load = this.db.select().from(schema.titles).orderBy(asc(schema.titles.title)).then((rows) => rows.map(toTitle));
+      titleListCache = { at: now, rows: load };
+      load.catch(() => {
+        if (titleListCache?.rows === load) titleListCache = null;
+      });
     }
+    return [...(await titleListCache.rows)];
+  }
+
+  async findTitlesBySearchKey(key: string) {
+    if (!key) return [];
+    return (await this.db.select().from(schema.titles).where(eq(schema.titles.searchKey, key))).map(toTitle);
   }
 
   async getTitlesByIds(ids: readonly string[]) {
@@ -102,7 +96,7 @@ export class PostgresRepository implements Repository {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
-    if (list.length) this.invalidateTitlesCache();
+    if (list.length) titleListCache = null;
   }
 
   // Users -------------------------------------------------------------------
@@ -267,7 +261,6 @@ export class PostgresRepository implements Repository {
   }
 
   async replaceTitle(oldId: string, next: Title) {
-    this.invalidateTitlesCache();
     return this.db.transaction(async (tx) => {
       const row = titleToRow(next);
       await tx.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
@@ -313,6 +306,7 @@ export class PostgresRepository implements Repository {
       await tx.execute(sql`update watch_parties set candidate_title_ids = array_replace(candidate_title_ids, ${oldId}, ${next.id}) where ${oldId} = any(candidate_title_ids)`);
       await tx.update(schema.titles).set({ partOf: next.id }).where(eq(schema.titles.partOf, oldId));
       await tx.delete(schema.titles).where(eq(schema.titles.id, oldId));
+      titleListCache = null;
       return { moved: moved.length, merged };
     });
   }
