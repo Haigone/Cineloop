@@ -1,6 +1,6 @@
 import "server-only";
 import { sourceKey, toPartyMember, type PartyMember, type PartySource } from "@/domain/watch-party";
-import type { Title, WatchParty } from "@/domain/types";
+import type { Title, WatchParty, WatchPartyInvitation, PublicUser } from "@/domain/types";
 import { firstName } from "@/lib/format";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository, type Repository } from "@/server/data";
@@ -27,6 +27,7 @@ export interface WatchPartyView {
   upcoming: UpcomingNight[];
   /** Nights going on now ("Serate insieme"): they can be managed or ended here. */
   running: SharedWatchView[];
+  invitations: { invitation: WatchPartyInvitation; title: Title | null; host: PublicUser }[];
 }
 
 /** Scheduled and queued nights the user is part of, scheduled ones by date, then the queue in order. */
@@ -53,7 +54,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
   await activateNights(repo, viewer.id);
-  const [library, wishlist, friends, titles, parties, mine, community] = await Promise.all([
+  const [library, wishlist, friends, titles, parties, mine, community, invitations] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
@@ -61,6 +62,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
     repo.listWatchParties(viewer.id, 100),
     repo.listPlaylists(viewer.id),
     repo.listCommunityPlaylists(30),
+    repo.listWatchPartyInvitations(viewer.id),
   ]);
   // A friend's playlist is usable only if they shared it with friends.
   const shared = await repo.listSharedPlaylists(friends.map((f) => f.user.id));
@@ -79,6 +81,12 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
       .filter((c) => c.playlist.ownerId !== viewer.id && !shared.some((p) => p.id === c.playlist.id))
       .map(({ playlist: p }): PartySource => ({ key: sourceKey("community", p.id), ownerId: p.ownerId, kind: "community", label: p.name, ownerName: owners.get(p.ownerId) ?? "Community", titleIds: p.titleIds })),
   ];
+  const incomingInvitations = await Promise.all(invitations.filter((i) => i.userId === viewer.id && i.status === "pending").map(async (invitation) => {
+    const [host, hostParties] = await Promise.all([repo.getUserById(invitation.hostId), repo.listWatchParties(invitation.hostId, 100)]);
+    const party = hostParties.find((p) => p.id === invitation.partyId);
+    const title = party?.pickedTitleId ? (await repo.getTitlesByIds([party.pickedTitleId]))[0] ?? null : null;
+    return host ? { invitation, title, host: toPublicUser(host) } : null;
+  }));
   const byId = new Map(titles.map((t) => [t.id, t]));
   const names = new Map(friends.map((f) => [f.user.id, f.user.displayName.split(" ")[0]!]));
   return {
@@ -88,6 +96,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
     sources,
     upcoming: await listUpcomingNights(repo, viewer.id, parties),
     running: await listSharedWatchViews(repo, viewer.id, byId),
+    invitations: incomingInvitations.filter((i): i is NonNullable<typeof i> => i !== null),
     recent: parties
       .filter((p) => p.status !== "scheduled" && p.status !== "queued")
       .slice(0, 5)
