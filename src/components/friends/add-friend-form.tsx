@@ -28,7 +28,7 @@ export function AddFriendForm() {
           if (res.ok) {
             setValue("");
             setError(null);
-            toast.show(`@${name} aggiunto ai tuoi amici`);
+            toast.show(`Richiesta di amicizia inviata a @${name}`);
           } else setError(res.error);
         });
       }}
