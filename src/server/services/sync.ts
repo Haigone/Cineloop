@@ -718,7 +718,16 @@ async function syncProgress(
     if (presence.season === null) presence.season = inferSeason(title, prev, presence.episode);
   }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
-  const next = fraction ?? (sameEpisode ? prev!.fraction : 0);
+  // Some provider players expose position/duration more reliably than a normalized
+  // progress hint. Derive the fraction from those values so an episode can finish
+  // instead of remaining stuck near 99% when the progress field is absent.
+  const measuredFraction =
+    fraction !== null && Number.isFinite(fraction)
+      ? Math.max(0, Math.min(1, fraction))
+      : Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
+        ? Math.max(0, Math.min(1, position! / duration!))
+        : null;
+  const next = measuredFraction ?? (sameEpisode ? prev!.fraction : 0);
   if (title) {
     const today = italianDay();
     const at = { season: presence.season, episode: presence.episode, fraction: next };
