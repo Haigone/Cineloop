@@ -9,6 +9,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { AddFriendForm } from "@/components/friends/add-friend-form";
 import { FriendCard } from "@/components/friends/friend-card";
+import { FriendRequests } from "@/components/friends/friend-requests";
 import { FriendActivityList } from "@/components/social/friend-activity-list";
 
 export const metadata: Metadata = { title: "Amici" };
@@ -36,6 +37,7 @@ async function FriendsContent() {
   const view = await getFriendsView();
   return (
     <Reveal className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+      {view.requests.length > 0 && <div className="xl:col-span-2"><FriendRequests requests={view.requests} /></div>}
       <RevealItem as="section" className="min-w-0">
         <h2 className="sr-only">I tuoi amici</h2>
         {view.friends.length === 0 ? (
