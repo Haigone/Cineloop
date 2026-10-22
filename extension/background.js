@@ -248,12 +248,22 @@ async function enableAnimeFrameOrigin(origin) {
 
 chrome.alarms.onAlarm.addListener((alarm) => alarm.name === HEARTBEAT && tick());
 
-chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
+  // When a provider page is replaced by CineLoop in the same tab, capture the
+  // old provider state before remember() overwrites its stored URL.
+  if (change.url && tab.url) {
+    const { server } = await getSettings().catch(() => ({ server: "" }));
+    try {
+      if (server && new URL(tab.url).origin === new URL(server).origin) {
+        await queueCompletionConfirmation(tabId).catch(() => {});
+      }
+    } catch {}
+  }
   if (change.url || change.title || "audible" in change) {
-    remember(tab);
+    await remember(tab).catch(() => {});
     if (change.url || change.title) tick();
   }
-  if (change.status === "complete" || change.url) showCompletionPrompt(tabId).catch(() => {});
+  if (change.status === "complete" || change.url) await showCompletionPrompt(tabId).catch(() => {});
   // Reliable Firefox fallback: inject after AnimeUnity finishes loading, even
   // if the dynamic content-script registration was rejected or not persisted.
   if (change.status === "complete" && isAnimeUrl(tab.url)) {
@@ -269,7 +279,10 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
   // Closing a provider tab is not proof of completion: ask on the next CineLoop visit.
-  queueCompletionConfirmation(tabId).catch(() => {});
+  queueCompletionConfirmation(tabId).then(async () => {
+    const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+    if (active?.id) await showCompletionPrompt(active.id).catch(() => {});
+  }).catch(() => {});
   tick();
 });
 chrome.tabs.onActivated.addListener(async ({ tabId, previousTabId }) => {
