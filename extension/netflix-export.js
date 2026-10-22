@@ -245,15 +245,6 @@ export function readHistory(text) {
   return { profiles, items, skipped };
 }
 
-const MAX_DAYS = 400;
-
-/** The days, oldest first; past the cap, evenly thinned out but always keeping the first and the last. */
-function capDays(days) {
-  days.sort((a, b) => a.d.localeCompare(b.d) || (a.s ?? 0) - (b.s ?? 0));
-  if (days.length <= MAX_DAYS) return days;
-  return Array.from({ length: MAX_DAYS }, (_, n) => days[Math.round((n * (days.length - 1)) / (MAX_DAYS - 1))]);
-}
-
 /** One entry per series (with the highest season seen) or film, in the order first watched. */
 export function groupHistory(items) {
   const byKey = new Map();
@@ -274,7 +265,7 @@ export function groupHistory(items) {
       entry.days.set(`${date}:${parsed.season ?? 0}`, day);
     }
   }
-  return [...byKey.values()].map(({ days, ...rest }) => ({ ...rest, watched: capDays([...days.values()]) }));
+  return [...byKey.values()].map(({ days, ...rest }) => ({ ...rest, watched: [...days.values()].sort((a, b) => a.d.localeCompare(b.d) || (a.s ?? 0) - (b.s ?? 0)) }));
 }
 
 /**

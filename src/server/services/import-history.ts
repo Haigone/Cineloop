@@ -53,9 +53,9 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   const result: HistoryResult = { added: [], days: 0, already: 0, notFound: [] };
   // Plays already on record per title, day and season, so a second import only tops up what is missing.
   const seen = new Map<string, number>();
-  const keyOf = (titleId: string, day: string, season: number | null) => `${titleId}|${day}|${season ?? 0}`;
+  const keyOf = (titleId: string, day: string, season: number | null, providerId: string | null = "netflix") => `${titleId}|${day}|${season ?? 0}|${providerId ?? "unknown"}`;
   for (const e of await repo.listWatchEvents(userId, new Date(0))) {
-    const k = keyOf(e.titleId, e.watchedAt.slice(0, 10), e.season);
+    const k = keyOf(e.titleId, e.watchedAt.slice(0, 10), e.season, e.providerId ?? null);
     seen.set(k, (seen.get(k) ?? 0) + 1);
   }
 
@@ -84,14 +84,13 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     }
     if (!item.watched?.length) continue;
     const target = have.has(title.id) ? title.id : (ownedId.get(nameKey(title)) ?? title.id);
-    const minutes = playMinutes(title);
     for (const w of item.watched) {
       const k = keyOf(target, w.d, w.s ?? null);
       const missing = (w.n ?? 1) - (seen.get(k) ?? 0);
       if (missing <= 0) continue;
       seen.set(k, (seen.get(k) ?? 0) + missing);
       for (let n = 0; n < missing; n++) {
-        await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes, season: w.s ?? null, episode: null, providerId: "netflix" });
+        await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes: 0, season: w.s ?? null, episode: null, providerId: "netflix" });
         result.days += 1;
       }
     }
@@ -99,7 +98,7 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   return result;
 }
 
-/** One play's length: the film's runtime or the series' episode length, with a guess when the catalogue has none. */
+/** Runtime helper for callers that explicitly need an estimate; history imports store 0 instead. */
 export function playMinutes(title: Title): number {
   const known = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
   return known > 0 ? known : title.type === "movie" ? 100 : 40;

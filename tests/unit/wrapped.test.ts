@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Title, WatchEvent } from "@/domain/types";
-import { summarizeYear, wrappedYears } from "@/lib/wrapped";
+import { summarizeByProvider, summarizeYear, wrappedYears } from "@/lib/wrapped";
 
 const ev = (titleId: string, watchedAt: string, minutes: number, season: number | null = null, episode: number | null = null): WatchEvent => ({ userId: "u", titleId, watchedAt, minutes, season, episode });
 const title = (id: string, name: string, type: "movie" | "series") => ({ id, title: name, type, artwork: { posterUrl: null } }) as unknown as Title;
@@ -30,7 +30,20 @@ describe("Wrapped", () => {
     expect(w).toMatchObject({ totalMinutes: 200, estimatedMinutes: 170 });
   });
 
-  it("is empty for a year without viewing", () => {
+  it("splits provider statistics without changing general totals", () => {
+  const events: WatchEvent[] = [
+   { ...ev("a", "2026-02-01T12:00:00Z", 40, 1, 1), providerId: "netflix" },
+   { ...ev("b", "2026-03-02T12:00:00Z", 100), providerId: "prime-video" },
+   ev("a", "2026-04-03T12:00:00Z", 45, 1, 2),
+  ];
+  const providers = summarizeByProvider(2026, events, titles);
+  const general = summarizeYear(2026, events, titles);
+  expect(providers.map((p) => p.providerLabel)).toEqual(["Prime Video", "Servizio non specificato", "Netflix"]);
+  expect(providers.reduce((n, p) => n + p.totalMinutes, 0)).toBe(general.totalMinutes);
+  expect(providers.find((p) => p.providerId === "netflix")).toMatchObject({ episodes: 1, films: 0, firstWatched: "2026-02-01", lastWatched: "2026-02-01" });
+ });
+
+ it("is empty for a year without viewing", () => {
     expect(summarizeYear(2024, events, titles)).toMatchObject({ totalMinutes: 0, titles: 0, busiestMonth: null });
   });
 });
