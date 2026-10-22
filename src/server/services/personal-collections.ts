@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Title } from "@/domain/types";
+import type { Artwork, Title } from "@/domain/types";
 import type { PersonalLibraryGroup } from "@/domain/library";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
@@ -15,7 +15,7 @@ const fallbackArtwork = (palette: readonly [string, string, string]): Artwork =>
   palette,
 });
 
-function counts(idList: string[], statuses: Map<string, string>) {
+function counts(idList: string[], statuses: ReadonlyMap<string, string>) {
   return {
     completed: idList.filter((id) => statuses.get(id) === "completed").length,
     watching: idList.filter((id) => statuses.get(id) === "watching").length,
@@ -60,15 +60,12 @@ export async function getPersonalLibraryGroups(): Promise<PersonalLibraryGroup[]
       href: `/collections/${definition.slug}`,
       total: ids.length,
       ...statusCounts,
-      artwork: artTitle?.artwork ?? fallbackArtwork(definition.palette),
+      artwork: artTitle ? { ...artTitle.artwork, palette: definition.palette } : fallbackArtwork(definition.palette),
     });
   }
 
-  const loadedSagas = await Promise.all(sagas.map(async (choice) => ({
-    choice,
-    collection: await loadCollection(repo, choice.collectionId),
-  })));
-  for (const { choice, collection } of loadedSagas) {
+  const loadedSagas = await Promise.all(sagas.map((choice) => loadCollection(repo, choice.collectionId)));
+  for (const collection of loadedSagas) {
     if (!collection || collection.parts.length < 2) continue;
     const ids = collection.parts.map((part) => part.title.id);
     const statusCounts = counts(ids, statuses);
