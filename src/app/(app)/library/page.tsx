@@ -10,7 +10,7 @@ import { LibraryBrowser } from "@/components/library/library-browser";
 import { SectionHeader } from "@/components/ui/section-header";
 import { GridSkeleton } from "@/components/media/grid-skeleton";
 import { newSeasonsLabel } from "@/server/services/new-seasons";
-import { CollectionShortcuts } from "@/components/collections/category-shortcuts";
+import { PersonalCollectionLibrary } from "@/components/collections/personal-collection-library";
 
 export const metadata: Metadata = { title: "La mia libreria" };
 
@@ -36,7 +36,9 @@ export default function LibraryPage({ searchParams }: PageProps<"/library">) {
         title="La mia libreria"
         description="Tutto quello che hai visto e che stai seguendo. Quello che vuoi vedere è nella wishlist."
       />
-      <CollectionShortcuts compact />
+      <Suspense fallback={<GridSkeleton label="Caricamento di saghe e collezioni personali" />}>
+        <PersonalCollectionLibrary />
+      </Suspense>
       <Suspense fallback={<GridSkeleton label="Caricamento della libreria" />}>
         <LibraryContent searchParams={searchParams} />
       </Suspense>
