@@ -116,6 +116,17 @@ describe("Netflix viewing history", () => {
     expect(readMyList('Title,Date\nDark,1/2/25\n')).toBe("history");
   });
 
+  it("preserves history beyond 400 days rather than thinning source dates", () => {
+    const rows = Array.from({ length: 520 }, (_, n) => {
+      const d = new Date(Date.UTC(2024, 0, 1 + n)).toISOString().slice(0, 10);
+      return { profile: "", title: "Dark: Stagione 1: Episodio", date: d };
+    });
+    const [dark] = groupHistory(rows);
+    expect(dark!.watched).toHaveLength(520);
+    expect(dark!.watched[0]!.d).toBe("2024-01-01");
+    expect(dark!.watched[519]!.d).toBe("2025-06-03");
+  });
+
   it("counts every play of a day, past a hundred titles of history", () => {
     const rows = Array.from({ length: 300 }, (_, n) => ({ profile: "", title: `Dark: Stagione 1: Ep ${n}`, date: `2025-01-${String((n % 28) + 1).padStart(2, "0")}` }));
     const [dark] = groupHistory(rows);
