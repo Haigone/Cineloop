@@ -8,6 +8,7 @@ import type {
   ChartEntry,
   ExtensionDevice,
   Friend,
+  FriendRequest,
   LibraryEntry,
   OAuthProvider,
   PartyState,
@@ -35,6 +36,9 @@ import * as schema from "./schema";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
+const TITLE_LIST_TTL_MS = 5 * 60_000;
+let titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
+
 const iso = (d: Date) => d.toISOString();
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
 
@@ -44,9 +48,6 @@ export function createDb(url: string): Db {
   return drizzle(client, { schema });
 }
 
-const TITLE_LIST_TTL_MS = 5 * 60_000;
-let titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
-
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
@@ -54,11 +55,6 @@ export class PostgresRepository implements Repository {
 
   // Catalog -----------------------------------------------------------------
 
-  /**
-   * The whole cached catalogue is the pool for suggestions, so Home and several other pages read it.
-   * It changes only when a title is cached, so it is kept in memory for a few minutes (and dropped at
-   * once on a write from this instance) instead of being fetched from the database on every page view.
-   */
   async listTitles() {
     const now = Date.now();
     if (!titleListCache || now - titleListCache.at > TITLE_LIST_TTL_MS) {
@@ -506,6 +502,53 @@ export class PostgresRepository implements Repository {
     return rows.map((r): Friend => ({ user: toPublic(toUser(r.user)), since: iso(r.since) }));
   }
 
+  async listFriendRequests(userId: string): Promise<FriendRequest[]> {
+    const rows = await this.db
+      .select({ user: schema.users, requestedAt: schema.friendRequests.requestedAt })
+      .from(schema.friendRequests)
+      .innerJoin(schema.users, eq(schema.users.id, schema.friendRequests.requesterId))
+      .where(eq(schema.friendRequests.recipientId, userId))
+      .orderBy(desc(schema.friendRequests.requestedAt));
+    return rows.map((row) => ({ user: toPublic(toUser(row.user)), requestedAt: iso(row.requestedAt) }));
+  }
+
+  async createFriendRequest(requesterId: string, recipientId: string): Promise<boolean> {
+    if (requesterId === recipientId) return false;
+    const [userA, userB] = [requesterId, recipientId].sort() as [string, string];
+    const [friendship] = await this.db.select({ userA: schema.friendships.userA })
+      .from(schema.friendships)
+      .where(and(eq(schema.friendships.userA, userA), eq(schema.friendships.userB, userB)))
+      .limit(1);
+    if (friendship) return false;
+    const [incoming] = await this.db.select({ requesterId: schema.friendRequests.requesterId })
+      .from(schema.friendRequests)
+      .where(and(eq(schema.friendRequests.requesterId, recipientId), eq(schema.friendRequests.recipientId, requesterId)))
+      .limit(1);
+    if (incoming) throw new Error("An incoming friend request already exists");
+    const inserted = await this.db.insert(schema.friendRequests).values({ requesterId, recipientId })
+      .onConflictDoNothing().returning({ requesterId: schema.friendRequests.requesterId });
+    return inserted.length > 0;
+  }
+
+  async respondFriendRequest(recipientId: string, requesterId: string, accept: boolean): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [request] = await tx.select({ requesterId: schema.friendRequests.requesterId })
+        .from(schema.friendRequests)
+        .where(and(eq(schema.friendRequests.requesterId, requesterId), eq(schema.friendRequests.recipientId, recipientId)))
+        .limit(1);
+      if (!request) return false;
+      if (accept) {
+        const [userA, userB] = [recipientId, requesterId].sort() as [string, string];
+        await tx.insert(schema.friendships).values({ userA, userB }).onConflictDoNothing();
+      }
+      await tx.delete(schema.friendRequests).where(and(
+        eq(schema.friendRequests.requesterId, requesterId),
+        eq(schema.friendRequests.recipientId, recipientId),
+      ));
+      return true;
+    });
+  }
+
   async addFriend(userId: string, friendId: string) {
     if (userId === friendId) return;
     const [userA, userB] = [userId, friendId].sort() as [string, string];
@@ -515,6 +558,10 @@ export class PostgresRepository implements Repository {
   async removeFriend(userId: string, friendId: string) {
     const [userA, userB] = [userId, friendId].sort() as [string, string];
     await this.db.delete(schema.friendships).where(and(eq(schema.friendships.userA, userA), eq(schema.friendships.userB, userB)));
+    await this.db.delete(schema.friendRequests).where(or(
+      and(eq(schema.friendRequests.requesterId, userId), eq(schema.friendRequests.recipientId, friendId)),
+      and(eq(schema.friendRequests.requesterId, friendId), eq(schema.friendRequests.recipientId, userId)),
+    ));
   }
 
   async listActivity(userIds: readonly string[], limit: number) {
@@ -693,10 +740,10 @@ export class PostgresRepository implements Repository {
   }
 
   async createWatchParty(input: Omit<WatchParty, "id" | "createdAt">) {
-    const { scheduledFor, ...rest } = input;
+    const { scheduledFor, pendingParticipantIds, ...rest } = input;
     const [row] = await this.db
       .insert(schema.watchParties)
-      .values({ ...rest, scheduledFor: scheduledFor ? new Date(scheduledFor) : null, id: `wp_${crypto.randomUUID()}` })
+      .values({ ...rest, pendingParticipantIds: pendingParticipantIds ?? [], scheduledFor: scheduledFor ? new Date(scheduledFor) : null, id: `wp_${crypto.randomUUID()}` })
       .returning();
     return toParty(row!);
   }
@@ -712,9 +759,10 @@ export class PostgresRepository implements Repository {
     await this.db.update(schema.watchParties).set({ status }).where(eq(schema.watchParties.id, partyId));
   }
 
-  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
+  async updateWatchParty(partyId: string, patch: { participantIds?: string[]; pendingParticipantIds?: string[]; status?: WatchPartyStatus; scheduledFor?: string | null }) {
     const set: Partial<typeof schema.watchParties.$inferInsert> = {};
     if (patch.participantIds) set.participantIds = patch.participantIds;
+    if (patch.pendingParticipantIds) set.pendingParticipantIds = patch.pendingParticipantIds;
     if (patch.status) set.status = patch.status;
     if (patch.scheduledFor !== undefined) set.scheduledFor = patch.scheduledFor ? new Date(patch.scheduledFor) : null;
     if (Object.keys(set).length) await this.db.update(schema.watchParties).set(set).where(eq(schema.watchParties.id, partyId));
@@ -724,7 +772,7 @@ export class PostgresRepository implements Repository {
     const rows = await this.db
       .select()
       .from(schema.watchParties)
-      .where(or(eq(schema.watchParties.hostId, userId), sql`${userId} = any(${schema.watchParties.participantIds})`))
+      .where(or(eq(schema.watchParties.hostId, userId), sql`${userId} = any(${schema.watchParties.participantIds})`, sql`${userId} = any(${schema.watchParties.pendingParticipantIds})`))
       .orderBy(desc(schema.watchParties.createdAt))
       .limit(limit);
     return rows.map(toParty);
@@ -1088,6 +1136,7 @@ function toParty(r: typeof schema.watchParties.$inferSelect): WatchParty {
     id: r.id,
     hostId: r.hostId,
     participantIds: r.participantIds,
+    pendingParticipantIds: r.pendingParticipantIds ?? [],
     filter: r.filter,
     genre: r.genre,
     candidateTitleIds: r.candidateTitleIds,

@@ -172,7 +172,7 @@ export function EditPlannedNight({ night, friends, open, onClose }: { night: Upc
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const { party, title } = night;
-  const [people, setPeople] = useState<Set<string>>(() => new Set(party.participantIds));
+  const [people, setPeople] = useState<Set<string>>(() => new Set([...party.participantIds, ...(party.pendingParticipantIds ?? [])]));
   const [when, setWhen] = useState<When>(party.status === "queued" ? "queued" : "scheduled");
   const [at, setAt] = useState(() => localInput(party.scheduledFor ?? null));
 

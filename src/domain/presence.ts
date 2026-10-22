@@ -34,7 +34,7 @@ export interface PresenceStep {
  * Folds one observation into the user's presence. Pure: storage and side
  * effects (watch events, activity) are the caller's job.
  */
-export function nextPresence(userId: string, prev: Presence | null, seen: Detected, now: Date): PresenceStep {
+export function nextPresence(userId: string, prev: Presence | null, seen: Detected, now: Date, playing = true): PresenceStep {
   const live = prev !== null && isLive(prev, now);
   const same = live && prev.providerId === seen.providerId && prev.externalId === seen.externalId;
   const at = now.toISOString();
@@ -58,7 +58,8 @@ export function nextPresence(userId: string, prev: Presence | null, seen: Detect
     };
   }
 
-  const gap = Math.min((now.getTime() - Date.parse(prev.updatedAt)) / 60_000, MAX_GAP_MINUTES);
+  // A paused player still sends heartbeats, but nothing is being watched.
+  const gap = playing ? Math.min((now.getTime() - Date.parse(prev.updatedAt)) / 60_000, MAX_GAP_MINUTES) : 0;
   const pending = prev.pendingMinutes + Math.max(0, gap);
   const flushMinutes = prev.titleId && pending >= FLUSH_MINUTES ? Math.floor(pending) : 0;
   return {

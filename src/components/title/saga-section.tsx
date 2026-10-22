@@ -1,6 +1,7 @@
 import type { Title } from "@/domain/types";
 import { getSagaView } from "@/server/services/collections";
 import { SagaOrder } from "./saga-order";
+import { FollowCollectionButton } from "@/components/collections/follow-collection-button";
 
 /** "Ordine di visione" for a film of a saga: asks the catalogue, so the page streams it in. */
 export async function SagaSection({ title }: { title: Title }) {
@@ -22,7 +23,7 @@ export async function SagaSection({ title }: { title: Title }) {
       <h2 id="saga-h" className="text-[15px] font-semibold">
         Ordine di visione: saga {collection.name}
       </h2>
-      <p className="mt-1 mb-3 text-sm text-fg-2">{summary}</p>
+      <div className="mt-2 mb-3 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-fg-2">{summary}</p><FollowCollectionButton collectionId={collection.id} initialFollowed={saga.followed} /></div>
       <SagaOrder
         collectionId={collection.id}
         rows={rows.map((r) => ({ film: r.part.title, releaseDate: r.part.releaseDate, released: r.released, status: r.status }))}

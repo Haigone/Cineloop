@@ -12,7 +12,7 @@ import { groupHistory, readNetflixFile } from "./netflix-export.js";
 const $ = (id) => document.getElementById(id);
 const show = (id, visible) => ($(id).hidden = !visible);
 const ALL = "";
-const BATCH = 10;
+const BATCH = 4;
 const ENDPOINT = "/api/extension/import-history";
 const HELP =
   "NetflixViewingHistory.csv, così come lo scarichi. Il file viene letto qui e non arriva a CineLoop: partono solo i nomi delle serie e dei film e i giorni in cui li hai guardati. Un film finisce in libreria come visto, una serie come vista fino all’ultima stagione che compare nello storico. Quello che hai già in libreria resta com’è, ma riceve i giorni di visione che mancano (le statistiche dei minuti non cambiano).";
@@ -171,7 +171,7 @@ $("import-btn").addEventListener("click", async () => {
     const missing = total.notFound.length - failed;
     $("import-status").textContent = [
       `Aggiunti alla libreria: ${total.added}.`,
-      total.days ? `Date di visione registrate: ${total.days}.` : "",
+      `Date di visione registrate: ${total.days}${total.days ? "" : " (già presenti, oppure il file non ha date leggibili)"}.`,
       total.already ? `Già su CineLoop: ${total.already}.` : "",
       missing ? `Non trovati nel catalogo: ${missing}.` : "",
       failed ? `Non importati perché CineLoop non ha risposto: ${failed} (sono nel log, riprova più tardi).` : "",

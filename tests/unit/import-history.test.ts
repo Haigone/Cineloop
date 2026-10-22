@@ -44,7 +44,30 @@ describe("importing the history records when it was watched", () => {
     expect((await importNetflixHistory("u_marco", [item(5)])).days).toBe(2);
     const events = (await repo.listWatchEvents("u_marco", new Date(0))).filter((e) => e.watchedAt.startsWith("2024-03"));
     expect(events).toHaveLength(6);
-    expect(events.every((e) => e.minutes > 0 && e.providerId === "netflix")).toBe(true);
+    expect(events.every((e) => e.minutes === 0 && e.providerId === "netflix")).toBe(true);
+  });
+  it("uses a legacy zero-minute day as an already-imported play when the season is now known", async () => {
+    const repo = getRepository();
+    await repo.addWatchEvent({
+      userId: "u_wrapped_legacy",
+      titleId: "arcane",
+      watchedAt: "2019-02-14T12:00:00.000Z",
+      minutes: 0,
+      season: null,
+      episode: null,
+      providerId: "netflix",
+    });
+    const result = await importNetflixHistory("u_wrapped_legacy", [{
+      title: "Arcane",
+      kind: "series",
+      season: 1,
+      sample: "Arcane: Stagione 1: Atto I",
+      watched: [{ d: "2019-02-14", s: 1, n: 2 }],
+    }]);
+    expect(result.days).toBe(1);
+    const sameDay = (await repo.listWatchEvents("u_wrapped_legacy", new Date("2019-02-14T00:00:00.000Z")))
+      .filter((event) => event.watchedAt.startsWith("2019-02-14"));
+    expect(sameDay).toHaveLength(2);
   });
 });
 

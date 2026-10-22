@@ -35,7 +35,7 @@ export async function saveWatchParty(input: z.input<typeof schema>): Promise<Act
   const repo = getRepository();
   const friendIds = new Set((await repo.listFriends(viewer.id)).map((f) => f.user.id));
   // Only the host and their friends can be part of a party.
-  const participants = parsed.data.participantIds.filter((id) => id === viewer.id || friendIds.has(id));
+  const invitees = [...new Set(parsed.data.participantIds.filter((id) => id !== viewer.id && friendIds.has(id)))];
   if (!parsed.data.candidateTitleIds.includes(parsed.data.pickedTitleId)) return { ok: false, error: "Titolo non valido." };
   // A title found with the search may not be cached yet.
   const title = await ensureTitle(parsed.data.pickedTitleId);
@@ -43,7 +43,9 @@ export async function saveWatchParty(input: z.input<typeof schema>): Promise<Act
   try {
     const party = await repo.createWatchParty({
       hostId: viewer.id,
-      participantIds: [...new Set([viewer.id, ...participants])],
+      // Selecting a friend sends an invitation; it never enrolls them without consent.
+      participantIds: [viewer.id],
+      pendingParticipantIds: invitees,
       filter: parsed.data.filter,
       genre: parsed.data.genre,
       candidateTitleIds: parsed.data.candidateTitleIds,
@@ -61,12 +63,49 @@ export async function saveWatchParty(input: z.input<typeof schema>): Promise<Act
   }
 }
 
+/** The invited user alone can accept or decline a watch-party invitation. */
+export async function respondToWatchPartyInvitation(partyId: string, accept: boolean): Promise<ActionResult> {
+  const viewer = await getCurrentUser();
+  if (!z.string().min(1).max(80).safeParse(partyId).success || typeof accept !== "boolean") {
+    return { ok: false, error: "Invito non valido." };
+  }
+  const repo = getRepository();
+  const party = (await repo.listWatchParties(viewer.id, 100)).find((item) => item.id === partyId);
+  if (!party || party.status === "done" || party.hostId === viewer.id || !(party.pendingParticipantIds ?? []).includes(viewer.id)) {
+    return { ok: false, error: "Questo invito non è più disponibile." };
+  }
+  try {
+    const pendingParticipantIds = (party.pendingParticipantIds ?? []).filter((id) => id !== viewer.id);
+    const participantIds = accept ? [...new Set([...party.participantIds, viewer.id])] : party.participantIds;
+    await repo.updateWatchParty(party.id, { participantIds, pendingParticipantIds });
+    if (accept && party.pickedTitleId && party.status === "started") {
+      const title = await ensureTitle(party.pickedTitleId);
+      if (title) await startNight(repo, { ...party, participantIds, pendingParticipantIds }, title);
+    }
+    if (accept) {
+      await repo.createNotification({
+        userId: party.hostId,
+        kind: "watch-party",
+        message: `@${viewer.username} ha accettato l'invito alla serata insieme.`,
+        href: "/watch-party",
+        at: new Date().toISOString(),
+      });
+    }
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    console.error("watch-party invitation response failed", err);
+    return { ok: false, error: "Non siamo riusciti ad aggiornare l'invito. Riprova." };
+  }
+}
+
 /** The host drops a night that has not started yet. */
 export async function cancelWatchParty(partyId: string): Promise<ActionResult> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
   const party = (await repo.listWatchParties(viewer.id, 100)).find((p) => p.id === String(partyId).slice(0, 80));
   if (!party || party.hostId !== viewer.id || (party.status !== "scheduled" && party.status !== "queued")) return { ok: false, error: "Serata non trovata." };
+  await repo.updateWatchParty(party.id, { pendingParticipantIds: [] });
   await repo.setWatchPartyStatus(party.id, "done");
   refresh();
   return { ok: true };
@@ -91,17 +130,18 @@ export async function updateWatchParty(partyId: string, input: z.input<typeof up
     return { ok: false, error: "Scegli un giorno e un'ora che devono ancora arrivare." };
   }
   const friendIds = new Set((await repo.listFriends(viewer.id)).map((f) => f.user.id));
-  const participantIds = [...new Set([viewer.id, ...parsed.data.participantIds.filter((id) => friendIds.has(id))])];
+  const selected = new Set(parsed.data.participantIds.filter((id) => id !== viewer.id && friendIds.has(id)));
+  const participantIds = [...new Set([viewer.id, ...party.participantIds.filter((id) => id !== viewer.id && selected.has(id))])];
+  const pendingParticipantIds = [...selected].filter((id) => !participantIds.includes(id));
   const title = await ensureTitle(party.pickedTitleId);
   if (!title) return { ok: false, error: "Titolo non trovato." };
   try {
     const status = when === "now" ? "started" : when;
-    const next = { ...party, participantIds, status, scheduledFor: when === "scheduled" ? new Date(scheduledFor!).toISOString() : null } as const;
-    await repo.updateWatchParty(party.id, { participantIds, status: when === "now" ? party.status : status, scheduledFor: next.scheduledFor });
+    const next = { ...party, participantIds, pendingParticipantIds, status, scheduledFor: when === "scheduled" ? new Date(scheduledFor!).toISOString() : null } as const;
+    await repo.updateWatchParty(party.id, { participantIds, pendingParticipantIds, status: when === "now" ? party.status : status, scheduledFor: next.scheduledFor });
     if (when === "now") await startNight(repo, next, title);
-    // Only who was just added hears about it.
-    const added = participantIds.filter((id) => !party.participantIds.includes(id));
-    if (added.length) await announceNight(repo, { ...next, participantIds: added }, title, viewer.displayName);
+    const newlyInvited = pendingParticipantIds.filter((id) => !(party.pendingParticipantIds ?? []).includes(id));
+    if (newlyInvited.length) await announceNight(repo, { ...next, participantIds: [viewer.id], pendingParticipantIds: newlyInvited }, title, viewer.displayName);
     refresh();
     return { ok: true };
   } catch (err) {
