@@ -173,7 +173,13 @@ describe("films read from the player", () => {
     await handleObservation("u_marco", watch(ep, {
       hints: { title: "Interstellar", position: 91 * 60, duration: 100 * 60 },
     }));
-    const entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
+    let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
+    expect(entry).toMatchObject({ status: "watching", progress: { fraction: 0.91 } });
+
+    await handleObservation("u_marco", watch(ep, {
+      hints: { title: "Interstellar", position: 100 * 60, duration: 100 * 60, completionConfirmed: true },
+    }));
+    entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "interstellar");
     expect(entry).toMatchObject({ status: "completed", progress: null, askRating: true });
   });
 
