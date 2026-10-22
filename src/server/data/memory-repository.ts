@@ -5,6 +5,8 @@ import type {
   ChartEntry,
   ExtensionDevice,
   Friend,
+  FriendRequest,
+  WatchPartyInvitation,
   LibraryEntry,
   OAuthProvider,
   PartyState,
@@ -46,6 +48,8 @@ export class MemoryRepository implements Repository {
   /** "provider:providerUserId" → user id. */
   private oauthAccounts = new Map<string, string>();
   private friendships: { a: string; b: string; since: string }[] = [];
+  private friendRequests: FriendRequest[] = [];
+  private partyInvitations: WatchPartyInvitation[] = [];
   private library: LibraryEntry[] = [];
   private wishlist: WishlistItem[] = [];
   private watchEvents: WatchEvent[] = [];
@@ -471,6 +475,34 @@ export class MemoryRepository implements Repository {
     );
   }
 
+  async listFriendRequests(userId: string) {
+    return this.friendRequests.filter((r) => r.fromUserId === userId || r.toUserId === userId)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  }
+
+  async createFriendRequest(fromUserId: string, toUserId: string) {
+    if (fromUserId === toUserId) throw new Error("Non puoi inviare una richiesta a te stesso.");
+    const alreadyFriends = this.friendships.some((f) => (f.a === fromUserId && f.b === toUserId) || (f.a === toUserId && f.b === fromUserId));
+    if (alreadyFriends) throw new Error("Siete già amici.");
+    const existing = this.friendRequests.find((r) => r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "pending");
+    if (existing) return existing;
+    const rejected = this.friendRequests.find((r) => r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "rejected");
+    if (rejected) return rejected;
+    const now = new Date().toISOString();
+    const request: FriendRequest = { id: \`fr_\${crypto.randomUUID()}\`, fromUserId, toUserId, status: "pending", createdAt: now, updatedAt: now };
+    this.friendRequests.push(request);
+    return request;
+  }
+
+  async respondFriendRequest(requestId: string, userId: string, status: "accepted" | "rejected") {
+    const request = this.friendRequests.find((r) => r.id === requestId && r.toUserId === userId && r.status === "pending");
+    if (!request) return false;
+    request.status = status;
+    request.updatedAt = new Date().toISOString();
+    if (status === "accepted") await this.addFriend(request.fromUserId, request.toUserId);
+    return true;
+  }
+
   async listActivity(userIds: readonly string[], limit: number) {
     const ids = new Set(userIds);
     return this.activity
@@ -609,6 +641,32 @@ export class MemoryRepository implements Repository {
     if (patch.participantIds) party.participantIds = [...patch.participantIds];
     if (patch.status) party.status = patch.status;
     if (patch.scheduledFor !== undefined) party.scheduledFor = patch.scheduledFor;
+  }
+
+
+  async listWatchPartyInvitations(userId: string) {
+    return this.partyInvitations.filter((i) => i.userId === userId || i.hostId === userId)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  }
+
+  async createWatchPartyInvitations(partyId: string, hostId: string, userIds: readonly string[]) {
+    const now = new Date().toISOString();
+    for (const userId of new Set(userIds)) {
+      if (userId === hostId || this.partyInvitations.some((i) => i.partyId === partyId && i.userId === userId)) continue;
+      this.partyInvitations.push({ id: \`wpi_\${partyId}_\${userId}\`, partyId, hostId, userId, status: "pending", createdAt: now, updatedAt: now });
+    }
+  }
+
+  async respondWatchPartyInvitation(invitationId: string, userId: string, status: "accepted" | "rejected") {
+    const invite = this.partyInvitations.find((i) => i.id === invitationId && i.userId === userId && i.status === "pending");
+    if (!invite) return false;
+    invite.status = status;
+    invite.updatedAt = new Date().toISOString();
+    if (status === "accepted") {
+      const party = this.parties.find((p) => p.id === invite.partyId);
+      if (party && !party.participantIds.includes(userId)) party.participantIds.push(userId);
+    }
+    return true;
   }
 
   async listWatchParties(userId: string, limit: number) {
