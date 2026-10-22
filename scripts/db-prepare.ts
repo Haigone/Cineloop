@@ -10,7 +10,7 @@
 import { inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
+import { connect } from "@/server/data/postgres/connection";
 import type { Title } from "@/domain/types";
 import { TmdbCatalog } from "@/integrations/catalog/tmdb-catalog";
 import { SEED_TITLES } from "@/server/data/seed/catalog";
@@ -29,7 +29,7 @@ if (!url) {
 }
 
 async function main(databaseUrl: string) {
-  const client = postgres(databaseUrl, { max: 1 });
+  const client = connect(databaseUrl, 1);
   const db = drizzle(client, { schema });
 
   await migrate(db, { migrationsFolder: "./drizzle" });

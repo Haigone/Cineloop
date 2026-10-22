@@ -8,7 +8,7 @@
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
+import { connect } from "@/server/data/postgres/connection";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -21,7 +21,7 @@ if (!url) {
 }
 
 async function main(databaseUrl: string) {
-  const client = postgres(databaseUrl, { max: 1 });
+  const client = connect(databaseUrl, 1);
   await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
   await client.end();
   console.log("Migrations applied.");
