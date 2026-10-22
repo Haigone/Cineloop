@@ -471,15 +471,16 @@ export class MemoryRepository implements Repository {
       });
   }
 
-  async createFriendRequest(requesterId: string, recipientId: string) {
-    if (requesterId === recipientId) return;
+  async createFriendRequest(requesterId: string, recipientId: string): Promise<boolean> {
+    if (requesterId === recipientId) return false;
     const alreadyFriends = this.friendships.some((f) => (f.a === requesterId && f.b === recipientId) || (f.a === recipientId && f.b === requesterId));
-    if (alreadyFriends) return;
+    if (alreadyFriends) return false;
     if (this.friendRequests.some((r) => r.requesterId === recipientId && r.recipientId === requesterId)) {
       throw new Error("An incoming friend request already exists");
     }
-    if (this.friendRequests.some((r) => r.requesterId === requesterId && r.recipientId === recipientId)) return;
+    if (this.friendRequests.some((r) => r.requesterId === requesterId && r.recipientId === recipientId)) return false;
     this.friendRequests.push({ requesterId, recipientId, requestedAt: new Date().toISOString() });
+    return true;
   }
 
   async respondFriendRequest(recipientId: string, requesterId: string, accept: boolean): Promise<boolean> {
