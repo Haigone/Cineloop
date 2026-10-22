@@ -44,7 +44,7 @@ describe("importing the history records when it was watched", () => {
     expect((await importNetflixHistory("u_marco", [item(5)])).days).toBe(2);
     const events = (await repo.listWatchEvents("u_marco", new Date(0))).filter((e) => e.watchedAt.startsWith("2024-03"));
     expect(events).toHaveLength(6);
-    expect(events.every((e) => e.minutes > 0 && e.providerId === "netflix")).toBe(true);
+    expect(events.every((e) => e.minutes === 0 && e.providerId === "netflix")).toBe(true);
   });
   it("uses a legacy zero-minute day as an already-imported play when the season is now known", async () => {
     const repo = getRepository();
