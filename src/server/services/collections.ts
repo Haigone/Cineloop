@@ -228,7 +228,7 @@ async function loadCuratedCollection(slugOrId: string): Promise<FilmCollection |
   const definition = CURATED_COLLECTIONS.find((item) => item.slug === slugOrId || `demo-collection-${item.slug}` === slugOrId);
   if (!definition) return null;
   const repo = getRepository();
-  const cached = await repo.listTitles();
+  const cached = await repo.getTitlesByIds(definition.items.flatMap(([, tmdbId, mediaType]) => (tmdbId === null ? [] : [`tmdb-${mediaType}-${tmdbId}`])));
   const titles = await Promise.all(definition.items.map(async ([, tmdbId, mediaType]) => {
     if (tmdbId === null) return null;
     const id = `tmdb-${mediaType}-${tmdbId}`;

@@ -83,3 +83,5 @@ Titoli dei thread con prefisso dell'area. Il lavoro sull'estensione va sempre al
 - `src/components/settings/scroll-to-hash.tsx`: scroll verso ancore in pagine in streaming.
 - `tests/unit`, `tests/e2e`: test.
 - `/mnt/project-files/marketing/campagne.md`, `team-social-grafica.md`: piano e registro marketing; `guide/`, `screenshots/`: guide e immagini da riusare.
+
+- Consumo Neon (22/10): la causa era `listTitles()` (tutta la tabella `titles`) a ogni vista di Home/Amici/Classifiche/Serate. Ora ha cache in memoria di 5 min (azzerata su `upsertTitles`/`replaceTitle`); per cercare o verificare pochi id usa `getTitlesByIds` / `findTitlesBySearchKey`, mai `listTitles`. Diagnosi e stime: `/mnt/project-files/economia/consumi.md`.

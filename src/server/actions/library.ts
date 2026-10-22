@@ -568,7 +568,7 @@ export async function savePodium(category: string, ids: string[]): Promise<Actio
   const parsed = podiumSchema.safeParse({ category, ids });
   if (!parsed.success || new Set(parsed.data.ids).size !== parsed.data.ids.length) return { ok: false, error: "Podio non valido." };
   const repo = getRepository();
-  const [library, titles] = await Promise.all([repo.listLibrary(user.id), repo.listTitles()]);
+  const [library, titles] = await Promise.all([repo.listLibrary(user.id), repo.getTitlesByIds(parsed.data.ids)]);
   const kind = new Map(titles.map((t) => [t.id, t.type]));
   const watched = new Set(library.filter((e) => e.status === "completed" || e.status === "watching").map((e) => e.titleId));
   if (!parsed.data.ids.every((id) => watched.has(id) && kind.get(id) === parsed.data.category)) return { ok: false, error: "Sul podio vanno solo titoli di questa categoria che hai visto." };
