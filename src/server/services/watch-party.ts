@@ -28,6 +28,7 @@ export interface WatchPartyView {
   /** Nights going on now ("Serate insieme"): they can be managed or ended here. */
   running: SharedWatchView[];
   invitations: { invitation: WatchPartyInvitation; title: Title | null; host: PublicUser }[];
+  sentInvitations: { invitation: WatchPartyInvitation; title: Title | null; recipient: PublicUser }[];
 }
 
 /** Scheduled and queued nights the user is part of, scheduled ones by date, then the queue in order. */
@@ -87,6 +88,12 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
     const title = party?.pickedTitleId ? (await repo.getTitlesByIds([party.pickedTitleId]))[0] ?? null : null;
     return host ? { invitation, title, host: toPublicUser(host) } : null;
   }));
+  const sentInvitations = await Promise.all(invitations.filter((i) => i.hostId === viewer.id).map(async (invitation) => {
+    const [recipient, hostParties] = await Promise.all([repo.getUserById(invitation.userId), repo.listWatchParties(viewer.id, 100)]);
+    const party = hostParties.find((p) => p.id === invitation.partyId);
+    const title = party?.pickedTitleId ? (await repo.getTitlesByIds([party.pickedTitleId]))[0] ?? null : null;
+    return recipient ? { invitation, title, recipient: toPublicUser(recipient) } : null;
+  }));
   const byId = new Map(titles.map((t) => [t.id, t]));
   const names = new Map(friends.map((f) => [f.user.id, f.user.displayName.split(" ")[0]!]));
   return {
@@ -97,6 +104,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
     upcoming: await listUpcomingNights(repo, viewer.id, parties),
     running: await listSharedWatchViews(repo, viewer.id, byId),
     invitations: incomingInvitations.filter((i): i is NonNullable<typeof i> => i !== null),
+    sentInvitations: sentInvitations.filter((i): i is NonNullable<typeof i> => i !== null),
     recent: parties
       .filter((p) => p.status !== "scheduled" && p.status !== "queued")
       .slice(0, 5)
