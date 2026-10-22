@@ -29,7 +29,7 @@ export function PersonalCollectionCard({ group }: { group: PersonalLibraryGroup 
             </span>
           </div>
           <div className="absolute inset-x-0 bottom-0 p-5">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[.22em]" style={{ color: accent }}>La tua libreria</p>
+            {isSaga && <p className="mb-2 text-[10px] font-bold uppercase tracking-[.22em]" style={{ color: accent }}>La tua libreria</p>}
             <h3 className="line-clamp-3 text-xl font-bold leading-tight tracking-tight text-white drop-shadow sm:text-2xl">{group.name}</h3>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-white/80">
               {group.completed > 0 && <span className="inline-flex items-center gap-1"><Check className="size-3.5 text-emerald-300" /> {group.completed} visti</span>}
