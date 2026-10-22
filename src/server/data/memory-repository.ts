@@ -123,6 +123,10 @@ export class MemoryRepository implements Repository {
     return [...this.titles.values()];
   }
 
+  async findTitlesBySearchKey(key: string) {
+    return key ? [...this.titles.values()].filter((t) => searchKey(t.title) === key) : [];
+  }
+
   async getTitlesByIds(ids: readonly string[]) {
     return ids.map((id) => this.titles.get(id)).filter((t): t is Title => Boolean(t));
   }

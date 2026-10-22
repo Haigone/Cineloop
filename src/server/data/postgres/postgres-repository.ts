@@ -44,6 +44,9 @@ export function createDb(url: string): Db {
   return drizzle(client, { schema });
 }
 
+const TITLE_LIST_TTL_MS = 5 * 60_000;
+let titleListCache: { at: number; rows: Promise<Title[]> } | null = null;
+
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
@@ -51,8 +54,26 @@ export class PostgresRepository implements Repository {
 
   // Catalog -----------------------------------------------------------------
 
+  /**
+   * The whole cached catalogue is the pool for suggestions, so Home and several other pages read it.
+   * It changes only when a title is cached, so it is kept in memory for a few minutes (and dropped at
+   * once on a write from this instance) instead of being fetched from the database on every page view.
+   */
   async listTitles() {
-    return (await this.db.select().from(schema.titles).orderBy(asc(schema.titles.title))).map(toTitle);
+    const now = Date.now();
+    if (!titleListCache || now - titleListCache.at > TITLE_LIST_TTL_MS) {
+      const load = this.db.select().from(schema.titles).orderBy(asc(schema.titles.title)).then((rows) => rows.map(toTitle));
+      titleListCache = { at: now, rows: load };
+      load.catch(() => {
+        if (titleListCache?.rows === load) titleListCache = null;
+      });
+    }
+    return [...(await titleListCache.rows)];
+  }
+
+  async findTitlesBySearchKey(key: string) {
+    if (!key) return [];
+    return (await this.db.select().from(schema.titles).where(eq(schema.titles.searchKey, key))).map(toTitle);
   }
 
   async getTitlesByIds(ids: readonly string[]) {
@@ -79,6 +100,7 @@ export class PostgresRepository implements Repository {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
+    titleListCache = null;
   }
 
   // Users -------------------------------------------------------------------
@@ -288,6 +310,7 @@ export class PostgresRepository implements Repository {
       await tx.execute(sql`update watch_parties set candidate_title_ids = array_replace(candidate_title_ids, ${oldId}, ${next.id}) where ${oldId} = any(candidate_title_ids)`);
       await tx.update(schema.titles).set({ partOf: next.id }).where(eq(schema.titles.partOf, oldId));
       await tx.delete(schema.titles).where(eq(schema.titles.id, oldId));
+      titleListCache = null;
       return { moved: moved.length, merged };
     });
   }
