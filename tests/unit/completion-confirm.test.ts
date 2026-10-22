@@ -36,7 +36,7 @@ describe("episode completion confirmation", () => {
   it("asks before marking an episode complete and explains when no verified next URL exists", async () => {
     const { dom, sendMessage } = await renderPrompt(null);
     expect(dom.window.document.querySelector("#cineloop-completion-confirm")).not.toBeNull();
-    expect(dom.window.document.body.textContent).toContain("Il prossimo verrà tracciato quando lo avvii.");
+    expect(dom.window.document.documentElement.textContent).toContain("Il prossimo verrà tracciato quando lo avvii.");
     dom.window.document.querySelector<HTMLButtonElement>("button")?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(sendMessage).toHaveBeenCalledWith({
