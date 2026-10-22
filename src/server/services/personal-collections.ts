@@ -5,7 +5,8 @@ import type { PersonalLibraryGroup } from "@/domain/library";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import { COLLECTION_FOLLOW_MARKER } from "@/domain/collections";
-import { CURATED_COLLECTIONS, loadCollection } from "@/server/services/collections";
+import { CURATED_COLLECTIONS } from "@/server/services/collections";
+import { getCatalog } from "@/integrations/catalog";
 
 
 
@@ -64,7 +65,8 @@ export async function getPersonalLibraryGroups(): Promise<PersonalLibraryGroup[]
     });
   }
 
-  const loadedSagas = await Promise.all(sagas.map((choice) => loadCollection(repo, choice.collectionId)));
+  // Fetch only the followed collection metadata; don't cache every part into Neon from the library page.
+  const loadedSagas = await Promise.all(sagas.map((choice) => getCatalog().collection(choice.collectionId).catch(() => null)));
   for (const collection of loadedSagas) {
     if (!collection || collection.parts.length < 2) continue;
     const ids = collection.parts.map((part) => part.title.id);
