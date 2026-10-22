@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "tsx scripts/pack-extension.ts && tsx scripts/db-prepare.ts --if-configured && next build",
+    "build": "tsx scripts/pack-extension.ts && ( [ \"$VERCEL_ENV\" = \"preview\" ] || tsx scripts/db-prepare.ts --if-configured ) && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
