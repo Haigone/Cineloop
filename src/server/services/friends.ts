@@ -1,7 +1,7 @@
 import "server-only";
 import { buildPodiums, type CategoryPodium, type PodiumCategory } from "@/domain/podium";
 import { compare, genreProfile, topGenres, type Comparison } from "@/domain/compare";
-import type { ActivityEvent, Genre, LibraryEntry, PublicUser, Title, WishlistItem } from "@/domain/types";
+import type { ActivityEvent, FriendRequest, Genre, LibraryEntry, PublicUser, Title, WishlistItem } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getRepository } from "@/server/data";
 import type { FriendActivityItem } from "./dashboard";
@@ -22,6 +22,7 @@ export interface FriendsView {
   friends: FriendSummary[];
   feed: FriendActivityItem[];
   suggestion: PublicUser | null;
+  requests: { request: FriendRequest; user: PublicUser; direction: "incoming" | "outgoing" }[];
 }
 
 function toItem(e: ActivityEvent, users: Map<string, PublicUser>, titles: Map<string, Title>, now: number): FriendActivityItem | null {
@@ -35,11 +36,12 @@ export async function getFriendsView(): Promise<FriendsView> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
   const now = Date.now();
-  const [library, wishlist, friends, allTitles] = await Promise.all([
+  const [library, wishlist, friends, allTitles, requests] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
     repo.listTitles(),
+    repo.listFriendRequests(viewer.id),
   ]);
   const titles = new Map(allTitles.map((t) => [t.id, t]));
   const users = new Map(friends.map((f) => [f.user.id, f.user]));
@@ -62,7 +64,12 @@ export async function getFriendsView(): Promise<FriendsView> {
   // Live first, then most compatible.
   summaries.sort((a, b) => Number(Boolean(b.latest?.live)) - Number(Boolean(a.latest?.live)) || b.compatibility - a.compatibility);
 
-  return { friends: summaries, feed: feed.slice(0, 12), suggestion: null };
+  const requestViews = await Promise.all(requests.filter((r) => r.status === "pending").map(async (request) => {
+    const incoming = request.toUserId === viewer.id;
+    const person = await repo.getUserById(incoming ? request.fromUserId : request.toUserId);
+    return person ? { request, user: toPublicUser(person), direction: incoming ? "incoming" as const : "outgoing" as const } : null;
+  }));
+  return { friends: summaries, feed: feed.slice(0, 12), suggestion: null, requests: requestViews.filter((r): r is NonNullable<typeof r> => r !== null) };
 }
 
 export interface FriendProfileView {
