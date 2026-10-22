@@ -519,8 +519,8 @@ async function recognise(repo: Repository, presence: Presence, parentId: string 
   if (presence.providerId === "animeunity") {
     const labelKey = searchKey(presence.label ?? "");
     const sameNameSeries = labelKey
-      ? (await repo.listTitles())
-          .filter((title) => title.type !== "movie" && searchKey(title.title) === labelKey)
+      ? (await repo.findTitlesBySearchKey(labelKey))
+          .filter((title) => title.type !== "movie")
           .sort((a, b) => a.year - b.year)[0]
       : undefined;
     if (sameNameSeries) {

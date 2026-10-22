@@ -35,7 +35,7 @@ export async function loadCollection(repo: Repository, id: string): Promise<Film
 }
 
 /** The saga a film page shows, in the viewer's order, with what they have seen. Null for a film of its own. */
-export async function getSagaView(title: Title): Promise<SagaStatus | null> {
+export async function getSagaView(title: Title): Promise<(SagaStatus & { followed: boolean }) | null> {
   if (!sagaFilm(title) || !title.collection) return null;
   const viewer = await getCurrentUser();
   const repo = getRepository();
@@ -46,7 +46,7 @@ export async function getSagaView(title: Title): Promise<SagaStatus | null> {
   ]);
   if (!collection || collection.parts.length < 2) return null;
   const choice = choices.find((c) => c.collectionId === collection.id);
-  return sagaStatus(collection, choice, new Map(library.map((e) => [e.titleId, e.status])), italianDay());
+  return { ...sagaStatus(collection, choice, new Map(library.map((e) => [e.titleId, e.status])), italianDay()), followed: Boolean(choice) };
 }
 
 /**
@@ -228,7 +228,7 @@ async function loadCuratedCollection(slugOrId: string): Promise<FilmCollection |
   const definition = CURATED_COLLECTIONS.find((item) => item.slug === slugOrId || `demo-collection-${item.slug}` === slugOrId);
   if (!definition) return null;
   const repo = getRepository();
-  const cached = await repo.listTitles();
+  const cached = await repo.getTitlesByIds(definition.items.flatMap(([, tmdbId, mediaType]) => (tmdbId === null ? [] : [`tmdb-${mediaType}-${tmdbId}`])));
   const titles = await Promise.all(definition.items.map(async ([, tmdbId, mediaType]) => {
     if (tmdbId === null) return null;
     const id = `tmdb-${mediaType}-${tmdbId}`;

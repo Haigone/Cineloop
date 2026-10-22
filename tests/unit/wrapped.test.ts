@@ -32,8 +32,8 @@ describe("Wrapped", () => {
 
   it("splits provider statistics without changing general totals", () => {
   const events: WatchEvent[] = [
-   { ...ev("a", "2026-02-01T12:00:00Z", 40, 1, 1), providerId: "netflix" },
-   { ...ev("b", "2026-03-02T12:00:00Z", 100), providerId: "prime-video" },
+   { ...ev("a", "2026-02-01T12:00:00Z", 40, 1, 1), providerId: "netflix" as const },
+   { ...ev("b", "2026-03-02T12:00:00Z", 100), providerId: "prime-video" as const },
    ev("a", "2026-04-03T12:00:00Z", 45, 1, 2),
   ];
   const providers = summarizeByProvider(2026, events, titles);
