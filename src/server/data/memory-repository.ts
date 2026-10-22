@@ -484,10 +484,13 @@ export class MemoryRepository implements Repository {
     if (fromUserId === toUserId) throw new Error("Non puoi inviare una richiesta a te stesso.");
     const alreadyFriends = this.friendships.some((f) => (f.a === fromUserId && f.b === toUserId) || (f.a === toUserId && f.b === fromUserId));
     if (alreadyFriends) throw new Error("Siete già amici.");
-    const existing = this.friendRequests.find((r) => r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "pending");
-    if (existing) return existing;
-    const rejected = this.friendRequests.find((r) => r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "rejected");
-    if (rejected) return rejected;
+    const existing = this.friendRequests.find((r) => r.fromUserId === fromUserId && r.toUserId === toUserId);
+    if (existing?.status === "pending" || existing?.status === "rejected") return existing;
+    if (existing?.status === "accepted") {
+      existing.status = "pending";
+      existing.updatedAt = new Date().toISOString();
+      return existing;
+    }
     const now = new Date().toISOString();
     const request: FriendRequest = { id: `fr_${crypto.randomUUID()}`, fromUserId, toUserId, status: "pending", createdAt: now, updatedAt: now };
     this.friendRequests.push(request);
