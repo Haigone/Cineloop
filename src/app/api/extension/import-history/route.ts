@@ -12,7 +12,7 @@ const item = z.object({
   // The days it was watched (per day and season, with how many episodes), from the history's dates: no minutes, no CSV.
   watched: z
     .array(z.object({ d: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), s: z.number().int().min(1).max(99).optional(), n: z.number().int().min(1).max(60).optional() }))
-    .max(400)
+    .max(4000)
     .optional(),
 });
 const body = z.object({
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   // Same budget as the list import: a long history takes several requests in a row.
   const auth = await authenticate(request, 40, "import");
   if (!("userId" in auth)) return auth;
-  const parsed = body.safeParse(await readJson(request, 262_144));
+  const parsed = body.safeParse(await readJson(request, 1_048_576));
   if (!parsed.success) return json(request, { error: "invalid_request" }, 400);
   const items = parsed.data.items.map((i) => item.safeParse(i));
   const valid = items.flatMap((r) => (r.success ? [r.data] : []));
