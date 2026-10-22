@@ -102,8 +102,8 @@
     bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
     const position = video && Number.isFinite(video.currentTime) && video.currentTime >= 0 ? video.currentTime : null;
-    const rawProgress = forcedProgress !== null ? forcedProgress : duration && position !== null
-      ? Math.min(1, Math.max(0, position / duration))
+    const rawProgress = forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : duration && position !== null
+      ? Math.min(0.99, Math.max(0, position / duration))
       : null;
     const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
     const message = {
