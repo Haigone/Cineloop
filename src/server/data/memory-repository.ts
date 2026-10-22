@@ -489,7 +489,7 @@ export class MemoryRepository implements Repository {
     const rejected = this.friendRequests.find((r) => r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "rejected");
     if (rejected) return rejected;
     const now = new Date().toISOString();
-    const request: FriendRequest = { id: \`fr_\${crypto.randomUUID()}\`, fromUserId, toUserId, status: "pending", createdAt: now, updatedAt: now };
+    const request: FriendRequest = { id: `fr_${crypto.randomUUID()}`, fromUserId, toUserId, status: "pending", createdAt: now, updatedAt: now };
     this.friendRequests.push(request);
     return request;
   }
@@ -653,7 +653,7 @@ export class MemoryRepository implements Repository {
     const now = new Date().toISOString();
     for (const userId of new Set(userIds)) {
       if (userId === hostId || this.partyInvitations.some((i) => i.partyId === partyId && i.userId === userId)) continue;
-      this.partyInvitations.push({ id: \`wpi_\${partyId}_\${userId}\`, partyId, hostId, userId, status: "pending", createdAt: now, updatedAt: now });
+      this.partyInvitations.push({ id: `wpi_${partyId}_${userId}`, partyId, hostId, userId, status: "pending", createdAt: now, updatedAt: now });
     }
   }
 
