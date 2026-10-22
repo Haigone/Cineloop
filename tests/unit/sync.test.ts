@@ -169,6 +169,9 @@ describe("films read from the player", () => {
 
   it("uses player position and duration when a progress fraction is missing", async () => {
     await repo.clearPresence("u_marco");
+    // The shared demo repository may already have a rating for this seeded title.
+    // Make the completion-prompt assertion deterministic for this test.
+    await repo.setRating("u_marco", "interstellar", null);
     const { ep } = ids();
     await handleObservation("u_marco", watch(ep, {
       hints: { title: "Interstellar", position: 91 * 60, duration: 100 * 60 },
