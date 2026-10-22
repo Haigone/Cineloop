@@ -63,13 +63,18 @@ export async function announceNight(repo: Repository, party: WatchParty, title: 
       : party.status === "queued"
         ? "in coda, dopo le serate in corso"
         : "da adesso";
-  for (const id of party.participantIds) {
+  const pending = new Set(party.pendingParticipantIds ?? []);
+  const recipients = [...new Set([...party.participantIds, ...pending])];
+  for (const id of recipients) {
     if (id === party.hostId || !(await repo.getPreferences(id)).notifyWatchParty) continue;
+    const invited = pending.has(id);
     await repo.createNotification({
       userId: id,
       kind: "watch-party",
-      message: `${firstName(hostName)} ha organizzato una serata insieme: ${title.title}, ${when}.`,
-      href: party.status === "started" ? `/title/${title.id}` : "/watch-party",
+      message: invited
+        ? `${firstName(hostName)} ti invita a una serata insieme: ${title.title}, ${when}.`
+        : `${firstName(hostName)} ha organizzato una serata insieme: ${title.title}, ${when}.`,
+      href: invited ? `/watch-party?invite=${encodeURIComponent(party.id)}` : party.status === "started" ? `/title/${title.id}` : "/watch-party",
       at: new Date().toISOString(),
     });
   }
