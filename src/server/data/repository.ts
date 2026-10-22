@@ -114,7 +114,7 @@ export interface Repository {
   // Social
   listFriends(userId: string): Promise<Friend[]>;
   listFriendRequests(userId: string): Promise<FriendRequest[]>;
-  createFriendRequest(requesterId: string, recipientId: string): Promise<void>;
+  createFriendRequest(requesterId: string, recipientId: string): Promise<boolean>;
   respondFriendRequest(recipientId: string, requesterId: string, accept: boolean): Promise<boolean>;
   addFriend(userId: string, friendId: string): Promise<void>;
   removeFriend(userId: string, friendId: string): Promise<void>;
