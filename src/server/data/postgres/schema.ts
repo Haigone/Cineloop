@@ -254,7 +254,7 @@ export const watchParties = pgTable(
 export const watchPartyInvitations = pgTable(
   "watch_party_invitations",
   {
-    id: text("id").primaryKey(),
+    id: text("id").notNull(),
     partyId: text("party_id").notNull().references(() => watchParties.id, { onDelete: "cascade" }),
     hostId: text("host_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -262,7 +262,7 @@ export const watchPartyInvitations = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.partyId, t.userId] }), check("watch_party_invites_not_host", sql\`\${t.hostId} <> \${t.userId}\`), index("watch_party_invites_user_status_idx").on(t.userId, t.status), index("watch_party_invites_host_status_idx").on(t.hostId, t.status)],
+  (t) => [primaryKey({ columns: [t.partyId, t.userId] }), uniqueIndex("watch_party_invites_id_idx").on(t.id), check("watch_party_invites_not_host", sql\`\${t.hostId} <> \${t.userId}\`), index("watch_party_invites_user_status_idx").on(t.userId, t.status), index("watch_party_invites_host_status_idx").on(t.hostId, t.status)],
 );
 
 /** "Serate insieme": a series or anime followed by a group, with one shared place. */
