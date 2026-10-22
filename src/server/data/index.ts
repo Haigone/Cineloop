@@ -37,7 +37,7 @@ export async function getHomeCatalogTitles(): Promise<Title[] | null> {
   const rows: Record<string, unknown>[] = [];
   for (let offset = 0; ; offset += 1000) {
     const response = await fetch(
-      `${baseUrl.replace(/\\/$/, "")}/rest/v1/titles?select=*&order=title.asc`,
+      `${baseUrl.replace(/\/$/, "")}/rest/v1/titles?select=*&order=title.asc`,
       {
         headers: {
           apikey: apiKey,
