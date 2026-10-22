@@ -57,13 +57,14 @@ export class AnimeUnityAdapter extends ObservationAdapter {
 
     const fromPage = obs.hints?.title?.trim() ||
       obs.documentTitle.replace(/\s*[-|–]\s*anime\s*unity.*$/i, "").trim();
+    const isReZeroMovie = /^\\/anime\\/2177-rezero-starting-life-in-another-world-the-frozen-bond(?:[/?#]|$)/i.test(new URL(url).pathname);
     const canonicalSeason = animeUnityPartSeason(url, fromPage);
-    const season = canonicalSeason ?? (
+    const season = isReZeroMovie ? null : canonicalSeason ?? (
       Number.isInteger(obs.hints?.season) && (obs.hints?.season ?? 0) > 0
         ? obs.hints!.season!
         : null
     );
-    const episode = Number.isInteger(obs.hints?.episode) && (obs.hints?.episode ?? 0) > 0
+    const episode = isReZeroMovie ? null : Number.isInteger(obs.hints?.episode) && (obs.hints?.episode ?? 0) > 0
       ? obs.hints!.episode!
       : null;
 
