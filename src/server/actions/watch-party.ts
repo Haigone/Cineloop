@@ -138,7 +138,10 @@ export async function updateWatchParty(partyId: string, input: z.input<typeof up
     return { ok: false, error: "Scegli un giorno e un'ora che devono ancora arrivare." };
   }
   const friendIds = new Set((await repo.listFriends(viewer.id)).map((f) => f.user.id));
-  const participantIds = [...new Set([viewer.id, ...parsed.data.participantIds.filter((id) => friendIds.has(id))])];
+  const selectedIds = [...new Set(parsed.data.participantIds.filter((id) => friendIds.has(id)))];
+  // Keep only previously accepted participants; newly selected friends must accept an invitation.
+  const participantIds = [...new Set([viewer.id, ...party.participantIds.filter((id) => id !== viewer.id && selectedIds.includes(id))])];
+  const inviteeIds = selectedIds.filter((id) => id !== viewer.id && !party.participantIds.includes(id));
   const title = await ensureTitle(party.pickedTitleId);
   if (!title) return { ok: false, error: "Titolo non trovato." };
   try {
@@ -146,9 +149,16 @@ export async function updateWatchParty(partyId: string, input: z.input<typeof up
     const next = { ...party, participantIds, status, scheduledFor: when === "scheduled" ? new Date(scheduledFor!).toISOString() : null } as const;
     await repo.updateWatchParty(party.id, { participantIds, status: when === "now" ? party.status : status, scheduledFor: next.scheduledFor });
     if (when === "now") await startNight(repo, next, title);
-    // Only who was just added hears about it.
-    const added = participantIds.filter((id) => !party.participantIds.includes(id));
-    if (added.length) await announceNight(repo, { ...next, participantIds: added }, title, viewer.displayName);
+    if (inviteeIds.length) {
+      await repo.createWatchPartyInvitations(party.id, viewer.id, inviteeIds);
+      for (const id of inviteeIds) {
+        await repo.createNotification({
+          userId: id, kind: "watch-party",
+          message: `${viewer.displayName} ti ha invitato a una serata insieme: ${title.title}.`,
+          href: "/watch-party", at: new Date().toISOString(),
+        });
+      }
+    }
     refresh();
     return { ok: true };
   } catch (err) {
