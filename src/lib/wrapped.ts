@@ -69,7 +69,7 @@ export function summarizeByProvider(year: number, events: readonly WatchEvent[],
       providerLabel,
       firstWatched: ordered[0]!,
       lastWatched: ordered[ordered.length - 1]!,
-      sourceDescription: providerId === "netflix" ? "Storico Netflix importato o eventi attribuiti a Netflix dall’estensione" : providerId ? "Eventi registrati con il servizio indicato dall’estensione" : "Eventi senza un servizio di provenienza registrato",
+      sourceDescription: providerId === "netflix" ? "Storico Netflix importato o eventi attribuiti a Netflix dall’estensione. Le importazioni precedenti a questa correzione possono contenere durate stimate non distinguibili con certezza" : providerId ? "Eventi registrati con il servizio indicato dall’estensione" : "Eventi senza un servizio di provenienza registrato",
     };
   }).sort((a, b) => b.totalMinutes - a.totalMinutes);
 }
