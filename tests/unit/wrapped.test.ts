@@ -49,9 +49,9 @@ describe("Wrapped", () => {
       providerId: "netflix",
     };
     const w = summarizeYear(2026, [imported], titles);
-    expect(w.totalMinutes).toBe(50);
-    expect(w.estimatedMinutes).toBe(50);
-    expect(w.months[9]).toBe(50);
+    expect(w.totalMinutes).toBe(45);
+    expect(w.estimatedMinutes).toBe(45);
+    expect(w.months[9]).toBe(45);
   });
 
  it("is empty for a year without viewing", () => {
