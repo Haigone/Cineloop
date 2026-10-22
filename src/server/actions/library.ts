@@ -211,11 +211,14 @@ export async function setStatus(id: string, status: string, rezeroVersion?: "dir
       await repo.setPartOverride(user.id, resolvedId, "rezero-directors-cut", directorsCut);
       await repo.setPartOverride(user.id, resolvedId, "rezero-original-2016", !directorsCut);
     }
-    // Keep the collection origin only when the title was opened from its collection page.
+    // Preserve collection origin only for a collection the user already follows.
+    // Opening a title through a collection URL must not silently subscribe the user.
     if (parsedCollectionId.data && (parsedStatus.data === "watching" || parsedStatus.data === "completed")) {
-      const current = (await repo.listCollectionChoices(user.id)).find((choice) => choice.collectionId === parsedCollectionId.data) ?? { order: [], excluded: [] };
-      const excluded = current.excluded.filter((value) => !value.startsWith(COLLECTION_CONTEXT_PREFIX));
-      await repo.saveCollectionChoice(user.id, { collectionId: parsedCollectionId.data, order: current.order, excluded: [...new Set([...excluded, COLLECTION_FOLLOW_MARKER, `${COLLECTION_CONTEXT_PREFIX}${resolvedId}`])] });
+      const current = (await repo.listCollectionChoices(user.id)).find((choice) => choice.collectionId === parsedCollectionId.data);
+      if (current?.excluded.includes(COLLECTION_FOLLOW_MARKER)) {
+        const excluded = current.excluded.filter((value) => !value.startsWith(COLLECTION_CONTEXT_PREFIX));
+        await repo.saveCollectionChoice(user.id, { collectionId: parsedCollectionId.data, order: current.order, excluded: [...new Set([...excluded, `${COLLECTION_CONTEXT_PREFIX}${resolvedId}`])] });
+      }
     }
     // Starting or finishing a title takes it off the wishlist.
     if (parsedStatus.data === "completed" || parsedStatus.data === "watching") {
