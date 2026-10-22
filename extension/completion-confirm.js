@@ -13,7 +13,7 @@
     card.style.cssText = "box-sizing:border-box;width:min(460px,100%);background:#fff;color:#171923;border-radius:16px;padding:24px;box-shadow:0 18px 60px rgba(0,0,0,.4)";
     const heading = document.createElement("h2");
     heading.id = "cineloop-completion-title";
-    heading.textContent = "Hai finito di guardare questo episodio? Vuoi passare al successivo?";
+    heading.textContent = "Hai finito di guardare questo episodio?";
     heading.style.cssText = "font-size:19px;line-height:1.3;font-weight:750;margin:0 0 10px";
     const detail = document.createElement("p");
     const episode = Number.isInteger(pending.player?.episode) ? " · Episodio " + pending.player.episode : "";
@@ -49,7 +49,14 @@
       overlay.remove();
     });
     actions.append(yes, no);
-    card.append(heading, detail, status, actions);
+    if (!pending.nextUrl) {
+      const explanation = document.createElement("p");
+      explanation.textContent = "Conferma per segnare l’episodio come terminato. Il prossimo verrà tracciato quando lo avvii.";
+      explanation.style.cssText = "margin:0 0 18px;color:#454958";
+      card.append(heading, detail, explanation, status, actions);
+    } else {
+      card.append(heading, detail, status, actions);
+    }
     overlay.append(card);
     document.documentElement.append(overlay);
     yes.focus();
