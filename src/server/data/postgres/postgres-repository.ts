@@ -47,12 +47,34 @@ export function createDb(url: string): Db {
 /** PostgreSQL repository on Drizzle. Same contract and semantics as MemoryRepository. */
 export class PostgresRepository implements Repository {
   readonly kind = "postgres" as const;
+  private titlesCache: { expiresAt: number; value: Title[] } | null = null;
+  private titlesCachePromise: Promise<Title[]> | null = null;
+  private readonly titlesCacheTtlMs = 5 * 60 * 1000;
+
   constructor(private db: Db) {}
+
+  private invalidateTitlesCache() {
+    this.titlesCache = null;
+    this.titlesCachePromise = null;
+  }
 
   // Catalog -----------------------------------------------------------------
 
   async listTitles() {
-    return (await this.db.select().from(schema.titles).orderBy(asc(schema.titles.title))).map(toTitle);
+    const now = Date.now();
+    if (this.titlesCache && this.titlesCache.expiresAt > now) return [...this.titlesCache.value];
+    if (this.titlesCachePromise) return [...(await this.titlesCachePromise)];
+
+    const pending = this.db.select().from(schema.titles).orderBy(asc(schema.titles.title)).then((rows) => rows.map(toTitle));
+    this.titlesCachePromise = pending;
+    try {
+      const titles = await pending;
+      // Do not repopulate the cache if a write invalidated it while this read was in flight.
+      if (this.titlesCachePromise === pending) this.titlesCache = { expiresAt: Date.now() + this.titlesCacheTtlMs, value: titles };
+      return [...titles];
+    } finally {
+      if (this.titlesCachePromise === pending) this.titlesCachePromise = null;
+    }
   }
 
   async getTitlesByIds(ids: readonly string[]) {
@@ -79,6 +101,7 @@ export class PostgresRepository implements Repository {
       const row = titleToRow(t);
       await this.db.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
     }
+    if (list.length) this.invalidateTitlesCache();
   }
 
   // Users -------------------------------------------------------------------
@@ -243,7 +266,7 @@ export class PostgresRepository implements Repository {
   }
 
   async replaceTitle(oldId: string, next: Title) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const row = titleToRow(next);
       await tx.insert(schema.titles).values(row).onConflictDoUpdate({ target: schema.titles.id, set: row });
       // Where the user already has the new title, theirs stays and the old entry goes.
@@ -290,6 +313,8 @@ export class PostgresRepository implements Repository {
       await tx.delete(schema.titles).where(eq(schema.titles.id, oldId));
       return { moved: moved.length, merged };
     });
+    this.invalidateTitlesCache();
+    return result;
   }
 
   async setPartOverride(userId: string, titleId: string, key: string, included: boolean | null) {
