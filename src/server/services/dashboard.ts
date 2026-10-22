@@ -12,7 +12,7 @@ import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
 import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getHomeCatalogRepository, getRepository } from "@/server/data";
+import { getHomeCatalogTitles, getRepository } from "@/server/data";
 import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
 import { listLiveFriends, type LiveFriend } from "./sync";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
@@ -89,20 +89,19 @@ export interface HomeView {
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
-/** Prefer the secondary catalog DB for Home, falling back to the primary on failure. */
+/** Prefer the secondary public catalog, falling back to Neon on errors. */
 async function loadHomeTitles(fallbackRepo: ReturnType<typeof getRepository>) {
-  const catalogRepo = getHomeCatalogRepository();
   try {
-    return await catalogRepo.listTitles();
+    const titles = await getHomeCatalogTitles();
+    if (titles) return titles;
   } catch (error) {
-    console.error("Home catalog database failed; falling back to primary database", error);
-    if (catalogRepo === fallbackRepo) return [];
-    try {
-      return await fallbackRepo.listTitles();
-    } catch (fallbackError) {
-      console.error("Primary catalog fallback failed", fallbackError);
-      return [];
-    }
+    console.error("Supabase Home catalog failed; falling back to Neon", error);
+  }
+  try {
+    return await fallbackRepo.listTitles();
+  } catch (fallbackError) {
+    console.error("Primary catalog fallback failed", fallbackError);
+    return [];
   }
 }
 
