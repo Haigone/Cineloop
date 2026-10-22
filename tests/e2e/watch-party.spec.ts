@@ -53,7 +53,7 @@ test("step by step: friends, wishlists, titles, then spin the wheel and plan the
   await expect(cancel).toHaveCount(0);
 });
 
-test("a title already chosen, planned for tomorrow, shows on Home", async ({ page }) => {
+test("a title already chosen, planned for tomorrow, appears on Home without counting pending invitees", async ({ page }) => {
   await signIn(page, "/watch-party?with=giulia");
   await page.getByRole("button", { name: "Avanti" }).click();
   await choose(page, "Sappiamo già cosa guardare");
@@ -65,14 +65,14 @@ test("a title already chosen, planned for tomorrow, shows on Home", async ({ pag
   await page.getByRole("button", { name: "Programma la serata" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Serata programmata" })).toBeVisible();
 
+  // Pending invitees are not members until they explicitly accept.
   await page.goto("/home?c=film");
-  await expect(page.getByRole("link", { name: /Dune - Parte due.*Con Giulia/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Dune - Parte due.*Da solo/ })).toBeVisible();
 
   // Tidy up: the demo account is shared with the other tests.
   await page.goto("/watch-party");
-  await page.getByRole("button", { name: "Annulla la serata di Dune - Parte due" }).click();
-  await expect(page.getByRole("button", { name: "Annulla la serata di Dune - Parte due" })).toHaveCount(0);
-  await page.goto("/home?c=serie");
+  await page.getByRole("button", { name: "Annulla la serata di Dune - Parte due" }).first().click();
+  await expect(page.getByRole("button", { name: "Annulla la serata di Dune - Parte due" }).first()).toHaveCount(0);
 });
 
 test("a planned night can be changed and deleted after it is made", async ({ page }) => {
@@ -86,19 +86,26 @@ test("a planned night can be changed and deleted after it is made", async ({ pag
   await page.getByRole("button", { name: "Programma la serata" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Serata programmata" })).toBeVisible();
 
-  // Bring Luca too.
-  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).click();
+  // Bring Luca too. Scope actions to the newest matching party so retries don't
+  // accidentally operate on a party left by a previous failed attempt.
+  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).last().click();
   const dialog = page.getByRole("dialog", { name: "Serata: Dune - Parte due" });
   await dialog.getByRole("list", { name: "Partecipanti alla serata" }).getByText("Luca").click();
   await dialog.getByRole("button", { name: "Salva le modifiche" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("listitem").filter({ hasText: "Dune - Parte due" }).getByText("Con Giulia, Luca")).toBeVisible();
+
+  // Newly selected friends are invited, not silently added as participants.
+  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).last().click();
+  const updatedDialog = page.getByRole("dialog", { name: "Serata: Dune - Parte due" });
+  await expect(updatedDialog.getByRole("list", { name: "Partecipanti alla serata" })).not.toContainText("Luca");
+  await page.keyboard.press("Escape");
+  await expect(updatedDialog).toBeHidden();
 
   // Delete it: a second, named button confirms.
-  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).click();
+  await page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).last().click();
   await dialog.getByRole("button", { name: "Elimina la serata" }).click();
   await dialog.getByRole("button", { name: "Elimina “Dune - Parte due”" }).click();
-  await expect(page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Gestisci la serata di Dune - Parte due" }).last()).toHaveCount(0);
 });
 
 test("a night going on can be managed from the nights page", async ({ page }) => {
