@@ -57,11 +57,12 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
   // Treat those as existing plays when a newer CSV identifies the season, or re-imports
   // would duplicate the same episode days and inflate Wrapped.
   const legacySeen = new Map<string, number>();
-  const keyOf = (titleId: string, day: string, season: number | null) => `${titleId}|${day}|${season ?? 0}`;
+  const keyOf = (titleId: string, day: string, season: number | null, providerId: string | null = "netflix") =>
+    `${titleId}|${day}|${season ?? 0}|${providerId ?? "unknown"}`;
   const dayKeyOf = (titleId: string, day: string) => `${titleId}|${day}`;
   for (const e of await repo.listWatchEvents(userId, new Date(0))) {
     const day = e.watchedAt.slice(0, 10);
-    const k = keyOf(e.titleId, day, e.season);
+    const k = keyOf(e.titleId, day, e.season, e.providerId ?? null);
     seen.set(k, (seen.get(k) ?? 0) + 1);
     if (e.providerId === "netflix" && e.season === null && e.episode === null && e.minutes === 0) {
       const dayKey = dayKeyOf(e.titleId, day);
@@ -94,7 +95,6 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
     }
     if (!item.watched?.length) continue;
     const target = have.has(title.id) ? title.id : (ownedId.get(nameKey(title)) ?? title.id);
-    const minutes = playMinutes(title);
     for (const w of item.watched) {
       const k = keyOf(target, w.d, w.s ?? null);
       const exactSeen = seen.get(k) ?? 0;
@@ -108,7 +108,7 @@ export async function importNetflixHistory(userId: string, items: readonly Histo
       if (missing <= 0) continue;
       seen.set(k, exactSeen + missing);
       for (let n = 0; n < missing; n++) {
-        await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes, season: w.s ?? null, episode: null, providerId: "netflix" });
+        await repo.addWatchEvent({ userId, titleId: target, watchedAt: `${w.d}T12:00:00.000Z`, minutes: 0, season: w.s ?? null, episode: null, providerId: "netflix" });
         result.days += 1;
       }
     }
