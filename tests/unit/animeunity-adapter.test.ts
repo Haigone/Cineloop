@@ -46,15 +46,6 @@ describe("Anime Unity part-to-season mapping", () => {
     )).toBe(1);
   });
 
-  it("does not classify The Frozen Bond as season 1 or episode 1", async () => {
-    const current = await adapter.getCurrentContent(context({
-      ...observation,
-      url: "https://www.animeunity.co/anime/2177-rezero-starting-life-in-another-world-the-frozen-bond?cineloopResume=0",
-      documentTitle: "Re:ZERO - Starting Life in Another World: The Frozen Bond - Anime Unity",
-      hints: { title: "Re:ZERO - Starting Life in Another World: The Frozen Bond", episode: 1, season: 1 },
-    }));
-    expect(current).toMatchObject({ season: null, episode: null });
-  });
 
   it("recognizes an explicit later Re:Zero season", () => {
     expect(animeUnityPartSeason(
@@ -71,6 +62,16 @@ describe("Anime Unity part-to-season mapping", () => {
 describe("Anime Unity page links", () => {
   const adapter = getAdapter("animeunity");
   const context = (latestObservation: SyncObservation | null) => ({ userId: "test-user", latestObservation });
+
+  it("does not classify The Frozen Bond as season 1 or episode 1", async () => {
+    const current = await adapter.getCurrentContent(context({
+      ...observation,
+      url: "https://www.animeunity.co/anime/2177-rezero-starting-life-in-another-world-the-frozen-bond?cineloopResume=0",
+      documentTitle: "Re:ZERO - Starting Life in Another World: The Frozen Bond - Anime Unity",
+      hints: { title: "Re:ZERO - Starting Life in Another World: The Frozen Bond", episode: 1, season: 1 },
+    }));
+    expect(current).toMatchObject({ season: null, episode: null });
+  });
 
   it("recognizes a real Anime Unity anime page and its progress", async () => {
     const current = await adapter.getCurrentContent(context(observation));
