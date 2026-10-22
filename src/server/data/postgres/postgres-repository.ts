@@ -564,6 +564,10 @@ export class PostgresRepository implements Repository {
   async removeFriend(userId: string, friendId: string) {
     const [userA, userB] = [userId, friendId].sort() as [string, string];
     await this.db.delete(schema.friendships).where(and(eq(schema.friendships.userA, userA), eq(schema.friendships.userB, userB)));
+    await this.db.delete(schema.friendRequests).where(or(
+      and(eq(schema.friendRequests.requesterId, userId), eq(schema.friendRequests.recipientId, friendId)),
+      and(eq(schema.friendRequests.requesterId, friendId), eq(schema.friendRequests.recipientId, userId)),
+    ));
   }
 
   async listActivity(userIds: readonly string[], limit: number) {
