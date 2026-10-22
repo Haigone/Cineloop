@@ -235,6 +235,25 @@ export async function buildFranchise(entries: Map<string, AnimeEntry>, fillers: 
     return part;
   });
 
+  // The Frozen Bond (AnimeUnity ID 2177) is not always connected to the
+  // franchise by ANN relations. Keep it in the watch order after either
+  // season-one edition and before season two, without treating it as an episode.
+  if (/re\\s*:?\\s*zero/i.test(root.name)) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (/frozen bond/i.test(parts[i].name)) parts.splice(i, 1);
+    }
+    const seasonTwoIndex = parts.findIndex((part) => part.kind === "season" && part.season === 2);
+    parts.splice(seasonTwoIndex < 0 ? parts.length : seasonTwoIndex, 0, {
+      key: "rezero-the-frozen-bond",
+      kind: "movie",
+      name: "Re:ZERO - Starting Life in Another World: The Frozen Bond",
+      year: 2019,
+      episodes: 1,
+      canon: null,
+    });
+  }
+
+
   const seasons: SeasonSummary[] = canonicalSeasons.map((base) => {
     const number = seasonNumberById.get(base.id)!;
     // An alternate cut must not replace the canonical season's episode count.
