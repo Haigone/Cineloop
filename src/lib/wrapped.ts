@@ -104,7 +104,11 @@ export function summarizeYear(year: number, events: readonly WatchEvent[], title
     if (at.getUTCFullYear() !== year) continue;
     const title = titles.get(e.titleId);
     const isFilm = title ? title.type === "movie" : e.season === null && e.episode === null;
-    const known = e.minutes > 0;
+    // Netflix CSV imports only know the day and title, not the actual time watched.
+    // Older versions stored a runtime estimate as if it were measured; noon UTC plus
+    // no episode number identifies those imported day-level events so Wrapped can correct them.
+    const importedNetflixHistory = e.providerId === "netflix" && e.episode === null && e.watchedAt.endsWith("T12:00:00.000Z");
+    const known = e.minutes > 0 && !importedNetflixHistory;
     const minutes = known ? e.minutes : guess(title, isFilm);
     months[at.getUTCMonth()]! += minutes;
     total += minutes;
