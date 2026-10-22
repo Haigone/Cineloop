@@ -482,6 +482,7 @@ async function finishPendingCompletion(key, confirmed) {
 
   const player = pending.player;
   const commonHints = {
+    completionConfirmed: true,
     ...(player.title ? { title: player.title } : {}),
     ...(Number.isInteger(player.season) && player.season > 0 ? { season: player.season } : {}),
     ...(Number.isInteger(player.episode) && player.episode > 0 ? { episode: player.episode } : {}),
