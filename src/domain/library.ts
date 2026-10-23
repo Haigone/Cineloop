@@ -1,7 +1,18 @@
 import { lastWantedEpisode, plannedSeasons, type Overrides } from "./watch-order";
-import { sectionOf, type LibraryEntry, type MediaType, type SeasonSummary, type Title, type WatchProgress, type WatchStatus } from "./types";
+import { sectionOf, type Artwork, type LibraryEntry, type MediaType, type SeasonSummary, type Title, type WatchProgress, type WatchStatus } from "./types";
 
-export type LibraryTypeFilter = "all" | MediaType;
+export type LibraryTypeFilter = "all" | MediaType | "saga" | "collection";
+
+export interface PersonalLibraryGroup {
+  id: string;
+  kind: "saga" | "collection";
+  name: string;
+  href: string;
+  total: number;
+  completed: number;
+  watching: number;
+  artwork: Artwork;
+}
 /** No "planned": what to watch next lives in the wishlist. */
 export type LibraryStatusFilter = "all" | "completed" | "watching";
 export type LibrarySort = "recent" | "rating" | "title" | "added";
@@ -20,7 +31,8 @@ export const STATUS_LABEL: Record<WatchStatus, string> = {
 
 export function filterLibrary(items: LibraryItem[], type: LibraryTypeFilter, status: LibraryStatusFilter): LibraryItem[] {
   return items.filter(
-    (i) => (type === "all" || sectionOf(i.title) === type) && (status === "all" || i.entry.status === status),
+    (i) => (type === "all" || ((type === "movie" || type === "series" || type === "anime") && sectionOf(i.title) === type)) &&
+      (status === "all" || i.entry.status === status),
   );
 }
 

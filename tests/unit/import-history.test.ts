@@ -29,7 +29,7 @@ describe("importing the Netflix viewing history", () => {
 });
 
 describe("importing the history records when it was watched", () => {
-  it("adds one play per episode with its length, tops up on a second import, never doubles", async () => {
+  it("records dated plays without inventing duration, tops up on a second import, never doubles", async () => {
     const repo = getRepository();
     const item = (n: number) => ({
       title: "Arcane",

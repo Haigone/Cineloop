@@ -10,11 +10,11 @@ import { LibraryBrowser } from "@/components/library/library-browser";
 import { SectionHeader } from "@/components/ui/section-header";
 import { GridSkeleton } from "@/components/media/grid-skeleton";
 import { newSeasonsLabel } from "@/server/services/new-seasons";
-import { PersonalCollectionLibrary } from "@/components/collections/personal-collection-library";
+import { getPersonalLibraryGroups } from "@/server/services/personal-collections";
 
 export const metadata: Metadata = { title: "La mia libreria" };
 
-const TYPES: LibraryTypeFilter[] = ["all", "movie", "series", "anime"];
+const TYPES: LibraryTypeFilter[] = ["all", "movie", "series", "anime", "saga", "collection"];
 const STATUSES: LibraryStatusFilter[] = ["all", "completed", "watching"];
 const SORTS: LibrarySort[] = ["recent", "rating", "title", "added"];
 
@@ -36,10 +36,7 @@ export default function LibraryPage({ searchParams }: PageProps<"/library">) {
         title="La mia libreria"
         description="Tutto quello che hai visto e che stai seguendo. Quello che vuoi vedere è nella wishlist."
       />
-      <Suspense fallback={<GridSkeleton label="Caricamento di saghe e collezioni personali" />}>
-        <PersonalCollectionLibrary />
-      </Suspense>
-      <Suspense fallback={<GridSkeleton label="Caricamento della libreria" />}>
+       <Suspense fallback={<GridSkeleton label="Caricamento della libreria" />}>
         <LibraryContent searchParams={searchParams} />
       </Suspense>
     </>
@@ -51,11 +48,12 @@ async function LibraryContent({
 }: {
   searchParams: PageProps<"/library">["searchParams"];
 }) {
-  const [params, view] = await Promise.all([searchParams, getLibraryView()]);
+  const [params, view, groups] = await Promise.all([searchParams, getLibraryView(), getPersonalLibraryGroups()]);
   return (
     <>
       <LibraryBrowser
         items={view.items}
+        groups={groups}
         wishlistIds={view.wishlistIds}
         extras={view.extras.then((x) => ({
           newSeasons: x.newSeasons.map((i) => ({ title: i.title, label: newSeasonsLabel(i) })),

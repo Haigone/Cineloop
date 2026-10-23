@@ -24,6 +24,8 @@ async function SagaDetailContent({ params }: { params: PageProps<"/sagas/[id]">[
   const releaseIds = [...rows].sort((a, b) => (a.part.releaseDate ?? "9999").localeCompare(b.part.releaseDate ?? "9999")).map((row) => row.part.title.id);
   const customOrder = rows.some((row, index) => row.part.title.id !== releaseIds[index]);
   const currentId = next?.title.id ?? rows[0]?.part.title.id;
+  const inProgress = rows.filter((row) => row.included && row.status === "watching").length;
+  const progressPercent = total ? Math.round((seen / total) * 100) : 0;
   if (!currentId) notFound();
   return <main className="space-y-7"><Link href="/sagas" className="inline-flex items-center gap-2 text-sm text-fg-2 hover:text-fg"><ArrowLeft className="size-4" /> Tutte le saghe</Link>
     <section className="relative isolate overflow-hidden rounded-3xl border border-amber-300/30 bg-[#111017]">
@@ -32,7 +34,8 @@ async function SagaDetailContent({ params }: { params: PageProps<"/sagas/[id]">[
       <div aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(0deg,rgba(8,8,14,.98),rgba(8,8,14,.7)_55%,rgba(8,8,14,.22))]" />
       <div className="p-6 sm:p-10"><span className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-black/30 px-3 py-1 text-[10px] font-bold tracking-[.2em] text-amber-100"><Clapperboard className="size-3.5" /> SAGA CINELOOP</span>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-5xl">{collection.name}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">{collection.overview || "Ordine di visione, date di uscita e avanzamento personale della saga."}</p>
-        <div className="mt-5 flex flex-wrap items-center gap-3"><FollowCollectionButton collectionId={collection.id} initialFollowed={view.followed} /><span className="text-xs text-white/55">{seen}/{total} film visti · {remaining} da vedere · {upcoming.length} in arrivo</span></div>
+        <div className="mt-5 flex flex-wrap items-center gap-3"><FollowCollectionButton collectionId={collection.id} initialFollowed={view.followed} /><span className="text-xs text-white/75">{seen}/{total} film completati · {inProgress} in corso · {remaining} da vedere · {upcoming.length} in arrivo</span></div>
+        <div className="mt-5 max-w-xl"><div className="mb-2 flex items-center justify-between text-xs text-white/65"><span>Avanzamento della saga</span><span>{progressPercent}%</span></div><div role="progressbar" aria-label="Avanzamento della saga" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} className="h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${progressPercent}%` }} /></div></div>
       </div>
     </section>
     <CollectionShortcuts compact />
