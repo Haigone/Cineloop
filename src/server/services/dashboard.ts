@@ -88,19 +88,49 @@ export interface HomeView {
 }
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
+const NEON_QUOTA_COOLDOWN_MS = 30_000;
+
+// A quota-exhausted database will reject every repeated catalog query. Keep a
+// short, process-local circuit breaker so concurrent page requests do not keep
+// hitting Neon until the quota changes; Supabase is still tried on every read.
+let neonQuotaUnavailableUntil = 0;
+
+function isNeonQuotaError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const value = current as { code?: unknown; status?: unknown; statusCode?: unknown; message?: unknown; cause?: unknown };
+    if (value.code === "53000" || value.status === 402 || value.statusCode === 402) return true;
+    if (typeof value.message === "string" && /(?:SQLSTATE\\s*)?53000|(?:HTTP\\s*)?402|quota.{0,40}(?:exhaust|exceed)|(?:exhaust|exceed).{0,40}quota/i.test(value.message)) return true;
+    current = value.cause;
+  }
+  return false;
+}
 
 /** Prefer the secondary public catalog, falling back to Neon on errors. */
 async function loadHomeTitles(fallbackRepo: ReturnType<typeof getRepository>) {
   try {
     const titles = await getHomeCatalogTitles();
     if (titles) return titles;
-  } catch (error) {
-    console.error("Supabase Home catalog failed; falling back to Neon", error);
+  } catch {
+    // Do not log raw connector errors: they can contain request metadata.
+    console.error("Supabase Home catalog failed; trying primary catalog");
   }
+
+  if (Date.now() < neonQuotaUnavailableUntil) return [];
+
   try {
-    return await fallbackRepo.listTitles();
+    const titles = await fallbackRepo.listTitles();
+    neonQuotaUnavailableUntil = 0;
+    return titles;
   } catch (fallbackError) {
-    console.error("Primary catalog fallback failed", fallbackError);
+    if (isNeonQuotaError(fallbackError)) {
+      neonQuotaUnavailableUntil = Date.now() + NEON_QUOTA_COOLDOWN_MS;
+      console.error("Primary catalog is quota-limited; suppressing repeated Neon fallback queries briefly");
+    } else {
+      console.error("Primary catalog fallback failed");
+    }
     return [];
   }
 }
