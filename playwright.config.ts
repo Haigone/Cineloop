@@ -37,6 +37,6 @@ export default defineConfig({
         url: `${baseURL}/login`,
         timeout: 240_000,
         reuseExistingServer: !process.env.CI,
-        env: { DATABASE_URL: "" },
+        env: { DATABASE_URL: "", PROVISIONAL_MODE: "off" },
       },
 });

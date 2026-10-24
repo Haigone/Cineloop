@@ -7,6 +7,7 @@ import { getOptionalUser } from "@/server/auth/current-user";
 import { createSession, destroySession, GUEST_SESSION_TTL_MS } from "@/server/auth/session";
 import { getRepository } from "@/server/data";
 import { isGuest } from "@/domain/types";
+import { PROVISIONAL_MODE } from "@/config/provisional";
 
 export interface AuthFormState {
   error?: string;
@@ -64,7 +65,16 @@ export async function startAsGuest(_prev: AuthFormState, formData: FormData): Pr
 
   const repo = getRepository();
   try {
-    if (await repo.getUserByUsername(parsed.data)) {
+    const existing = await repo.getUserByUsername(parsed.data);
+    if (existing && PROVISIONAL_MODE) {
+      // Provisional mode: a username-only account signs back in with just the username.
+      if (!isGuest(existing)) {
+        return { fieldErrors: { username: "Questo username ha già email e password: scegline un altro per ora." }, values };
+      }
+      await createSession(existing.id, GUEST_SESSION_TTL_MS);
+      redirect("/home");
+    }
+    if (existing) {
       return { fieldErrors: { username: "Questo username è già preso." }, values };
     }
     const user = await repo.createUser({ username: parsed.data, displayName: parsed.data, email: null, passwordHash: null });
