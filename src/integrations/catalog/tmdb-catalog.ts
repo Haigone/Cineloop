@@ -881,13 +881,23 @@ export function toTitle(kind: "movie" | "tv", d: TmdbItem): Title {
   return {
     ...base,
     type: (isAnime(d) ? "anime" : "series") as Exclude<MediaType, "movie">,
-    seasons: (d.seasons ?? []).filter((s) => s.season_number > 0).map((s) => ({
-        number: s.season_number,
-        episodeCount: s.episode_count,
-        // "Stagione 3" says nothing; a part's own name ("Stone Ocean") does.
-        ...(s.air_date ? { airDate: s.air_date } : {}),
-        ...(s.name && !/^(stagione|season|temporada|saison|staffel)\s*\d+$/i.test(s.name.trim()) ? { name: s.name.trim() } : {}),
-      })),
+    seasons: (d.seasons ?? []).filter((s) => s.season_number > 0).map((s) => {
+        const next = d.next_episode_to_air;
+        const last = d.last_episode_to_air;
+        const upcomingEpisode = next?.season_number === s.season_number
+          && next.episode_number > (last?.season_number === s.season_number ? last.episode_number : 0)
+          && (!next.air_date || next.air_date >= italianDay())
+          ? next.episode_number
+          : undefined;
+        return {
+          number: s.season_number,
+          episodeCount: s.episode_count,
+          // "Stagione 3" says nothing; a part's own name ("Stone Ocean") does.
+          ...(s.air_date ? { airDate: s.air_date } : {}),
+          ...(upcomingEpisode !== undefined ? { upcomingEpisode } : {}),
+          ...(s.name && !/^(stagione|season|temporada|saison|staffel)\s*\d+$/i.test(s.name.trim()) ? { name: s.name.trim() } : {}),
+        };
+      }),
     episodeRuntimeMinutes: d.episode_run_time?.[0] ?? 0,
   };
 }

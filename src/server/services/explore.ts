@@ -403,7 +403,11 @@ export async function ensureTitle(id: string): Promise<Title | null> {
     refreshFranchise(repo, local);
     return local;
   }
-  if (local && !needsDetails(local)) return local.artwork.posterUrl ? local : withCataloguePicture(repo, local);
+  // Refresh TMDB series details on title views: the cached catalogue can gain
+  // next_episode_to_air after a season has already been stored. The upstream
+  // fetch is revalidated once a day, so this does not call TMDB on every view.
+  const refreshSeriesDetails = Boolean(local && local.type !== "movie" && /^tmdb-tv-/.test(local.id));
+  if (local && !needsDetails(local) && !refreshSeriesDetails) return local.artwork.posterUrl ? local : withCataloguePicture(repo, local);
   const remote = await getCatalog().getTitle(id);
   if (!remote) return local ?? null;
   if (!local || JSON.stringify(withKnownSeasons(remote, local)) !== JSON.stringify(local)) await cacheTitles(repo, [remote]);

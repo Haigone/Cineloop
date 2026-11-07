@@ -100,6 +100,11 @@ function SeasonRow({ titleId, season, at, seen, isReZero }: { titleId: string; s
             {season.episodeCount === 1 ? "1 episodio" : `${season.episodeCount} episodi`}
             {season.airDate && ` · ${season.airDate.slice(0, 4)}`}
             {at !== null ? " · ci sei arrivato" : seen ? " · vista" : ""}
+            {season.upcomingEpisode !== undefined && (
+              <span className="ml-2 inline-flex items-center rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                Episodi in uscita
+              </span>
+            )}
           </span>
         </span>
         <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-fg-3 transition-transform", open && "rotate-180")} />

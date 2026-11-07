@@ -37,6 +37,26 @@ describe("TMDB mapping", () => {
     expect(t.artwork.backdropUrl).toBeNull();
   });
 
+  it("marks a season when TMDB confirms a later episode is still upcoming", () => {
+    const t = toTitle("tv", {
+      ...details,
+      seasons: [{ season_number: 1, episode_count: 8 }],
+      last_episode_to_air: { season_number: 1, episode_number: 6, air_date: "2026-10-01" },
+      next_episode_to_air: { season_number: 1, episode_number: 7, air_date: "2099-01-08" },
+    });
+    expect(t).toMatchObject({ seasons: [{ number: 1, upcomingEpisode: 7 }] });
+  });
+
+  it("does not mark a next-episode record whose release date is already past", () => {
+    const t = toTitle("tv", {
+      ...details,
+      seasons: [{ season_number: 1, episode_count: 8 }],
+      last_episode_to_air: { season_number: 1, episode_number: 6, air_date: "2026-10-01" },
+      next_episode_to_air: { season_number: 1, episode_number: 7, air_date: "2000-01-08" },
+    });
+    expect(t.seasons[0]?.upcomingEpisode).toBeUndefined();
+  });
+
   it("treats Japanese animation as anime", () => {
     expect(toTitle("tv", { ...details, original_language: "ja", genres: [{ id: 16 }] }).type).toBe("anime");
   });

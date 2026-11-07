@@ -111,6 +111,8 @@ export interface SeasonSummary {
   name?: string;
   /** First air date (YYYY-MM-DD), when the catalogue knows it. */
   airDate?: string;
+  /** Next episode number confirmed by the catalogue but not yet aired. */
+  upcomingEpisode?: number;
 }
 
 /** One piece of an anime franchise: a season, a film, an OVA or a special. */
