@@ -1,4 +1,3 @@
-import { PROVISIONAL_MODE } from "@/config/provisional";
 import { Compass, Globe, Heart, House, LibraryBig, Popcorn, Settings, Trophy, UserRound, Users, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
@@ -8,7 +7,7 @@ export interface NavItem {
   icon: LucideIcon;
 }
 
-const ALL_PRIMARY_NAV: NavItem[] = [
+export const PRIMARY_NAV: NavItem[] = [
   { href: "/home", label: "Home", icon: House },
   { href: "/explore", label: "Esplora", icon: Compass },
   { href: "/library", label: "La mia libreria", shortLabel: "Libreria", icon: LibraryBig },
@@ -18,9 +17,6 @@ const ALL_PRIMARY_NAV: NavItem[] = [
   { href: "/friends", label: "Amici", icon: Users },
   { href: "/watch-party", label: "Serate insieme", shortLabel: "Serate", icon: Popcorn },
 ];
-
-/** In provisional mode the library is off (no history), so it leaves the menu. */
-export const PRIMARY_NAV: NavItem[] = PROVISIONAL_MODE ? ALL_PRIMARY_NAV.filter((item) => item.href !== "/library") : ALL_PRIMARY_NAV;
 
 export const SECONDARY_NAV: NavItem[] = [
   { href: "/profile", label: "Profilo", icon: UserRound },

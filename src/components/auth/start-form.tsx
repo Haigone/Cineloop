@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 
 /** `notice` is the extension download box, rendered on the server. */
-export function StartForm({ notice, provisional = false }: { notice: React.ReactNode; provisional?: boolean }) {
+export function StartForm({ notice }: { notice: React.ReactNode }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(startAsGuest, {});
   const next = useSearchParams().get("next");
   const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
@@ -32,9 +32,9 @@ export function StartForm({ notice, provisional = false }: { notice: React.React
       />
       {notice}
       <Button type="submit" size="lg" loading={pending} className="mt-2 w-full">
-        {provisional ? "Entra" : "Inizia"}
+        Inizia
       </Button>
-      {!provisional && <p className="mt-2 text-center text-sm text-fg-2">
+      <p className="mt-2 text-center text-sm text-fg-2">
         Hai già un account?{" "}
         <Link href={loginHref} className="font-medium text-fg underline-offset-4 hover:underline">
           Accedi
@@ -43,7 +43,7 @@ export function StartForm({ notice, provisional = false }: { notice: React.React
         <Link href="/register" className="font-medium text-fg underline-offset-4 hover:underline">
           Registrati subito
         </Link>
-      </p>}
+      </p>
     </form>
   );
 }

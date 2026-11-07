@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { PROVISIONAL_MODE } from "@/config/provisional";
 import { Suspense } from "react";
 import { ExtensionNotice } from "@/components/auth/extension-notice";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
@@ -11,7 +9,6 @@ import { getOptionalUser } from "@/server/auth/current-user";
 export const metadata: Metadata = { title: "Crea account" };
 
 export default function RegisterPage() {
-  if (PROVISIONAL_MODE) redirect("/start");
   return (
     <Suspense fallback={<RegisterIntro guest={false} />}>
       <Register />
