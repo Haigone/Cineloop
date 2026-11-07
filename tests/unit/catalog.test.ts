@@ -44,6 +44,7 @@ describe("TMDB mapping", () => {
       last_episode_to_air: { season_number: 1, episode_number: 6, air_date: "2026-10-01" },
       next_episode_to_air: { season_number: 1, episode_number: 7, air_date: "2099-01-08" },
     });
+    if (t.type === "movie") throw new Error("Expected a series");
     expect(t).toMatchObject({ seasons: [{ number: 1, upcomingEpisode: 7 }] });
   });
 
