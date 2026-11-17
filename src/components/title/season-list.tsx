@@ -67,6 +67,14 @@ function SeasonRow({ titleId, season, at, seen, isReZero }: { titleId: string; s
   const [open, setOpen] = useState(false);
   const [episodes, setEpisodes] = useState<EpisodeInfo[] | null | "loading">(null);
   const panel = `season-${season.number}-episodes`;
+  const displayedEpisodes = Array.isArray(episodes)
+    ? episodes.map((episode) => {
+        const override = season.episodeDates?.find((item) => item.number === episode.number);
+        return override
+          ? { ...episode, name: override.title, airDate: override.airDate }
+          : episode;
+      })
+    : episodes;
 
   function toggle() {
     const next = !open;
@@ -111,13 +119,13 @@ function SeasonRow({ titleId, season, at, seen, isReZero }: { titleId: string; s
       </button>
       {open && (
         <div id={panel} className="border-t border-line px-4 py-2">
-          {episodes === "loading" || episodes === null ? (
+          {displayedEpisodes === "loading" || displayedEpisodes === null ? (
             <p className="py-2 text-sm text-fg-3">Carico gli episodi…</p>
-          ) : episodes.length === 0 ? (
+          ) : displayedEpisodes.length === 0 ? (
             <p className="py-2 text-sm text-fg-3">Il catalogo non elenca gli episodi di questa stagione.</p>
           ) : (
             <ol className="flex flex-col">
-              {episodes.map((e) => (
+              {displayedEpisodes.map((e) => (
                 <li key={e.number} className={cn("flex items-baseline gap-3 py-1.5 text-sm", e.number === at ? "text-fg" : "text-fg-2")}>
                   <span className="w-8 shrink-0 text-xs text-fg-3 tabular">{e.number}</span>
                   <span className="min-w-0 flex-1 truncate">{e.name ?? `Episodio ${e.number}`}</span>
