@@ -81,7 +81,13 @@ export async function getTitleView(id: string): Promise<TitleView | null> {
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
-    sectionOf(title) === "anime" ? getCatalog().related(title, 12).catch(() => []) : Promise.resolve([]),
+    (async () => {
+      if (sectionOf(title) === "anime") return getCatalog().related(title, 12).catch(() => []);
+      const dexterIds = ["tmdb-tv-1405", "tmdb-tv-131927", "tmdb-tv-259909"];
+      if (!dexterIds.includes(title.id)) return [];
+      const siblings = await repo.getTitlesByIds(dexterIds.filter((otherId) => otherId !== title.id));
+      return siblings;
+    })(),
     title.type === "movie" ? Promise.resolve([]) : listSharedWatchViews(repo, viewer.id, new Map([[title.id, title]])),
   ]);
   if (related.length) await cacheTitles(repo, related);

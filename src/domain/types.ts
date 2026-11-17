@@ -119,9 +119,11 @@ export interface SeasonSummary {
 
 /** One piece of an anime franchise: a season, a film, an OVA or a special. */
 export interface WatchPart {
-  /** Stable id of the part, e.g. "ann-4658". */
+  /** Stable id of the part, e.g. "ann-4658"; for a series entry this is its title id. */
   key: string;
-  kind: "season" | "movie" | "ova" | "special";
+  /** Linked CineLoop title when this part is a separate series. */
+  titleId?: string;
+  kind: "season" | "movie" | "ova" | "special" | "series";
   name: string;
   year: number | null;
   episodes: number | null;

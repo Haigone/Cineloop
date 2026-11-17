@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import type { WatchPart } from "@/domain/types";
 import { FILLER_KEY, includedByDefault, type Overrides } from "@/domain/watch-order";
 import { setPartIncluded, setReZeroVersion } from "@/server/actions/library";
@@ -8,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
-const KIND_LABEL: Record<WatchPart["kind"], string> = { season: "Serie", movie: "Film", ova: "OVA", special: "Speciale" };
+const KIND_LABEL: Record<WatchPart["kind"], string> = { season: "Stagione", movie: "Film", ova: "OVA", special: "Speciale", series: "Serie" };
 
 function detail(part: WatchPart): string {
   const bits = [KIND_LABEL[part.kind]];
@@ -110,7 +111,11 @@ export function WatchOrder({
               </span>
               <div className={cn("min-w-0 flex-1", !on && "opacity-60")}>
                 <p id={labelId} className="truncate text-sm font-medium">
-                  {isReZeroCut
+                  {part.titleId ? (
+                    <Link href={`/title/${encodeURIComponent(part.titleId)}`} className="hover:underline">
+                      {part.name}
+                    </Link>
+                  ) : isReZeroCut
                     ? isDirectorsCut ? "Re:ZERO · Director’s Cut" : "Re:ZERO · Versione originale 2016"
                     : part.name}
                 </p>
@@ -150,7 +155,7 @@ export function WatchOrder({
       )}
       <p className="mt-2 text-xs text-fg-3">
         {canChoose ? "Le parti attive contano per il progresso e per “finito”." : "Potrai scegliere cosa includere appena inizi a guardarlo."}{" "}
-        Ordine di uscita; i dati vengono da Anime News Network e Anime Filler List.
+        Ordine di visione consigliato della saga.
       </p>
     </div>
   );
