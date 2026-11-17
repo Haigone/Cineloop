@@ -378,8 +378,25 @@ function withKnownSeasons(fresh: Title, known: Title | undefined): Title {
     const out = fresh.partOf === undefined && known.partOf ? { ...fresh, partOf: known.partOf } : fresh;
     return out.collection === undefined && known.collection !== undefined ? { ...out, collection: known.collection } : out;
   }
-  if (fresh.seasons.length > 0 || !known || known.type === "movie" || known.seasons.length === 0) return fresh;
-  return { ...fresh, seasons: known.seasons, episodeRuntimeMinutes: fresh.episodeRuntimeMinutes || known.episodeRuntimeMinutes };
+  if (!known || known.type === "movie" || known.seasons.length === 0) return fresh;
+  if (fresh.seasons.length === 0) {
+    return { ...fresh, seasons: known.seasons, episodeRuntimeMinutes: fresh.episodeRuntimeMinutes || known.episodeRuntimeMinutes };
+  }
+  // Preserve manually verified episode schedules when fresh catalogue details are cached.
+  // Providers often omit episode-level data or publish incorrect dates; a routine refresh
+  // must not silently erase CineLoop's reviewed overrides.
+  const seasons = fresh.seasons.map((season) => {
+    const previous = known.seasons.find((item) => item.number === season.number);
+    if (!previous) return season;
+    return {
+      ...season,
+      ...(previous.episodeDates?.length ? { episodeDates: previous.episodeDates } : {}),
+      ...(season.upcomingEpisode === undefined && previous.upcomingEpisode !== undefined
+        ? { upcomingEpisode: previous.upcomingEpisode }
+        : {}),
+    };
+  });
+  return { ...fresh, seasons, episodeRuntimeMinutes: fresh.episodeRuntimeMinutes || known.episodeRuntimeMinutes };
 }
 
 export async function cacheTitles(repo: Repository, all: readonly Title[]): Promise<void> {
