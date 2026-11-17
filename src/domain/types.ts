@@ -113,6 +113,8 @@ export interface SeasonSummary {
   airDate?: string;
   /** Next episode number confirmed by the catalogue but not yet aired. */
   upcomingEpisode?: number;
+  /** Manually verified release schedule for episodes when the catalogue dates are wrong. */
+  episodeDates?: { number: number; title: string; airDate: string }[];
 }
 
 /** One piece of an anime franchise: a season, a film, an OVA or a special. */
