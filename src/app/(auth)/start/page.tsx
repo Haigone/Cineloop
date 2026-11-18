@@ -5,7 +5,11 @@ import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { OAuthNotice } from "@/components/auth/oauth-notice";
 import { StartForm } from "@/components/auth/start-form";
 
-export const metadata: Metadata = { title: "Inizia" };
+export const metadata: Metadata = {
+  title: "Inizia",
+  description: "Scegli un username e inizia: tieni il segno di film, serie e anime, scegli cosa vedere stasera e guarda insieme agli amici.",
+  alternates: { canonical: "/start" },
+};
 
 export default function StartPage() {
   return (
