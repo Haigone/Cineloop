@@ -60,14 +60,22 @@
       .replace(/\s*[-|·]\s*(streaming\s*community.*|streaming.*)$/i, "")
       .replace(/\s*(streaming|stream)\s*ita.*$/i, "").trim();
     if (!t || /^(streaming\s*community|streamingcommunityz?|home|watch|film|serie tv)$/i.test(t)) return null;
+    let season = null;
+    let episode = null;
     const both = SEASON_EPISODE.exec(t);
-    if (both) t = t.slice(0, both.index).trim();
-    else {
+    if (both) {
+      season = Number(both[1]);
+      episode = Number(both[2]);
+      t = t.slice(0, both.index).trim();
+    } else {
       const ep = EPISODE_ONLY.exec(t);
-      if (ep && ep.index > 0) t = t.slice(0, ep.index).trim();
+      if (ep && ep.index > 0) {
+        episode = Number(ep[1]);
+        t = t.slice(0, ep.index).trim();
+      }
     }
     if (!t || /^(streaming\s*community|streamingcommunityz?)$/i.test(t)) return null;
-    return { title: t.slice(0, 200), season: null, episode: null };
+    return { title: t.slice(0, 200), season, episode };
   }
 
   function fromHeading() {
