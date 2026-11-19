@@ -16,6 +16,18 @@
 
   const SEASON_EPISODE = /(?:\bS|\bSt\.?|\bStagione|\bSeason|\bT|\bTemporada)\s*(\d{1,3})\s*[:,.·-]?\s*(?:E|Ep\.?|Episodio|Episode|Episodi)\s*(\d{1,4})/i;
   const EPISODE_ONLY = /(?:^|\b)(?:E|Ep\.?|Episodio|Episode)\s*(\d{1,4})\b/i;
+  // StreamingCommunity può mostrare le puntate come "15. Titolo" invece di "Episodio 15".
+  // La numerazione semplice è accettata solo nelle voci episodio o negli elementi attivi.
+  const NUMBERED_EPISODE = /^\s*(?:ep(?:isodio)?\s*)?(\d{1,3})\s*[.：:–—-]\s+\S/i;
+  function episodeNumber(text, allowOrdinal = false) {
+    const value = clean(text);
+    const both = SEASON_EPISODE.exec(value);
+    if (both) return { season: Number(both[1]), episode: Number(both[2]) };
+    const only = EPISODE_ONLY.exec(value);
+    if (only) return { season: null, episode: Number(only[1]) };
+    const numbered = allowOrdinal ? NUMBERED_EPISODE.exec(value) : null;
+    return numbered ? { season: null, episode: Number(numbered[1]) } : null;
+  }
   const titleIdNow = () => /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname)?.slice(1).find(Boolean) ?? null;
 
   /** La serie che questa pagina sta mostrando, finche' non cambia pagina. */
@@ -65,26 +77,32 @@
     return { title: t.slice(0, 200), season: null, episode: null };
   }
 
-  /** L'elemento dell'episodio attivo, se la pagina lo evidenzia. */
-  function activeEpisodeEl() {
+  /** L'elemento dell'episodio attivo, preferendo la voce più specifica. */
+  function activeEpisodeInfo() {
     const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
+    const candidates = new Set();
     for (const el of document.querySelectorAll(sel)) {
-      if (EPISODE_ONLY.test(clean(el.textContent)) || SEASON_EPISODE.test(clean(el.textContent))) return el;
+      candidates.add(el);
+      // Alcuni temi marcano come attivo il contenitore dell'elenco, non la singola puntata.
+      for (const child of el.querySelectorAll("a, li, button, [class*=episode i], [class*=episodio i], span")) candidates.add(child);
     }
-    return null;
+    const matches = [...candidates]
+      .map((el) => ({ text: clean(el.textContent), info: episodeNumber(el.textContent, true) }))
+      .filter((item) => item.info && item.text.length < 160)
+      .sort((a, b) => a.text.length - b.text.length);
+    return matches[0]?.info ?? null;
   }
 
   function parseEpisodeFromDom() {
-    const texts = [...document.querySelectorAll("h1, h2, h3, [class*=episode i], [class*=episodio i], li, a, span, button")]
-      .map((el) => clean(el.textContent))
-      .filter((t) => t && t.length < 120);
-    for (const t of texts) {
-      const both = SEASON_EPISODE.exec(t);
-      if (both) return { season: Number(both[1]), episode: Number(both[2]) };
+    const elements = [...document.querySelectorAll("h1, h2, h3, [class*=episode i], [class*=episodio i], li, a, span, button")];
+    for (const el of elements) {
+      if (!el.matches("[class*=episode i], [class*=episodio i]")) continue;
+      const info = episodeNumber(el.textContent, true);
+      if (info) return info;
     }
-    for (const t of texts) {
-      const only = EPISODE_ONLY.exec(t);
-      if (only) return { season: null, episode: Number(only[1]) };
+    for (const el of elements) {
+      const info = episodeNumber(el.textContent, false);
+      if (info) return info;
     }
     return { season: null, episode: null };
   }
@@ -175,12 +193,10 @@
       if (found.episode !== null) known.episode = found.episode;
       if (found.season !== null) known.season = found.season;
     }
-    const active = activeEpisodeEl();
+    const active = activeEpisodeInfo();
     if (active) {
-      const both = SEASON_EPISODE.exec(clean(active.textContent));
-      const only = EPISODE_ONLY.exec(clean(active.textContent));
-      if (both) { known.season = Number(both[1]); known.episode = Number(both[2]); }
-      else if (only) known.episode = Number(only[1]);
+      known.episode = active.episode;
+      if (active.season !== null) known.season = active.season;
     } else if (known.episode === null) {
       const guessed = parseEpisodeFromDom();
       if (guessed.episode !== null) { known.episode = guessed.episode; if (guessed.season !== null) known.season = guessed.season; }
