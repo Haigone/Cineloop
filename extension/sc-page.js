@@ -55,32 +55,59 @@
   const cleanTitle = (s) => clean(s).replace(/^watch\s+/i, "").trim();
   const isMarker = (t) => SEASON_EPISODE.test(t) || EPISODE_ONLY.test(t);
 
+  function titleFromText(raw) {
+    let t = cleanTitle(raw)
+      .replace(/\s*[-|·]\s*(streaming\s*community.*|streaming.*)$/i, "")
+      .replace(/\s*(streaming|stream)\s*ita.*$/i, "").trim();
+    if (!t || /^(streaming\s*community|streamingcommunityz?|home|watch|film|serie tv)$/i.test(t)) return null;
+    const both = SEASON_EPISODE.exec(t);
+    if (both) t = t.slice(0, both.index).trim();
+    else {
+      const ep = EPISODE_ONLY.exec(t);
+      if (ep && ep.index > 0) t = t.slice(0, ep.index).trim();
+    }
+    if (!t || /^(streaming\s*community|streamingcommunityz?)$/i.test(t)) return null;
+    return { title: t.slice(0, 200), season: null, episode: null };
+  }
+
   function fromHeading() {
-    // Le pagine titolo di StreamingCommunity hanno un h1 con il nome del titolo.
-    const h1 = document.querySelector("h1");
-    if (!h1) return null;
-    const text = cleanTitle(h1.textContent).replace(/\s*(streaming|stream)\s*ita.*$/i, "").trim();
-    if (!text || isMarker(text)) return null;
-    const inline = SEASON_EPISODE.exec(text) ?? /\s(?:E|Ep\.?|Episodio|Episode)\s*\d{1,4}\b/i.exec(text);
-    const title = inline && inline.index > 0 ? text.slice(0, inline.index).trim() : text;
-    return { title: title.slice(0, 200), season: null, episode: null };
+    // Preferisci il titolo visibile, ma considera anche i metadati social della pagina.
+    const candidates = [
+      document.querySelector("h1")?.textContent,
+      document.querySelector('meta[property="og:title"]')?.content,
+      document.querySelector('meta[name="twitter:title"]')?.content,
+      document.querySelector('meta[itemprop="name"]')?.content,
+      document.querySelector('[data-title]')?.getAttribute("data-title"),
+    ];
+    for (const candidate of candidates) {
+      const found = titleFromText(candidate);
+      if (found) return found;
+    }
+    return null;
   }
 
   function fromTitleTag() {
-    // document.title e' tipo "Breaking Bad S1E1 - StreamingCommunity".
-    const t = cleanTitle(document.title).replace(/\s*[-|·]\s*(streaming\s*community.*|streaming.*)$/i, "").trim();
-    if (!t) return null;
-    const both = SEASON_EPISODE.exec(t);
-    if (both) return { title: t.slice(0, both.index).trim() || t, season: Number(both[1]), episode: Number(both[2]) };
-    const ep = EPISODE_ONLY.exec(t);
-    if (ep && ep.index > 0) return { title: t.slice(0, ep.index).trim() || t, season: null, episode: Number(ep[1]) };
-    return { title: t.slice(0, 200), season: null, episode: null };
+    // Il titolo della scheda e' spesso l'unico dato disponibile prima del rendering SPA.
+    return titleFromText(document.title);
   }
 
   /** L'elemento dell'episodio attivo, preferendo la voce più specifica. */
   function activeEpisodeInfo() {
-    const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
+    const episodeId = new URL(location.href).searchParams.get("e");
     const candidates = new Set();
+    // Prima associa l'ID e= della URL alla voce esatta dell'elenco: è più affidabile
+    // delle classi CSS, che a volte marcano come attivo l'intero menu.
+    if (episodeId) {
+      for (const link of document.querySelectorAll("a[href]")) {
+        try {
+          const url = new URL(link.href, location.href);
+          if (url.origin !== location.origin || url.searchParams.get("e") !== episodeId) continue;
+          candidates.add(link);
+          if (link.parentElement) candidates.add(link.parentElement);
+        } catch {}
+      }
+    }
+    const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
     for (const el of document.querySelectorAll(sel)) {
       candidates.add(el);
       // Alcuni temi marcano come attivo il contenitore dell'elenco, non la singola puntata.
@@ -88,7 +115,7 @@
     }
     const matches = [...candidates]
       .map((el) => ({ text: clean(el.textContent), info: episodeNumber(el.textContent, true) }))
-      .filter((item) => item.info && item.text.length < 160)
+      .filter((item) => item.info && item.text.length < 200)
       .sort((a, b) => a.text.length - b.text.length);
     return matches[0]?.info ?? null;
   }
