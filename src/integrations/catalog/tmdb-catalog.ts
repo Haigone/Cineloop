@@ -766,7 +766,7 @@ export function nextEpisodeFromSavedSchedule(title: Title, details: TmdbItem, to
   return next ? { season: null, episode: next.number, date: next.airDate } : null;
 }
 
-function nextSeasonOf(d: TmdbItem, today: string): { season: number | null; date: string | null; episode?: number } | null {
+export function nextSeasonOf(d: TmdbItem, today: string): { season: number | null; date: string | null; episode?: number } | null {
   if (d.status === "Ended" || d.status === "Canceled") return null;
   const lastAired = d.last_episode_to_air?.season_number ?? 0;
   const next = d.next_episode_to_air;
