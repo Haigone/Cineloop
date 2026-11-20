@@ -45,6 +45,46 @@ describe("extension sync", () => {
     expect(status.watching?.title?.id).toBe("arcane");
   });
 
+  it("recovers an episode number from a provider ID only after a +1 sequence is verified", async () => {
+    await repo.saveObservedEpisodeLink({
+      providerId: "netflix", titleId: "dark", seasonNumber: 6, episodeNumber: 15, externalId: "9300015",
+    });
+    await repo.saveObservedEpisodeLink({
+      providerId: "netflix", titleId: "dark", seasonNumber: 6, episodeNumber: 16, externalId: "9300016",
+    });
+    await expect(repo.resolveEpisodeCoordinate({
+      providerId: "netflix", titleId: "dark", externalId: "9300017",
+    })).resolves.toEqual({ seasonNumber: 6, episodeNumber: 17 });
+    await expect(repo.resolveEpisodeCoordinate({
+      providerId: "netflix", titleId: "dark", externalId: "9300099",
+    })).resolves.toEqual({ seasonNumber: 6, episodeNumber: 99 });
+  });
+
+  it("recognises StreamingCommunity by its stable page URL and recovers the episode from its ID", async () => {
+    const pageUrl = "https://streamingcommunityz.dad/it/watch/4978";
+    await repo.updatePreferences("u_marco", { providerConsent: { streamingcommunity: "accepted" } });
+    await repo.saveProviderLink({
+      providerId: "streamingcommunity", externalId: pageUrl, titleId: "dark", userId: "u_marco",
+    });
+    await repo.saveObservedEpisodeLink({
+      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 15, externalId: "9400015",
+    });
+    await repo.saveObservedEpisodeLink({
+      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 16, externalId: "9400016",
+    });
+
+    const status = await handleObservation("u_marco", {
+      providerId: "streamingcommunity",
+      url: `${pageUrl}?e=9400017`,
+      documentTitle: "StreamingCommunity",
+      hints: { episodeId: "9400017" },
+      observedAt: new Date().toISOString(),
+    });
+
+    expect(status.watching).toMatchObject({ title: { id: "dark" }, season: 6, episode: 17 });
+    await endPresence("u_marco");
+  });
+
   it("puts the title in progress, records the activity and takes it off the wishlist", async () => {
     const { ep } = ids();
     const library = await repo.listLibrary("u_marco");
