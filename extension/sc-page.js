@@ -248,7 +248,66 @@
     return best;
   }
 
+  let lastDebugFingerprint = "";
+  let lastDebugAt = 0;
+  function debugSnapshot() {
+    const episodeId = new URL(location.href).searchParams.get("e");
+    const titleCandidates = [
+      ["h1", document.querySelector("h1")?.textContent],
+      ["og:title", document.querySelector('meta[property="og:title"]')?.content],
+      ["twitter:title", document.querySelector('meta[name="twitter:title"]')?.content],
+      ["itemprop:name", document.querySelector('meta[itemprop="name"]')?.content],
+      ["data-title", document.querySelector("[data-title]")?.getAttribute("data-title")],
+      ["document.title", document.title],
+    ].filter(([, value]) => typeof value === "string" && value.trim())
+      .map(([source, value]) => ({ source, value: clean(value).slice(0, 140) }));
+    const episodeNodes = [...document.querySelectorAll(
+      "h1,h2,h3,[class*=episode i],[class*=episodio i],li,a,button,[aria-current=true],[aria-selected=true]"
+    )].slice(0, 180);
+    const episodeTexts = episodeNodes.map((el) => ({
+      tag: el.tagName.toLowerCase(),
+      className: String(el.className ?? "").slice(0, 100),
+      text: clean(el.textContent).slice(0, 100),
+      active: /active|current|selected/i.test(String(el.className ?? "")) ||
+        el.getAttribute("aria-current") === "true" || el.getAttribute("aria-selected") === "true",
+      episodeId: (() => { try { return new URL(el.href, location.href).searchParams.get("e"); } catch { return null; } })(),
+    })).filter((item) => item.text || item.episodeId).slice(0, 35);
+    const frames = [...document.querySelectorAll("iframe")].slice(0, 15).map((frame) => {
+      try { return { origin: new URL(frame.src, location.href).origin, accessible: Boolean(frame.contentDocument) }; }
+      catch { return { origin: "unavailable", accessible: false }; }
+    });
+    const v = findVideo();
+    return {
+      at: new Date().toISOString(),
+      host: location.host,
+      path: location.pathname,
+      episodeId: episodeId && /^\d{1,12}$/.test(episodeId) ? episodeId : null,
+      extracted: { title: known.title || null, season: known.season, episode: known.episode },
+      titleCandidates,
+      episodeTexts,
+      counts: {
+        h1: document.querySelectorAll("h1").length,
+        episodeClass: document.querySelectorAll("[class*=episode i],[class*=episodio i]").length,
+        links: document.querySelectorAll("a[href]").length,
+        iframes: document.querySelectorAll("iframe").length,
+        videos: document.querySelectorAll("video").length,
+      },
+      frames,
+      playerVideo: v ? { duration: Number.isFinite(v.duration) ? Math.round(v.duration) : null, readyState: v.readyState, paused: v.paused } : null,
+    };
+  }
+  function sendDebug(force = false) {
+    const snapshot = debugSnapshot();
+    const fingerprint = JSON.stringify(snapshot);
+    const now = Date.now();
+    if (!force && fingerprint === lastDebugFingerprint && now - lastDebugAt < 15000) return;
+    lastDebugFingerprint = fingerprint;
+    lastDebugAt = now;
+    try { chrome.runtime.sendMessage({ type: "sc-debug", snapshot }).catch(() => {}); } catch {}
+  }
+
   function read(force = false, forcedProgress = null) {
+    sendDebug(force);
     if (!alive()) return stop();
     const id = titleIdNow();
     // An accessible player iframe may use a different route than the title page.
