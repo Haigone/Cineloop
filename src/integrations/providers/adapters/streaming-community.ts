@@ -30,9 +30,18 @@ export class StreamingCommunityAdapter extends ObservationAdapter {
       ? obs.hints!.episode!
       : null;
 
+    // /watch/{titleId}?e={episodeId} is one title page with a changing episode.
+    // Provider title links are keyed by the stable page URL, without the episode
+    // query; keeping ?e here makes every episode look like a different title and
+    // prevents an already-confirmed series from being recognised.
+    const titleUrl = new URL(url);
+    titleUrl.searchParams.delete("e");
+    titleUrl.searchParams.delete("cineloopResume");
+    titleUrl.hash = "";
+
     return {
       providerId: this.id,
-      externalId: url,
+      externalId: titleUrl.toString(),
       title,
       type: null,
       season,
