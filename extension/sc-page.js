@@ -125,7 +125,55 @@
       .map((el) => ({ text: clean(el.textContent), info: episodeNumber(el.textContent, true) }))
       .filter((item) => item.info && item.text.length < 200)
       .sort((a, b) => a.text.length - b.text.length);
-    return matches[0]?.info ?? null;
+    if (matches[0]?.info) return matches[0].info;
+
+    // In molte versioni di StreamingCommunity il link attivo contiene solo
+    // il titolo della puntata: il numero non è nel testo, ma nell'ordine
+    // della lista. Ricava quindi la posizione del link ?e= corrente nella
+    // lista della stagione, senza confondere l'ID provider con il numero.
+    if (episodeId) {
+      let currentLink = null;
+      for (const link of document.querySelectorAll("a[href]")) {
+        try {
+          const url = new URL(link.href, location.href);
+          if (url.origin === location.origin && url.pathname === location.pathname &&
+              url.searchParams.get("e") === episodeId) {
+            currentLink = link;
+            break;
+          }
+        } catch {}
+      }
+      if (currentLink) {
+        let best = null;
+        let ancestor = currentLink.parentElement;
+        for (let depth = 0; ancestor && depth < 7; depth++, ancestor = ancestor.parentElement) {
+          const links = [...ancestor.querySelectorAll("a[href]")];
+          const episodeLinks = [];
+          const seen = new Set();
+          for (const link of links) {
+            try {
+              const url = new URL(link.href, location.href);
+              const id = url.searchParams.get("e");
+              if (url.origin !== location.origin || url.pathname !== location.pathname ||
+                  !id || !/^\\d{1,12}$/.test(id) || seen.has(id)) continue;
+              seen.add(id);
+              episodeLinks.push({ link, id });
+            } catch {}
+          }
+          const index = episodeLinks.findIndex((item) => item.id === episodeId);
+          if (index >= 0 && episodeLinks.length >= 2 &&
+              (!best || episodeLinks.length < best.count)) {
+            best = { index, count: episodeLinks.length, container: ancestor };
+          }
+        }
+        if (best) {
+          const seasonText = clean(best.container.textContent);
+          const seasonMatch = /(?:stagione|season|s)\\s*(\\d{1,3})/i.exec(seasonText);
+          return { season: seasonMatch ? Number(seasonMatch[1]) : null, episode: best.index + 1 };
+        }
+      }
+    }
+    return null;
   }
 
   function parseEpisodeFromDom() {
