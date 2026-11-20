@@ -99,81 +99,92 @@
     return titleFromText(document.title);
   }
 
-  /** L'elemento dell'episodio attivo, preferendo la voce più specifica. */
+  /** Legge l'episodio attivo senza confondere un sottoinsieme di link con l'intera stagione. */
   function activeEpisodeInfo() {
     const episodeId = new URL(location.href).searchParams.get("e");
-    const candidates = new Set();
-    // Prima associa l'ID e= della URL alla voce esatta dell'elenco: è più affidabile
-    // delle classi CSS, che a volte marcano come attivo l'intero menu.
-    if (episodeId) {
-      for (const link of document.querySelectorAll("a[href]")) {
-        try {
-          const url = new URL(link.href, location.href);
-          if (url.origin !== location.origin || url.searchParams.get("e") !== episodeId) continue;
-          candidates.add(link);
-          if (link.parentElement) candidates.add(link.parentElement);
-        } catch {}
-      }
-    }
-    const sel = '[class*="active" i], [class*="current" i], [class*="selected" i], [aria-current="true"]';
-    for (const el of document.querySelectorAll(sel)) {
-      candidates.add(el);
-      // Alcuni temi marcano come attivo il contenitore dell'elenco, non la singola puntata.
-      for (const child of el.querySelectorAll("a, li, button, [class*=episode i], [class*=episodio i], span")) candidates.add(child);
-    }
-    const matches = [...candidates]
-      .map((el) => ({ text: clean(el.textContent), info: episodeNumber(el.textContent, true) }))
-      .filter((item) => item.info && item.text.length < 200)
-      .sort((a, b) => a.text.length - b.text.length);
-    if (matches[0]?.info) return matches[0].info;
+    if (!episodeId || !/^\d{1,12}$/.test(episodeId)) return null;
 
-    // In molte versioni di StreamingCommunity il link attivo contiene solo
-    // il titolo della puntata: il numero non è nel testo, ma nell'ordine
-    // della lista. Ricava quindi la posizione del link ?e= corrente nella
-    // lista della stagione, senza confondere l'ID provider con il numero.
-    if (episodeId) {
-      let currentLink = null;
-      for (const link of document.querySelectorAll("a[href]")) {
-        try {
-          const url = new URL(link.href, location.href);
-          if (url.origin === location.origin && url.pathname === location.pathname &&
-              url.searchParams.get("e") === episodeId) {
-            currentLink = link;
-            break;
-          }
-        } catch {}
-      }
-      if (currentLink) {
-        let best = null;
-        let ancestor = currentLink.parentElement;
-        for (let depth = 0; ancestor && depth < 7; depth++, ancestor = ancestor.parentElement) {
-          const links = [...ancestor.querySelectorAll("a[href]")];
-          const episodeLinks = [];
-          const seen = new Set();
-          for (const link of links) {
-            try {
-              const url = new URL(link.href, location.href);
-              const id = url.searchParams.get("e");
-              if (url.origin !== location.origin || url.pathname !== location.pathname ||
-                  !id || !/^\d{1,12}$/.test(id) || seen.has(id)) continue;
-              seen.add(id);
-              episodeLinks.push({ link, id });
-            } catch {}
-          }
-          const index = episodeLinks.findIndex((item) => item.id === episodeId);
-          if (index >= 0 && episodeLinks.length >= 2 &&
-              (!best || episodeLinks.length < best.count)) {
-            best = { index, count: episodeLinks.length, container: ancestor };
-          }
-        }
-        if (best) {
-          const seasonText = clean(best.container.textContent);
-          const seasonMatch = /(?:stagione|season|s)\s*(\d{1,3})/i.exec(seasonText);
-          return { season: seasonMatch ? Number(seasonMatch[1]) : null, episode: best.index + 1 };
-        }
+    const matching = [];
+    for (const link of document.querySelectorAll("a[href]")) {
+      try {
+        const url = new URL(link.href, location.href);
+        if (url.origin === location.origin && url.pathname === location.pathname &&
+            url.searchParams.get("e") === episodeId) matching.push(link);
+      } catch {}
+    }
+    if (!matching.length) return null;
+
+    // Preferisci il link che il sito marca come selezionato, evitando duplicati
+    // presenti in menu desktop/mobile o in sezioni "prossimi episodi".
+    const isActive = (el) => /active|current|selected/i.test(String(el.className ?? "")) ||
+      el.getAttribute?.("aria-current") === "true" || el.getAttribute?.("aria-selected") === "true";
+    matching.sort((a, b) => Number(isActive(b) || isActive(b.parentElement)) -
+      Number(isActive(a) || isActive(a.parentElement)));
+    const currentLink = matching[0];
+
+    // Il numero esplicito sulla voce esatta ha sempre precedenza sull'ordine DOM.
+    const explicitCandidates = [
+      currentLink,
+      currentLink.closest("li, [class*='episode' i], [class*='episodio' i], button"),
+      currentLink.parentElement,
+      currentLink.parentElement?.parentElement,
+    ].filter(Boolean);
+    for (const el of explicitCandidates) {
+      const text = clean(el.textContent);
+      if (text.length > 0 && text.length < 200) {
+        const info = episodeNumber(text, true);
+        if (info) return info;
       }
     }
-    return null;
+
+    // Fallback ordinale: usa prima il vero elenco (UL/OL o contenitore dichiarato
+    // come elenco episodi). Non scegliere il più piccolo antenato: spesso contiene
+    // solo due/tre voci virtualizzate e produce numeri falsi dal 2° episodio in poi.
+    const candidates = [];
+    let ancestor = currentLink.parentElement;
+    for (let depth = 0; ancestor && depth < 9; depth++, ancestor = ancestor.parentElement) {
+      const links = [...ancestor.querySelectorAll("a[href]")];
+      const episodeLinks = [];
+      const seen = new Set();
+      for (const link of links) {
+        try {
+          const url = new URL(link.href, location.href);
+          const id = url.searchParams.get("e");
+          if (url.origin !== location.origin || url.pathname !== location.pathname ||
+              !id || !/^\d{1,12}$/.test(id) || seen.has(id)) continue;
+          seen.add(id);
+          episodeLinks.push({ link, id });
+        } catch {}
+      }
+      const index = episodeLinks.findIndex((item) => item.id === episodeId);
+      if (index < 0 || episodeLinks.length < 2 || episodeLinks.length > 100) continue;
+      const className = String(ancestor.className ?? "");
+      const semantic = /episode|episodi|season|stagion|playlist|accordion/i.test(className) ||
+        ancestor.matches("ul, ol, [role='list']");
+      const seasonMatches = [...clean(ancestor.textContent).matchAll(/(?:stagione|season)\s*(\d{1,3})/gi)]
+        .map((match) => Number(match[1]));
+      const distinctSeasons = new Set(seasonMatches);
+      // Un contenitore con più stagioni non è una base valida per l'indice locale.
+      if (distinctSeasons.size > 1) continue;
+      candidates.push({
+        index,
+        count: episodeLinks.length,
+        semantic,
+        depth,
+        season: seasonMatches[0] ?? null,
+      });
+    }
+
+    const semanticLists = candidates.filter((item) => item.semantic);
+    const usable = semanticLists.length ? semanticLists : candidates;
+    if (!usable.length) return null;
+    // Preferisci il contenitore semanticamente esplicito più vicino; in assenza
+    // di semantica scegli quello completo con più voci, non il frammento più piccolo.
+    usable.sort((a, b) => semanticLists.length
+      ? a.depth - b.depth || b.count - a.count
+      : b.count - a.count || a.depth - b.depth);
+    const best = usable[0];
+    return { season: best.season, episode: best.index + 1 };
   }
 
   function parseEpisodeFromDom() {
