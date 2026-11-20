@@ -298,7 +298,7 @@
   }
   function sendDebug(force = false) {
     const snapshot = debugSnapshot();
-    const fingerprint = JSON.stringify(snapshot);
+    const fingerprint = JSON.stringify({ ...snapshot, at: null });
     const now = Date.now();
     if (!force && fingerprint === lastDebugFingerprint && now - lastDebugAt < 15000) return;
     lastDebugFingerprint = fingerprint;
@@ -307,7 +307,7 @@
   }
 
   function read(force = false, forcedProgress = null) {
-    sendDebug(force);
+    sendDebug();
     if (!alive()) return stop();
     const id = titleIdNow();
     // An accessible player iframe may use a different route than the title page.
