@@ -46,6 +46,32 @@ describe("next season", () => {
     expect(nextSeasonOf({ ...base, seasons }, TODAY)).toEqual({ season: 5, date: null });
   });
 
+  it("uses CineLoop's manually verified episode dates when TMDB omits the next episode", async () => {
+    const { tmdb } = tmdbWith(() => ({
+      id: 259909,
+      name: "Dexter: Resurrection",
+      status: "Returning Series",
+      last_episode_to_air: { season_number: 1, episode_number: 4, air_date: "2026-11-13" },
+      next_episode_to_air: null,
+    }));
+    const dexter = {
+      id: "tmdb-tv-259909",
+      title: "Dexter: Resurrection",
+      type: "series",
+      seasons: [{
+        number: 1,
+        episodeCount: 6,
+        episodeDates: [
+          { number: 4, title: "Episode 4", airDate: "2026-11-13" },
+          { number: 5, title: "Episode 5", airDate: "2026-11-20" },
+          { number: 6, title: "Episode 6", airDate: "2026-11-27" },
+        ],
+      }],
+    } as never;
+    const [release] = await tmdb.nextSeasons([dexter], "2026-11-20");
+    expect(release).toMatchObject({ title: { id: "tmdb-tv-259909" }, season: null, episode: 5, date: "2026-11-20" });
+  });
+
   it("returns the next weekly episode within the currently airing season", () => {
     expect(nextSeasonOf({ ...base, next_episode_to_air: { season_number: 4, episode_number: 9, air_date: "2026-10-10" } }, TODAY)).toEqual({
       season: null,
