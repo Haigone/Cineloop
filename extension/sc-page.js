@@ -168,7 +168,7 @@
         }
         if (best) {
           const seasonText = clean(best.container.textContent);
-          const seasonMatch = /(?:stagione|season|s)\\s*(\d{1,3})/i.exec(seasonText);
+          const seasonMatch = /(?:stagione|season|s)\s*(\d{1,3})/i.exec(seasonText);
           return { season: seasonMatch ? Number(seasonMatch[1]) : null, episode: best.index + 1 };
         }
       }
