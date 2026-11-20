@@ -129,13 +129,15 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
   // recover the local S/E from an exact link or a verified +1 anchor. Never
   // guess from the ID alone when the sequence has not been verified.
   const observedEpisodeId = obs.hints?.episodeId;
-  if (presence.titleId && presence.episode === null && observedEpisodeId) {
+  if (presence.titleId && content.episode === null && observedEpisodeId) {
     const coordinate = await repo.resolveEpisodeCoordinate({
       providerId: presence.providerId,
       titleId: presence.titleId,
       externalId: observedEpisodeId,
     });
-    if (coordinate) {
+    // nextPresence intentionally carries the previous episode across heartbeats;
+    // the provider episode ID is authoritative when the player switches episodes.
+    if (coordinate && (presence.season !== coordinate.seasonNumber || presence.episode !== coordinate.episodeNumber)) {
       presence.season = coordinate.seasonNumber;
       presence.episode = coordinate.episodeNumber;
       await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
