@@ -124,13 +124,14 @@ async function playerReading() {
     .map((t) => t.player)
     .filter(Boolean)
     .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0];
-  if (!player || (!player.title && player.episode === null && player.progress === null)) {
-    return "Il player non mi ha ancora mostrato nulla: muovi il mouse sul video per un attimo.";
+  if (!player || (!player.title && player.episode === null && player.progress === null && !player.episodeId)) {
+    return "Non ho ricevuto dati dalla pagina: controlla l’autorizzazione di StreamingCommunity e ricarica la scheda.";
   }
   const ep =
     player.episode === null ? "episodio non indicato" : player.season !== null ? `S${player.season}E${player.episode}` : `stagione non indicata (E${player.episode})`;
+  const providerId = player.episodeId ? `ID StreamingCommunity ${player.episodeId}` : "";
   const seen = player.progress !== null ? `${Math.round(player.progress * 100)}% visto` : "";
-  return ["Letto dal player:", [player.title || "titolo non indicato", ep, seen].filter(Boolean).join(" · ")].join(" ");
+  return ["Letto dalla pagina/player:", [player.title || "titolo non indicato", ep, providerId, seen].filter(Boolean).join(" · ")].join(" ");
 }
 
 /** "Guarda insieme": visibility, who is in the room, and whether you are in step. */
