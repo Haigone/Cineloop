@@ -349,6 +349,16 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         path: typeof snapshot.path === "string" ? snapshot.path.slice(0, 300) : "",
         episodeId: typeof snapshot.episodeId === "string" && /^\d{1,12}$/.test(snapshot.episodeId) ? snapshot.episodeId : null,
         extracted: snapshot.extracted && typeof snapshot.extracted === "object" ? snapshot.extracted : {},
+        documentState: snapshot.documentState && typeof snapshot.documentState === "object" ? {
+          readyState: typeof snapshot.documentState.readyState === "string" ? snapshot.documentState.readyState.slice(0, 20) : null,
+          title: typeof snapshot.documentState.title === "string" ? snapshot.documentState.title.slice(0, 180) : "",
+          bodyText: typeof snapshot.documentState.bodyText === "string" ? snapshot.documentState.bodyText.slice(0, 600) : "",
+          bodyChildTags: Array.isArray(snapshot.documentState.bodyChildTags) ? snapshot.documentState.bodyChildTags.slice(0, 30) : [],
+          scriptCount: Number.isInteger(snapshot.documentState.scriptCount) ? snapshot.documentState.scriptCount : 0,
+          scripts: Array.isArray(snapshot.documentState.scripts) ? snapshot.documentState.scripts.slice(0, 40) : [],
+          resources: Array.isArray(snapshot.documentState.resources) ? snapshot.documentState.resources.slice(0, 50) : [],
+          shadowHosts: Array.isArray(snapshot.documentState.shadowHosts) ? snapshot.documentState.shadowHosts.slice(0, 20) : [],
+        } : null,
         inertia: snapshot.inertia && typeof snapshot.inertia === "object" ? {
           present: Boolean(snapshot.inertia.present),
           dataPageLength: Number.isFinite(snapshot.inertia.dataPageLength) ? snapshot.inertia.dataPageLength : 0,
