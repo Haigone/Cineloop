@@ -760,8 +760,9 @@ export function nextEpisodeFromSavedSchedule(title: Title, details: TmdbItem, to
   const lastEpisode = details.last_episode_to_air?.episode_number ?? 0;
   const season = title.seasons.find((item) => item.number === seasonNumber);
   if (!season?.episodeDates?.length) return null;
+  // Once the release day has arrived, it is no longer an upcoming episode.
   const next = season.episodeDates
-    .filter((item) => item.number > lastEpisode && item.airDate >= today)
+    .filter((item) => item.number > lastEpisode && item.airDate > today)
     .sort((a, b) => a.airDate.localeCompare(b.airDate) || a.number - b.number)[0];
   return next ? { season: null, episode: next.number, date: next.airDate } : null;
 }
