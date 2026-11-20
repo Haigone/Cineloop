@@ -122,7 +122,7 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
   let activated = false;
   for (const host of hosts) activated = (await activateNights(repo, host, now).catch((err) => (console.error("nights failed", err), false))) || activated;
 
-  const [library, wishlist, events, friends, presence, allTitles] = await Promise.all([
+  const [library, wishlist, events, friends, presence, catalogTitles] = await Promise.all([
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     repo.listWatchEvents(viewer.id, weekStart(now)),
@@ -130,6 +130,29 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     repo.getPresence(viewer.id),
     loadHomeTitles(repo),
   ]);
+  // Home's fast public catalog is mirrored in Supabase, while reviewed episode
+  // schedules are stored in the primary repository. Merge those schedules for
+  // titles in this user's library so Home and the title page use the same dates.
+  const savedTitles = await repo.getTitlesByIds(library.map((entry) => entry.titleId));
+  const savedById = new Map(savedTitles.map((title) => [title.id, title]));
+  const allTitles = catalogTitles.map((title) => {
+    const saved = savedById.get(title.id);
+    if (!saved || title.type === "movie" || saved.type === "movie") return title;
+    const seasons = [...title.seasons];
+    for (const stored of saved.seasons) {
+      if (!stored.episodeDates?.length) continue;
+      const index = seasons.findIndex((season) => season.number === stored.number);
+      if (index < 0) seasons.push(stored);
+      else {
+        seasons[index] = {
+          ...seasons[index]!,
+          episodeDates: stored.episodeDates,
+          ...(stored.upcomingEpisode !== undefined ? { upcomingEpisode: stored.upcomingEpisode } : {}),
+        };
+      }
+    }
+    return { ...title, seasons };
+  });
   const friendIds = friends.map((f) => f.user.id);
   const titles = new Map(allTitles.map((t) => [t.id, t]));
   const [activity, prefs, liveFriends, groups, upcoming] = await Promise.all([
