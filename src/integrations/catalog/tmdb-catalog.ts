@@ -749,11 +749,18 @@ export class TmdbCatalog implements CatalogService {
  * first episode is scheduled, or because the season exists (renewed) with or
  * without a date yet. Exported for tests.
  */
-export function nextSeasonOf(d: TmdbItem, today: string): { season: number; date: string | null } | null {
+export function nextSeasonOf(d: TmdbItem, today: string): { season: number | null; date: string | null; episode?: number } | null {
   if (d.status === "Ended" || d.status === "Canceled") return null;
   const lastAired = d.last_episode_to_air?.season_number ?? 0;
   const next = d.next_episode_to_air;
-  if (next && next.season_number > lastAired && next.episode_number === 1) {
+
+  // TMDB also exposes the next episode while a season is already airing.
+  // Previously only episode 1 of a future season was returned, so weekly
+  // releases such as Dexter: Resurrection never reached Home or notifications.
+  if (next && next.season_number === lastAired && next.episode_number > 0 && (!next.air_date || next.air_date >= today)) {
+    return { season: null, episode: next.episode_number, date: next.air_date || null };
+  }
+  if (next && next.season_number > lastAired && next.episode_number === 1 && (!next.air_date || next.air_date >= today)) {
     return { season: next.season_number, date: next.air_date || null };
   }
   const announced = (d.seasons ?? [])
