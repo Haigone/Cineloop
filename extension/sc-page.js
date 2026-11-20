@@ -308,7 +308,20 @@
       extracted: { title: known.title || null, season: known.season, episode: known.episode },
       inertia: (() => {
         const page = readInertiaPage(); const props = page?.props;
-        return { present: Boolean(page), component: page?.component ?? null, hasTitle: Boolean(props?.title?.name), hasEpisode: Boolean(props?.episode), episodeId: props?.episode?.id != null ? String(props.episode.id) : null, season: props?.episode?.season?.number ?? props?.episode?.season_number ?? null, episode: props?.episode?.number ?? props?.episode?.episode_number ?? null };
+        const title = props?.title ?? props?.show ?? props?.serie ?? props?.movie ?? null;
+        const episode = props?.episode ?? props?.selectedEpisode ?? props?.currentEpisode ?? null;
+        return {
+          present: Boolean(page),
+          dataPageLength: document.querySelector("#app")?.getAttribute("data-page")?.length ?? 0,
+          component: typeof page?.component === "string" ? page.component.slice(0, 100) : null,
+          propKeys: props && typeof props === "object" ? Object.keys(props).slice(0, 60) : [],
+          titleKeys: title && typeof title === "object" ? Object.keys(title).slice(0, 40) : [],
+          titleValue: typeof title === "string" ? title.slice(0, 160) : (title?.name ?? title?.title ?? title?.original_name ?? null),
+          episodeKeys: episode && typeof episode === "object" ? Object.keys(episode).slice(0, 40) : [],
+          episodeId: episode?.id != null ? String(episode.id) : null,
+          season: episode?.season?.number ?? episode?.season_number ?? episode?.season?.order ?? null,
+          episode: episode?.number ?? episode?.episode_number ?? episode?.order ?? null,
+        };
       })(),
       titleCandidates,
       episodeTexts,
