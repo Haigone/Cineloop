@@ -311,7 +311,9 @@
     const now = Date.now();
     const episodeChanged = key !== lastEpisodeKey;
     if (!force && !episodeChanged && now - lastProgressSentAt < PROGRESS_SEND_INTERVAL_MS) return;
-    if (!known.title && known.episode === null && progress === null) return;
+    // L'URL SC contiene gia' l'ID provider dell'episodio: invialo anche se titolo,
+    // numero e progresso non sono ancora leggibili (player cross-origin o DOM incompleto).
+    if (!known.title && known.episode === null && progress === null && !known.episodeId) return;
     lastSent = key;
     lastEpisodeKey = key;
     lastProgressSentAt = now;
