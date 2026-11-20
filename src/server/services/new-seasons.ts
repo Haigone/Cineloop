@@ -53,14 +53,15 @@ export async function listNewSeasons(repo: Repository, entries: readonly Library
 }
 
 /**
- * Series taken out of Novità that still want the release day ("Avvisami il giorno dell’uscita"):
- * on the day a season or an episode comes out, a notification (sent once).
+ * Series the viewer still follows for release news ("all" or "releaseDay"):
+ * on the day a season or an episode comes out, leave one notification.
+ * "none" is the only setting that suppresses release notifications.
  */
 export async function notifyReleaseDay(repo: Repository, userId: string, entries: readonly LibraryEntry[], titles: Map<string, Title>, today: string): Promise<void> {
   const catalog = getCatalog();
   if (!catalog.complete) return;
   const series = entries
-    .filter((e) => e.updates === "releaseDay")
+    .filter((e) => e.updates !== "none")
     .map((e) => titles.get(e.titleId))
     .filter((t): t is Title => Boolean(t) && t!.type !== "movie")
     .slice(0, CHECK_LIMIT);
