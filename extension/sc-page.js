@@ -29,6 +29,29 @@
     return numbered ? { season: null, episode: Number(numbered[1]) } : null;
   }
   const titleIdNow = () => /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname)?.slice(1).find(Boolean) ?? null;
+  // StreamingCommunity serializza i dati Inertia in #app[data-page].
+  let currentPageData = null;
+  function readInertiaPage(page = null) {
+    if (page && typeof page === "object") currentPageData = page;
+    if (!currentPageData) {
+      const raw = document.querySelector("#app")?.getAttribute("data-page");
+      if (raw) { try { currentPageData = JSON.parse(raw); } catch { currentPageData = null; } }
+    }
+    return currentPageData;
+  }
+  function fromInertiaPage() {
+    const page = readInertiaPage(); const props = page?.props;
+    if (!props?.title || (page.component && !/^Titles\/(Watch|Title)$/i.test(page.component))) return null;
+    const ep = props.episode;
+    const sv = ep?.season?.number ?? ep?.season_number ?? null;
+    const ev = ep?.number ?? ep?.episode_number ?? null;
+    const season = sv !== null && Number.isInteger(Number(sv)) ? Number(sv) : null;
+    const episode = ev !== null && Number.isInteger(Number(ev)) ? Number(ev) : null;
+    const rawTitle = props.title.name || props.title.title || props.title.original_name || "";
+    return { title: cleanTitle(rawTitle).slice(0, 200), season, episode, episodeId: ep?.id != null ? String(ep.id) : null };
+  }
+  document.addEventListener("inertia:navigate", (event) => { if (event.detail?.page) currentPageData = event.detail.page; read(true); });
+  document.addEventListener("inertia:success", (event) => { if (event.detail?.page) currentPageData = event.detail.page; read(true); });
 
   /** La serie che questa pagina sta mostrando, finche' non cambia pagina. */
   let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
@@ -283,6 +306,10 @@
       path: location.pathname,
       episodeId: episodeId && /^\d{1,12}$/.test(episodeId) ? episodeId : null,
       extracted: { title: known.title || null, season: known.season, episode: known.episode },
+      inertia: (() => {
+        const page = readInertiaPage(); const props = page?.props;
+        return { present: Boolean(page), component: page?.component ?? null, hasTitle: Boolean(props?.title?.name), hasEpisode: Boolean(props?.episode), episodeId: props?.episode?.id != null ? String(props.episode.id) : null, season: props?.episode?.season?.number ?? props?.episode?.season_number ?? null, episode: props?.episode?.number ?? props?.episode?.episode_number ?? null };
+      })(),
       titleCandidates,
       episodeTexts,
       counts: {
@@ -338,6 +365,14 @@
       known.episodeId = nextEpisodeId;
       known.season = null;
       known.episode = null;
+    }
+    const inertia = fromInertiaPage();
+    if (inertia) {
+      if (inertia.title) known.title = inertia.title;
+      if (inertia.episodeId && inertia.episodeId === nextEpisodeId) {
+        if (inertia.episode !== null) known.episode = inertia.episode;
+        if (inertia.season !== null) known.season = inertia.season;
+      }
     }
     for (const found of [fromHeading(), fromTitleTag()]) {
       if (!found) continue;
