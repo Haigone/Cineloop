@@ -318,7 +318,48 @@
         (entry.origin === location.origin || /api|graphql|streamingcommunity/i.test(entry.path || entry.origin)) &&
         all.findIndex((other) => other.origin === entry.origin && other.path === entry.path && other.type === entry.type) === index
       ).slice(0, 50);
+      const app = document.querySelector("#app");
+      const appTree = (() => {
+        const walk = (node, depth = 0) => {
+          if (!node || depth > 3) return null;
+          return [...node.children].slice(0, 20).map((el) => ({
+            tag: el.tagName.toLowerCase(),
+            id: el.id || null,
+            className: String(el.className || "").slice(0, 100),
+            childCount: el.children.length,
+            textLength: (el.textContent || "").trim().length,
+            text: clean(el.textContent).slice(0, 100),
+            children: depth < 3 ? walk(el, depth + 1) : [],
+          }));
+        };
+        return app ? walk(app) : [];
+      })();
+      const globalSignals = Object.keys(window).filter((key) =>
+        /inertia|initial|state|page|title|episode|season|series|show|movie|laravel|ziggy|vue|react/i.test(key)
+      ).slice(0, 80).map((key) => {
+        const value = window[key];
+        return {
+          key: key.slice(0, 100),
+          type: value === null ? "null" : Array.isArray(value) ? "array" : typeof value,
+          keys: value && typeof value === "object" ? Object.keys(value).slice(0, 40) : [],
+        };
+      });
+      const inlineScriptSignals = [...document.querySelectorAll("script:not([src])")]
+        .filter((script) => (script.textContent || "").length > 1000)
+        .slice(0, 12)
+        .map((script) => {
+          const source = script.textContent || "";
+          const jsonKeys = [...new Set([...source.matchAll(/["']([A-Za-z_$][\w$]*)["']\s*:/g)]
+            .map((match) => match[1])
+            .filter((key) => /title|episode|season|watch|series|show|movie|props|data|id|slug/i.test(key)))].slice(0, 80);
+          const assignments = [...new Set([...source.matchAll(/(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=/g)]
+            .map((match) => match[1]))].slice(0, 40);
+          return { length: source.length, jsonKeys, assignments };
+        });
       return {
+        appTree,
+        globalSignals,
+        inlineScriptSignals,
         readyState: document.readyState,
         title: clean(document.title).slice(0, 180),
         bodyText: clean(body?.innerText || body?.textContent || "").slice(0, 600),
