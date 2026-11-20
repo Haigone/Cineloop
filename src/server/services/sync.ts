@@ -125,6 +125,23 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
       await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
     }
   }
+  // If StreamingCommunity (or another provider) exposes only its episode ID,
+  // recover the local S/E from an exact link or a verified +1 anchor. Never
+  // guess from the ID alone when the sequence has not been verified.
+  const observedEpisodeId = obs.hints?.episodeId;
+  if (presence.titleId && presence.episode === null && observedEpisodeId) {
+    const coordinate = await repo.resolveEpisodeCoordinate({
+      providerId: presence.providerId,
+      titleId: presence.titleId,
+      externalId: observedEpisodeId,
+    });
+    if (coordinate) {
+      presence.season = coordinate.seasonNumber;
+      presence.episode = coordinate.episodeNumber;
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
+    }
+  }
+
   // Learn provider episode IDs only when both the local season/episode and provider episode ID are explicit.
   // The repository stores one anchor per season and enables arithmetic only after adjacent IDs verify a +1 sequence.
   // Parent season/show IDs are kept separately and never treated as episode IDs.
@@ -147,7 +164,6 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     });
   }
 
-  const observedEpisodeId = obs.hints?.episodeId;
   if (
     presence.titleId &&
     observedEpisodeId &&
