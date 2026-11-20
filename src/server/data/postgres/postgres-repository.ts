@@ -904,6 +904,24 @@ export class PostgresRepository implements Repository {
     return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
   }
 
+  async resolveEpisodeCoordinate(input: { providerId: ProviderId; titleId: string; externalId: string }) {
+    if (!/^\\d{1,12}$/.test(input.externalId)) return null;
+    const rows = await this.db.select().from(schema.episodeLinks).where(and(
+      eq(schema.episodeLinks.providerId, input.providerId),
+      eq(schema.episodeLinks.titleId, input.titleId),
+    ));
+    const exact = rows.find((row) => row.externalId === input.externalId);
+    if (exact) return { seasonNumber: exact.seasonNumber, episodeNumber: exact.episodeNumber };
+    const targetId = Number(input.externalId);
+    for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\\d+$/.test(row.externalId))) {
+      const episodeNumber = anchor.episodeNumber + targetId - Number(anchor.externalId);
+      if (Number.isSafeInteger(episodeNumber) && episodeNumber > 0) {
+        return { seasonNumber: anchor.seasonNumber, episodeNumber };
+      }
+    }
+    return null;
+  }
+
   async saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 ||
       !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1 ||
