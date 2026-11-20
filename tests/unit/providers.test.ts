@@ -108,6 +108,23 @@ describe("Streaming Community", () => {
     expect(adapter.capabilities).toEqual({ detectCurrentContent: true, deepLinks: true, progress: true });
   });
 
+  it("uses a stable title-page key when the active episode changes", async () => {
+    const watchUrl = "https://streamingcommunityz.dad/it/watch/4978?e=30393";
+    const current = await adapter.getCurrentContent(ctx({
+      ...observation,
+      url: watchUrl,
+      documentTitle: "StreamingCommunity",
+      hints: { episodeId: "30393" },
+    }));
+    expect(current).toMatchObject({
+      externalId: "https://streamingcommunityz.dad/it/watch/4978",
+      url: watchUrl,
+      title: "",
+      season: null,
+      episode: null,
+    });
+  });
+
   it("removes the generic Watch prefix from player titles", async () => {
     const current = await adapter.getCurrentContent(ctx({ ...observation, documentTitle: "Watch I Soprano - StreamingCommunity", hints: { title: "Watch I Soprano", season: 4, episode: 6 } }));
     expect(current?.title).toBe("I Soprano");
