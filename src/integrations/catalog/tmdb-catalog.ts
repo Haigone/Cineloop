@@ -488,7 +488,11 @@ export class TmdbCatalog implements CatalogService {
           const id = parseId(title.id) ?? parseId((await this.match(title))?.id ?? "");
           if (!id || id.kind !== "tv") return null;
           const details = await this.get<TmdbItem>(`/tv/${id.tmdbId}?`);
-          const next = nextSeasonOf(details, today);
+          // Prefer CineLoop's manually verified episode dates when available:
+          // some services/catalogue entries omit next_episode_to_air or publish
+          // an incorrect date, while the saved season schedule is authoritative.
+          const scheduled = nextEpisodeFromSavedSchedule(title, details, today);
+          const next = scheduled ?? nextSeasonOf(details, today);
           return next ? { title, ...next } : null;
         } catch {
           return null;
@@ -749,7 +753,20 @@ export class TmdbCatalog implements CatalogService {
  * first episode is scheduled, or because the season exists (renewed) with or
  * without a date yet. Exported for tests.
  */
-export function nextSeasonOf(d: TmdbItem, today: string): { season: number | null; date: string | null; episode?: number } | null {
+export function nextEpisodeFromSavedSchedule(title: Title, details: TmdbItem, today: string): { season: null; date: string; episode: number } | null {
+  if (title.type === "movie") return null;
+  const seasonNumber = details.last_episode_to_air?.season_number;
+  if (!seasonNumber) return null;
+  const lastEpisode = details.last_episode_to_air?.episode_number ?? 0;
+  const season = title.seasons.find((item) => item.number === seasonNumber);
+  if (!season?.episodeDates?.length) return null;
+  const next = season.episodeDates
+    .filter((item) => item.number > lastEpisode && item.airDate >= today)
+    .sort((a, b) => a.airDate.localeCompare(b.airDate) || a.number - b.number)[0];
+  return next ? { season: null, episode: next.number, date: next.airDate } : null;
+}
+
+function nextSeasonOf(d: TmdbItem, today: string): { season: number | null; date: string | null; episode?: number } | null {
   if (d.status === "Ended" || d.status === "Canceled") return null;
   const lastAired = d.last_episode_to_air?.season_number ?? 0;
   const next = d.next_episode_to_air;
