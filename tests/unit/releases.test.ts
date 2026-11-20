@@ -62,14 +62,14 @@ describe("next season", () => {
         number: 1,
         episodeCount: 6,
         episodeDates: [
-          { number: 4, title: "Episode 4", airDate: "2026-11-13" },
-          { number: 5, title: "Episode 5", airDate: "2026-11-20" },
-          { number: 6, title: "Episode 6", airDate: "2026-11-27" },
+          { number: 4, title: "Episode 4", airDate: "2026-11-20" },
+          { number: 5, title: "Episode 5", airDate: "2026-11-27" },
+          { number: 6, title: "Episode 6", airDate: "2026-12-04" },
         ],
       }],
     } as never;
     const [release] = await tmdb.nextSeasons([dexter], "2026-11-20");
-    expect(release).toMatchObject({ title: { id: "tmdb-tv-259909" }, season: null, episode: 5, date: "2026-11-20" });
+    expect(release).toMatchObject({ title: { id: "tmdb-tv-259909" }, season: null, episode: 5, date: "2026-11-27" });
   });
 
   it("returns the next weekly episode within the currently airing season", () => {
