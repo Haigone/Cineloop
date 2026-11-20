@@ -618,3 +618,34 @@ $("import-open").addEventListener("click", () => chrome.tabs.create({ url: MY_LI
 $("history-upload").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("import.html?mode=history") }));
 
 render();
+
+/** StreamingCommunity diagnostics stay in browser session storage and are never uploaded. */
+async function renderScDebug() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+  const { scDebug = {} } = await chrome.storage.session.get("scDebug");
+  const records = tab?.id ? (scDebug[tab.id] ?? []) : [];
+  $("sc-debug-output").textContent = records.length
+    ? JSON.stringify(records.map(({ fingerprint, ...record }) => record), null, 2)
+    : "Nessun dato raccolto per questa scheda. Apri/ricarica un episodio StreamingCommunity e attendi qualche secondo.";
+  $("sc-debug-status").textContent = records.length
+    ? `${records.length} rilevazioni locali · ultima: ${new Date(records[records.length - 1].at).toLocaleTimeString()}`
+    : "In attesa di dati dalla pagina StreamingCommunity.";
+}
+$("sc-debug-refresh").addEventListener("click", () => renderScDebug().catch(() => {}));
+$("sc-debug-copy").addEventListener("click", async () => {
+  await renderScDebug();
+  const value = $("sc-debug-output").textContent;
+  try {
+    await navigator.clipboard.writeText(value);
+    $("sc-debug-status").textContent = "Log copiato. Incollalo qui nella chat.";
+  } catch {
+    $("sc-debug-status").textContent = "Seleziona e copia manualmente il testo del log.";
+  }
+});
+$("sc-debug-clear").addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+  const { scDebug = {} } = await chrome.storage.session.get("scDebug");
+  if (tab?.id) delete scDebug[tab.id];
+  await chrome.storage.session.set({ scDebug });
+  await renderScDebug();
+});
