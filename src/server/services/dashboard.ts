@@ -149,6 +149,11 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
 
   // What the extension says is playing right now comes first; then the last one opened.
   const liveTitleId = presence && isLive(presence, now) ? presence.titleId : null;
+  // Dexter, New Blood and Resurrection belong to one viewing franchise. If
+  // more than one has an active progress entry, Home shows only the most recently
+  // watched one (the live session wins); the individual library records stay intact.
+  const dexterFranchiseIds = new Set(["tmdb-tv-1405", "tmdb-tv-131927", "tmdb-tv-259909"]);
+  const shownDexterFranchise = new Set<string>();
   const continueWatching = library
     .filter((e) => e.status === "watching" && e.progress && inSection.has(e.titleId))
     .sort(
@@ -156,6 +161,12 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
         Number(b.titleId === liveTitleId) - Number(a.titleId === liveTitleId) ||
         Date.parse(b.lastWatchedAt ?? b.progress?.updatedAt ?? "") - Date.parse(a.lastWatchedAt ?? a.progress?.updatedAt ?? ""),
     )
+    .filter((entry) => {
+      if (!dexterFranchiseIds.has(entry.titleId)) return true;
+      if (shownDexterFranchise.has("dexter")) return false;
+      shownDexterFranchise.add("dexter");
+      return true;
+    })
     .map((e) => (titles.get(e.titleId) ? toContinueItem(e, titles.get(e.titleId)!) : null))
     .filter((x): x is ContinueItem => x !== null)
     .map((item) => (item.title.id === liveTitleId ? { ...item, live: true } : item));
