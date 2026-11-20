@@ -349,10 +349,10 @@
         .slice(0, 12)
         .map((script) => {
           const source = script.textContent || "";
-          const jsonKeys = [...new Set([...source.matchAll(/["']([A-Za-z_$][\\w$]*)["']\\s*:/g)]
+          const jsonKeys = [...new Set([...source.matchAll(/["']([A-Za-z_$][\w$]*)["']\s*:/g)]
             .map((match) => match[1])
             .filter((key) => /title|episode|season|watch|series|show|movie|props|data|id|slug/i.test(key)))].slice(0, 80);
-          const assignments = [...new Set([...source.matchAll(/(?:window|globalThis)\\.([A-Za-z_$][\\w$]*)\\s*=/g)]
+          const assignments = [...new Set([...source.matchAll(/(?:window|globalThis)\\.([A-Za-z_$][\w$]*)\s*=/g)]
             .map((match) => match[1]))].slice(0, 40);
           return { length: source.length, jsonKeys, assignments };
         });
