@@ -183,6 +183,8 @@ export interface Repository {
   saveObservedEpisodeLink(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number; externalId: string }): Promise<void>;
   /** Resolve an exact episode ID or infer only from a verified anchor in the same season. */
   resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }): Promise<string | null>;
+  /** Resolve a provider episode ID back to its local season/episode using exact links or a verified +1 anchor. */
+  resolveEpisodeCoordinate(input: { providerId: ProviderId; titleId: string; externalId: string }): Promise<{ seasonNumber: number; episodeNumber: number } | null>;
 
   // Sagas: each user's watching order and the films they leave out
   listCollectionChoices(userId: string): Promise<CollectionChoice[]>;
