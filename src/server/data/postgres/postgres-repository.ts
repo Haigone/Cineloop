@@ -905,7 +905,7 @@ export class PostgresRepository implements Repository {
   }
 
   async resolveEpisodeCoordinate(input: { providerId: ProviderId; titleId: string; externalId: string }) {
-    if (!/^\\d{1,12}$/.test(input.externalId)) return null;
+    if (!/^\d{1,12}$/.test(input.externalId)) return null;
     const rows = await this.db.select().from(schema.episodeLinks).where(and(
       eq(schema.episodeLinks.providerId, input.providerId),
       eq(schema.episodeLinks.titleId, input.titleId),
@@ -913,7 +913,7 @@ export class PostgresRepository implements Repository {
     const exact = rows.find((row) => row.externalId === input.externalId);
     if (exact) return { seasonNumber: exact.seasonNumber, episodeNumber: exact.episodeNumber };
     const targetId = Number(input.externalId);
-    for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\\d+$/.test(row.externalId))) {
+    for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\d+$/.test(row.externalId))) {
       const episodeNumber = anchor.episodeNumber + targetId - Number(anchor.externalId);
       if (Number.isSafeInteger(episodeNumber) && episodeNumber > 0) {
         return { seasonNumber: anchor.seasonNumber, episodeNumber };
