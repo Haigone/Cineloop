@@ -168,6 +168,18 @@
         <p id="manage-sc-status" class="muted small"></p>
       </details>
 
+      <details id="sc-debug-panel" class="card">
+        <summary>Debug StreamingCommunity</summary>
+        <p class="muted small">Registra localmente gli elementi che il player espone e ciò che CineLoop riesce a leggere. Il log non viene inviato al server.</p>
+        <div class="row">
+          <button id="sc-debug-refresh" type="button">Aggiorna</button>
+          <button id="sc-debug-copy" type="button" class="primary">Copia log</button>
+          <button id="sc-debug-clear" type="button" class="quiet">Svuota</button>
+        </div>
+        <p id="sc-debug-status" class="muted small">Apri una pagina StreamingCommunity e avvia un episodio.</p>
+        <pre id="sc-debug-output" class="debug-output">Nessun dato raccolto.</pre>
+      </details>
+
       <footer>
         <button id="pause-btn"></button>
         <button id="open-btn">Apri CineLoop</button>

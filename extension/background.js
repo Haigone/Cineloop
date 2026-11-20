@@ -339,6 +339,31 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     enableAnimeFrameOrigin(message.origin).then(reply, () => reply(false));
     return true;
   }
+  if (message?.type === "sc-debug" && sender.tab?.id && isStreamingUrl(sender.url ?? "") &&
+      message.snapshot && typeof message.snapshot === "object") {
+    (async () => {
+      const snapshot = message.snapshot;
+      const safe = {
+        at: typeof snapshot.at === "string" ? snapshot.at.slice(0, 40) : new Date().toISOString(),
+        host: typeof snapshot.host === "string" ? snapshot.host.slice(0, 120) : "",
+        path: typeof snapshot.path === "string" ? snapshot.path.slice(0, 300) : "",
+        episodeId: typeof snapshot.episodeId === "string" && /^\d{1,12}$/.test(snapshot.episodeId) ? snapshot.episodeId : null,
+        extracted: snapshot.extracted && typeof snapshot.extracted === "object" ? snapshot.extracted : {},
+        titleCandidates: Array.isArray(snapshot.titleCandidates) ? snapshot.titleCandidates.slice(0, 8) : [],
+        episodeTexts: Array.isArray(snapshot.episodeTexts) ? snapshot.episodeTexts.slice(0, 35) : [],
+        counts: snapshot.counts && typeof snapshot.counts === "object" ? snapshot.counts : {},
+        frames: Array.isArray(snapshot.frames) ? snapshot.frames.slice(0, 15) : [],
+        playerVideo: snapshot.playerVideo ?? null,
+      };
+      const { scDebug = {} } = await chrome.storage.session.get("scDebug");
+      const records = Array.isArray(scDebug[sender.tab.id]) ? scDebug[sender.tab.id] : [];
+      const fingerprint = JSON.stringify(safe);
+      if (records.length && records[records.length - 1].fingerprint === fingerprint) return;
+      records.push({ ...safe, fingerprint });
+      await chrome.storage.session.set({ scDebug: { ...scDebug, [sender.tab.id]: records.slice(-50) } });
+    })().then(() => reply(true), () => reply(false));
+    return true;
+  }
   if (message?.type === "player-title" && sender.tab?.id) {
     playerTitle(sender.tab.id, message).then(() => reply(true), () => reply(false));
     return true;
