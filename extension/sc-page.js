@@ -300,8 +300,46 @@
       catch { return { origin: "unavailable", accessible: false }; }
     });
     const v = findVideo();
+    const documentState = (() => {
+      const body = document.body;
+      const scripts = [...document.querySelectorAll("script")].slice(0, 40).map((script) => ({
+        id: script.id || null,
+        type: script.type || null,
+        src: (() => { try { const u = new URL(script.src); return u.origin === location.origin ? u.pathname : u.origin; } catch { return null; } })(),
+        inlineLength: script.src ? 0 : (script.textContent || "").length,
+        inlineHints: !script.src ? [...new Set((script.textContent || "").match(/(?:episode|season|title|watch|__NEXT_DATA__|__INITIAL_STATE__)/gi) || [])].slice(0, 12) : [],
+      }));
+      const resources = performance.getEntriesByType("resource").map((entry) => {
+        try {
+          const u = new URL(entry.name);
+          return { origin: u.origin, path: u.origin === location.origin ? u.pathname : null, type: entry.initiatorType };
+        } catch { return null; }
+      }).filter(Boolean).filter((entry, index, all) =>
+        (entry.origin === location.origin || /api|graphql|streamingcommunity/i.test(entry.path || entry.origin)) &&
+        all.findIndex((other) => other.origin === entry.origin && other.path === entry.path && other.type === entry.type) === index
+      ).slice(0, 50);
+      return {
+        readyState: document.readyState,
+        title: clean(document.title).slice(0, 180),
+        bodyText: clean(body?.innerText || body?.textContent || "").slice(0, 600),
+        bodyChildTags: body ? [...body.children].slice(0, 30).map((el) => ({
+          tag: el.tagName.toLowerCase(),
+          id: el.id || null,
+          className: String(el.className || "").slice(0, 100),
+          childCount: el.children.length,
+        })) : [],
+        scriptCount: document.querySelectorAll("script").length,
+        scripts,
+        resources,
+        shadowHosts: [...document.querySelectorAll("*")].filter((el) => el.shadowRoot).slice(0, 20).map((el) => ({
+          tag: el.tagName.toLowerCase(), id: el.id || null, className: String(el.className || "").slice(0, 80),
+          childCount: el.shadowRoot.childElementCount,
+        })),
+      };
+    })();
     return {
       at: new Date().toISOString(),
+      documentState,
       host: location.host,
       path: location.pathname,
       episodeId: episodeId && /^\d{1,12}$/.test(episodeId) ? episodeId : null,
