@@ -755,7 +755,7 @@ export class MemoryRepository implements Repository {
   }
 
   async resolveEpisodeCoordinate(input: { providerId: ProviderId; titleId: string; externalId: string }) {
-    if (!/^\\d{1,12}$/.test(input.externalId)) return null;
+    if (!/^\d{1,12}$/.test(input.externalId)) return null;
     const prefix = `${input.providerId}:${input.titleId}:`;
     const rows = [...this.episodeLinks.entries()]
       .filter(([key]) => key.startsWith(prefix))
@@ -763,7 +763,7 @@ export class MemoryRepository implements Repository {
     const exact = rows.find((row) => row.externalId === input.externalId);
     if (exact) return { seasonNumber: exact.seasonNumber, episodeNumber: exact.episodeNumber };
     const targetId = Number(input.externalId);
-    for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\\d+$/.test(row.externalId))) {
+    for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\d+$/.test(row.externalId))) {
       const episodeNumber = anchor.episodeNumber + targetId - Number(anchor.externalId);
       if (Number.isSafeInteger(episodeNumber) && episodeNumber > 0) {
         return { seasonNumber: anchor.seasonNumber, episodeNumber };
