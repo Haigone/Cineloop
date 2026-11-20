@@ -155,7 +155,7 @@
               const url = new URL(link.href, location.href);
               const id = url.searchParams.get("e");
               if (url.origin !== location.origin || url.pathname !== location.pathname ||
-                  !id || !/^\\d{1,12}$/.test(id) || seen.has(id)) continue;
+                  !id || !/^\d{1,12}$/.test(id) || seen.has(id)) continue;
               seen.add(id);
               episodeLinks.push({ link, id });
             } catch {}
@@ -168,7 +168,7 @@
         }
         if (best) {
           const seasonText = clean(best.container.textContent);
-          const seasonMatch = /(?:stagione|season|s)\\s*(\\d{1,3})/i.exec(seasonText);
+          const seasonMatch = /(?:stagione|season|s)\\s*(\d{1,3})/i.exec(seasonText);
           return { season: seasonMatch ? Number(seasonMatch[1]) : null, episode: best.index + 1 };
         }
       }
