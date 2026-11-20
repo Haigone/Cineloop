@@ -46,8 +46,16 @@ describe("next season", () => {
     expect(nextSeasonOf({ ...base, seasons }, TODAY)).toEqual({ season: 5, date: null });
   });
 
-  it("ignores mid-season episodes and ended shows", () => {
-    expect(nextSeasonOf({ ...base, next_episode_to_air: { season_number: 4, episode_number: 9, air_date: "2026-10-10" } }, TODAY)).toBeNull();
+  it("returns the next weekly episode within the currently airing season", () => {
+    expect(nextSeasonOf({ ...base, next_episode_to_air: { season_number: 4, episode_number: 9, air_date: "2026-10-10" } }, TODAY)).toEqual({
+      season: null,
+      episode: 9,
+      date: "2026-10-10",
+    });
+  });
+
+  it("ignores stale mid-season episodes and ended shows", () => {
+    expect(nextSeasonOf({ ...base, next_episode_to_air: { season_number: 4, episode_number: 9, air_date: "2026-10-01" } }, TODAY)).toBeNull();
     expect(nextSeasonOf({ ...base, status: "Ended", seasons: [{ season_number: 5, episode_count: 0, air_date: null }] }, TODAY)).toBeNull();
   });
 
