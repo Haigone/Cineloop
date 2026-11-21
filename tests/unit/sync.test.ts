@@ -85,6 +85,28 @@ describe("extension sync", () => {
     await endPresence("u_marco");
   });
 
+  it("learns a StreamingCommunity episode ID when season and episode are manually confirmed", async () => {
+    const pageUrl = "https://streamingcommunityz.dad/it/watch/4978";
+    await repo.updatePreferences("u_marco", { providerConsent: { streamingcommunity: "accepted" } });
+    await repo.saveProviderLink({
+      providerId: "streamingcommunity", externalId: pageUrl, titleId: "dark", userId: "u_marco",
+    });
+
+    const status = await handleObservation("u_marco", {
+      providerId: "streamingcommunity",
+      url: `${pageUrl}?e=30396`,
+      documentTitle: "StreamingCommunity",
+      hints: { season: 6, episode: 20, episodeId: "30396" },
+      observedAt: new Date().toISOString(),
+    });
+
+    expect(status.watching).toMatchObject({ title: { id: "dark" }, season: 6, episode: 20 });
+    await expect(repo.resolveEpisodeCoordinate({
+      providerId: "streamingcommunity", titleId: "dark", externalId: "30396",
+    })).resolves.toEqual({ seasonNumber: 6, episodeNumber: 20 });
+    await endPresence("u_marco");
+  });
+
   it("puts the title in progress, records the activity and takes it off the wishlist", async () => {
     const { ep } = ids();
     const library = await repo.listLibrary("u_marco");
