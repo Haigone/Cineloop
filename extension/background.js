@@ -703,7 +703,7 @@ async function manualProgress(m) {
   const season = Number.isInteger(m.season) ? m.season : null;
   const episode = Number.isInteger(m.episode) ? m.episode : null;
   const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 100 ? m.progress / 100 : null;
-  const episodeId = typeof m.episodeId === "string" && /^\\d{1,12}$/.test(m.episodeId.trim())
+  const episodeId = typeof m.episodeId === "string" && /^[0-9]{1,12}$/.test(m.episodeId.trim())
     ? m.episodeId.trim()
     : null;
   if (season === null && episode === null && progress === null && episodeId === null) return false;
