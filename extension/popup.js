@@ -79,7 +79,10 @@ async function render() {
   show("sc-actions", otherProvider !== null);
   show("manual-provider-id-wrap", w.providerId === "streamingcommunity");
   const { tabs: playerTabs = {} } = await chrome.storage.session.get("tabs");
-  const currentPlayer = playerTabs[w.tabId]?.player;
+  const currentPlayer = Object.values(playerTabs)
+    .map((entry) => entry.player)
+    .filter(Boolean)
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0];
   const playerId = currentPlayer?.episodeId;
   if (w.providerId === "streamingcommunity" && playerId && !$("manual-provider-id").value) {
     $("manual-provider-id").value = playerId;
