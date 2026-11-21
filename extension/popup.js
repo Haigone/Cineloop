@@ -77,6 +77,13 @@ async function render() {
       : w.providerId === "prime-video" ? "su Prime Video" : "su Netflix";
   $("watching-meta").textContent = [w.title?.year ? `Anno titolo: ${w.title.year}` : null, w.providerId === "animeunity" && /shin[-_ ]henshuu-ban/i.test(w.url ?? "") ? "Director’s Cut" : null, ep, providerLabel].filter(Boolean).join(" · ");
   show("sc-actions", otherProvider !== null);
+  show("manual-provider-id-wrap", w.providerId === "streamingcommunity");
+  const { tabs: playerTabs = {} } = await chrome.storage.session.get("tabs");
+  const currentPlayer = playerTabs[w.tabId]?.player;
+  const playerId = currentPlayer?.episodeId;
+  if (w.providerId === "streamingcommunity" && playerId && !$("manual-provider-id").value) {
+    $("manual-provider-id").value = playerId;
+  }
   // Manual episode/progress controls are shown for AnimeUnity and StreamingCommunity.
   // Do not touch a search-hint node: the current popup markup does not include it.
   $("player-read").textContent = await playerReading();
@@ -455,8 +462,15 @@ $("manual-form").addEventListener("submit", async (e) => {
     const v = $(id).value.trim();
     return v === "" ? null : Math.round(Number(v));
   };
+  const providerEpisodeId = $("manual-provider-id").value.trim();
   const ok = await chrome.runtime
-    .sendMessage({ type: "manual-progress", season: num("manual-season"), episode: num("manual-episode"), progress: num("manual-progress") })
+    .sendMessage({
+      type: "manual-progress",
+      season: num("manual-season"),
+      episode: num("manual-episode"),
+      progress: num("manual-progress"),
+      ...(providerEpisodeId ? { episodeId: providerEpisodeId } : {}),
+    })
     .catch(() => false);
   show("manual-ok", Boolean(ok));
   if (ok) await render();
