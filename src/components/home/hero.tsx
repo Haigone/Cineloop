@@ -110,7 +110,7 @@ export function Hero({ item, together, collection }: { item: ContinueItem; toget
           {collection?.nextTitle && <p className="mt-3 truncate text-xs font-semibold text-violet-200">Dopo questo titolo: {collection.nextTitle.title}</p>}
           {seriesFraction !== null && (
             <div className="mt-3">
-              <ProgressBar value={seriesFraction} label={`Avanzamento nella serie ${title.title}`} size="xs" />
+              <ProgressBar value={seriesFraction} label={`Avanzamento nella serie ${title.title}`} tone="neutral" size="xs" />
               <p className="mt-1.5 text-xs tabular text-fg-3">{percent(seriesFraction)} della serie</p>
             </div>
           )}
