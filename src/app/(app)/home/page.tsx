@@ -24,6 +24,7 @@ import { WeekStats } from "@/components/home/week-stats";
 import { RecentlyWatched } from "@/components/home/recently-watched";
 import { TonightQueue } from "@/components/home/tonight-queue";
 import { RatePrompt } from "@/components/home/rate-prompt";
+import { CompletionPrompt } from "@/components/home/completion-prompt";
 import { NewEpisodeNotice } from "@/components/home/new-episode-notice";
 import { FillerNotice } from "@/components/home/filler-notice";
 import { AwaitingList } from "@/components/library/awaiting-list";
@@ -127,6 +128,9 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
     {view.background && <SectionBackdrop title={view.background} />}
     <h1 className="sr-only">Home: {section.label}</h1>
     <HomeSectionTabs current={view.category} background={view.background} />
+    {view.completionPrompt && (
+      <CompletionPrompt title={view.completionPrompt.title} prompt={view.completionPrompt.prompt} />
+    )}
     {view.toRate.length > 0 && (
       <div className="mt-6">
         <RatePrompt titles={view.toRate} />
