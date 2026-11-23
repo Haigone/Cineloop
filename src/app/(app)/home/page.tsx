@@ -23,7 +23,6 @@ import { reasonLabel } from "@/components/home/tonight";
 import { WeekStats } from "@/components/home/week-stats";
 import { RecentlyWatched } from "@/components/home/recently-watched";
 import { TonightQueue } from "@/components/home/tonight-queue";
-import { RatePrompt } from "@/components/home/rate-prompt";
 import { NewEpisodeNotice } from "@/components/home/new-episode-notice";
 import { FillerNotice } from "@/components/home/filler-notice";
 import { AwaitingList } from "@/components/library/awaiting-list";
@@ -127,11 +126,6 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/home">[
     {view.background && <SectionBackdrop title={view.background} />}
     <h1 className="sr-only">Home: {section.label}</h1>
     <HomeSectionTabs current={view.category} background={view.background} />
-    {view.toRate.length > 0 && (
-      <div className="mt-6">
-        <RatePrompt titles={view.toRate} />
-      </div>
-    )}
     <Reveal key={view.category} className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       {/* Main column. `contents` below xl lets the side panels interleave by priority on small screens. */}
       <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-10">
