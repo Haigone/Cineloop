@@ -696,6 +696,21 @@ async function startWatching(
  * how far into it. Watching a title marked as seen (a rewatch, a new season)
  * puts it back in progress. Writes only when something changed.
  */
+function providerEpisodeId(providerId: Presence["providerId"], value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (providerId === "streamingcommunity") {
+      const id = url.searchParams.get("e");
+      return id && /^\d{1,12}$/.test(id) ? id : null;
+    }
+    if (providerId === "animeunity") {
+      return /\/(\d{1,12})\/?$/.exec(url.pathname)?.[1] ?? null;
+    }
+  } catch {}
+  return null;
+}
+
 async function syncProgress(
   repo: Repository,
   presence: Presence,
@@ -748,6 +763,12 @@ async function syncProgress(
     if (presence.season === null) presence.season = inferSeason(title, prev, presence.episode);
   }
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
+  const previousPrompt = prev?.completionPrompt ?? null;
+  // After the user confirms an episode, ignore stale heartbeats from that same
+  // provider episode until the player actually moves to the next one.
+  if (previousPrompt?.status === "advanced" &&
+      previousPrompt.season === presence.season && previousPrompt.episode === presence.episode) return;
+
   // Some provider players expose position/duration more reliably than a normalized
   // progress hint. Derive the fraction from those values so an episode can finish
   // instead of remaining stuck near 99% when the progress field is absent.
@@ -758,13 +779,36 @@ async function syncProgress(
         ? Math.max(0, Math.min(1, position! / duration!))
         : null;
   const next = measuredFraction ?? (sameEpisode ? prev!.fraction : 0);
+  const runtimeSeconds = title
+    ? (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) * 60
+    : 0;
+  const remainingSeconds = Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
+    ? Math.max(0, duration! - position!)
+    : runtimeSeconds > 0 ? Math.max(0, runtimeSeconds * (1 - next)) : Number.POSITIVE_INFINITY;
+  const priorPromptIsPending = previousPrompt?.status === "pending";
+  const priorPromptIsDismissedHere = previousPrompt?.status === "dismissed" && sameEpisode;
+  const completionPrompt = priorPromptIsPending
+    ? previousPrompt
+    : priorPromptIsDismissedHere
+      ? previousPrompt
+      : remainingSeconds <= 5 * 60 && entry?.status === "watching"
+        ? {
+            status: "pending" as const,
+            season: presence.season,
+            episode: presence.episode,
+            episodeId: providerEpisodeId(presence.providerId, presence.url),
+            providerId: presence.providerId,
+            url: presence.url,
+            remainingSeconds: Math.round(remainingSeconds),
+          }
+        : undefined;
   if (title) {
     const today = italianDay();
     const at = { season: presence.season, episode: presence.episode, fraction: next };
     // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today, entry?.partOverrides) && (fraction === null || fraction >= 0.5)) return;
-    const providerNeedsConfirmation = ["netflix", "animeunity", "streamingcommunity"].includes(presence.providerId);
-    if ((!providerNeedsConfirmation || completionConfirmed) && finishesTitle(title, at, today, entry?.partOverrides)) {
+    // Reaching the final minutes only asks the user; it never marks a title seen by itself.
+    if (completionConfirmed && finishesTitle(title, at, today, entry?.partOverrides)) {
       await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
       await shareProgress(repo, presence.userId, titleId, "finished");
       await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });
@@ -781,9 +825,10 @@ async function syncProgress(
     (sameEpisode && prev?.positionSeconds !== undefined && Math.abs(prev.positionSeconds - nextPosition) < 10);
   const durationUnchanged = nextDuration === undefined ||
     (sameEpisode && prev?.durationSeconds !== undefined && Math.abs(prev.durationSeconds - nextDuration) < 1);
+  const samePrompt = JSON.stringify(prev?.completionPrompt ?? null) === JSON.stringify(completionPrompt ?? null);
   const unchanged = entry?.status === "watching" && sameEpisode &&
     Math.abs(prev!.fraction - next) < 0.01 && prev!.url === presence.url &&
-    positionUnchanged && durationUnchanged;
+    positionUnchanged && durationUnchanged && samePrompt;
   if (unchanged) return;
   await repo.saveProgress(presence.userId, {
     titleId,
@@ -793,6 +838,7 @@ async function syncProgress(
     fraction: next,
     ...(nextPosition !== undefined ? { positionSeconds: nextPosition } : {}),
     ...(nextDuration !== undefined ? { durationSeconds: nextDuration } : {}),
+    ...(completionPrompt ? { completionPrompt } : {}),
     url: presence.url,
     updatedAt: new Date().toISOString(),
   });
