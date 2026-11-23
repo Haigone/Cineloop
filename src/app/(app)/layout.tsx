@@ -4,6 +4,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConsentPrompt } from "@/components/consent/consent-prompt";
 import { CompletionPrompt } from "@/components/home/completion-prompt";
+import { RatePrompt } from "@/components/home/rate-prompt";
 import { ExtensionBanner } from "@/components/layout/extension-banner";
 import { GuestBanner } from "@/components/layout/guest-banner";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -52,6 +53,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           </Suspense>
         </div>
         <main id="main" tabIndex={-1} className="mx-auto max-w-[1480px] px-4 pt-6 pb-28 outline-none md:px-6 md:pb-16 lg:px-8">
+          <Suspense>
+            <PendingRatingPrompts />
+          </Suspense>
           {children}
           {process.env.TMDB_READ_TOKEN && (
             <p className="mt-16 text-xs text-fg-3">Questo prodotto usa l&apos;API di TMDB ma non è approvato né certificato da TMDB.</p>
@@ -112,4 +116,19 @@ async function PendingCompletionPrompt() {
   const [title] = await repo.getTitlesByIds([pending.titleId]);
   if (!title) return null;
   return <CompletionPrompt title={title} prompt={pending.progress.completionPrompt} />;
+}
+
+
+/** Rating requests follow the viewer across the app and can always be skipped. */
+async function PendingRatingPrompts() {
+  const user = await getCurrentUser();
+  const repo = getRepository();
+  const library = await repo.listLibrary(user.id);
+  const pending = library
+    .filter((entry) => entry.askRating && entry.rating === null)
+    .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
+    .slice(0, 3);
+  if (!pending.length) return null;
+  const titles = await repo.getTitlesByIds(pending.map((entry) => entry.titleId));
+  return titles.length ? <div className="mb-6"><RatePrompt titles={titles} /></div> : null;
 }
