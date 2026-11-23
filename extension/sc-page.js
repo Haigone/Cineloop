@@ -490,7 +490,7 @@
         videos: document.querySelectorAll("video").length,
       },
       frames,
-      playerVideo: v ? { duration: Number.isFinite(v.duration) ? Math.round(v.duration) : null, readyState: v.readyState, paused: v.paused } : null,
+      playerVideo: v ? { currentTime: Number.isFinite(v.currentTime) ? Math.round(v.currentTime * 10) / 10 : null, duration: Number.isFinite(v.duration) ? Math.round(v.duration * 10) / 10 : null, remaining: Number.isFinite(v.duration) && Number.isFinite(v.currentTime) ? Math.round((v.duration - v.currentTime) * 10) / 10 : null, readyState: v.readyState, paused: v.paused, playbackRate: v.playbackRate, width: v.videoWidth, height: v.videoHeight, source: (() => { try { return v.currentSrc ? new URL(v.currentSrc).origin : null; } catch { return null; } })() } : null,
     };
   }
   function sendDebug(force = false) {
