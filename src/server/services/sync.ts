@@ -784,7 +784,8 @@ async function syncProgress(
     : runtimeSeconds > 0 ? Math.max(0, runtimeSeconds * (1 - next)) : Number.POSITIVE_INFINITY;
   const priorPromptIsPending = previousPrompt?.status === "pending";
   const priorPromptIsDismissedHere = previousPrompt?.status === "dismissed" &&
-    previousPrompt.season === presence.season && previousPrompt.episode === presence.episode;
+    previousPrompt.season === presence.season && previousPrompt.episode === presence.episode &&
+    remainingSeconds > 0;
   const completionPrompt = priorPromptIsPending
     ? previousPrompt
     : priorPromptIsDismissedHere
