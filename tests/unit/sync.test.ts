@@ -122,7 +122,7 @@ describe("extension sync", () => {
     expect(latest).toMatchObject({ kind: "watching", titleId: fresh });
   });
 
-  it("the end of the last episode marks the series seen and asks for a rating; the credits keep it so", async () => {
+  it("the final five minutes create a confirmation prompt without auto-completing the series", async () => {
     // Adolescence: one season of 4 episodes.
     const { ep } = ids();
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 3, progress: 0.95 } }));
@@ -132,20 +132,20 @@ describe("extension sync", () => {
     let entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
     expect(entry).toMatchObject({ status: "watching", progress: { fraction: 0.99 } });
 
-    // A nearly finished player must not mark the title seen until the user confirms it.
+    // Even an ended-player signal only leaves a pending question; the user must answer it on Home.
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 1, completionConfirmed: true } }));
     entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
-    expect(entry).toMatchObject({ status: "completed", seenThrough: 1, askRating: true, progress: null });
-    // Events recorded within the same millisecond have no fixed order: look at the last few.
+    expect(entry).toMatchObject({
+      status: "watching",
+      progress: { fraction: 1, completionPrompt: { status: "pending", season: 1, episode: 4 } },
+    });
     const recent = await repo.listActivity(["u_marco"], 5);
-    expect(recent.some((a) => a.kind === "completed" && a.titleId === "adolescence")).toBe(true);
+    expect(recent.some((a) => a.kind === "completed" && a.titleId === "adolescence")).toBe(false);
 
     await handleObservation("u_marco", watch(ep, { documentTitle: "Adolescence - Netflix", hints: { season: 1, episode: 4, progress: 0.98 } }));
     entry = (await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence");
-    expect(entry?.status).toBe("completed");
-
-    await repo.setRating("u_marco", "adolescence", 8);
-    expect((await repo.listLibrary("u_marco")).find((e) => e.titleId === "adolescence")?.askRating).toBe(false);
+    expect(entry?.status).toBe("watching");
+    expect(entry?.progress?.completionPrompt?.status).toBe("pending");
   });
 
   it("leaving a non-playback page ends the session", async () => {
