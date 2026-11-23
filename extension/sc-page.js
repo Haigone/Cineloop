@@ -33,9 +33,13 @@
   // L'attributo viene aggiornato dalla SPA: rileggilo, invece di conservare per
   // tutta la vita del content script la prima pagina (spesso ancora incompleta).
   let currentPageData = null;
+  let currentPageDataFromEvent = false;
   function readInertiaPage(page = null) {
-    if (page && typeof page === "object") currentPageData = page;
-    const raw = document.querySelector("#app")?.getAttribute("data-page");
+    if (page && typeof page === "object") {
+      currentPageData = page;
+      currentPageDataFromEvent = true;
+    }
+    const raw = currentPageDataFromEvent ? null : document.querySelector("#app")?.getAttribute("data-page");
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
