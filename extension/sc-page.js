@@ -135,6 +135,7 @@
   let lastSent = "";
   let lastEpisodeKey = "";
   let lastProgressSentAt = 0;
+  let lastFrameProgressSentAt = 0;
   let boundVideo = null;
   const PROGRESS_SEND_INTERVAL_MS = 5_000;
 
@@ -143,7 +144,7 @@
     boundVideo = video;
     const sendNow = () => read(true);
     video.addEventListener("timeupdate", () => {
-      if (Date.now() - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
+      if (Date.now() - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
     });
     video.addEventListener("pause", sendNow);
     video.addEventListener("ended", () => read(true, 1));
@@ -516,8 +517,8 @@
       if (frameDuration) {
         const frameProgress = Math.round(Math.min(0.99, Math.max(0, frameVideo.currentTime / frameDuration)) * 100000) / 100000;
         const now = Date.now();
-        if (force || now - lastProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) {
-          lastProgressSentAt = now;
+        if (force || now - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) {
+          lastFrameProgressSentAt = now;
           try { chrome.runtime.sendMessage({ type: "player-progress", progress: forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : frameProgress, position: frameVideo.currentTime, duration: frameDuration, force }).catch(() => {}); } catch {}
         }
       }
@@ -568,10 +569,22 @@
     const rawProgress = forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : duration ? Math.min(0.99, Math.max(0, video.currentTime / duration)) : null;
     const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
     const next = nextEpisodeInfo(known.episode, known.episodeId);
+    const position = video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null;
+    // Invia la telemetria del video anche quando l'identità dell'episodio è già
+    // stata comunicata: il background la usa per aggiornare posizione e durata
+    // senza dipendere dal ciclo di sincronizzazione del titolo.
+    const progressNow = Date.now();
+    if (progress !== null && (force || progressNow - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS)) {
+      lastFrameProgressSentAt = progressNow;
+      try {
+        chrome.runtime.sendMessage({
+          type: "player-progress", progress, position, duration, force,
+        }).catch(() => {});
+      } catch {}
+    }
     const message = {
       type: "player-title", ...known, pageUrl: location.href, progress, ended: forcedProgress === 1,
-      position: video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null,
-      duration, force,
+      position, duration, force,
       ...(next ? { nextEpisodeUrl: next.url, nextEpisode: next.episode } : {}),
     };
     const key = JSON.stringify(known);
