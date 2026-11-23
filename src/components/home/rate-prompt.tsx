@@ -26,7 +26,8 @@ function RateRow({ title, onDone }: { title: Title; onDone: () => void }) {
   const [value, setValue] = useState<RatingValue | null>(null);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
-  const what = title.type === "movie" ? "il film" : "la serie";
+  const what = title.type === "movie" ? "il film" : title.type === "anime" ? "l’anime" : "la serie";
+  const pronoun = title.type === "series" ? "le" : "gli";
 
   function rate(v: RatingValue | null) {
     if (v === null) return;
@@ -57,7 +58,7 @@ function RateRow({ title, onDone }: { title: Title; onDone: () => void }) {
         <KeyArt title={title} variant="poster" sizes="48px" className="aspect-[2/3] w-12 shrink-0 rounded-md border border-line" />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-fg">
-            Hai finito {what} <span className="font-semibold">{title.title}</span>. Che voto {title.type === "movie" ? "gli" : "le"} dai?
+            Hai finito {what} <span className="font-semibold">{title.title}</span>. Che voto {pronoun} dai?
           </p>
           <div className="mt-1.5">
             <RatingInput value={value} onChange={rate} label={`Il tuo voto a ${title.title}`} disabled={pending} />
