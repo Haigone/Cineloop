@@ -128,7 +128,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
   // recover the local S/E from an exact link or a verified +1 anchor. Never
   // guess from the ID alone when the sequence has not been verified.
   const observedEpisodeId = obs.hints?.episodeId;
-  if (presence.titleId && content.episode === null && observedEpisodeId) {
+  if (presence.titleId && observedEpisodeId && (presence.episode === null || presence.season === null)) {
     const coordinate = await repo.resolveEpisodeCoordinate({
       providerId: presence.providerId,
       titleId: presence.titleId,
