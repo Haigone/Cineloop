@@ -390,11 +390,12 @@ export async function respondToCompletionPrompt(id: string, finished: boolean): 
     if (!currentEpisodeId && prompt.url) {
       try {
         const current = new URL(prompt.url);
-        currentEpisodeId = prompt.providerId === "streamingcommunity"
+        const candidate = prompt.providerId === "streamingcommunity"
           ? current.searchParams.get("e")
           : prompt.providerId === "animeunity"
             ? /\/(\d{1,12})\/?$/.exec(current.pathname)?.[1] ?? null
             : null;
+        currentEpisodeId = candidate && /^\d{1,12}$/.test(candidate) ? candidate : null;
       } catch {}
     }
     if (!currentEpisodeId && prompt.providerId) {
