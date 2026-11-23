@@ -285,6 +285,151 @@ export async function finishTitle(id: string): Promise<ActionResult> {
   }, "Non siamo riusciti a segnarlo come visto.");
 }
 
+/**
+ * The player reached the final five minutes. The user decides whether the
+ * film/episode is actually finished; series advance one episode at a time.
+ */
+export async function respondToCompletionPrompt(id: string, finished: boolean): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  const parsedId = titleId.safeParse(id);
+  if (!parsedId.success || typeof finished !== "boolean") return { ok: false, error: "Richiesta non valida." };
+  const repo = getRepository();
+  const entry = (await repo.listLibrary(user.id)).find((item) => item.titleId === parsedId.data);
+  const progress = entry?.progress;
+  const prompt = progress?.completionPrompt;
+  if (!entry || entry.status !== "watching" || !progress || prompt?.status !== "pending") {
+    return { ok: false, error: "La richiesta di completamento non è più disponibile." };
+  }
+  const title = await cacheRemoteTitle(parsedId.data);
+  if (!title) return { ok: false, error: "Titolo non trovato." };
+
+  return run(async () => {
+    if (!finished) {
+      await repo.saveProgress(user.id, {
+        ...progress,
+        completionPrompt: { ...prompt, status: "dismissed" },
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (title.type === "movie") {
+      await repo.markFinished(user.id, title.id, null);
+      await shareProgress(repo, user.id, title.id, "finished");
+      await repo.removeFromWishlist(user.id, title.id);
+      await record(user.id, "completed", title.id);
+      return;
+    }
+
+    if (prompt.season === null || prompt.episode === null) {
+      throw new Error("Stagione o episodio non riconosciuti: impossibile avanzare in sicurezza.");
+    }
+
+    const overrides = entry.partOverrides;
+    const aired = airedSeasons(title, italianDay(), overrides);
+    const currentSeason = title.seasons.find((season) => season.number === prompt.season);
+    if (!currentSeason) throw new Error("Stagione corrente non trovata nel catalogo.");
+
+    let nextSeason = prompt.season;
+    let nextEpisode = prompt.episode + 1;
+    if (prompt.episode >= currentSeason.episodeCount) {
+      const following = aired.find((season) => season.number > prompt.season!);
+      if (following) {
+        nextSeason = following.number;
+        nextEpisode = 1;
+      } else {
+        await repo.markFinished(user.id, title.id, aired.at(-1)?.number ?? prompt.season);
+        await shareProgress(repo, user.id, title.id, "finished");
+        await repo.removeFromWishlist(user.id, title.id);
+        await record(user.id, "completed", title.id);
+        return;
+      }
+    }
+
+    let currentEpisodeId = prompt.episodeId;
+    if (!currentEpisodeId && prompt.url) {
+      try {
+        const current = new URL(prompt.url);
+        currentEpisodeId = prompt.providerId === "streamingcommunity"
+          ? current.searchParams.get("e")
+          : prompt.providerId === "animeunity"
+            ? /\/(\d{1,12})\/?$/.exec(current.pathname)?.[1] ?? null
+            : null;
+      } catch {}
+    }
+    if (!currentEpisodeId && prompt.providerId) {
+      currentEpisodeId = await repo.resolveEpisodeExternalId({
+        providerId: prompt.providerId,
+        titleId: title.id,
+        seasonNumber: prompt.season,
+        episodeNumber: prompt.episode,
+      }).catch(() => null);
+    }
+    const mappedNextId = prompt.providerId
+      ? await repo.resolveEpisodeExternalId({
+          providerId: prompt.providerId,
+          titleId: title.id,
+          seasonNumber: nextSeason,
+          episodeNumber: nextEpisode,
+        }).catch(() => null)
+      : null;
+    // Continue the observed numeric sequence as a provisional URL hint. The
+    // next real observation from the extension will replace it with the actual ID.
+    const predictedNextId = mappedNextId ?? (
+      currentEpisodeId && /^\d{1,12}$/.test(currentEpisodeId) && Number(currentEpisodeId) < 999999999999
+        ? String(Number(currentEpisodeId) + 1)
+        : null
+    );
+    let nextUrl = progress.url;
+    if (nextUrl && predictedNextId && prompt.providerId === "streamingcommunity") {
+      try {
+        const url = new URL(nextUrl);
+        url.searchParams.set("e", predictedNextId);
+        nextUrl = url.toString();
+      } catch {}
+    } else if (nextUrl && predictedNextId && prompt.providerId === "animeunity") {
+      try {
+        const url = new URL(nextUrl);
+        if (/^\/anime\/[^/]+\/\d{1,12}\/?$/.test(url.pathname)) {
+          url.pathname = url.pathname.replace(/\/(\d{1,12})\/?$/, `/${predictedNextId}`);
+          nextUrl = url.toString();
+        }
+      } catch {}
+    }
+
+    const now = new Date().toISOString();
+    await repo.saveProgress(user.id, {
+      titleId: title.id,
+      providerId: progress.providerId,
+      season: nextSeason,
+      episode: nextEpisode,
+      fraction: 0,
+      positionSeconds: 0,
+      url: nextUrl,
+      completionPrompt: {
+        ...prompt,
+        status: "advanced",
+        remainingSeconds: 0,
+      },
+      updatedAt: now,
+    });
+    await shareProgress(repo, user.id, title.id);
+
+    // Keep the live session aligned with the next episode. Stale heartbeats for
+    // the confirmed episode are ignored by sync until the provider moves on.
+    const presence = await repo.getPresence(user.id);
+    if (presence?.titleId === title.id) {
+      await repo.savePresence({
+        ...presence,
+        season: nextSeason,
+        episode: nextEpisode,
+        url: nextUrl ?? presence.url,
+        updatedAt: now,
+      });
+    }
+  }, "Non siamo riusciti ad aggiornare l'avanzamento.");
+}
+
 const partKey = z.string().min(1).max(40).regex(/^(ann-\d+|filler|rezero-version|rezero-directors-cut|rezero-original-2016)$/);
 
 /** Anime: include or leave out one part of the franchise (or "filler"); null goes back to the default. */
