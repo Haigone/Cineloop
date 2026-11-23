@@ -330,6 +330,22 @@ export async function respondToCompletionPrompt(id: string, finished: boolean): 
     const currentSeason = title.seasons.find((season) => season.number === prompt.season);
     if (!currentSeason) throw new Error("Stagione corrente non trovata nel catalogo.");
 
+    // Autoplay may already have moved the saved position beyond the episode
+    // that triggered the prompt. Confirm it without rewinding the library.
+    const alreadyAdvanced = progress.season !== null && progress.episode !== null &&
+      (progress.season > prompt.season ||
+        (progress.season === prompt.season && progress.episode > prompt.episode));
+    if (alreadyAdvanced) {
+      const now = new Date().toISOString();
+      await repo.saveProgress(user.id, {
+        ...progress,
+        completionPrompt: { ...prompt, status: "advanced", remainingSeconds: 0 },
+        updatedAt: now,
+      });
+      await shareProgress(repo, user.id, title.id);
+      return;
+    }
+
     let nextSeason = prompt.season;
     let nextEpisode = prompt.episode + 1;
     if (prompt.episode >= currentSeason.episodeCount) {
