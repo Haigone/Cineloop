@@ -538,7 +538,11 @@
     const inertia = fromInertiaPage();
     if (inertia) {
       if (inertia.title) known.title = inertia.title;
-      if (inertia.episodeId && inertia.episodeId === nextEpisodeId) {
+      // L'ID provider può non essere incluso nella risposta Inertia. In quel
+      // caso i numeri episodio/stagione restano validi: non scartarli solo
+      // perché manca un campo opzionale. Se entrambi gli ID esistono, invece,
+      // evita di applicare i dati di una puntata precedente.
+      if (!inertia.episodeId || !nextEpisodeId || inertia.episodeId === nextEpisodeId) {
         if (inertia.episode !== null) known.episode = inertia.episode;
         if (inertia.season !== null) known.season = inertia.season;
       }
