@@ -349,10 +349,9 @@ export async function respondToCompletionPrompt(id: string, finished: boolean): 
     let nextSeason = prompt.season;
     let nextEpisode = prompt.episode + 1;
     let reachedEnd = false;
-    if (prompt.providerId === "animeunity" && title.seasons.length > 1) {
-      // Classic AnimeUnity pages number episodes continuously across seasons.
-      // Keep that absolute number for the provider-ID map, while moving the
-      // catalog season when the cumulative episode boundary is crossed.
+    if (prompt.providerId === "animeunity" && title.seasons.length > 1 && prompt.episode > currentSeason.episodeCount) {
+      // Classic AnimeUnity pages sometimes number episodes continuously across
+      // seasons. Values beyond the current season's count are treated as absolute.
       const ordered = [...title.seasons].sort((a, b) => a.number - b.number);
       let beforeSeason = 0;
       for (const season of ordered) {
