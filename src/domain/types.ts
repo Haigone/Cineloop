@@ -230,6 +230,18 @@ export interface WatchProgress {
   durationSeconds?: number;
   /** Deep link back to the provider, when the provider exposes one. */
   url: string | null;
+  /** A persistent end-of-title question, kept even if the player autoplays the next episode. */
+  completionPrompt?: {
+    status: "pending" | "dismissed" | "advanced";
+    season: number | null;
+    episode: number | null;
+    episodeId: string | null;
+    providerId: ProviderId | null;
+    url: string | null;
+    remainingSeconds: number;
+  };
+  /** For an advanced episode, ignore stale heartbeats from the episode just confirmed. */
+  advancedFrom?: { season: number | null; episode: number | null };
   updatedAt: string;
 }
 
