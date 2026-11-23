@@ -102,7 +102,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const titleId = recognised && (await inYourNight(repo, userId, recognised));
     if (titleId) {
       presence.titleId = titleId;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, obs.hints?.episodeId);
     }
   } else {
     // A session may already carry a stale AnimeUnity -> movie link from before
@@ -118,10 +118,10 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, obs.hints?.episodeId);
     } else if (!step.started) {
       // Episode and position as the player reports them, every heartbeat.
-      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, obs.hints?.episodeId);
     }
   }
   // If StreamingCommunity (or another provider) exposes only its episode ID,
@@ -139,7 +139,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     if (coordinate && (presence.season !== coordinate.seasonNumber || presence.episode !== coordinate.episodeNumber)) {
       presence.season = coordinate.seasonNumber;
       presence.episode = coordinate.episodeNumber;
-      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, obs.hints?.episodeId);
     }
   }
 
@@ -674,9 +674,10 @@ async function startWatching(
   fraction: number | null = null,
   position?: number,
   duration?: number,
- ): Promise<void> {
+  episodeId?: string,
+): Promise<void> {
   const titleId = presence.titleId!;
-  await syncProgress(repo, presence, fraction, position, duration);
+  await syncProgress(repo, presence, fraction, position, duration, episodeId);
   await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
     userId: presence.userId,
@@ -694,7 +695,8 @@ async function startWatching(
  * how far into it. Watching a title marked as seen (a rewatch, a new season)
  * puts it back in progress. Writes only when something changed.
  */
-function providerEpisodeId(providerId: Presence["providerId"], value: string | null): string | null {
+function providerEpisodeId(providerId: Presence["providerId"], value: string | null, hint?: string): string | null {
+  if (hint && /^\d{1,12}$/.test(hint)) return hint;
   if (!value) return null;
   try {
     const url = new URL(value);
@@ -715,7 +717,8 @@ async function syncProgress(
   fraction: number | null,
   position?: number,
   duration?: number,
- ): Promise<void> {
+  episodeId?: string,
+): Promise<void> {
   const titleId = presence.titleId!;
   const [entry, title] = await Promise.all([
     repo.listLibrary(presence.userId).then((l) => l.find((e) => e.titleId === titleId)),
@@ -795,7 +798,7 @@ async function syncProgress(
             status: "pending" as const,
             season: presence.season,
             episode: presence.episode,
-            episodeId: providerEpisodeId(presence.providerId, presence.url),
+            episodeId: providerEpisodeId(presence.providerId, presence.url, episodeId),
             providerId: presence.providerId,
             url: presence.url,
             remainingSeconds: Math.round(remainingSeconds),
