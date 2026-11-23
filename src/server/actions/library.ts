@@ -348,18 +348,43 @@ export async function respondToCompletionPrompt(id: string, finished: boolean): 
 
     let nextSeason = prompt.season;
     let nextEpisode = prompt.episode + 1;
-    if (prompt.episode >= currentSeason.episodeCount) {
+    let reachedEnd = false;
+    if (prompt.providerId === "animeunity" && title.seasons.length > 1) {
+      // Classic AnimeUnity pages number episodes continuously across seasons.
+      // Keep that absolute number for the provider-ID map, while moving the
+      // catalog season when the cumulative episode boundary is crossed.
+      const ordered = [...title.seasons].sort((a, b) => a.number - b.number);
+      let beforeSeason = 0;
+      for (const season of ordered) {
+        if (season.number >= prompt.season) break;
+        beforeSeason += season.episodeCount;
+      }
+      const localEpisode = prompt.episode - beforeSeason;
+      if (localEpisode >= currentSeason.episodeCount) {
+        let through = 0;
+        const nextAbsoluteEpisode = prompt.episode + 1;
+        const nextCatalogSeason = ordered.find((season) => {
+          through += season.episodeCount;
+          return nextAbsoluteEpisode <= through;
+        });
+        if (nextCatalogSeason && aired.some((season) => season.number === nextCatalogSeason.number)) {
+          nextSeason = nextCatalogSeason.number;
+          nextEpisode = nextAbsoluteEpisode;
+        } else reachedEnd = true;
+      }
+    } else if (currentSeason.episodeCount > 0 && prompt.episode >= currentSeason.episodeCount) {
       const following = aired.find((season) => season.number > prompt.season!);
       if (following) {
         nextSeason = following.number;
         nextEpisode = 1;
-      } else {
-        await repo.markFinished(user.id, title.id, aired.at(-1)?.number ?? prompt.season);
-        await shareProgress(repo, user.id, title.id, "finished");
-        await repo.removeFromWishlist(user.id, title.id);
-        await record(user.id, "completed", title.id);
-        return;
-      }
+      } else reachedEnd = true;
+    }
+    if (reachedEnd) {
+      await repo.markFinished(user.id, title.id, aired.at(-1)?.number ?? prompt.season);
+      await shareProgress(repo, user.id, title.id, "finished");
+      await repo.removeFromWishlist(user.id, title.id);
+      await record(user.id, "completed", title.id);
+      return;
     }
 
     let currentEpisodeId = prompt.episodeId;
