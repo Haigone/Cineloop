@@ -30,25 +30,98 @@
   }
   const titleIdNow = () => /\/(?:titles?\/(\d{1,9})|(?:[a-z]{2}\/)?watch\/(\d{1,9}))(?:[-/?#]|$)/i.exec(location.pathname)?.slice(1).find(Boolean) ?? null;
   // StreamingCommunity serializza i dati Inertia in #app[data-page].
+  // L'attributo viene aggiornato dalla SPA: rileggilo, invece di conservare per
+  // tutta la vita del content script la prima pagina (spesso ancora incompleta).
   let currentPageData = null;
   function readInertiaPage(page = null) {
     if (page && typeof page === "object") currentPageData = page;
-    if (!currentPageData) {
-      const raw = document.querySelector("#app")?.getAttribute("data-page");
-      if (raw) { try { currentPageData = JSON.parse(raw); } catch { currentPageData = null; } }
+    const raw = document.querySelector("#app")?.getAttribute("data-page");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") currentPageData = parsed;
+      } catch {
+        // Durante una navigazione Inertia l'attributo può essere temporaneamente vuoto.
+      }
     }
     return currentPageData;
   }
+
+  const positiveInteger = (value, max = 1000) => {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isInteger(number) && number >= 1 && number <= max ? number : null;
+  };
+  const objectValue = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  function firstInteger(values, max = 1000) {
+    for (const value of values) {
+      const number = positiveInteger(value, max);
+      if (number !== null) return number;
+    }
+    return null;
+  }
+  function titleValue(value) {
+    if (typeof value === "string") return value;
+    const obj = objectValue(value);
+    if (!obj) return "";
+    for (const key of ["name", "title", "original_name", "original_title", "label"]) {
+      if (typeof obj[key] === "string" && obj[key].trim()) return obj[key];
+    }
+    return "";
+  }
   function fromInertiaPage() {
-    const page = readInertiaPage(); const props = page?.props;
-    if (!props?.title || (page.component && !/^Titles\/(Watch|Title)$/i.test(page.component))) return null;
-    const ep = props.episode;
-    const sv = ep?.season?.number ?? ep?.season_number ?? null;
-    const ev = ep?.number ?? ep?.episode_number ?? null;
-    const season = sv !== null && Number.isInteger(Number(sv)) ? Number(sv) : null;
-    const episode = ev !== null && Number.isInteger(Number(ev)) ? Number(ev) : null;
-    const rawTitle = props.title.name || props.title.title || props.title.original_name || "";
-    return { title: cleanTitle(rawTitle).slice(0, 200), season, episode, episodeId: ep?.id != null ? String(ep.id) : null };
+    const page = readInertiaPage();
+    const props = objectValue(page?.props);
+    if (!props) return null;
+
+    // Le versioni di SC non hanno sempre usato lo stesso nome per la risorsa:
+    // accetta gli alias noti senza legarsi al nome del componente Inertia.
+    const titleObject = props.title ?? props.show ?? props.serie ?? props.series ?? props.movie;
+    const rawTitle = titleValue(titleObject) ||
+      titleValue(props.data?.title) || titleValue(props.data?.show);
+    const episodeValue =
+      props.episode ?? props.selectedEpisode ?? props.currentEpisode ??
+      props.current_episode ?? props.selected_episode ?? props.episodeData ??
+      props.data?.episode ?? props.data?.selectedEpisode;
+    const ep = objectValue(episodeValue);
+
+    const seasonObject = objectValue(ep?.season ?? props.season ?? props.data?.season);
+    const season = firstInteger([
+      seasonObject?.number, seasonObject?.season_number, seasonObject?.seasonNumber,
+      ep?.season_number, ep?.seasonNumber, props.season_number, props.seasonNumber,
+      typeof ep?.season === "number" || typeof ep?.season === "string" ? ep.season : null,
+      typeof props.season === "number" || typeof props.season === "string" ? props.season : null,
+    ], 100);
+    let episode = firstInteger([
+      ep?.number, ep?.episode_number, ep?.episodeNumber, ep?.order,
+      ep?.number_in_season, ep?.numberInSeason,
+      props.episode_number, props.episodeNumber,
+      typeof episodeValue === "number" || typeof episodeValue === "string" ? episodeValue : null,
+    ], 1000);
+
+    // Alcune risposte incorporano la sigla SxEy nel nome o nella label episodio.
+    if (episode === null) {
+      const marker = episodeNumber(
+        [titleValue(ep?.title), ep?.name, ep?.label, typeof episodeValue === "string" ? episodeValue : ""]
+          .filter(Boolean).join(" "),
+        false
+      );
+      if (marker) {
+        episode = marker.episode;
+        if (season === null && marker.season !== null) {
+          return {
+            title: cleanTitle(rawTitle).slice(0, 200),
+            season: marker.season,
+            episode,
+            episodeId: ep?.id != null ? String(ep.id) : null,
+          };
+        }
+      }
+    }
+
+    const title = cleanTitle(rawTitle).slice(0, 200);
+    if (!title && season === null && episode === null) return null;
+    return { title, season, episode, episodeId: ep?.id != null ? String(ep.id) : null };
   }
   document.addEventListener("inertia:navigate", (event) => { if (event.detail?.page) currentPageData = event.detail.page; read(true); });
   document.addEventListener("inertia:success", (event) => { if (event.detail?.page) currentPageData = event.detail.page; read(true); });
