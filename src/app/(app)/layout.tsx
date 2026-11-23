@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConsentPrompt } from "@/components/consent/consent-prompt";
+import { CompletionPrompt } from "@/components/home/completion-prompt";
 import { ExtensionBanner } from "@/components/layout/extension-banner";
 import { GuestBanner } from "@/components/layout/guest-banner";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -61,6 +62,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       <Suspense>
         <ConsentPrompt />
       </Suspense>
+      <Suspense>
+        <PendingCompletionPrompt />
+      </Suspense>
     </div>
   );
 }
@@ -93,4 +97,19 @@ async function TopBarActions() {
       <UserMenu user={{ id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, bio: user.bio }} guest={isGuest(user)} />
     </>
   );
+}
+
+
+/** A completion question follows the user across every CineLoop page, not only Home. */
+async function PendingCompletionPrompt() {
+  const user = await getCurrentUser();
+  const repo = getRepository();
+  const library = await repo.listLibrary(user.id);
+  const pending = library
+    .filter((entry) => entry.status === "watching" && entry.progress?.completionPrompt?.status === "pending")
+    .sort((a, b) => Date.parse(b.lastWatchedAt ?? b.progress?.updatedAt ?? "") - Date.parse(a.lastWatchedAt ?? a.progress?.updatedAt ?? ""))[0];
+  if (!pending?.progress?.completionPrompt) return null;
+  const [title] = await repo.getTitlesByIds([pending.titleId]);
+  if (!title) return null;
+  return <CompletionPrompt title={title} prompt={pending.progress.completionPrompt} />;
 }
