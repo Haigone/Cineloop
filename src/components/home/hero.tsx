@@ -46,6 +46,9 @@ export function Hero({ item, together, collection }: { item: ContinueItem; toget
   const runtime = title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes;
   const playerHasTiming = Number.isFinite(progress.durationSeconds) && (progress.durationSeconds ?? 0) > 0 &&
     Number.isFinite(progress.positionSeconds) && (progress.positionSeconds ?? -1) >= 0;
+  const elapsed = playerHasTiming
+    ? Math.max(0, Math.floor((progress.positionSeconds ?? 0) / 60))
+    : Math.max(0, Math.floor(runtime * progress.fraction));
   const remaining = playerHasTiming
     ? Math.max(0, Math.round(((progress.durationSeconds ?? runtime * 60) - (progress.positionSeconds ?? 0)) / 60))
     : Math.max(1, Math.round(runtime * (1 - progress.fraction)));
@@ -100,9 +103,9 @@ export function Hero({ item, together, collection }: { item: ContinueItem; toget
 
         <div className="mt-5 max-w-[420px]">
           <ProgressBar value={progress.fraction} label={`Avanzamento di ${title.title}`} />
-          <div className="mt-2 flex justify-between text-xs tabular text-fg-3">
+          <div className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs tabular text-fg-3">
             <span>{percent(progress.fraction)} {title.type === "movie" ? "visto" : "dell’episodio"}</span>
-            <span>Mancano {formatDuration(remaining)}</span>
+            <span>Sei a {formatDuration(elapsed)} · Mancano {formatDuration(remaining)}</span>
           </div>
           {collection?.nextTitle && <p className="mt-3 truncate text-xs font-semibold text-violet-200">Dopo questo titolo: {collection.nextTitle.title}</p>}
           {seriesFraction !== null && (
