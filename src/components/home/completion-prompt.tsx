@@ -13,6 +13,9 @@ type Prompt = NonNullable<WatchProgress["completionPrompt"]>;
 export function CompletionPrompt({ title, prompt }: { title: Title; prompt: Prompt }) {
   const [pending, startTransition] = useTransition();
   const toast = useToast();
+  const remainingLabel = prompt.remainingSeconds < 60
+    ? "meno di un minuto"
+    : `circa ${Math.ceil(prompt.remainingSeconds / 60)} minuti`;
 
   function answer(finished: boolean) {
     startTransition(async () => {
@@ -49,8 +52,8 @@ export function CompletionPrompt({ title, prompt }: { title: Title; prompt: Prom
         </div>
         <p id="completion-prompt-description" className="mt-5 text-sm leading-relaxed text-fg-2">
           {title.type === "movie"
-            ? "Il player segnala che mancano cinque minuti o meno. Hai terminato il film?"
-            : "Il player segnala che mancano cinque minuti o meno. Hai terminato questo episodio? Se confermi, CineLoop passerà al prossimo."}
+            ? `Il player segnala che mancano ${remainingLabel}. Hai terminato il film?`
+            : `Il player segnala che mancano ${remainingLabel}. Hai terminato questo episodio? Se confermi, CineLoop passerà al prossimo.`}
         </p>
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={() => answer(false)} disabled={pending}>
