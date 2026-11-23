@@ -2,7 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { isLive } from "@/domain/presence";
 import { wantsNovita } from "@/domain/library";
-import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
+import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences, type WatchProgress } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { awaitedReleases, wishedPremieres, type AwaitedRelease } from "./awaited";
@@ -81,6 +81,8 @@ export interface HomeView {
   wishlist: Title[];
   /** Just finished by watching to the end and not rated yet, most recent first. */
   toRate: Title[];
+  /** The most recent player-detected completion waiting for the user's answer. */
+  completionPrompt: { title: Title; prompt: NonNullable<WatchProgress["completionPrompt"]> } | null;
   /** Novità, In attesa and the next episodes ask outside services: they arrive after the rest of the page. */
   later: Promise<HomeLater>;
   /** For what is being watched, the run of filler episodes coming up next, by title id. */
@@ -305,6 +307,14 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
       .sort((a, b) => Date.parse(b.lastWatchedAt ?? "") - Date.parse(a.lastWatchedAt ?? ""))
       .slice(0, 3)
       .map((e) => titles.get(e.titleId)!),
+    completionPrompt: (() => {
+      const pending = library
+        .filter((entry) => entry.status === "watching" && entry.progress?.completionPrompt?.status === "pending" && titles.has(entry.titleId))
+        .sort((a, b) => Date.parse(b.lastWatchedAt ?? b.progress?.updatedAt ?? "") - Date.parse(a.lastWatchedAt ?? a.progress?.updatedAt ?? ""))[0];
+      return pending?.progress?.completionPrompt
+        ? { title: titles.get(pending.titleId)!, prompt: pending.progress.completionPrompt }
+        : null;
+    })(),
   };
 }
 
