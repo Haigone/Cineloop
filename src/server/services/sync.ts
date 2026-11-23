@@ -79,7 +79,6 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     url: content.url,
   };
   const fraction = obs.hints?.progress ?? null;
-  const completionConfirmed = obs.hints?.completionConfirmed === true;
   const now = new Date();
   const before = await repo.getPresence(userId);
   // Same episode, same position as the last saved one: the player is paused, so no viewing time.
@@ -103,7 +102,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const titleId = recognised && (await inYourNight(repo, userId, recognised));
     if (titleId) {
       presence.titleId = titleId;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     }
   } else {
     // A session may already carry a stale AnimeUnity -> movie link from before
@@ -119,10 +118,10 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     const named = label && (await inYourNight(repo, userId, label));
     if (named && named !== presence.titleId) {
       presence.titleId = named;
-      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
+      await startWatching(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     } else if (!step.started) {
       // Episode and position as the player reports them, every heartbeat.
-      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     }
   }
   // If StreamingCommunity (or another provider) exposes only its episode ID,
@@ -140,7 +139,7 @@ export async function handleObservation(userId: string, obs: SyncObservation): P
     if (coordinate && (presence.season !== coordinate.seasonNumber || presence.episode !== coordinate.episodeNumber)) {
       presence.season = coordinate.seasonNumber;
       presence.episode = coordinate.episodeNumber;
-      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration, completionConfirmed);
+      await syncProgress(repo, presence, fraction, obs.hints?.position, obs.hints?.duration);
     }
   }
 
@@ -675,10 +674,9 @@ async function startWatching(
   fraction: number | null = null,
   position?: number,
   duration?: number,
-  completionConfirmed = false,
-): Promise<void> {
+ ): Promise<void> {
   const titleId = presence.titleId!;
-  await syncProgress(repo, presence, fraction, position, duration, completionConfirmed);
+  await syncProgress(repo, presence, fraction, position, duration);
   await repo.removeFromWishlist(presence.userId, titleId);
   await repo.recordActivity({
     userId: presence.userId,
@@ -717,8 +715,7 @@ async function syncProgress(
   fraction: number | null,
   position?: number,
   duration?: number,
-  completionConfirmed = false,
-): Promise<void> {
+ ): Promise<void> {
   const titleId = presence.titleId!;
   const [entry, title] = await Promise.all([
     repo.listLibrary(presence.userId).then((l) => l.find((e) => e.titleId === titleId)),
@@ -808,13 +805,7 @@ async function syncProgress(
     const at = { season: presence.season, episode: presence.episode, fraction: next };
     // Still on the end credits of something just finished: it stays seen. Starting it over is a rewatch.
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today, entry?.partOverrides) && (fraction === null || fraction >= 0.5)) return;
-    // Reaching the final minutes only asks the user; it never marks a title seen by itself.
-    if (completionConfirmed && finishesTitle(title, at, today, entry?.partOverrides)) {
-      await repo.markFinished(presence.userId, titleId, title.type === "movie" ? null : presence.season);
-      await shareProgress(repo, presence.userId, titleId, "finished");
-      await repo.recordActivity({ userId: presence.userId, kind: "completed", titleId, at: new Date().toISOString(), season: null, episode: null, rating: null });
-      return;
-    }
+    // A player-ended signal is not a user confirmation: completion is handled only by the Home prompt action.
   }
   const nextPosition = Number.isFinite(position) && position! >= 0
     ? Math.round(position! * 10) / 10
