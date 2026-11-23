@@ -240,8 +240,6 @@ export interface WatchProgress {
     url: string | null;
     remainingSeconds: number;
   };
-  /** For an advanced episode, ignore stale heartbeats from the episode just confirmed. */
-  advancedFrom?: { season: number | null; episode: number | null };
   updatedAt: string;
 }
 
