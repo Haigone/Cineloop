@@ -2,7 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { isLive } from "@/domain/presence";
 import { wantsNovita } from "@/domain/library";
-import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences, type WatchProgress } from "@/domain/types";
+import { sectionOf, type ActivityEvent, type LibraryEntry, type MediaType, type PublicUser, type Title, type UserPreferences } from "@/domain/types";
 import { italianDay } from "@/lib/dates";
 import { searchKey } from "@/lib/text";
 import { awaitedReleases, wishedPremieres, type AwaitedRelease } from "./awaited";
