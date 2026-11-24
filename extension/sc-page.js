@@ -184,7 +184,9 @@
     const source = video.currentSrc || video.src || video.querySelector("source")?.src || "";
     const sourceChanged = Boolean(source && lastVideoSource && source !== lastVideoSource);
     if (boundVideo === video && boundVideoEpisodeId === episodeId) {
-      if (source) lastVideoSource = source;
+      // Do not consume a source change before the page has announced its new
+      // episode ID; otherwise loadedmetadata may already have fired by then.
+      if (source && !sourceChanged) lastVideoSource = source;
       return;
     }
     boundVideo = video;
