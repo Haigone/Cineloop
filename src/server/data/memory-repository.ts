@@ -134,7 +134,7 @@ export class MemoryRepository implements Repository {
   }
 
   async getTitleSeasonDataByIds(ids: readonly string[]): Promise<TitleSeasonData[]> {
-    return ids.flatMap((id) => {
+    return ids.flatMap<TitleSeasonData>((id) => {
       const title = this.titles.get(id);
       if (!title) return [];
       return title.type === "movie"
@@ -758,8 +758,9 @@ export class MemoryRepository implements Repository {
     const exact = this.episodeLinks.get(prefix + input.episodeNumber);
     if (exact?.linkType === "exact" || exact?.linkType === "anchor") return exact.externalId;
     const anchor = [...this.episodeLinks.entries()].find(([key, row]) => key.startsWith(prefix) && row.linkType === "anchor");
-    if (!anchor || !Number.isSafeInteger(anchor[1].idStep) || (anchor[1].idStep ?? 0) <= 0 || !/^\d+$/.test(anchor[1].externalId)) return null;
-    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber) * anchor[1].idStep;
+    const step = anchor?.[1].idStep;
+    if (!anchor || !Number.isSafeInteger(step) || (step ?? 0) <= 0 || !/^\d+$/.test(anchor[1].externalId)) return null;
+    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber) * step!;
     return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
   }
 
