@@ -48,12 +48,18 @@ export function CompletionPrompt({ title, prompt }: { title: Title; prompt: Prom
             <p className="text-xs font-semibold uppercase tracking-wider text-fg-3">CineLoop · Fine visione</p>
             <h2 id="completion-prompt-title" className="mt-1 text-xl font-semibold text-fg">Hai finito?</h2>
             <p className="mt-1 text-sm text-fg-2">{title.title}</p>
+            {title.type !== "movie" && (prompt.season !== null || prompt.episode !== null) && (
+              <p className="mt-1 text-sm font-semibold text-fg">
+                {prompt.season !== null ? `Stagione ${prompt.season}` : "Stagione non identificata"}
+                {prompt.episode !== null ? ` · Episodio ${prompt.episode}` : ""}
+              </p>
+            )}
           </div>
         </div>
         <p id="completion-prompt-description" className="mt-5 text-sm leading-relaxed text-fg-2">
           {title.type === "movie"
             ? `Il player segnala che mancano ${remainingLabel}. Hai terminato il film?`
-            : `Il player segnala che mancano ${remainingLabel}. Hai terminato questo episodio? Se confermi, CineLoop passerà al prossimo.`}
+            : `Il player segnala che mancano ${remainingLabel}. Hai terminato ${prompt.season !== null && prompt.episode !== null ? `la stagione ${prompt.season}, episodio ${prompt.episode}` : "questo episodio"}? Se confermi, CineLoop passerà al prossimo.`}
         </p>
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={() => answer(false)} disabled={pending}>
