@@ -30,7 +30,7 @@ import type {
   WishlistItem,
 } from "@/domain/types";
 import { searchKey } from "@/lib/text";
-import type { Repository } from "../repository";
+import type { Repository, TitleSeasonData } from "../repository";
 import { connect } from "./connection";
 import * as schema from "./schema";
 
@@ -77,6 +77,23 @@ export class PostgresRepository implements Repository {
     const rows = await this.db.select().from(schema.titles).where(inArray(schema.titles.id, [...ids]));
     const byId = new Map(rows.map((r) => [r.id, toTitle(r)]));
     return ids.map((id) => byId.get(id)).filter((t): t is Title => Boolean(t));
+  }
+
+  async getTitleSeasonDataByIds(ids: readonly string[]): Promise<TitleSeasonData[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select({ id: schema.titles.id, type: schema.titles.type, seasons: schema.titles.seasons })
+      .from(schema.titles)
+      .where(inArray(schema.titles.id, [...ids]));
+    const byId = new Map<string, TitleSeasonData>(
+      rows.map((row) => [
+        row.id,
+        row.type === "movie"
+          ? { id: row.id, type: "movie" }
+          : { id: row.id, type: row.type, seasons: row.seasons ?? [] },
+      ]),
+    );
+    return ids.map((id) => byId.get(id)).filter((title): title is TitleSeasonData => Boolean(title));
   }
 
   async searchTitles(query: string, limit: number) {
