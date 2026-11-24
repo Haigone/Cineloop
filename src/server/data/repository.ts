@@ -18,6 +18,7 @@ import type {
   TitleUpdates,
   SharedWatch,
   Title,
+  SeasonSummary,
   User,
   UserPreferences,
   WatchEvent,
@@ -35,12 +36,18 @@ import type {
  *
  * Methods are plain data access; business rules live in `src/domain`.
  */
+export type TitleSeasonData =
+  | { id: string; type: "movie" }
+  | { id: string; type: "series" | "anime"; seasons: SeasonSummary[] };
+
 export interface Repository {
   readonly kind: "memory" | "postgres";
 
   // Catalog cache
   listTitles(): Promise<Title[]>;
   getTitlesByIds(ids: readonly string[]): Promise<Title[]>;
+  /** Minimal local metadata needed to merge reviewed episode schedules into the public catalog. */
+  getTitleSeasonDataByIds(ids: readonly string[]): Promise<TitleSeasonData[]>;
   /** Titles whose search key (`searchKey(title)`) is exactly `key`. */
   findTitlesBySearchKey(key: string): Promise<Title[]>;
   searchTitles(query: string, limit: number): Promise<Title[]>;
