@@ -171,6 +171,7 @@
   let lastFrameProgressSentAt = 0;
   let boundVideo = null;
   let boundVideoEpisodeId = null;
+  let lastVideoSource = "";
   let progressReadyEpisodeId = null;
   let awaitingEpisodeMetadata = false;
   let parentEpisodeIdentity = null;
@@ -180,7 +181,12 @@
   function bindVideo(video) {
     if (!video) return;
     const episodeId = known.episodeId ?? parentEpisodeIdentity?.episodeId ?? null;
-    if (boundVideo === video && boundVideoEpisodeId === episodeId) return;
+    const source = video.currentSrc || video.src || video.querySelector("source")?.src || "";
+    const sourceChanged = Boolean(source && lastVideoSource && source !== lastVideoSource);
+    if (boundVideo === video && boundVideoEpisodeId === episodeId) {
+      if (source) lastVideoSource = source;
+      return;
+    }
     boundVideo = video;
     boundVideoEpisodeId = episodeId;
     const isCurrentEpisode = () => (known.episodeId ?? parentEpisodeIdentity?.episodeId ?? null) === episodeId;
@@ -204,7 +210,15 @@
     video.addEventListener("seeked", sendNow);
     // On first load metadata may already be available. After an episode switch,
     // wait for the new media's loadedmetadata event before trusting its clock.
-    if (!awaitingEpisodeMetadata && video.readyState >= 1) progressReadyEpisodeId = episodeId;
+    if (!awaitingEpisodeMetadata && video.readyState >= 1) {
+      progressReadyEpisodeId = episodeId;
+    } else if (awaitingEpisodeMetadata && sourceChanged && video.readyState >= 1) {
+      // Some players finish loading metadata before the parent SPA exposes the
+      // new ?e=. A changed media source is enough to trust this new episode clock.
+      progressReadyEpisodeId = episodeId;
+      awaitingEpisodeMetadata = false;
+    }
+    if (source) lastVideoSource = source;
   }
 
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
