@@ -114,7 +114,7 @@ describe("extension sync", () => {
       completionPrompt: { status: "pending", season: 1, episode: 3 },
     });
 
-    // The first report for S3E7 still carries S3E6's 94% clock: discard it.
+    // The first report for S1E4 still carries S1E3's 94% clock: discard it.
     const next = await handleObservation("u_marco", {
       providerId: "streamingcommunity",
       url: `${pageUrl}?e=4282`,
@@ -128,7 +128,7 @@ describe("extension sync", () => {
     expect(entry?.progress?.url).toBe(`${pageUrl}?e=4282`);
     expect(entry?.progress?.completionPrompt).toBeUndefined();
 
-    // Once a fresh sample from S3E7 arrives, use it normally.
+    // Once a fresh sample from S1E4 arrives, use it normally.
     await handleObservation("u_marco", {
       providerId: "streamingcommunity",
       url: `${pageUrl}?e=4282`,
