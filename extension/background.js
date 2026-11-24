@@ -658,13 +658,20 @@ async function playerTitle(tabId, m) {
     : null;
   const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
-    const freshFrameProgress = entry.frameProgress && now - entry.frameProgress.at < 15_000
-      ? entry.frameProgress.progress
-      : null;
-    const effectiveProgress = progress ?? freshFrameProgress ?? was?.progress ?? null;
     const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
+    const frameMatchesEpisode = entry.frameProgress &&
+      entry.frameProgress.watchId === m.watchId &&
+      entry.frameProgress.episodeId === episodeId;
+    const freshFrame = frameMatchesEpisode && now - entry.frameProgress.at < 15_000
+      ? entry.frameProgress
+      : null;
+    const freshFrameProgress = freshFrame?.progress ?? null;
+    // A new episode starts with no inherited clock. Late samples from the
+    // previous episode are rejected by their watchId + episodeId pair.
+    const effectiveProgress = progress ?? freshFrameProgress ?? (identityChanged ? null : was?.progress ?? null);
     const progressChanged = effectiveProgress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - effectiveProgress) >= 0.02);
     const flush = m.force === true || identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
+    if (identityChanged) entry.frameProgress = null;
     entry.player = {
       watchId: m.watchId,
       title: m.title.slice(0, 200),
@@ -672,8 +679,12 @@ async function playerTitle(tabId, m) {
       episode,
       episodeId,
       progress: effectiveProgress,
-      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : freshFrameProgress !== null ? entry.frameProgress?.position ?? was?.position ?? null : was?.position ?? null,
-      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : freshFrameProgress !== null ? entry.frameProgress?.duration ?? was?.duration ?? null : was?.duration ?? null,
+      position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0
+        ? m.position
+        : freshFrame ? freshFrame.position ?? null : identityChanged ? null : was?.position ?? null,
+      duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0
+        ? m.duration
+        : freshFrame ? freshFrame.duration ?? null : identityChanged ? null : was?.duration ?? null,
       ...(pageUrl ? { url: pageUrl } : {}),
       nextEpisodeUrl: nextEpisodeUrl && nextEpisode !== null ? nextEpisodeUrl : null,
       nextEpisode,
@@ -749,26 +760,32 @@ async function manualProgress(m) {
 
 /** Aggiorna la posizione usando il video letto da un iframe accessibile. */
 async function frameProgress(tabId, m) {
+  // Untagged iframe samples cannot be safely assigned to an episode: a late
+  // event from the previous VixCloud player must never overwrite the next one.
+  if (typeof m.watchId !== "string" || typeof m.episodeId !== "string" ||
+      !/^\\d{1,12}$/.test(m.episodeId)) return;
   const now = Date.now();
   const normalized = Math.round(m.progress * 100000) / 100000;
   const flush = await updateTab(tabId, (entry) => {
-    // A cross-origin player frame may report before the page script identifies
-    // the title. Keep its sample and forward it periodically instead of dropping it.
+    const player = entry.player;
+    if (!player || player.watchId !== m.watchId || player.episodeId !== m.episodeId) return false;
     const sample = {
+      watchId: m.watchId,
+      episodeId: m.episodeId,
       progress: normalized,
       position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : null,
       duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : null,
       at: now,
     };
     entry.frameProgress = sample;
-    const hasPlayer = entry.player && typeof entry.player.watchId === "string" && typeof entry.player.title === "string";
-    const changed = hasPlayer && (m.force === true || entry.player.progress === null || entry.player.progress === undefined || Math.abs(entry.player.progress - normalized) >= 0.00001);
+    const changed = m.force === true || player.progress === null || player.progress === undefined ||
+      Math.abs(player.progress - normalized) >= 0.00001;
     if (changed) {
       entry.player = {
-        ...entry.player,
+        ...player,
         progress: normalized,
-        position: sample.position ?? entry.player.position ?? null,
-        duration: sample.duration ?? entry.player.duration ?? null,
+        position: sample.position ?? player.position ?? null,
+        duration: sample.duration ?? player.duration ?? null,
         at: now,
         lastFlushAt: now,
       };
@@ -1003,7 +1020,10 @@ async function tick() {
           : isPrimeUrl(found.tab.url)
             ? "prime-video"
             : "streamingcommunity";
-      const frame = found.frameProgress && Date.now() - found.frameProgress.at <= 15_000 ? found.frameProgress : null;
+      const frame = found.frameProgress &&
+        found.frameProgress.watchId === found.player?.watchId &&
+        found.frameProgress.episodeId === found.player?.episodeId &&
+        Date.now() - found.frameProgress.at <= 15_000 ? found.frameProgress : null;
       const frameHints = frame ? {
         ...(typeof frame.progress === "number" ? { progress: frame.progress } : {}),
         ...(Number.isFinite(frame.position) && frame.position >= 0 ? { position: frame.position } : {}),
