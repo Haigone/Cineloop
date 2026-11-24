@@ -60,7 +60,7 @@ describe("extension sync", () => {
     })).resolves.toEqual({ seasonNumber: 6, episodeNumber: 99 });
   });
 
-  it("recognises StreamingCommunity by its stable page URL and recovers the episode from its ID", async () => {
+  it("recognises StreamingCommunity by its stable page URL without guessing unobserved episode IDs", async () => {
     const pageUrl = "https://streamingcommunityz.dad/it/watch/4978";
     await repo.updatePreferences("u_marco", { providerConsent: { streamingcommunity: "accepted" } });
     await repo.saveProviderLink({
@@ -81,7 +81,7 @@ describe("extension sync", () => {
       observedAt: new Date().toISOString(),
     });
 
-    expect(status.watching).toMatchObject({ title: { id: "dark" }, season: 6, episode: 17 });
+    expect(status.watching).toMatchObject({ title: { id: "dark" }, season: null, episode: null });
     await endPresence("u_marco");
   });
 
