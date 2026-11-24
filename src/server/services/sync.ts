@@ -791,10 +791,10 @@ async function syncProgress(
   const measuredFraction =
     !providerEpisodeChanged && fraction !== null && Number.isFinite(fraction)
       ? Math.max(0, Math.min(1, fraction))
-      : Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
+      : !providerEpisodeChanged && Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
         ? Math.max(0, Math.min(1, position! / duration!))
         : null;
-  const next = measuredFraction ?? (sameEpisode ? prev!.fraction : 0);
+  const next = measuredFraction ?? (sameProgressIdentity ? prev!.fraction : 0);
   const runtimeSeconds = title
     ? (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) * 60
     : 0;
