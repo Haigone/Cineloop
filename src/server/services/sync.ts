@@ -696,6 +696,14 @@ async function startWatching(
  * puts it back in progress. Writes only when something changed.
  */
 function providerEpisodeId(providerId: Presence["providerId"], value: string | null, hint?: string): string | null {
+  // The SC URL is authoritative: a late iframe hint can still belong to the
+  // previous episode while the title page has already moved to the next ?e=.
+  if (providerId === "streamingcommunity" && value) {
+    try {
+      const id = new URL(value).searchParams.get("e");
+      if (id && /^\d{1,12}$/.test(id)) return id;
+    } catch {}
+  }
   if (hint && /^\d{1,12}$/.test(hint)) return hint;
   if (!value) return null;
   try {
@@ -762,7 +770,15 @@ async function syncProgress(
     }
     if (presence.season === null) presence.season = inferSeason(title, prev, presence.episode);
   }
+  const previousProviderEpisodeId = prev
+    ? providerEpisodeId(presence.providerId, prev.url)
+    : null;
+  const currentProviderEpisodeId = providerEpisodeId(presence.providerId, presence.url, episodeId);
+  const providerEpisodeChanged = presence.providerId === "streamingcommunity" &&
+    previousProviderEpisodeId !== null && currentProviderEpisodeId !== null &&
+    previousProviderEpisodeId !== currentProviderEpisodeId;
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
+  const sameProgressIdentity = sameEpisode && !providerEpisodeChanged;
   const previousPrompt = prev?.completionPrompt ?? null;
   // After the user confirms an episode, ignore stale heartbeats from that same
   // provider episode until the player actually moves to the next one.
@@ -773,7 +789,7 @@ async function syncProgress(
   // progress hint. Derive the fraction from those values so an episode can finish
   // instead of remaining stuck near 99% when the progress field is absent.
   const measuredFraction =
-    fraction !== null && Number.isFinite(fraction)
+    !providerEpisodeChanged && fraction !== null && Number.isFinite(fraction)
       ? Math.max(0, Math.min(1, fraction))
       : Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
         ? Math.max(0, Math.min(1, position! / duration!))
@@ -782,12 +798,12 @@ async function syncProgress(
   const runtimeSeconds = title
     ? (title.type === "movie" ? title.runtimeMinutes : title.episodeRuntimeMinutes) * 60
     : 0;
-  const remainingSeconds = Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
+  const remainingSeconds = !providerEpisodeChanged && Number.isFinite(position) && Number.isFinite(duration) && duration! > 0
     ? Math.max(0, duration! - position!)
     : runtimeSeconds > 0 ? Math.max(0, runtimeSeconds * (1 - next)) : Number.POSITIVE_INFINITY;
-  const priorPromptIsPending = previousPrompt?.status === "pending";
+  const priorPromptIsPending = previousPrompt?.status === "pending" && sameProgressIdentity;
   const priorPromptIsDismissedHere = previousPrompt?.status === "dismissed" &&
-    previousPrompt.season === presence.season && previousPrompt.episode === presence.episode &&
+    sameProgressIdentity && previousPrompt.season === presence.season && previousPrompt.episode === presence.episode &&
     remainingSeconds > 0;
   const completionPrompt = priorPromptIsPending
     ? previousPrompt
@@ -811,18 +827,18 @@ async function syncProgress(
     if (entry?.status === "completed" && finishesTitle(title, { ...at, fraction: 1 }, today, entry?.partOverrides) && (fraction === null || fraction >= 0.5)) return;
     // A player-ended signal is not a user confirmation: completion is handled only by the Home prompt action.
   }
-  const nextPosition = Number.isFinite(position) && position! >= 0
+  const nextPosition = !providerEpisodeChanged && Number.isFinite(position) && position! >= 0
     ? Math.round(position! * 10) / 10
-    : sameEpisode ? prev?.positionSeconds : undefined;
-  const nextDuration = Number.isFinite(duration) && duration! > 0
+    : sameProgressIdentity ? prev?.positionSeconds : undefined;
+  const nextDuration = !providerEpisodeChanged && Number.isFinite(duration) && duration! > 0
     ? Math.round(duration! * 10) / 10
-    : sameEpisode ? prev?.durationSeconds : undefined;
+    : sameProgressIdentity ? prev?.durationSeconds : undefined;
   const positionUnchanged = nextPosition === undefined ||
-    (sameEpisode && prev?.positionSeconds !== undefined && Math.abs(prev.positionSeconds - nextPosition) < 10);
+    (sameProgressIdentity && prev?.positionSeconds !== undefined && Math.abs(prev.positionSeconds - nextPosition) < 10);
   const durationUnchanged = nextDuration === undefined ||
-    (sameEpisode && prev?.durationSeconds !== undefined && Math.abs(prev.durationSeconds - nextDuration) < 1);
+    (sameProgressIdentity && prev?.durationSeconds !== undefined && Math.abs(prev.durationSeconds - nextDuration) < 1);
   const samePrompt = JSON.stringify(prev?.completionPrompt ?? null) === JSON.stringify(completionPrompt ?? null);
-  const unchanged = entry?.status === "watching" && sameEpisode &&
+  const unchanged = entry?.status === "watching" && sameProgressIdentity &&
     Math.abs(prev!.fraction - next) < 0.01 && prev!.url === presence.url &&
     positionUnchanged && durationUnchanged && samePrompt;
   if (unchanged) return;
