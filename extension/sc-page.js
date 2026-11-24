@@ -138,6 +138,7 @@
   let lastFrameProgressSentAt = 0;
   let boundVideo = null;
   const PROGRESS_SEND_INTERVAL_MS = 5_000;
+  const reportedFrameOrigins = new Set();
 
   function bindVideo(video) {
     if (!video || boundVideo === video) return;
@@ -507,6 +508,18 @@
     sendDebug();
     if (!alive()) return stop();
     const id = titleIdNow();
+    // Rileva gli host esterni del player dalla pagina principale.
+    if (id && window === window.top) {
+      for (const frame of document.querySelectorAll("iframe[src]")) {
+        try {
+          const frameUrl = new URL(frame.src, location.href);
+          if (frameUrl.protocol !== "https:" || frameUrl.origin === location.origin ||
+              reportedFrameOrigins.has(frameUrl.origin)) continue;
+          reportedFrameOrigins.add(frameUrl.origin);
+          chrome.runtime.sendMessage({ type: "sc-frame-origin", origin: frameUrl.origin }).catch(() => {});
+        } catch {}
+      }
+    }
     // An accessible player iframe may use a different route than the title page.
     // Report only its fraction; background associates it with the identified title.
     if (!id) {

@@ -137,6 +137,23 @@ async function enableScPage() {
   for (const pattern of SC_VIXCLOUD_ORIGINS) {
     await enableScFrameOrigin(pattern.replace(/\/\*$/, ""));
   }
+  const { scFrameOrigins = [] } = await chrome.storage.session.get("scFrameOrigins");
+  for (const origin of scFrameOrigins) await enableScFrameOrigin(origin);
+}
+
+/** Ricorda un host iframe osservato da una scheda StreamingCommunity autorizzata. */
+async function rememberScFrameOrigin(tabId, senderUrl, origin) {
+  if (!tabId || !(await isStreamingUrl(senderUrl))) return false;
+  let parsed;
+  try { parsed = new URL(origin); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.origin !== origin || await isStreamingUrl(origin)) return false;
+  const { scFrameOrigins = [] } = await chrome.storage.session.get("scFrameOrigins");
+  await chrome.storage.session.set({ scFrameOrigins: [...new Set([...scFrameOrigins, parsed.origin])].slice(-15) });
+  if (await chrome.permissions.contains({ origins: ["https://*/*"] }) ||
+      await chrome.permissions.contains({ origins: [parsed.origin + "/*"] })) {
+    await enableScFrameOrigin(parsed.origin);
+  }
+  return true;
 }
 
 /** Inject progress tracking into VixCloud frames embedded by StreamingCommunity. */
@@ -339,13 +356,21 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     enableAnimeFrameOrigin(message.origin).then(reply, () => reply(false));
     return true;
   }
-  if (message?.type === "sc-debug" && sender.tab?.id && isStreamingUrl(sender.url ?? "") &&
+  if (message?.type === "sc-frame-origin" && sender.tab?.id && sender.frameId === 0 &&
+      typeof message.origin === "string") {
+    rememberScFrameOrigin(sender.tab.id, sender.url ?? sender.tab.url, message.origin).then(reply, () => reply(false));
+    return true;
+  }
+  if (message?.type === "sc-debug" && sender.tab?.id &&
       message.snapshot && typeof message.snapshot === "object") {
     (async () => {
+      if (!(await isStreamingUrl(sender.tab.url ?? ""))) return;
       const snapshot = message.snapshot;
       const safe = {
         at: typeof snapshot.at === "string" ? snapshot.at.slice(0, 40) : new Date().toISOString(),
         host: typeof snapshot.host === "string" ? snapshot.host.slice(0, 120) : "",
+        frameUrl: typeof sender.url === "string" ? sender.url.slice(0, 300) : "",
+        frameId: Number.isInteger(sender.frameId) ? sender.frameId : 0,
         path: typeof snapshot.path === "string" ? snapshot.path.slice(0, 300) : "",
         episodeId: typeof snapshot.episodeId === "string" && /^\d{1,12}$/.test(snapshot.episodeId) ? snapshot.episodeId : null,
         extracted: snapshot.extracted && typeof snapshot.extracted === "object" ? snapshot.extracted : {},

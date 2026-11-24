@@ -223,7 +223,7 @@ $("visible").addEventListener("change", async () => {
  * prompt only if it is requested straight from the click, before any await,
  * so the click handler decides from this.
  */
-let perms = { netflix: false, prime: false, anime: false, directory: false, streaming: false, vixcloud: false, resolved: null };
+let perms = { netflix: false, prime: false, anime: false, directory: false, streaming: false, vixcloud: false, resolved: null, frameOrigins: [] };
 
 /** Provider permissions remain manageable after the first site is enabled. */
 async function renderProviderPermissions() {
@@ -236,12 +236,18 @@ async function renderProviderPermissions() {
   const streaming = broadAccess || await hasStreamingAccess();
   const vixcloud = broadAccess || await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS });
   const resolved = await getResolved();
+  const { scFrameOrigins = [] } = await chrome.storage.session.get("scFrameOrigins");
+  const frameOrigins = [];
+  for (const origin of scFrameOrigins) {
+    if (typeof origin !== "string" || !/^https:\/\//.test(origin)) continue;
+    if (!await chrome.permissions.contains({ origins: [origin + "/*"] })) frameOrigins.push(origin);
+  }
   const [activePermissionTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activePermissionUrl = activePermissionTab?.url ?? "";
   const activeAnimeOrigin = isAnimeUrl(activePermissionUrl) ? new URL(activePermissionUrl).origin : null;
   const grantedAnimeOrigins = await getAnimeOrigins();
   const activeAnimeGranted = Boolean(activeAnimeOrigin && grantedAnimeOrigins.includes(activeAnimeOrigin + "/*"));
-  perms = { netflix, prime, anime, animeBundle, directory, streaming, vixcloud, resolved, activeAnimeOrigin, activeAnimeGranted };
+  perms = { netflix, prime, anime, animeBundle, directory, streaming, vixcloud, resolved, activeAnimeOrigin, activeAnimeGranted, frameOrigins };
   const sc = directory || streaming;
   const setButton = (id, active, label) => {
     $(id).textContent = active ? `Disabilita ${label} ✓` : `Attiva ${label}`;
@@ -256,10 +262,10 @@ async function renderProviderPermissions() {
   // switched on or off from CineLoop's own settings; only a revoked grant can be asked again.
   $("manage-au").textContent = anime ? (animeBundle ? "Attivo ✓" : "Completa permessi AnimeUnity") : "Attiva AnimeUnity";
   $("manage-au").disabled = anime && animeBundle;
-  $("manage-sc").textContent = streaming ? (vixcloud ? "Attivo ✓" : "Completa permessi StreamingCommunity") : "Attiva StreamingCommunity";
-  $("manage-sc").disabled = streaming && vixcloud;
+  $("manage-sc").textContent = streaming ? (frameOrigins.length ? "Autorizza player rilevato" : vixcloud ? "Attivo ✓" : "Completa permessi StreamingCommunity") : "Attiva StreamingCommunity";
+  $("manage-sc").disabled = streaming && vixcloud && frameOrigins.length === 0;
   $("manage-sc-status").textContent = sc
-    ? (streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
+    ? (frameOrigins.length ? `Player esterno rilevato: ${frameOrigins.map((origin) => new URL(origin).hostname).join(", ")}. Premi il pulsante per autorizzarlo.` : streaming ? `Attivo su ${resolved?.origin ? new URL(resolved.origin).hostname : "StreamingCommunity"}.` : "Directory attiva; il dominio di riproduzione va ancora autorizzato.")
     : "Disattivato. Puoi attivarlo quando vuoi.";
 }
 
@@ -280,16 +286,19 @@ async function togglePermission(provider) {
       await render();
       return;
     }
-    const { resolved, directory, streaming } = perms;
-    if (streaming && !perms.vixcloud) {
+    const { resolved, directory, streaming, frameOrigins = [] } = perms;
+    if (streaming && frameOrigins.length) {
+      const granted = await chrome.permissions.request({ origins: frameOrigins.map((origin) => origin + "/*") });
+      if (granted) await chrome.runtime.sendMessage({ type: "enable-sc" }).catch(() => null);
+    } else if (streaming && !perms.vixcloud) {
       // Complete the StreamingCommunity permission bundle, including its embedded player.
-      await chrome.permissions.request({ origins: [...(resolved?.origin ? [`${resolved.origin}/*`] : []), ...SC_VIXCLOUD_ORIGINS] });
+      await chrome.permissions.request({ origins: [...(resolved?.origin ? [`${resolved.origin}/*`] : []), ...SC_VIXCLOUD_ORIGINS, ...frameOrigins.map((origin) => origin + "/*")] });
     } else if (streaming) {
       // Already active; it is switched off from CineLoop's settings.
     } else if (resolved?.origin) {
       // A changed origin is detected from the watch tab. Chrome requires an
       // explicit user gesture to grant this new host before reading the player.
-      await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS] });
+      await chrome.permissions.request({ origins: [`${resolved.origin}/*`, ...SC_VIXCLOUD_ORIGINS, ...frameOrigins.map((origin) => origin + "/*")] });
     } else if (directory) {
       // Resolve first, then let the next explicit click request the new host.
       // Firefox may discard the transient user gesture across the async message.
