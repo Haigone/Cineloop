@@ -29,7 +29,7 @@ import type {
 } from "@/domain/types";
 import { hashPasswordSync } from "@/server/auth/password";
 import { searchKey } from "@/lib/text";
-import type { Repository } from "./repository";
+import type { Repository, TitleSeasonData } from "./repository";
 import { SEED_TITLES } from "./seed/catalog";
 import { buildSeed, DEMO_PASSWORD } from "./seed/people";
 
@@ -131,6 +131,16 @@ export class MemoryRepository implements Repository {
 
   async getTitlesByIds(ids: readonly string[]) {
     return ids.map((id) => this.titles.get(id)).filter((t): t is Title => Boolean(t));
+  }
+
+  async getTitleSeasonDataByIds(ids: readonly string[]): Promise<TitleSeasonData[]> {
+    return ids.flatMap((id) => {
+      const title = this.titles.get(id);
+      if (!title) return [];
+      return title.type === "movie"
+        ? [{ id: title.id, type: "movie" as const }]
+        : [{ id: title.id, type: title.type, seasons: title.seasons }];
+    });
   }
 
   async searchTitles(query: string, limit: number) {
