@@ -29,6 +29,17 @@ describe("MemoryRepository", () => {
     expect(creds?.user.username).toBe("marco");
   });
 
+  it("loads only the title metadata needed for reviewed episode schedules", async () => {
+    const repo = new MemoryRepository();
+    const titles = await repo.listTitles();
+    const series = titles.find((title) => title.type !== "movie")!;
+    const movie = titles.find((title) => title.type === "movie")!;
+    expect(await repo.getTitleSeasonDataByIds([series.id, movie.id, "missing"])).toEqual([
+      { id: series.id, type: series.type, seasons: series.seasons },
+      { id: movie.id, type: "movie" },
+    ]);
+  });
+
   it("adds wishlist items on top and keeps positions contiguous", async () => {
     const repo = new MemoryRepository();
     const before = await repo.listWishlist("u_marco");
