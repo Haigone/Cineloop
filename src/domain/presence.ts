@@ -65,6 +65,9 @@ export function nextPresence(userId: string, prev: Presence | null, seen: Detect
   return {
     presence: {
       ...prev,
+      // StreamingCommunity keeps one stable title-page externalId while ?e= changes.
+      // Keep the latest full URL so progress and completion refer to the active episode.
+      url: seen.url,
       label: seen.label ?? prev.label,
       season: seen.season ?? prev.season,
       episode: seen.episode ?? prev.episode,
