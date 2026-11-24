@@ -892,7 +892,8 @@ export class PostgresRepository implements Repository {
       eq(schema.episodeLinks.episodeNumber, input.episodeNumber),
     );
     const [exact] = await this.db.select().from(schema.episodeLinks).where(scope).limit(1);
-    if (exact && (exact.linkType === "exact" || exact.episodeNumber === input.episodeNumber && exact.linkType === "anchor")) return exact.externalId;
+    if (exact && (exact.linkType === "exact" || exact.linkType === "anchor")) return exact.externalId;
+    if (input.providerId === "streamingcommunity") return null;
     const [anchor] = await this.db.select().from(schema.episodeLinks).where(and(
       eq(schema.episodeLinks.providerId, input.providerId),
       eq(schema.episodeLinks.titleId, input.titleId),
@@ -912,6 +913,7 @@ export class PostgresRepository implements Repository {
     ));
     const exact = rows.find((row) => row.externalId === input.externalId);
     if (exact) return { seasonNumber: exact.seasonNumber, episodeNumber: exact.episodeNumber };
+    if (input.providerId === "streamingcommunity") return null;
     const targetId = Number(input.externalId);
     for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\d+$/.test(row.externalId))) {
       const episodeNumber = anchor.episodeNumber + targetId - Number(anchor.externalId);
@@ -944,8 +946,26 @@ export class PostgresRepository implements Repository {
       return;
     }
 
-    // Every ID explicitly observed for an episode is persisted, even when IDs
-    // are not consecutive. Arithmetic is an optimization only after +1 is verified.
+    // StreamingCommunity IDs are opaque: persist only exact observations.
+    if (input.providerId === "streamingcommunity") {
+      if (anchor.episodeNumber === input.episodeNumber) {
+        await this.db.update(schema.episodeLinks).set({ externalId: input.externalId, idStep: null }).where(and(
+          scope,
+          eq(schema.episodeLinks.episodeNumber, input.episodeNumber),
+          eq(schema.episodeLinks.linkType, "anchor"),
+        ));
+      } else {
+        await this.db.insert(schema.episodeLinks).values({
+          providerId: input.providerId, titleId: input.titleId, seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
+        }).onConflictDoUpdate({
+          target: [schema.episodeLinks.providerId, schema.episodeLinks.titleId, schema.episodeLinks.seasonNumber, schema.episodeLinks.episodeNumber],
+          set: { externalId: input.externalId, idStep: null, linkType: "exact" },
+        });
+      }
+      return;
+    }
+    // Other providers may infer only after adjacent IDs verify +1.
     const anchorId = /^\d+$/.test(anchor.externalId) ? Number(anchor.externalId) : NaN;
     const observedId = Number(input.externalId);
     if (anchor.episodeNumber === input.episodeNumber) {
