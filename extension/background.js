@@ -649,6 +649,7 @@ async function playerTitle(tabId, m) {
   const episodeId = typeof m.episodeId === "string" && /^\d{1,12}$/.test(m.episodeId) ? m.episodeId : null;
   const now = Date.now();
   const progress = typeof m.progress === "number" && m.progress >= 0 && m.progress <= 1 ? m.progress : null;
+  const sequence = Number.isSafeInteger(m.sequence) && m.sequence >= 0 ? m.sequence : null;
   const { tabs: knownTabs = {} } = await chrome.storage.session.get("tabs");
   const reportedPageUrl = typeof m.pageUrl === "string" ? m.pageUrl : knownTabs[tabId]?.url ?? "";
   const pageUrl = await validatedCurrentProviderUrl(reportedPageUrl, knownTabs[tabId]?.url ?? "");
@@ -656,8 +657,10 @@ async function playerTitle(tabId, m) {
   const nextEpisode = Number.isInteger(m.nextEpisode) && episode !== null && m.nextEpisode === episode + 1
     ? m.nextEpisode
     : null;
+  let effectiveProgressForFlush = null;
   const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    if (sequence !== null && Number.isSafeInteger(was?.sequence) && sequence < was.sequence) return false;
     const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
     const frameMatchesEpisode = entry.frameProgress &&
       entry.frameProgress.watchId === m.watchId &&
@@ -669,6 +672,7 @@ async function playerTitle(tabId, m) {
     // A new episode starts with no inherited clock. Late samples from the
     // previous episode are rejected by their watchId + episodeId pair.
     const effectiveProgress = progress ?? freshFrameProgress ?? (identityChanged ? null : was?.progress ?? null);
+    effectiveProgressForFlush = effectiveProgress;
     const progressChanged = effectiveProgress !== null && (was?.progress === null || was?.progress === undefined || Math.abs(was.progress - effectiveProgress) >= 0.02);
     const flush = m.force === true || identityChanged || progressChanged || (effectiveProgress !== null && effectiveProgress >= 0.995) || m.ended === true || now - (was?.lastFlushAt ?? 0) >= 10_000;
     if (identityChanged) entry.frameProgress = null;
@@ -678,6 +682,7 @@ async function playerTitle(tabId, m) {
       season,
       episode,
       episodeId,
+      ...(sequence !== null ? { sequence } : {}),
       progress: effectiveProgress,
       position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0
         ? m.position
@@ -694,7 +699,7 @@ async function playerTitle(tabId, m) {
     return flush;
   });
   // Capture the episode before a provider auto-advances and overwrites its player state.
-  if (m.ended === true || (shouldFlush && effectiveProgress !== null && effectiveProgress >= 0.995)) {
+  if (m.ended === true || (shouldFlush && effectiveProgressForFlush !== null && effectiveProgressForFlush >= 0.995)) {
     await queueCompletionConfirmation(tabId).catch(() => {});
   }
   if (shouldFlush) await tick();
@@ -763,15 +768,17 @@ async function frameProgress(tabId, m) {
   // Untagged iframe samples cannot be safely assigned to an episode: a late
   // event from the previous VixCloud player must never overwrite the next one.
   if (typeof m.watchId !== "string" || typeof m.episodeId !== "string" ||
-      !/^\\d{1,12}$/.test(m.episodeId)) return;
+      !/^\d{1,12}$/.test(m.episodeId) || !Number.isSafeInteger(m.sequence) || m.sequence < 0) return;
   const now = Date.now();
   const normalized = Math.round(m.progress * 100000) / 100000;
   const flush = await updateTab(tabId, (entry) => {
     const player = entry.player;
-    if (!player || player.watchId !== m.watchId || player.episodeId !== m.episodeId) return false;
+    if (!player || player.watchId !== m.watchId || player.episodeId !== m.episodeId ||
+        (Number.isSafeInteger(player.sequence) && m.sequence < player.sequence)) return false;
     const sample = {
       watchId: m.watchId,
       episodeId: m.episodeId,
+      sequence: m.sequence,
       progress: normalized,
       position: typeof m.position === "number" && Number.isFinite(m.position) && m.position >= 0 ? m.position : null,
       duration: typeof m.duration === "number" && Number.isFinite(m.duration) && m.duration > 0 ? m.duration : null,
@@ -783,6 +790,7 @@ async function frameProgress(tabId, m) {
     if (changed) {
       entry.player = {
         ...player,
+        sequence: m.sequence,
         progress: normalized,
         position: sample.position ?? player.position ?? null,
         duration: sample.duration ?? player.duration ?? null,
