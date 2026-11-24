@@ -747,10 +747,9 @@ export class MemoryRepository implements Repository {
     const prefix = `${input.providerId}:${input.titleId}:${input.seasonNumber}:`;
     const exact = this.episodeLinks.get(prefix + input.episodeNumber);
     if (exact?.linkType === "exact" || exact?.linkType === "anchor") return exact.externalId;
-    if (input.providerId === "streamingcommunity") return null;
     const anchor = [...this.episodeLinks.entries()].find(([key, row]) => key.startsWith(prefix) && row.linkType === "anchor");
-    if (!anchor || anchor[1].idStep !== 1 || !/^\d+$/.test(anchor[1].externalId)) return null;
-    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber);
+    if (!anchor || !Number.isSafeInteger(anchor[1].idStep) || (anchor[1].idStep ?? 0) <= 0 || !/^\d+$/.test(anchor[1].externalId)) return null;
+    const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber) * anchor[1].idStep;
     return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
   }
 
@@ -762,10 +761,11 @@ export class MemoryRepository implements Repository {
       .map(([key, row]) => ({ seasonNumber: Number(key.slice(prefix.length).split(":")[0]), ...row }));
     const exact = rows.find((row) => row.externalId === input.externalId);
     if (exact) return { seasonNumber: exact.seasonNumber, episodeNumber: exact.episodeNumber };
-    if (input.providerId === "streamingcommunity") return null;
     const targetId = Number(input.externalId);
-    for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\d+$/.test(row.externalId))) {
-      const episodeNumber = anchor.episodeNumber + targetId - Number(anchor.externalId);
+    for (const anchor of rows.filter((row) => row.linkType === "anchor" && Number.isSafeInteger(row.idStep) && (row.idStep ?? 0) > 0 && /^\d+$/.test(row.externalId))) {
+      const delta = targetId - Number(anchor.externalId);
+      if (delta % anchor.idStep! !== 0) continue;
+      const episodeNumber = anchor.episodeNumber + delta / anchor.idStep!;
       if (Number.isSafeInteger(episodeNumber) && episodeNumber > 0) {
         return { seasonNumber: anchor.seasonNumber, episodeNumber };
       }
@@ -785,35 +785,22 @@ export class MemoryRepository implements Repository {
       return;
     }
     const [anchorRowKey, row] = anchor;
-    if (input.providerId === "streamingcommunity") {
-      if (row.episodeNumber === input.episodeNumber) {
-        this.episodeLinks.set(anchorRowKey, { ...row, externalId: input.externalId, idStep: null });
-      } else {
-        this.episodeLinks.set(key(input.episodeNumber), {
-          episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
-        });
-      }
-      return;
-    }
-    const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
+    const anchorId = Number(row.externalId);
     const observedId = Number(input.externalId);
     if (row.episodeNumber === input.episodeNumber) {
-      this.episodeLinks.set(anchorRowKey, {
-        ...row,
-        externalId: input.externalId,
-        idStep: row.idStep === 1 && Number.isSafeInteger(anchorId) && observedId === anchorId ? 1 : null,
-      });
+      const preservesStep = Number.isSafeInteger(row.idStep) && (row.idStep ?? 0) > 0 &&
+        Number.isSafeInteger(anchorId) && observedId === anchorId;
+      this.episodeLinks.set(anchorRowKey, { ...row, externalId: input.externalId, idStep: preservesStep ? row.idStep : null });
       return;
     }
-
-    // Keep every explicitly observed episode ID. Only use numeric inference
-    // when adjacent episodes prove a stable +1 progression.
-    if (row.idStep === 1 && Number.isSafeInteger(anchorId) &&
-      observedId !== anchorId + input.episodeNumber - row.episodeNumber) {
-      this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
-    } else if (row.idStep === null && Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
-      Number.isSafeInteger(anchorId) && observedId - anchorId === input.episodeNumber - row.episodeNumber) {
-      this.episodeLinks.set(anchorRowKey, { ...row, idStep: 1 });
+    if (Number.isSafeInteger(row.idStep) && (row.idStep ?? 0) > 0 && Number.isSafeInteger(anchorId)) {
+      if (observedId !== anchorId + row.idStep! * (input.episodeNumber - row.episodeNumber)) {
+        this.episodeLinks.set(anchorRowKey, { ...row, idStep: null });
+      }
+    } else if (Math.abs(input.episodeNumber - row.episodeNumber) === 1 &&
+      Number.isSafeInteger(anchorId) && Number.isSafeInteger(observedId)) {
+      const step = (observedId - anchorId) / (input.episodeNumber - row.episodeNumber);
+      if (Number.isSafeInteger(step) && step > 0) this.episodeLinks.set(anchorRowKey, { ...row, idStep: step });
     }
     this.episodeLinks.set(key(input.episodeNumber), {
       episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
