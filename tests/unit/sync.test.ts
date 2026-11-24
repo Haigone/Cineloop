@@ -77,7 +77,7 @@ describe("extension sync", () => {
     })).resolves.toBe("4281");
     await expect(repo.resolveEpisodeExternalId({
       providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 7,
-    })).resolves.toBeNull();
+    })).resolves.toBe("4283");
     await expect(repo.resolveEpisodeCoordinate({
       providerId: "streamingcommunity", titleId: "dark", externalId: "4280",
     })).resolves.toBeNull();
