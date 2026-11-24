@@ -94,6 +94,52 @@ describe("extension sync", () => {
     await endPresence("u_marco");
   });
 
+  it("resets stale progress and removes the previous episode completion prompt when StreamingCommunity advances", async () => {
+    const pageUrl = "https://streamingcommunityz.dad/it/watch/4978";
+    await repo.updatePreferences("u_marco", { providerConsent: { streamingcommunity: "accepted" } });
+    await repo.saveProviderLink({
+      providerId: "streamingcommunity", externalId: pageUrl, titleId: "dark", userId: "u_marco",
+    });
+
+    await handleObservation("u_marco", {
+      providerId: "streamingcommunity",
+      url: `${pageUrl}?e=4281`,
+      documentTitle: "StreamingCommunity",
+      hints: { season: 3, episode: 6, episodeId: "4281", progress: 0.95 },
+      observedAt: new Date().toISOString(),
+    });
+    let entry = (await repo.listLibrary("u_marco")).find((item) => item.titleId === "dark");
+    expect(entry?.progress).toMatchObject({
+      season: 3, episode: 6, fraction: 0.95,
+      completionPrompt: { status: "pending", season: 3, episode: 6 },
+    });
+
+    // The first report for S3E7 still carries S3E6's 94% clock: discard it.
+    const next = await handleObservation("u_marco", {
+      providerId: "streamingcommunity",
+      url: `${pageUrl}?e=4282`,
+      documentTitle: "StreamingCommunity",
+      hints: { season: 3, episode: 7, episodeId: "4282", progress: 0.94, position: 940, duration: 1000 },
+      observedAt: new Date().toISOString(),
+    });
+    expect(next.watching).toMatchObject({ season: 3, episode: 7 });
+    entry = (await repo.listLibrary("u_marco")).find((item) => item.titleId === "dark");
+    expect(entry?.progress).toMatchObject({ season: 3, episode: 7, fraction: 0 });
+    expect(entry?.progress?.completionPrompt).toBeUndefined();
+
+    // Once a fresh sample from S3E7 arrives, use it normally.
+    await handleObservation("u_marco", {
+      providerId: "streamingcommunity",
+      url: `${pageUrl}?e=4282`,
+      documentTitle: "StreamingCommunity",
+      hints: { season: 3, episode: 7, episodeId: "4282", progress: 0.12, position: 120, duration: 1000 },
+      observedAt: new Date().toISOString(),
+    });
+    entry = (await repo.listLibrary("u_marco")).find((item) => item.titleId === "dark");
+    expect(entry?.progress).toMatchObject({ season: 3, episode: 7, fraction: 0.12 });
+    await endPresence("u_marco");
+  });
+
   it("learns a StreamingCommunity episode ID when season and episode are manually confirmed", async () => {
     const pageUrl = "https://streamingcommunityz.dad/it/watch/4978";
     await repo.updatePreferences("u_marco", { providerConsent: { streamingcommunity: "accepted" } });
