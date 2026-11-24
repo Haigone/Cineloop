@@ -138,6 +138,7 @@
           typeof data.watchId !== "string" ||
           typeof data.episodeId !== "string" || !/^\d{1,12}$/.test(data.episodeId) ||
           !Number.isSafeInteger(data.sequence)) return;
+      const firstIdentity = !parentEpisodeIdentity;
       const changed = parentEpisodeIdentity?.watchId !== data.watchId ||
         parentEpisodeIdentity?.episodeId !== data.episodeId;
       parentEpisodeIdentity = {
@@ -147,7 +148,11 @@
       };
       if (changed) {
         progressReadyEpisodeId = null;
-        awaitingEpisodeMetadata = true;
+        awaitingEpisodeMetadata = !firstIdentity;
+        if (firstIdentity) {
+          const initialVideo = findVideo();
+          if (initialVideo?.readyState >= 1) progressReadyEpisodeId = data.episodeId;
+        }
         lastFrameProgressSentAt = 0;
       }
       read(true);
@@ -600,19 +605,27 @@
       }
       return;
     }
-    if (known.watchId !== id) known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
+    if (known.watchId !== id) {
+      known = { watchId: id, title: "", season: null, episode: null, episodeId: null };
+      lastEpisodeKey = "";
+      progressReadyEpisodeId = null;
+      awaitingEpisodeMetadata = false;
+      boundVideoEpisodeId = null;
+      parentEpisodeIdentity = null;
+    }
     const urlEpisodeId = new URL(location.href).searchParams.get("e");
     const nextEpisodeId = urlEpisodeId && /^\d{1,12}$/.test(urlEpisodeId) ? urlEpisodeId : null;
     // StreamingCommunity often switches episodes inside the same SPA route:
     // the series/watch ID stays put while ?e= changes. Do not keep the
     // previous episode number while the new episode UI is still rendering.
     const urlEpisodeChanged = known.episodeId !== nextEpisodeId;
+    const firstEpisodeOnPage = !lastEpisodeKey;
     if (urlEpisodeChanged) {
       known.episodeId = nextEpisodeId;
       known.season = null;
       known.episode = null;
       progressReadyEpisodeId = null;
-      awaitingEpisodeMetadata = true;
+      awaitingEpisodeMetadata = !firstEpisodeOnPage;
       lastFrameProgressSentAt = 0;
     }
     const inertia = fromInertiaPage();
