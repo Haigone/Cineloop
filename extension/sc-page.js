@@ -137,20 +137,40 @@
   let lastProgressSentAt = 0;
   let lastFrameProgressSentAt = 0;
   let boundVideo = null;
+  let boundVideoEpisodeId = null;
+  let progressReadyEpisodeId = null;
+  let awaitingEpisodeMetadata = false;
   const PROGRESS_SEND_INTERVAL_MS = 5_000;
   const reportedFrameOrigins = new Set();
 
   function bindVideo(video) {
-    if (!video || boundVideo === video) return;
+    if (!video) return;
+    const episodeId = known.episodeId;
+    if (boundVideo === video && boundVideoEpisodeId === episodeId) return;
     boundVideo = video;
-    const sendNow = () => read(true);
+    boundVideoEpisodeId = episodeId;
+    const isCurrentEpisode = () => known.episodeId === episodeId;
+    const sendNow = () => {
+      if (isCurrentEpisode() && progressReadyEpisodeId === episodeId) read(true);
+    };
     video.addEventListener("timeupdate", () => {
-      if (Date.now() - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
+      if (isCurrentEpisode() && progressReadyEpisodeId === episodeId &&
+          Date.now() - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
     });
     video.addEventListener("pause", sendNow);
-    video.addEventListener("ended", () => read(true, 1));
-    video.addEventListener("loadedmetadata", sendNow);
+    video.addEventListener("ended", () => {
+      if (isCurrentEpisode() && progressReadyEpisodeId === episodeId) read(true, 1);
+    });
+    video.addEventListener("loadedmetadata", () => {
+      if (!isCurrentEpisode()) return;
+      progressReadyEpisodeId = episodeId;
+      awaitingEpisodeMetadata = false;
+      sendNow();
+    });
     video.addEventListener("seeked", sendNow);
+    // On first load metadata may already be available. After an episode switch,
+    // wait for the new media's loadedmetadata event before trusting its clock.
+    if (!awaitingEpisodeMetadata && video.readyState >= 1) progressReadyEpisodeId = episodeId;
   }
 
   const clean = (s) => (s ?? "").replace(/\s+/g, " ").trim();
@@ -548,6 +568,9 @@
       known.episodeId = nextEpisodeId;
       known.season = null;
       known.episode = null;
+      progressReadyEpisodeId = null;
+      awaitingEpisodeMetadata = true;
+      lastFrameProgressSentAt = 0;
     }
     const inertia = fromInertiaPage();
     if (inertia) {
@@ -579,7 +602,10 @@
     const video = findVideo();
     bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-    const rawProgress = forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : duration ? Math.min(0.99, Math.max(0, video.currentTime / duration)) : null;
+    const progressBelongsToEpisode = progressReadyEpisodeId === known.episodeId && !awaitingEpisodeMetadata;
+    const rawProgress = !progressBelongsToEpisode ? null : forcedProgress !== null
+      ? Math.min(0.99, Math.max(0, forcedProgress))
+      : duration ? Math.min(0.99, Math.max(0, video.currentTime / duration)) : null;
     const progress = rawProgress === null ? null : Math.round(rawProgress * 100000) / 100000;
     const next = nextEpisodeInfo(known.episode, known.episodeId);
     const position = video && Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : null;
@@ -591,13 +617,15 @@
       lastFrameProgressSentAt = progressNow;
       try {
         chrome.runtime.sendMessage({
-          type: "player-progress", progress, position, duration, force,
+          type: "player-progress", watchId: id, episodeId: known.episodeId, progress, position, duration, force,
         }).catch(() => {});
       } catch {}
     }
     const message = {
-      type: "player-title", ...known, pageUrl: location.href, progress, ended: forcedProgress === 1,
-      position, duration, force,
+      type: "player-title", ...known, pageUrl: location.href, progress, ended: forcedProgress === 1 && progressBelongsToEpisode,
+      position: progressBelongsToEpisode ? position : null,
+      duration: progressBelongsToEpisode ? duration : null,
+      force,
       ...(next ? { nextEpisodeUrl: next.url, nextEpisode: next.episode } : {}),
     };
     const key = JSON.stringify(known);
