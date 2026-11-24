@@ -658,9 +658,13 @@ async function playerTitle(tabId, m) {
     ? m.nextEpisode
     : null;
   let effectiveProgressForFlush = null;
+  let accepted = true;
   const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
-    if (sequence !== null && Number.isSafeInteger(was?.sequence) && sequence < was.sequence) return false;
+    if (sequence !== null && Number.isSafeInteger(was?.sequence) && sequence < was.sequence) {
+      accepted = false;
+      return false;
+    }
     const identityChanged = was?.watchId !== m.watchId || was?.title !== m.title || was?.episode !== episode || was?.episodeId !== episodeId || was?.season !== season;
     const frameMatchesEpisode = entry.frameProgress &&
       entry.frameProgress.watchId === m.watchId &&
@@ -699,7 +703,7 @@ async function playerTitle(tabId, m) {
     return flush;
   });
   // Capture the episode before a provider auto-advances and overwrites its player state.
-  if (m.ended === true || (shouldFlush && effectiveProgressForFlush !== null && effectiveProgressForFlush >= 0.995)) {
+  if (accepted && (m.ended === true || (shouldFlush && effectiveProgressForFlush !== null && effectiveProgressForFlush >= 0.995))) {
     await queueCompletionConfirmation(tabId).catch(() => {});
   }
   if (shouldFlush) await tick();
