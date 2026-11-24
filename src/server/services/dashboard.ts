@@ -12,7 +12,7 @@ import { pickForTonight, type TonightPick } from "@/domain/recommend";
 import { computeWeeklyStats, weekStart, type WeeklyStats } from "@/domain/stats";
 import { compatibleTitles, toPartyMember } from "@/domain/watch-party";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getHomeCatalogTitles, getRepository } from "@/server/data";
+import { getCatalogTitles, getRepository } from "@/server/data";
 import { listSharedActivity, loadFriendBundles, toContinueItem, toPublicUser, type ContinueItem } from "./shared";
 import { listLiveFriends, type LiveFriend } from "./sync";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
@@ -87,22 +87,6 @@ export interface HomeView {
 
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
-/** Prefer the secondary public catalog, falling back to Neon on errors. */
-async function loadHomeTitles(fallbackRepo: ReturnType<typeof getRepository>) {
-  try {
-    const titles = await getHomeCatalogTitles();
-    if (titles) return titles;
-  } catch (error) {
-    console.error("Supabase Home catalog failed; falling back to Neon", error);
-  }
-  try {
-    return await fallbackRepo.listTitles();
-  } catch (fallbackError) {
-    console.error("Primary catalog fallback failed", fallbackError);
-    return [];
-  }
-}
-
 /**
  * Home for one section. With no section asked for, the one opened last; an
  * explicit one is remembered for next time.
@@ -126,12 +110,12 @@ export async function getHomeView(asked: MediaType | null = null): Promise<HomeV
     repo.listWatchEvents(viewer.id, weekStart(now)),
     loadFriendBundles(repo, viewer.id),
     repo.getPresence(viewer.id),
-    loadHomeTitles(repo),
+    getCatalogTitles(repo).catch((error) => { console.error("Home catalog unavailable", error); return []; }),
   ]);
   // Home's fast public catalog is mirrored in Supabase, while reviewed episode
   // schedules are stored in the primary repository. Merge those schedules for
   // titles in this user's library so Home and the title page use the same dates.
-  const savedTitles = await repo.getTitlesByIds(library.map((entry) => entry.titleId));
+  const savedTitles = await repo.getTitleSeasonDataByIds(library.map((entry) => entry.titleId));
   const savedById = new Map(savedTitles.map((title) => [title.id, title]));
   const allTitles = catalogTitles.map((title) => {
     const saved = savedById.get(title.id);
