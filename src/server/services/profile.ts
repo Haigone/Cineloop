@@ -5,7 +5,7 @@ import { buildPodiums, type CategoryPodium, type PodiumCategory } from "@/domain
 import { dailyMinutes, weekStart } from "@/domain/stats";
 import type { Genre, User } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getRepository } from "@/server/data";
+import { getCatalogTitles, getRepository } from "@/server/data";
 import { loadFriendBundles } from "./shared";
 
 export interface PersonalRankings {
@@ -19,7 +19,7 @@ export interface PersonalRankings {
 async function loadOwn() {
   const viewer = await getCurrentUser();
   const repo = getRepository();
-  const [library, wishlist, allTitles] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id), repo.listTitles()]);
+  const [library, wishlist, allTitles] = await Promise.all([repo.listLibrary(viewer.id), repo.listWishlist(viewer.id), getCatalogTitles(repo)]);
   return { viewer, repo, library, wishlist, titles: new Map(allTitles.map((t) => [t.id, t])) };
 }
 
