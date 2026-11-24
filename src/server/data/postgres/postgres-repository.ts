@@ -916,8 +916,9 @@ export class PostgresRepository implements Repository {
       eq(schema.episodeLinks.seasonNumber, input.seasonNumber),
       eq(schema.episodeLinks.linkType, "anchor"),
     )).limit(1);
-    if (!anchor || !Number.isSafeInteger(anchor.idStep) || (anchor.idStep ?? 0) <= 0 || !/^\d+$/.test(anchor.externalId)) return null;
-    const id = Number(anchor.externalId) + (input.episodeNumber - anchor.episodeNumber) * anchor.idStep;
+    const step = anchor?.idStep;
+    if (!anchor || !Number.isSafeInteger(step) || (step ?? 0) <= 0 || !/^\d+$/.test(anchor.externalId)) return null;
+    const id = Number(anchor.externalId) + (input.episodeNumber - anchor.episodeNumber) * step!;
     return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
   }
 
