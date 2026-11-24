@@ -3,7 +3,7 @@ import { isOpenSaga, sagaNotices, sagaStatus, type SagaStatus } from "@/domain/c
 import type { CollectionChoice, CollectionPart, FilmCollection, LibraryEntry, Movie, Title } from "@/domain/types";
 import { getCatalog } from "@/integrations/catalog";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getRepository, type Repository } from "@/server/data";
+import { getCatalogTitles, getRepository, type Repository } from "@/server/data";
 import { italianDay } from "@/lib/dates";
 import { cacheTitles } from "./explore";
 import { searchKey } from "@/lib/text";
@@ -257,7 +257,7 @@ async function loadCineLoopCollection(id: string) {
 export async function getSagaCatalogView(): Promise<{ saga: SagaStatus; followed: boolean }[]> {
   const viewer = await getCurrentUser();
   const repo = getRepository();
-  const cached = await repo.listTitles();
+  const cached = await getCatalogTitles(repo);
   const candidates = cached.filter((title): title is Movie => title.type === "movie" && !title.partOf);
   const unchecked = candidates.filter((title) => title.collection === undefined && /^tmdb-movie-/.test(title.id)).slice(0, CHECK_LIMIT);
   const refreshed = (await Promise.all(unchecked.map((title) => getCatalog().getTitle(title.id).catch(() => null))))
