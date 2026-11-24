@@ -361,9 +361,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     rememberScFrameOrigin(sender.tab.id, sender.url ?? sender.tab.url, message.origin).then(reply, () => reply(false));
     return true;
   }
-  if (message?.type === "sc-debug" && sender.tab?.id && isStreamingUrl(sender.tab.url ?? "") &&
+  if (message?.type === "sc-debug" && sender.tab?.id &&
       message.snapshot && typeof message.snapshot === "object") {
     (async () => {
+      if (!(await isStreamingUrl(sender.tab.url ?? ""))) return;
       const snapshot = message.snapshot;
       const safe = {
         at: typeof snapshot.at === "string" ? snapshot.at.slice(0, 40) : new Date().toISOString(),
