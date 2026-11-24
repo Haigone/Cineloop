@@ -659,8 +659,10 @@ async function playerTitle(tabId, m) {
     : null;
   let effectiveProgressForFlush = null;
   let accepted = true;
+  let previousPlayer = null;
   const shouldFlush = await updateTab(tabId, (entry) => {
     const was = entry.player;
+    previousPlayer = was ?? null;
     if (sequence !== null && Number.isSafeInteger(was?.sequence) && sequence < was.sequence) {
       accepted = false;
       return false;
@@ -702,6 +704,23 @@ async function playerTitle(tabId, m) {
     };
     return flush;
   });
+  // If SC has already switched to another episode of the same title page, a
+  // queued end-of-episode question for the previous ?e= is obsolete.
+  if (accepted && previousPlayer?.watchId === m.watchId &&
+      previousPlayer?.episodeId && episodeId && previousPlayer.episodeId !== episodeId &&
+      await isStreamingUrl(pageUrl)) {
+    const { pendingCompletion } = await chrome.storage.local.get("pendingCompletion");
+    let sameTitlePage = false;
+    try {
+      sameTitlePage = new URL(pendingCompletion?.url ?? "").pathname === new URL(pageUrl).pathname;
+    } catch {}
+    if (pendingCompletion?.providerId === "streamingcommunity" &&
+        pendingCompletion.player?.watchId === m.watchId &&
+        pendingCompletion.player?.episodeId === previousPlayer.episodeId &&
+        sameTitlePage) {
+      await chrome.storage.local.set({ pendingCompletion: null });
+    }
+  }
   // Capture the episode before a provider auto-advances and overwrites its player state.
   if (accepted && (m.ended === true || (shouldFlush && effectiveProgressForFlush !== null && effectiveProgressForFlush >= 0.995))) {
     await queueCompletionConfirmation(tabId).catch(() => {});
