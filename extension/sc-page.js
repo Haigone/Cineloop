@@ -127,6 +127,33 @@
     if (!title && season === null && episode === null) return null;
     return { title, season, episode, episodeId: ep?.id != null ? String(ep.id) : null };
   }
+  // A cross-origin player frame receives the parent page's current episode
+  // identity through postMessage. This lets its progress samples be tagged,
+  // instead of attributing an old iframe clock to whichever episode is current.
+  if (window !== window.top) {
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      const data = event.data;
+      if (data?.type !== "cineloop-sc-episode" ||
+          typeof data.watchId !== "string" ||
+          typeof data.episodeId !== "string" || !/^\d{1,12}$/.test(data.episodeId) ||
+          !Number.isSafeInteger(data.sequence)) return;
+      const changed = parentEpisodeIdentity?.watchId !== data.watchId ||
+        parentEpisodeIdentity?.episodeId !== data.episodeId;
+      parentEpisodeIdentity = {
+        watchId: data.watchId,
+        episodeId: data.episodeId,
+        sequence: data.sequence,
+      };
+      if (changed) {
+        progressReadyEpisodeId = null;
+        awaitingEpisodeMetadata = true;
+        lastFrameProgressSentAt = 0;
+      }
+      read(true);
+    });
+  }
+
   document.addEventListener("inertia:navigate", (event) => { if (event.detail?.page) currentPageData = event.detail.page; read(true); });
   document.addEventListener("inertia:success", (event) => { if (event.detail?.page) currentPageData = event.detail.page; read(true); });
 
@@ -141,16 +168,17 @@
   let boundVideoEpisodeId = null;
   let progressReadyEpisodeId = null;
   let awaitingEpisodeMetadata = false;
+  let parentEpisodeIdentity = null;
   const PROGRESS_SEND_INTERVAL_MS = 5_000;
   const reportedFrameOrigins = new Set();
 
   function bindVideo(video) {
     if (!video) return;
-    const episodeId = known.episodeId;
+    const episodeId = known.episodeId ?? parentEpisodeIdentity?.episodeId ?? null;
     if (boundVideo === video && boundVideoEpisodeId === episodeId) return;
     boundVideo = video;
     boundVideoEpisodeId = episodeId;
-    const isCurrentEpisode = () => known.episodeId === episodeId;
+    const isCurrentEpisode = () => (known.episodeId ?? parentEpisodeIdentity?.episodeId ?? null) === episodeId;
     const sendNow = () => {
       if (isCurrentEpisode() && progressReadyEpisodeId === episodeId) read(true);
     };
@@ -545,15 +573,29 @@
     // Report only its fraction; background associates it with the identified title.
     if (!id) {
       const frameVideo = findVideo();
+      const identity = parentEpisodeIdentity;
+      if (!identity) return;
       // Capture playback events from accessible player iframes, not only polling.
       bindVideo(frameVideo);
       const frameDuration = frameVideo && Number.isFinite(frameVideo.duration) && frameVideo.duration > 0 ? frameVideo.duration : null;
-      if (frameDuration) {
+      const belongsToEpisode = progressReadyEpisodeId === identity.episodeId && !awaitingEpisodeMetadata;
+      if (frameDuration && belongsToEpisode) {
         const frameProgress = Math.round(Math.min(0.99, Math.max(0, frameVideo.currentTime / frameDuration)) * 100000) / 100000;
         const now = Date.now();
         if (force || now - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) {
           lastFrameProgressSentAt = now;
-          try { chrome.runtime.sendMessage({ type: "player-progress", progress: forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : frameProgress, position: frameVideo.currentTime, duration: frameDuration, force }).catch(() => {}); } catch {}
+          try {
+            chrome.runtime.sendMessage({
+              type: "player-progress",
+              watchId: identity.watchId,
+              episodeId: identity.episodeId,
+              sequence: identity.sequence,
+              progress: forcedProgress !== null ? Math.min(0.99, Math.max(0, forcedProgress)) : frameProgress,
+              position: frameVideo.currentTime,
+              duration: frameDuration,
+              force,
+            }).catch(() => {});
+          } catch {}
         }
       }
       return;
@@ -600,6 +642,13 @@
       const guessed = parseEpisodeFromDom();
       if (guessed.episode !== null) { known.episode = guessed.episode; if (guessed.season !== null) known.season = guessed.season; }
     }
+    const sequence = ++messageSequence;
+    if (window === window.top) {
+      const identityMessage = { type: "cineloop-sc-episode", watchId: id, episodeId: known.episodeId, sequence };
+      for (const frame of document.querySelectorAll("iframe")) {
+        try { frame.contentWindow?.postMessage(identityMessage, "*"); } catch {}
+      }
+    }
     const video = findVideo();
     bindVideo(video);
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
@@ -614,7 +663,6 @@
     // stata comunicata: il background la usa per aggiornare posizione e durata
     // senza dipendere dal ciclo di sincronizzazione del titolo.
     const progressNow = Date.now();
-    const sequence = ++messageSequence;
     if (progress !== null && (force || progressNow - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS)) {
       lastFrameProgressSentAt = progressNow;
       try {
