@@ -60,7 +60,7 @@ describe("extension sync", () => {
     })).resolves.toEqual({ seasonNumber: 6, episodeNumber: 99 });
   });
 
-  it("uses exact nonsequential StreamingCommunity episode IDs", async () => {
+  it("learns the StreamingCommunity episode ID progression", async () => {
     const pageUrl = "https://streamingcommunityz.dad/it/watch/4978";
     await repo.updatePreferences("u_marco", { providerConsent: { streamingcommunity: "accepted" } });
     await repo.saveProviderLink({
