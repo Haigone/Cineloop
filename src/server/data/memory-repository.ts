@@ -744,10 +744,10 @@ export class MemoryRepository implements Repository {
 
   async resolveEpisodeExternalId(input: { providerId: ProviderId; titleId: string; seasonNumber: number; episodeNumber: number }) {
     if (!Number.isSafeInteger(input.seasonNumber) || input.seasonNumber < 1 || !Number.isSafeInteger(input.episodeNumber) || input.episodeNumber < 1) return null;
-    const prefix = `${input.providerId}:${input.titleId}:${input.seasonNumber}:`;
+    const prefix = \`${input.providerId}:${input.titleId}:${input.seasonNumber}:\`;
     const exact = this.episodeLinks.get(prefix + input.episodeNumber);
-    if (exact?.linkType === "exact") return exact.externalId;
-    if (exact?.linkType === "anchor") return exact.externalId;
+    if (exact?.linkType === "exact" || exact?.linkType === "anchor") return exact.externalId;
+    if (input.providerId === "streamingcommunity") return null;
     const anchor = [...this.episodeLinks.entries()].find(([key, row]) => key.startsWith(prefix) && row.linkType === "anchor");
     if (!anchor || anchor[1].idStep !== 1 || !/^\d+$/.test(anchor[1].externalId)) return null;
     const id = Number(anchor[1].externalId) + (input.episodeNumber - anchor[1].episodeNumber);
@@ -756,12 +756,13 @@ export class MemoryRepository implements Repository {
 
   async resolveEpisodeCoordinate(input: { providerId: ProviderId; titleId: string; externalId: string }) {
     if (!/^\d{1,12}$/.test(input.externalId)) return null;
-    const prefix = `${input.providerId}:${input.titleId}:`;
+    const prefix = \`${input.providerId}:${input.titleId}:\`;
     const rows = [...this.episodeLinks.entries()]
       .filter(([key]) => key.startsWith(prefix))
       .map(([key, row]) => ({ seasonNumber: Number(key.slice(prefix.length).split(":")[0]), ...row }));
     const exact = rows.find((row) => row.externalId === input.externalId);
     if (exact) return { seasonNumber: exact.seasonNumber, episodeNumber: exact.episodeNumber };
+    if (input.providerId === "streamingcommunity") return null;
     const targetId = Number(input.externalId);
     for (const anchor of rows.filter((row) => row.linkType === "anchor" && row.idStep === 1 && /^\d+$/.test(row.externalId))) {
       const episodeNumber = anchor.episodeNumber + targetId - Number(anchor.externalId);
@@ -784,6 +785,16 @@ export class MemoryRepository implements Repository {
       return;
     }
     const [anchorRowKey, row] = anchor;
+    if (input.providerId === "streamingcommunity") {
+      if (row.episodeNumber === input.episodeNumber) {
+        this.episodeLinks.set(anchorRowKey, { ...row, externalId: input.externalId, idStep: null });
+      } else {
+        this.episodeLinks.set(key(input.episodeNumber), {
+          episodeNumber: input.episodeNumber, externalId: input.externalId, idStep: null, linkType: "exact",
+        });
+      }
+      return;
+    }
     const anchorId = /^\d+$/.test(row.externalId) ? Number(row.externalId) : NaN;
     const observedId = Number(input.externalId);
     if (row.episodeNumber === input.episodeNumber) {
