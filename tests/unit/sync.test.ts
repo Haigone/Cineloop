@@ -67,17 +67,26 @@ describe("extension sync", () => {
       providerId: "streamingcommunity", externalId: pageUrl, titleId: "dark", userId: "u_marco",
     });
     await repo.saveObservedEpisodeLink({
-      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 15, externalId: "9400015",
+      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 5, externalId: "4279",
     });
     await repo.saveObservedEpisodeLink({
-      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 16, externalId: "9400016",
+      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 6, externalId: "4281",
     });
+    await expect(repo.resolveEpisodeExternalId({
+      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 6,
+    })).resolves.toBe("4281");
+    await expect(repo.resolveEpisodeExternalId({
+      providerId: "streamingcommunity", titleId: "dark", seasonNumber: 6, episodeNumber: 7,
+    })).resolves.toBeNull();
+    await expect(repo.resolveEpisodeCoordinate({
+      providerId: "streamingcommunity", titleId: "dark", externalId: "4280",
+    })).resolves.toBeNull();
 
     const status = await handleObservation("u_marco", {
       providerId: "streamingcommunity",
-      url: `${pageUrl}?e=9400017`,
+      url: `${pageUrl}?e=4281`,
       documentTitle: "StreamingCommunity",
-      hints: { episodeId: "9400017" },
+      hints: { episodeId: "4281" },
       observedAt: new Date().toISOString(),
     });
 
