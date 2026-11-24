@@ -3,7 +3,7 @@ import { sourceKey, toPartyMember, type PartyMember, type PartySource } from "@/
 import type { Title, WatchParty } from "@/domain/types";
 import { firstName } from "@/lib/format";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getRepository, type Repository } from "@/server/data";
+import { getCatalogTitles, getRepository, type Repository } from "@/server/data";
 import { activateNights } from "./nights";
 import { listSharedWatchViews, type SharedWatchView } from "./shared-watch";
 import { loadFriendBundles, toPublicUser } from "./shared";
@@ -59,7 +59,7 @@ export async function getWatchPartyView(): Promise<WatchPartyView> {
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
-    repo.listTitles(),
+    getCatalogTitles(repo),
     repo.listWatchParties(viewer.id, 100),
     repo.listPlaylists(viewer.id),
     repo.listCommunityPlaylists(30),
