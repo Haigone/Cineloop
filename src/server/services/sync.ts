@@ -744,7 +744,7 @@ async function syncProgress(
     const providerEpisodeChanged = previousEpisodeId !== null && currentEpisodeId !== null &&
       previousEpisodeId !== currentEpisodeId;
     if (providerEpisodeChanged) {
-      const { completionPrompt: _previousPrompt, positionSeconds: _previousPosition, durationSeconds: _previousDuration, ...withoutOldEpisodeData } = prev;
+      const withoutOldEpisodeData = { ...prev, completionPrompt: undefined, positionSeconds: undefined, durationSeconds: undefined };
       await repo.saveProgress(presence.userId, {
         ...withoutOldEpisodeData,
         providerId: presence.providerId,
