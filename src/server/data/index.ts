@@ -92,6 +92,17 @@ export async function getHomeCatalogTitles(): Promise<Title[] | null> {
   globalForHomeCatalog.__cineloopHomeCatalogCache = { at: Date.now(), rows: titles };
   return [...titles];
 }
+/** Prefer the public Supabase catalog for read-only catalogue pages. Neon remains the source of personal data and the fallback when Supabase is unavailable. */
+export async function getCatalogTitles(fallbackRepo: Repository = getRepository()): Promise<Title[]> {
+  try {
+    const titles = await getHomeCatalogTitles();
+    if (titles) return titles;
+  } catch (error) {
+    console.error("Public catalog failed; falling back to Neon", error);
+  }
+  return fallbackRepo.listTitles();
+}
+
 function createRepository(): Repository {
   const url = process.env.DATABASE_URL;
   return url ? new PostgresRepository(createDb(url)) : new MemoryRepository();
