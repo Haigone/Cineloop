@@ -734,10 +734,27 @@ async function syncProgress(
     ensureTitle(titleId),
   ]);
   const prev = entry?.progress ?? null;
-  // A series episode the player has not named yet: keep the last known season
-  // and episode (the next heartbeats bring the new ones), only the link moves.
+  // A series episode the player has not named yet: keep the last known
+  // coordinate only while the provider episode ID is unchanged. If the URL
+  // already points to a different episode, clear stale progress and its prompt
+  // immediately; the next observation can fill in the new S/E coordinate.
   if (title && title.type !== "movie" && presence.episode === null && prev) {
-    if (entry?.status !== "watching" || prev.url !== presence.url) {
+    const previousEpisodeId = providerEpisodeId(presence.providerId, prev.url);
+    const currentEpisodeId = providerEpisodeId(presence.providerId, presence.url, episodeId);
+    const providerEpisodeChanged = previousEpisodeId !== null && currentEpisodeId !== null &&
+      previousEpisodeId !== currentEpisodeId;
+    if (providerEpisodeChanged) {
+      const { completionPrompt: _previousPrompt, positionSeconds: _previousPosition, durationSeconds: _previousDuration, ...withoutOldEpisodeData } = prev;
+      await repo.saveProgress(presence.userId, {
+        ...withoutOldEpisodeData,
+        providerId: presence.providerId,
+        season: presence.season,
+        episode: null,
+        fraction: 0,
+        url: presence.url,
+        updatedAt: new Date().toISOString(),
+      });
+    } else if (entry?.status !== "watching" || prev.url !== presence.url) {
       await repo.saveProgress(presence.userId, { ...prev, providerId: presence.providerId, url: presence.url, updatedAt: new Date().toISOString() });
     }
     return;
@@ -774,8 +791,7 @@ async function syncProgress(
     ? providerEpisodeId(presence.providerId, prev.url)
     : null;
   const currentProviderEpisodeId = providerEpisodeId(presence.providerId, presence.url, episodeId);
-  const providerEpisodeChanged = presence.providerId === "streamingcommunity" &&
-    previousProviderEpisodeId !== null && currentProviderEpisodeId !== null &&
+  const providerEpisodeChanged = previousProviderEpisodeId !== null && currentProviderEpisodeId !== null &&
     previousProviderEpisodeId !== currentProviderEpisodeId;
   const sameEpisode = Boolean(prev && prev.season === presence.season && prev.episode === presence.episode);
   const sameProgressIdentity = sameEpisode && !providerEpisodeChanged;
