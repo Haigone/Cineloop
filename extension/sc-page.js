@@ -134,6 +134,7 @@
   let known = { watchId: null, title: "", season: null, episode: null, episodeId: null };
   let lastSent = "";
   let lastEpisodeKey = "";
+  let messageSequence = 0;
   let lastProgressSentAt = 0;
   let lastFrameProgressSentAt = 0;
   let boundVideo = null;
@@ -613,16 +614,17 @@
     // stata comunicata: il background la usa per aggiornare posizione e durata
     // senza dipendere dal ciclo di sincronizzazione del titolo.
     const progressNow = Date.now();
+    const sequence = ++messageSequence;
     if (progress !== null && (force || progressNow - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS)) {
       lastFrameProgressSentAt = progressNow;
       try {
         chrome.runtime.sendMessage({
-          type: "player-progress", watchId: id, episodeId: known.episodeId, progress, position, duration, force,
+          type: "player-progress", watchId: id, episodeId: known.episodeId, sequence, progress, position, duration, force,
         }).catch(() => {});
       } catch {}
     }
     const message = {
-      type: "player-title", ...known, pageUrl: location.href, progress, ended: forcedProgress === 1 && progressBelongsToEpisode,
+      type: "player-title", ...known, sequence, pageUrl: location.href, progress, ended: forcedProgress === 1 && progressBelongsToEpisode,
       position: progressBelongsToEpisode ? position : null,
       duration: progressBelongsToEpisode ? duration : null,
       force,
