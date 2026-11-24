@@ -3,7 +3,7 @@ import { buildPodiums, type CategoryPodium, type PodiumCategory } from "@/domain
 import { compare, genreProfile, topGenres, type Comparison } from "@/domain/compare";
 import type { ActivityEvent, FriendRequest, Genre, LibraryEntry, PublicUser, Title, WishlistItem } from "@/domain/types";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getRepository } from "@/server/data";
+import { getCatalogTitles, getRepository } from "@/server/data";
 import type { FriendActivityItem } from "./dashboard";
 import { listSharedActivity, loadFriendBundles, toPublicUser } from "./shared";
 
@@ -40,7 +40,7 @@ export async function getFriendsView(): Promise<FriendsView> {
     repo.listLibrary(viewer.id),
     repo.listWishlist(viewer.id),
     loadFriendBundles(repo, viewer.id),
-    repo.listTitles(),
+    getCatalogTitles(repo),
     repo.listFriendRequests(viewer.id),
   ]);
   const titles = new Map(allTitles.map((t) => [t.id, t]));
@@ -94,7 +94,7 @@ export async function getFriendProfile(username: string): Promise<FriendProfileV
     repo.listLibrary(friendUser.id),
     repo.listWishlist(friendUser.id),
     repo.listFriends(viewer.id),
-    repo.listTitles(),
+    getCatalogTitles(repo),
     listSharedActivity(repo, [friendUser.id], 8),
     repo.getPreferences(friendUser.id),
   ]);
