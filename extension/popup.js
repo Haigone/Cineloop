@@ -237,7 +237,11 @@ async function renderProviderPermissions() {
   const vixcloud = broadAccess || await chrome.permissions.contains({ origins: SC_VIXCLOUD_ORIGINS });
   const resolved = await getResolved();
   const { scFrameOrigins = [] } = await chrome.storage.session.get("scFrameOrigins");
-  const frameOrigins = scFrameOrigins.filter((origin) => typeof origin === "string" && /^https:\/\//.test(origin));
+  const frameOrigins = [];
+  for (const origin of scFrameOrigins) {
+    if (typeof origin !== "string" || !/^https:\/\//.test(origin)) continue;
+    if (!await chrome.permissions.contains({ origins: [origin + "/*"] })) frameOrigins.push(origin);
+  }
   const [activePermissionTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
   const activePermissionUrl = activePermissionTab?.url ?? "";
   const activeAnimeOrigin = isAnimeUrl(activePermissionUrl) ? new URL(activePermissionUrl).origin : null;
