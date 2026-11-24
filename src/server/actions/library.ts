@@ -416,7 +416,7 @@ export async function respondToCompletionPrompt(id: string, finished: boolean): 
       : null;
     // Continue the observed numeric sequence as a provisional URL hint. The
     // next real observation from the extension will replace it with the actual ID.
-    const predictedNextId = mappedNextId ?? (
+    const predictedNextId = mappedNextId ?? (prompt.providerId !== "streamingcommunity" &&
       currentEpisodeId && /^\d{1,12}$/.test(currentEpisodeId) && Number(currentEpisodeId) < 999999999999
         ? String(Number(currentEpisodeId) + 1)
         : null
