@@ -149,9 +149,16 @@
       if (changed) {
         progressReadyEpisodeId = null;
         awaitingEpisodeMetadata = !firstIdentity;
-        if (firstIdentity) {
-          const initialVideo = findVideo();
-          if (initialVideo?.readyState >= 1) progressReadyEpisodeId = data.episodeId;
+        const initialVideo = findVideo();
+        // SC can reuse the same <video> element across episodes. In that case
+        // loadedmetadata/sourcechange may not fire; a ready media clock already
+        // reset near zero is a reliable signal that the new episode has begun.
+        const mediaAlreadyAtStart = initialVideo?.readyState >= 1 &&
+          Number.isFinite(initialVideo.duration) && initialVideo.duration > 0 &&
+          Number.isFinite(initialVideo.currentTime) && initialVideo.currentTime <= 5;
+        if (firstIdentity || mediaAlreadyAtStart) {
+          progressReadyEpisodeId = data.episodeId;
+          awaitingEpisodeMetadata = false;
         }
         lastFrameProgressSentAt = 0;
       }
@@ -196,7 +203,16 @@
       if (isCurrentEpisode() && progressReadyEpisodeId === episodeId) read(true);
     };
     video.addEventListener("timeupdate", () => {
-      if (isCurrentEpisode() && progressReadyEpisodeId === episodeId &&
+      if (!isCurrentEpisode()) return;
+      // Some SC players keep the same media element and do not emit
+      // loadedmetadata when autoplay advances. Wait until its clock resets.
+      if (awaitingEpisodeMetadata && video.readyState >= 1 &&
+          Number.isFinite(video.duration) && video.duration > 0 &&
+          Number.isFinite(video.currentTime) && video.currentTime <= 5) {
+        progressReadyEpisodeId = episodeId;
+        awaitingEpisodeMetadata = false;
+      }
+      if (progressReadyEpisodeId === episodeId &&
           Date.now() - lastFrameProgressSentAt >= PROGRESS_SEND_INTERVAL_MS) sendNow();
     });
     video.addEventListener("pause", sendNow);
@@ -214,9 +230,11 @@
     // wait for the new media's loadedmetadata event before trusting its clock.
     if (!awaitingEpisodeMetadata && video.readyState >= 1) {
       progressReadyEpisodeId = episodeId;
-    } else if (awaitingEpisodeMetadata && sourceChanged && video.readyState >= 1) {
-      // Some players finish loading metadata before the parent SPA exposes the
-      // new ?e=. A changed media source is enough to trust this new episode clock.
+    } else if (awaitingEpisodeMetadata && video.readyState >= 1 &&
+        (sourceChanged || (Number.isFinite(video.duration) && video.duration > 0 &&
+          Number.isFinite(video.currentTime) && video.currentTime <= 5))) {
+      // A changed source or a reset playback clock identifies the new episode,
+      // including players that reuse the same <video> without loadedmetadata.
       progressReadyEpisodeId = episodeId;
       awaitingEpisodeMetadata = false;
     }
