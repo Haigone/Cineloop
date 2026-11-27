@@ -416,7 +416,13 @@ export async function respondToCompletionPrompt(id: string, finished: boolean): 
       : null;
     // Continue the observed numeric sequence as a provisional URL hint. The
     // next real observation from the extension will replace it with the actual ID.
-    const predictedNextId = mappedNextId ?? (prompt.providerId !== "streamingcommunity" &&
+    // StreamingCommunity episode IDs are sequential within a season when the
+    // current watch URL exposes the ID. Use that sequence as a provisional
+    // redirect hint, but never carry it across a season boundary. A verified
+    // database mapping always takes precedence.
+    const canContinueObservedSequence = prompt.providerId !== "streamingcommunity" ||
+      nextSeason === prompt.season;
+    const predictedNextId = mappedNextId ?? (canContinueObservedSequence &&
       currentEpisodeId && /^\d{1,12}$/.test(currentEpisodeId) && Number(currentEpisodeId) < 999999999999
         ? String(Number(currentEpisodeId) + 1)
         : null
